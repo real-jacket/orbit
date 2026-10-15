@@ -1,0 +1,2540 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mole Studio Pro</title>
+<style>
+  :root {
+    --bg-window: #111110;
+    --bg-sidebar: #171715;
+    --bg-surface: #1b1a18;
+    --bg-card: #21201d;
+    --bg-card-hover: #282723;
+    --bg-card-selected: rgba(217, 119, 87, 0.13);
+    --bg-elevated: #252420;
+    --bg-input: #141412;
+    --border-subtle: rgba(255, 250, 240, 0.075);
+    --border-strong: rgba(255, 250, 240, 0.15);
+    --border-selected: rgba(217, 119, 87, 0.52);
+    --text-primary: #f4f2ed;
+    --text-secondary: #a39f96;
+    --text-muted: #6e6a61;
+    --accent-primary: #d97757;
+    --accent-primary-hover: #c56344;
+    --accent-soft: rgba(217, 119, 87, 0.15);
+    --accent-emerald: #2e9e6b;
+    --accent-emerald-soft: rgba(46, 158, 107, 0.14);
+    --accent-amber: #d99b26;
+    --accent-amber-soft: rgba(217, 155, 38, 0.14);
+    --accent-rose: #e05263;
+    --accent-rose-soft: rgba(224, 82, 99, 0.14);
+    --accent-blue: #4b83f0;
+    --accent-purple: #9b6ef3;
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.28);
+    --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.72);
+    --radius-lg: 11px;
+    --radius-md: 8px;
+    --radius-sm: 6px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+    --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  html[data-theme="light"] {
+    --bg-window: #faf8f5;
+    --bg-sidebar: #f2efe9;
+    --bg-surface: #f5f2ec;
+    --bg-card: #ffffff;
+    --bg-card-hover: #fcfaf7;
+    --bg-card-selected: rgba(198, 97, 63, 0.09);
+    --bg-elevated: #ffffff;
+    --bg-input: #ebe7df;
+    --border-subtle: rgba(28, 25, 23, 0.08);
+    --border-strong: rgba(28, 25, 23, 0.16);
+    --border-selected: rgba(198, 97, 63, 0.48);
+    --text-primary: #1c1917;
+    --text-secondary: #57534e;
+    --text-muted: #8a847c;
+    --accent-primary: #c6613f;
+    --accent-primary-hover: #b05131;
+    --accent-soft: rgba(198, 97, 63, 0.12);
+    --accent-emerald: #1f8254;
+    --accent-emerald-soft: rgba(31, 130, 84, 0.11);
+    --accent-amber: #b87b14;
+    --accent-amber-soft: rgba(184, 123, 20, 0.12);
+    --accent-rose: #c93b4b;
+    --accent-rose-soft: rgba(201, 59, 75, 0.11);
+    --shadow-card: 0 1px 4px rgba(28, 25, 23, 0.05);
+    --shadow-modal: 0 20px 50px rgba(28, 25, 23, 0.18);
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(140, 135, 125, 0.25); border-radius: 99px; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-window);
+    color: var(--text-primary);
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Optional macOS System Top Menu Bar Preview Banner (Only shown when demonstrating System MenuBar NSPopover) */
+  .macos-sys-menubar {
+    height: 28px;
+    background: rgba(24, 24, 22, 0.92);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    font-size: 12px;
+    color: #f4f2ed;
+    flex-shrink: 0;
+    z-index: 200;
+  }
+  .macos-sys-menubar.visible { display: flex; }
+  .sys-menubar-popover {
+    position: fixed;
+    top: 34px;
+    right: 78px;
+    width: 320px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.65);
+    padding: 13px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 210;
+  }
+  .sys-menubar-popover.visible { display: flex; }
+
+  .app-shell { display: flex; width: 100%; flex: 1; min-height: 0; overflow: hidden; }
+
+  /* Left Navigation Sidebar */
+  .sidebar {
+    width: 236px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    padding: 13px 12px;
+    flex-shrink: 0;
+    transition: width 0.18s ease;
+  }
+
+  .window-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 11px 4px;
+    cursor: grab;
+  }
+  .window-bar:active { cursor: grabbing; }
+  .traffic-lights { display: flex; gap: 8px; }
+  .traffic-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15); }
+  .traffic-dot.close { background: #ff5f56; }
+  .traffic-dot.min { background: #ffbd2e; }
+  .traffic-dot.max { background: #27c93f; }
+  .version-tag { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+
+  .doctor-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8.5px 10px;
+    margin-bottom: 11px;
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  .doctor-card:hover { border-color: var(--border-strong); }
+  .doctor-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .app-icon-box {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #b45334 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+  }
+  .app-name { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+  .app-health-sub { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .health-pill {
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+    background: var(--accent-emerald-soft); color: var(--accent-emerald);
+    white-space: nowrap; flex-shrink: 0;
+  }
+
+  .nav-section-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--text-muted); padding: 6px 8px 4px;
+  }
+
+  .nav-list {
+    display: flex; flex-direction: column; gap: 2px;
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7.5px 10px; border-radius: var(--radius-sm);
+    font-size: 12.5px; font-weight: 500; color: var(--text-secondary);
+    cursor: pointer; border: 1px solid transparent; transition: all 0.12s ease; gap: 6px;
+  }
+  .nav-item:hover { color: var(--text-primary); background: rgba(128,128,128,0.06); }
+  .nav-item.active {
+    color: var(--text-primary); background: var(--bg-card);
+    border-color: var(--border-subtle); box-shadow: var(--shadow-card); font-weight: 600;
+  }
+  .nav-item-left { display: flex; align-items: center; gap: 8.5px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-svg-icon { width: 16px; height: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+  .nav-item.active .nav-meta { color: var(--accent-primary); font-weight: 600; }
+
+  .sidebar-footer {
+    padding-top: 9px; border-top: 1px solid var(--border-subtle);
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .disk-mini-bar {
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); padding: 7.5px 10px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .disk-mini-track {
+    width: 100%; height: 5px; border-radius: 99px;
+    background: var(--bg-input); overflow: hidden; display: flex;
+  }
+  .pref-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .pref-btn {
+    padding: 5px 4px; font-size: 11px; font-weight: 600; text-align: center;
+    border-radius: var(--radius-sm); background: var(--bg-card);
+    border: 1px solid var(--border-subtle); color: var(--text-secondary); cursor: pointer;
+  }
+  .pref-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+
+  /* Main Workspace */
+  .main-workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-window); min-width: 0; }
+
+  /* Draggable Native macOS Toolbar */
+  .top-header {
+    min-height: 52px; padding: 6px 18px; border-bottom: 1px solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0;
+    cursor: grab; flex-wrap: wrap;
+  }
+  .top-header:active { cursor: grabbing; }
+  .header-title-group { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .header-title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+  .live-status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10.5px; color: var(--accent-emerald); background: var(--accent-emerald-soft);
+    padding: 2.5px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap;
+  }
+  .pulse-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald);
+    animation: pulseAnim 1.6s infinite ease-in-out;
+  }
+  @keyframes pulseAnim {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+  }
+
+  .header-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; cursor: default; }
+  .search-box {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); padding: 4.5px 9px; width: clamp(145px, 18vw, 220px); cursor: text;
+  }
+  .search-box input {
+    background: transparent; border: none; outline: none;
+    color: var(--text-primary); font-size: 11.5px; width: 100%;
+  }
+  .kbd-tag {
+    font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted);
+    background: var(--bg-card); padding: 1px 5px; border-radius: 4px;
+    border: 1px solid var(--border-subtle); cursor: pointer; white-space: nowrap;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5.5px 12px; border-radius: var(--radius-sm);
+    font-size: 11.5px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border-subtle); background: var(--bg-card);
+    color: var(--text-primary); white-space: nowrap; transition: all 0.12s ease;
+  }
+  .btn:hover { background: var(--bg-card-hover); border-color: var(--border-strong); }
+  .btn-primary { background: var(--accent-primary); color: #ffffff; border-color: rgba(255,255,255,0.14); }
+  .btn-primary:hover { background: var(--accent-primary-hover); }
+  .btn-danger { background: var(--accent-rose-soft); color: var(--accent-rose); border-color: rgba(224,82,99,0.3); }
+
+  .workspace-body {
+    flex: 1; overflow-y: auto; padding: 14px 18px 18px;
+    display: flex; flex-direction: column; gap: 12px; min-height: 0;
+  }
+
+  /* Semantic Hero Summary Banner (Responsive & Fluid) */
+  .summary-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 18px; border-radius: var(--radius-lg);
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card); flex-shrink: 0; gap: 16px; flex-wrap: wrap;
+  }
+  .summary-left { display: flex; align-items: center; gap: 14px; min-width: 260px; flex: 1; }
+  .semantic-hero-icon {
+    width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.22), 0 4px 12px rgba(0,0,0,0.22);
+  }
+  .summary-eyebrow {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
+    font-size: 10.5px; color: var(--text-muted); flex-wrap: wrap;
+  }
+  .summary-headline { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; line-height: 1.25; }
+  .summary-desc { font-size: 11.5px; color: var(--text-secondary); line-height: 1.42; }
+
+  .summary-right {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    min-width: 190px; flex-shrink: 0;
+  }
+  .stat-block-label { font-size: 10.5px; color: var(--text-secondary); }
+  .stat-block-val { font-size: 23px; font-weight: 800; font-family: var(--font-mono); color: var(--accent-emerald); line-height: 1.1; }
+  .stat-seg-bar {
+    width: 185px; height: 5px; border-radius: 99px; background: var(--bg-input);
+    overflow: hidden; display: flex; gap: 2px; margin-top: 2px;
+  }
+  .stat-block-sub { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+
+  /* Responsive Master-Detail Split Grid */
+  .master-detail-grid {
+    display: grid; grid-template-columns: minmax(0, 1.48fr) minmax(320px, 1fr);
+    gap: 12px; flex: 1; min-height: 360px;
+  }
+
+  .panel-card {
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+    display: flex; flex-direction: column; overflow: hidden; min-width: 0;
+  }
+  .panel-header {
+    padding: 9px 14px; border-bottom: 1px solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 12px; font-weight: 700; background: var(--bg-surface); flex-shrink: 0; flex-wrap: wrap;
+  }
+
+  .segmented-tabs {
+    display: inline-flex; background: var(--bg-input); padding: 2px;
+    border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); gap: 2px; flex-wrap: wrap;
+  }
+  .seg-tab {
+    padding: 3.5px 9px; font-size: 10.5px; font-weight: 600;
+    border-radius: 4px; cursor: pointer; color: var(--text-secondary); white-space: nowrap;
+  }
+  .seg-tab.active {
+    background: var(--bg-card); color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  }
+
+  .list-body { flex: 1; overflow-y: auto; }
+  .list-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9.5px 14px; border-bottom: 1px solid var(--border-subtle);
+    cursor: pointer; transition: background 0.12s ease; gap: 10px;
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-row:hover { background: var(--bg-card-hover); }
+  .list-row.selected {
+    background: var(--bg-card-selected);
+    border-left: 3px solid var(--accent-primary);
+    padding-left: 11px;
+  }
+
+  .row-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .row-title { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+  .prop-bar-wrap { width: 58px; height: 5px; background: var(--bg-input); border-radius: 99px; overflow: hidden; }
+  .prop-bar-fill { height: 100%; border-radius: 99px; }
+
+  .badge {
+    font-size: 10px; font-weight: 600; padding: 2px 7px;
+    border-radius: 999px; white-space: nowrap;
+  }
+  .badge-safe { background: var(--accent-emerald-soft); color: var(--accent-emerald); }
+  .badge-review { background: var(--accent-amber-soft); color: var(--accent-amber); }
+  .badge-protected { background: rgba(155, 110, 243, 0.14); color: var(--accent-purple); }
+
+  .size-cell { font-family: var(--font-mono); font-size: 12px; font-weight: 700; min-width: 62px; text-align: right; white-space: nowrap; }
+
+  /* Right Inspector Panel with 4-Card Bento Metadata Grid */
+  .inspector-content {
+    padding: 13px 14px; display: flex; flex-direction: column;
+    gap: 10px; flex: 1; overflow-y: auto;
+  }
+  .bento-4 {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px;
+  }
+  .bento-cell {
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); padding: 7px 9px; min-width: 0;
+  }
+  .bento-label { font-size: 10px; color: var(--text-muted); }
+  .bento-val { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--text-primary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .inspector-box {
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: 9.5px 11px; font-size: 11.5px; line-height: 1.45;
+  }
+  .subpath-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 9px; border-radius: var(--radius-sm);
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    font-family: var(--font-mono); font-size: 10.5px; white-space: nowrap;
+  }
+  .subpath-left { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; display: flex; align-items: center; gap: 6px; }
+  .subpath-right { font-weight: 700; color: var(--text-primary); white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+
+  /* Analyze 2D Treemap & Breadcrumb Bar */
+  .breadcrumb-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 7px 14px; background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); font-size: 11.5px; flex-shrink: 0; flex-wrap: wrap;
+  }
+  .crumb-item {
+    padding: 2px 7px; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-weight: 500;
+  }
+  .crumb-item:hover { color: var(--text-primary); }
+  .crumb-item.active { background: var(--accent-soft); color: var(--accent-primary); font-weight: 700; }
+
+  .treemap-split { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 12px; height: 298px; flex-shrink: 0; }
+  .treemap-stage {
+    position: relative; width: 100%; height: 298px; border-radius: var(--radius-lg);
+    overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  }
+  .treemap-tile {
+    position: absolute; border: 2px solid var(--bg-window); border-radius: 7px;
+    padding: 8px 10px; display: flex; flex-direction: column; justify-content: space-between;
+    cursor: pointer; overflow: hidden; transition: filter 0.14s ease;
+  }
+  .treemap-tile:hover { filter: brightness(1.1); }
+  .treemap-tile.active-tile { outline: 2px solid #ffffff; z-index: 5; }
+
+  /* Telemetry & Process Table */
+  .telemetry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 11px; flex-shrink: 0; }
+  .telemetry-card {
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: 11px 13px;
+    display: flex; flex-direction: column; gap: 5px; box-shadow: var(--shadow-card); min-width: 0;
+  }
+  .proc-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .proc-table th {
+    text-align: left; padding: 7px 14px; font-size: 10.5px; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); cursor: pointer; white-space: nowrap;
+  }
+  .proc-table th:hover { color: var(--text-primary); }
+  .proc-table td { padding: 7px 14px; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); white-space: nowrap; }
+
+  /* Modals & Command Palette */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.56);
+    backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  html[data-theme="light"] .modal-backdrop { background: rgba(28, 25, 23, 0.28); }
+  .modal-backdrop.open { display: flex; }
+  .modal-sheet {
+    width: 640px; max-width: 92vw; background: var(--bg-elevated);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-modal); overflow: hidden;
+  }
+
+  .toast {
+    position: fixed; bottom: 18px; right: 22px; padding: 8px 15px;
+    border-radius: var(--radius-sm); background: var(--accent-emerald);
+    color: #fff; font-size: 12px; font-weight: 600; box-shadow: var(--shadow-modal);
+    display: none; z-index: 150;
+  }
+
+  /* Responsive Breakpoints so window resizing never breaks layout */
+  @media (max-width: 1160px) {
+    .sidebar { width: 206px; }
+    .prop-bar-wrap { display: none; }
+    .master-detail-grid { grid-template-columns: minmax(0, 1.22fr) minmax(280px, 1fr); }
+    .treemap-split { grid-template-columns: 225px minmax(0, 1fr); }
+  }
+  @media (max-width: 960px) {
+    .sidebar { width: 188px; padding: 10px 8px; }
+    .master-detail-grid { grid-template-columns: 1fr; overflow-y: auto; }
+    .treemap-split { grid-template-columns: 1fr; height: auto; }
+    .summary-right { align-items: flex-start; width: 100%; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- macOS System Top Status Bar Preview (Demonstrates how the native NSStatusItem + NSPopover operates in macOS top menu bar) -->
+<div class="macos-sys-menubar" id="macSysMenuBar">
+  <div style="display:flex;align-items:center;gap:16px;font-weight:600;">
+    <span></span>
+    <span style="font-weight:700;">Mole Studio Pro</span>
+    <span style="color:#a39f96;font-weight:500;">文件</span>
+    <span style="color:#a39f96;font-weight:500;">编辑</span>
+    <span style="color:#a39f96;font-weight:500;">视图</span>
+    <span style="color:#a39f96;font-weight:500;">窗口</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;font-family:var(--font-mono);font-size:11px;">
+    <span style="background:rgba(217,119,87,0.28);border:1px solid rgba(217,119,87,0.6);padding:2px 8px;border-radius:5px;color:#fff;cursor:pointer;" onclick="toggleSystemMenuBarDemo()">
+      🧹 96分 · CPU 39.4% · 剩余 314.6G ▾
+    </span>
+    <span>🛜 Wi-Fi</span>
+    <span>🔋 98%</span>
+    <span>14:28</span>
+  </div>
+</div>
+
+<div class="sys-menubar-popover" id="macSysPopover">
+  <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-subtle);padding-bottom:8px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="app-icon-box" style="width:26px;height:26px;border-radius:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;">Mole Studio 系统状态栏小窗</div>
+        <div style="font-size:10px;color:var(--text-secondary);">macOS 顶部系统状态栏实时监控组件</div>
+      </div>
+    </div>
+    <span class="badge badge-safe" id="sysPopScore">健康分 96</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;">
+    <div class="bento-cell">
+      <div class="bento-label">处理器与温度</div>
+      <div class="bento-val" style="color:var(--accent-blue);" id="sysPopCpu">39.4% · 45.2°C</div>
+    </div>
+    <div class="bento-cell">
+      <div class="bento-label">统一内存负载</div>
+      <div class="bento-val" style="color:var(--accent-emerald);">18.2 / 32 GB</div>
+    </div>
+    <div class="bento-cell">
+      <div class="bento-label">磁盘可用空间</div>
+      <div class="bento-val" style="color:var(--accent-primary);" id="sysPopDisk">314.6 GB 可用</div>
+    </div>
+    <div class="bento-cell">
+      <div class="bento-label">实时网络速率</div>
+      <div class="bento-val">↓ 4.8 MB/s</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:5px;">
+    <button class="btn btn-primary" style="justify-content:center;" onclick="switchModule('clean');openConfirmSheet();">🧹 一键清理安全缓存</button>
+    <button class="btn" style="justify-content:space-between;" onclick="openDoctorModal(true)">
+      <span>🩺 立即执行系统复诊检测</span>
+      <span style="color:var(--accent-emerald);font-family:var(--font-mono);">7/7 正常</span>
+    </button>
+    <button class="btn" style="justify-content:space-between;" onclick="showToast('已切换防止系统休眠 (2 小时)')">
+      <span>☕ 防止 Mac 休眠 (caffeinate)</span>
+      <span style="color:var(--accent-primary);font-family:var(--font-mono);">已开启 (2h)</span>
+    </button>
+  </div>
+</div>
+
+<div class="app-shell">
+  <!-- Left Navigation Sidebar (Semantic Functional Icons, No Planet Metaphor, No Account Info) -->
+  <aside class="sidebar">
+    <div class="window-bar" onmousedown="handleTopBarDrag(event)">
+      <div class="traffic-lights">
+        <div class="traffic-dot close"></div>
+        <div class="traffic-dot min"></div>
+        <div class="traffic-dot max"></div>
+      </div>
+      <span class="version-tag">macOS Native · v7.0</span>
+    </div>
+
+    <div class="doctor-card" onclick="openDoctorModal(false)" title="点击查看或重新执行 7 项系统健康体检">
+      <div class="doctor-left">
+        <div class="app-icon-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <div>
+          <div class="app-name">Mole Studio</div>
+          <div class="app-health-sub" id="sidebarHealthSub">健康分 94 · 7/7 正常</div>
+        </div>
+      </div>
+      <span class="health-pill" id="sidebarHealthPill">体检</span>
+    </div>
+
+    <div class="nav-section-title" id="navGroupCore">核心清理与监控</div>
+    <div class="nav-list">
+      <div class="nav-item active" data-mod="clean" onclick="switchModule('clean')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#4b83f0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/></svg>
+          </span>
+          <span id="navLabelClean">智能深度清理</span>
+        </div>
+        <span class="nav-meta" id="navMetaClean">12.5 GB</span>
+      </div>
+
+      <div class="nav-item" data-mod="ai_moon" onclick="switchModule('ai_moon')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#d97757;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M20 15h2M20 9h2M9 20v2M15 20v2M2 9h2M2 15h2"/></svg>
+          </span>
+          <span id="navLabelMoon">AI 专项清理</span>
+        </div>
+        <span class="nav-meta" id="navMetaMoon">12.2 GB</span>
+      </div>
+
+      <div class="nav-item" data-mod="software" onclick="switchModule('software')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#e05263;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          </span>
+          <span id="navLabelSoftware">应用彻底卸载</span>
+        </div>
+        <span class="nav-meta" id="navMetaSoftware">12.8 GB</span>
+      </div>
+
+      <div class="nav-item" data-mod="optimize" onclick="switchModule('optimize')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#9b6ef3;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </span>
+          <span id="navLabelOptimize">系统加速优化</span>
+        </div>
+        <span class="nav-meta" id="navMetaOptimize">7 项</span>
+      </div>
+
+      <div class="nav-item" data-mod="analyze" onclick="switchModule('analyze')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#d99b26;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+          </span>
+          <span id="navLabelAnalyze">磁盘空间分析</span>
+        </div>
+        <span class="nav-meta" id="navMetaAnalyze">实时树图</span>
+      </div>
+
+      <div class="nav-item" data-mod="status" onclick="switchModule('status')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#2e9e6b;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </span>
+          <span id="navLabelStatus">实时状态监控</span>
+        </div>
+        <span class="nav-meta" id="navMetaStatus">实时刷新</span>
+      </div>
+
+      <div class="nav-section-title" id="navGroupTools">开发者与安全护栏</div>
+
+      <div class="nav-item" data-mod="purge" onclick="switchModule('purge')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#38bdf8;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </span>
+          <span id="navLabelPurge">构建与安装包</span>
+        </div>
+        <span class="nav-meta" id="navMetaPurge">24.9 GB</span>
+      </div>
+
+      <div class="nav-item" data-mod="history" onclick="switchModule('history')">
+        <div class="nav-item-left">
+          <span class="nav-svg-icon" style="color:#a39f96;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+          </span>
+          <span id="navLabelHistory">恢复记录与白名单</span>
+        </div>
+        <span class="nav-meta" id="navMetaHistory">3 快照</span>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="disk-mini-bar">
+        <div style="display:flex;justify-content:space-between;font-size:10.5px;">
+          <span style="font-weight:600;white-space:nowrap;">Macintosh HD (1TB)</span>
+          <span style="color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;" id="sidebarFreeDisk">剩余 302.1 GB</span>
+        </div>
+        <div class="disk-mini-track">
+          <div id="diskUsedBar" style="width:48%;background:var(--accent-blue);transition:width 0.3s ease;"></div>
+          <div style="width:14%;background:var(--accent-primary);"></div>
+          <div style="width:8%;background:var(--accent-amber);"></div>
+        </div>
+      </div>
+
+      <div class="pref-grid">
+        <div class="pref-btn" onclick="toggleLanguage()" id="btnLang">中 / EN</div>
+        <div class="pref-btn" onclick="toggleTheme()" id="btnTheme">浅色模式</div>
+        <div class="pref-btn" onclick="toggleTempUnit()" id="btnTemp">°C / °F</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content Workspace -->
+  <main class="main-workspace">
+    <header class="top-header" onmousedown="handleTopBarDrag(event)" ondblclick="handleTopBarDoubleClick(event)">
+      <div class="header-title-group">
+        <h1 class="header-title" id="topTitle">智能深度清理</h1>
+        <span class="live-status-pill" id="liveTelemetryPill">
+          <span class="pulse-dot"></span>
+          <span id="livePillText">实时监控中 · CPU 45.2%</span>
+        </span>
+      </div>
+
+      <div class="header-controls" onmousedown="event.stopPropagation()">
+        <div class="search-box">
+          <span style="color:var(--text-muted);font-size:12px;">⌕</span>
+          <input type="text" id="searchInput" placeholder="搜索目录、应用或进程..." oninput="handleSearch(this.value)" />
+          <span class="kbd-tag" onclick="openCommandPalette()">⌘K</span>
+        </div>
+        <button class="btn" onclick="openDoctorModal(true)" title="立即重新扫描检测 7 项系统健康指标">
+          <span>🩺</span>
+          <span id="btnRecheckText">重新体检</span>
+        </button>
+        <button class="btn btn-primary" onclick="handlePrimaryAction()">
+          <span id="primaryBtnText">一键清理所选 (12.49 GB)</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="workspace-body">
+      <!-- Semantic Functional Summary Banner -->
+      <section class="summary-banner">
+        <div class="summary-left">
+          <div class="semantic-hero-icon" id="heroSemanticIcon" style="background:linear-gradient(135deg, #4b83f0 0%, #2563eb 100%);"></div>
+          <div style="min-width:0;flex:1;">
+            <div class="summary-eyebrow" id="heroEyebrow">
+              <span>⚡ 实时扫描就绪 · 零后台性能损耗</span>
+              <span>·</span>
+              <span style="color:var(--accent-emerald);">● Apple 神经网络引擎与个人核心配置已锁定保护</span>
+            </div>
+            <div class="summary-headline" id="heroHeadline">发现 12.49 GB 可安全释放的系统与应用缓存</div>
+            <div class="summary-desc" id="heroDesc">
+              界面列表即实时预览：按重建成本分为「安全可再生」「需确认项」与「硬件保护项」。点击任意分类可在右侧检视具体子目录并执行二次确认清理。
+            </div>
+          </div>
+        </div>
+        <div class="summary-right">
+          <div class="stat-block-label" id="heroStatLabel">当前已勾选待清理</div>
+          <div class="stat-block-val" id="heroStatValue">12.49 GB</div>
+          <div class="stat-seg-bar" title="绿色: 安全可再生 · 琥珀色: 需确认 · 紫色: 硬件保护">
+            <div id="segBarSafe" style="width:68%;background:var(--accent-emerald);"></div>
+            <div id="segBarReview" style="width:18%;background:var(--accent-amber);"></div>
+            <div id="segBarProt" style="width:14%;background:var(--accent-purple);"></div>
+          </div>
+          <div class="stat-block-sub" id="heroStatSub">共 115 项 · 二次确认后安全移入废纸篓</div>
+        </div>
+      </section>
+
+      <!-- Dynamic Module Stage -->
+      <div id="moduleStage" style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Keyboard-First ⌘K Quick Action & Path Search Palette -->
+<div class="modal-backdrop" id="cmdPaletteModal" onclick="if(event.target===this)closeCommandPalette()">
+  <div class="modal-sheet" style="width:580px;">
+    <div style="padding:13px 16px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;background:var(--bg-surface);">
+      <span style="font-family:var(--font-mono);color:var(--accent-primary);font-weight:700;">⌘K</span>
+      <input type="text" id="cmdPaletteInput" value="" placeholder="输入模块名称或搜索缓存路径 (如 xcode / 卸载 / 体检)..." oninput="renderCommandPaletteList(this.value)" style="background:transparent;border:none;outline:none;color:var(--text-primary);font-size:13.5px;flex:1;" />
+      <span class="kbd-tag" onclick="closeCommandPalette()">ESC 关闭</span>
+    </div>
+    <div style="padding:6px 0;" id="cmdPaletteList"></div>
+  </div>
+</div>
+
+<!-- Secondary Confirmation Modal (二次确认弹窗 — Pure GUI, No Dry-Run button, Executes Real Operation) -->
+<div class="modal-backdrop" id="confirmModal" onclick="if(event.target===this)closeConfirmSheet()">
+  <div class="modal-sheet">
+    <div class="panel-header" style="padding:12px 18px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span>🛡️</span>
+        <span id="confirmModalTitle">操作二次确认 — 即将移入废纸篓</span>
+      </div>
+      <span class="badge badge-safe">支持从恢复记录一键原路还原</span>
+    </div>
+    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:11px;">
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.48;" id="confirmModalSummary"></div>
+      <div class="panel-card" id="confirmModalItemsList"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:4px;">
+        <span style="font-size:11px;color:var(--text-secondary);">💡 确认后将立即释放空间并刷新磁盘分析与状态监控数据</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" onclick="closeConfirmSheet()">取消操作</button>
+          <button class="btn btn-primary" onclick="executeConfirmedClean()">确认清理并移入废纸篓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mole Doctor 7-Point Diagnostic Modal with Live Re-Diagnosis (复诊 / 重新体检) -->
+<div class="modal-backdrop" id="doctorModal" onclick="if(event.target===this)closeDoctorModal()">
+  <div class="modal-sheet">
+    <div class="panel-header" style="padding:12px 18px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span>🩺</span>
+        <span id="doctorModalHeaderTitle">系统健康体检中心 (7 项核心指标实时复诊)</span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" onclick="startDoctorReDiagnosis()" id="btnDoctorReRun">🔄 立即重新体检 (复诊)</button>
+        <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="closeDoctorModal()">关闭</button>
+      </div>
+    </div>
+    <div id="doctorProgressBanner" style="display:none;padding:10px 18px;background:var(--bg-surface);border-bottom:1px solid var(--border-subtle);">
+      <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;margin-bottom:5px;">
+        <span id="doctorProgressText">正在重新检测系统各项指标...</span>
+        <span id="doctorProgressPct" style="font-family:var(--font-mono);color:var(--accent-primary);">0%</span>
+      </div>
+      <div style="width:100%;height:5px;background:var(--bg-input);border-radius:99px;overflow:hidden;">
+        <div id="doctorProgressBar" style="width:0%;height:100%;background:var(--accent-emerald);transition:width 0.18s ease;"></div>
+      </div>
+    </div>
+    <div id="doctorListContainer" style="padding:4px 0;"></div>
+    <div style="padding:11px 18px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;background:var(--bg-surface);">
+      <span style="font-size:11px;color:var(--text-secondary);" id="doctorFooterSummary">上次体检时间: 刚刚 · 综合健康分 94 / 100</span>
+      <button class="btn" onclick="copyTextToClipboard('Mole Studio 系统体检报告: 健康分 ' + STATE.healthScore + '/100 (7/7 项通过)')">导出体检报告</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toastBanner">操作已完成</div>
+
+<script>
+const SEMANTIC_HERO_ICONS = {
+  clean: {
+    bg: 'linear-gradient(135deg, #4b83f0 0%, #2563eb 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/><path d="M5 3v4M3 5h4"/></svg>'
+  },
+  ai_moon: {
+    bg: 'linear-gradient(135deg, #d97757 0%, #b45334 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M20 15h2M20 9h2M9 20v2M15 20v2M2 9h2M2 15h2"/></svg>'
+  },
+  software: {
+    bg: 'linear-gradient(135deg, #e05263 0%, #be123c 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+  },
+  optimize: {
+    bg: 'linear-gradient(135deg, #9b6ef3 0%, #6d28d9 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+  },
+  analyze: {
+    bg: 'linear-gradient(135deg, #d99b26 0%, #b45309 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>'
+  },
+  status: {
+    bg: 'linear-gradient(135deg, #2e9e6b 0%, #047857 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+  },
+  purge: {
+    bg: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'
+  },
+  history: {
+    bg: 'linear-gradient(135deg, #78736a 0%, #44403c 100%)',
+    svg: '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>'
+  }
+};
+
+const STATE = {
+  module: 'clean',
+  cleanFilter: 'all',
+  selectedCleanIdx: 2,
+  selectedMoonIdx: 0,
+  selectedAppIdx: 0,
+  selectedPurgeIdx: 0,
+  selectedTreemapIdx: 0,
+  aiRetention: '30d',
+  procSortKey: 'cpu',
+  searchQuery: '',
+  lang: 'zh',
+  theme: 'dark',
+  tempUnit: 'C',
+  fanMode: 'Auto',
+  healthScore: 94,
+  recheckCount: 0,
+  lastCheckTime: '刚刚',
+  freeDiskGb: 302.1,
+  totalAnalyzedGb: 248.5,
+  cpuTempC: 46.5,
+  gpuTempC: 44.0,
+  memUsedGb: 18.7,
+  memTotalGb: 32.0,
+  diskReadMbs: 14.2,
+  diskWriteMbs: 28.6,
+  netDownMbs: 4.82,
+  netUpMbs: 0.64,
+  cpuSeries: [28, 34, 31, 42, 39, 48, 44, 51, 46, 45.2],
+  gpuSeries: [12, 15, 14, 22, 18, 25, 21, 17, 20, 19.4],
+  memSeries: [52, 53, 54, 54, 55, 56, 55, 56, 56, 55.8],
+  diskSeries: [10, 24, 18, 42, 31, 19, 36, 28, 22, 29.0],
+  netSeries: [15, 28, 45, 32, 60, 48, 39, 52, 44, 48.0],
+  cleanGroups: [
+    {
+      id: 'user_app_caches', category: '应用缓存与日志', name: 'macOS 用户应用缓存与崩溃诊断日志',
+      path: '~/Library/Caches & ~/Library/Logs', sizeGb: 3.15, origSizeGb: 3.15, items: 38, filesCount: '24,180 个文件',
+      lastMod: '今天 10:42', rebuildTime: '小于 2 秒 (自动按需生成)',
+      tier: 'safe', checked: true, cleaned: false,
+      impact: '完全安全：仅清理应用的临时渲染与网络图片缓存，不会影响应用设置或文稿。下次启动应用时会自动按需生成。',
+      subpaths: [
+        { path: '~/Library/Caches/com.spotify.client/Data', size: '1.12 GB', sizeGb: 1.12, checked: true },
+        { path: '~/Library/Caches/com.apple.helpd', size: '680 MB', sizeGb: 0.68, checked: true },
+        { path: '~/Library/Logs/DiagnosticReports', size: '540 MB', sizeGb: 0.54, checked: true },
+        { path: '~/Library/Caches/CloudKit', size: '490 MB', sizeGb: 0.49, checked: true },
+        { path: '~/Library/Caches/com.raycast.macos', size: '320 MB', sizeGb: 0.32, checked: true }
+      ]
+    },
+    {
+      id: 'browser_caches', category: '浏览器渲染缓存', name: 'Chrome、Safari 与 Arc 离线脚本及着色器缓存',
+      path: '~/Library/Caches/Google/Chrome & com.apple.Safari', sizeGb: 2.07, origSizeGb: 2.07, items: 50, filesCount: '41,920 个文件',
+      lastMod: '今天 11:15', rebuildTime: '小于 3 秒 (网页加载自动生成)',
+      tier: 'safe', checked: true, cleaned: false,
+      impact: '完全安全：仅清理离线媒体缓存、WebGL 着色器缓存与失效脚本，严格保留书签、历史记录、Cookie 与已保存密码。',
+      subpaths: [
+        { path: '~/Library/Caches/Google/Chrome/Default/Cache', size: '1.18 GB', sizeGb: 1.18, checked: true },
+        { path: '~/Library/Caches/com.apple.Safari/WebKitCache', size: '520 MB', sizeGb: 0.52, checked: true },
+        { path: '~/Library/Caches/company.thebrowser.Browser/GPUCache', size: '370 MB', sizeGb: 0.37, checked: true }
+      ]
+    },
+    {
+      id: 'xcode_derived', category: '开发者构建产物', name: 'Xcode 编译中间产物 (DerivedData) 与旧版模拟器缓存',
+      path: '~/Library/Developer/Xcode/DerivedData', sizeGb: 4.65, origSizeGb: 4.65, items: 12, filesCount: '18,420 个文件',
+      lastMod: '18 天前', rebuildTime: '约 15~30 秒 (下次编译重新索引)',
+      tier: 'safe', checked: true, cleaned: false,
+      impact: '安全可再生：清理 Xcode 历史项目的编译索引、预编译头与旧版 iOS Simulator 临时镜像。下次打开对应工程编译时会自动重新生成。',
+      subpaths: [
+        { path: '~/Library/Developer/Xcode/DerivedData/MoleStudio-f8a92c', size: '1.84 GB', sizeGb: 1.84, checked: true },
+        { path: '~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex', size: '1.15 GB', sizeGb: 1.15, checked: true },
+        { path: '~/Library/Developer/CoreSimulator/Caches/dyld', size: '1.08 GB', sizeGb: 1.08, checked: true },
+        { path: '~/Library/Developer/Xcode/iOS DeviceSupport/17.4 (21E219)', size: '580 MB', sizeGb: 0.58, checked: true }
+      ]
+    },
+    {
+      id: 'pkg_http_caches', category: '包管理器缓存', name: 'npm、pnpm、pip 与 Cargo 离线安装包归档缓存',
+      path: '~/.npm/_cacache & ~/Library/Caches/pip', sizeGb: 1.88, origSizeGb: 1.88, items: 9, filesCount: '12,640 个文件',
+      lastMod: '9 天前', rebuildTime: '视网络情况按需下载',
+      tier: 'review', checked: true, cleaned: false,
+      impact: '需确认项：清理后不影响现有项目的依赖目录或虚拟环境；但在离线环境下重新安装旧依赖包时需重新从镜像源下载。',
+      subpaths: [
+        { path: '~/.npm/_cacache/content-v2/sha512', size: '920 MB', sizeGb: 0.92, checked: true },
+        { path: '~/Library/Caches/pip/http-v2', size: '540 MB', sizeGb: 0.54, checked: true },
+        { path: '~/.cargo/registry/cache', size: '420 MB', sizeGb: 0.42, checked: true }
+      ]
+    },
+    {
+      id: 'orphaned_leftovers', category: '已卸载软件残留', name: '已卸载应用的孤立沙盒容器与支持文件残留',
+      path: '~/Library/Application Support (6 个孤立目录)', sizeGb: 0.74, origSizeGb: 0.74, items: 6, filesCount: '3,120 个文件',
+      lastMod: '46 天前', rebuildTime: '无需重建 (无主残留)',
+      tier: 'safe', checked: true, cleaned: false,
+      impact: '完全安全：经与 /Applications 应用程序目录比对，以下目录对应的主程序均已卸载超过 30 天，属于无主残留文件。',
+      subpaths: [
+        { path: '~/Library/Application Support/Slack/Service Worker', size: '410 MB', sizeGb: 0.41, checked: true },
+        { path: '~/Library/Containers/com.tencent.qq/Data/Library/Caches', size: '330 MB', sizeGb: 0.33, checked: true }
+      ]
+    },
+    {
+      id: 'local_snapshots', category: '系统快照与壁纸', name: 'APFS 本地时间机器快照与未使用的超清动态壁纸包',
+      path: '/System/Volumes/Data/.timemachine', sizeGb: 4.20, origSizeGb: 4.20, items: 3, filesCount: '3 个 APFS 快照卷',
+      lastMod: '2 天前', rebuildTime: '下次备份时自动创建',
+      tier: 'review', checked: false, cleaned: false,
+      impact: '需确认项：释放本地 APFS 历史快照与未使用的 4K 动态壁纸缓存，默认不勾选，建议仅在磁盘空间紧张时手动开启。',
+      subpaths: [
+        { path: '/System/Volumes/Data/.timemachine/2026-10-12-092104.backup', size: '3.10 GB', sizeGb: 3.10, checked: false },
+        { path: '/Library/Application Support/com.apple.idleassetsd/Customer', size: '1.10 GB', sizeGb: 1.10, checked: false }
+      ]
+    },
+    {
+      id: 'apple_neural_engine', category: '硬件级保护项', name: 'Apple 神经网络引擎 (ANE) 预编译模型缓存',
+      path: '~/Library/Caches/com.apple.e5rt.e5bundlecache', sizeGb: 1.92, origSizeGb: 1.92, items: 14, filesCount: '840 个模型分片',
+      lastMod: '系统实时维护', rebuildTime: '禁止清理 (硬件级锁定)',
+      tier: 'protected', checked: false, cleaned: false,
+      impact: '内置硬件保护（不可勾选删除）：该目录存储 Apple Silicon 神经网络引擎编译后的 CoreML 权重缓存，若误删会导致系统与本地 AI 推理出现重新编译卡顿。',
+      subpaths: [
+        { path: '~/Library/Caches/com.apple.e5rt.e5bundlecache/ANECompiler', size: '1.92 GB', sizeGb: 1.92, checked: false }
+      ]
+    }
+  ],
+  aiMoonBands: [
+    {
+      id: 'ai_superseded_bins', band: '第一安全带 · 旧版本安装包',
+      name: 'Claude、Cursor 与 Codex 历史自更新旧版本程序包 (11 个旧版)',
+      path: '~/.local/share/claude/versions & ~/.cursor-agent/releases', sizeGb: 3.42, origSizeGb: 3.42,
+      filesCount: '11 个历史版本包', lastMod: '14~60 天前', rebuildTime: '无需重建 (已升级至新版)',
+      tier: 'safe', checked: true, cleaned: false,
+      impact: '完全安全：AI 工具每次后台自动升级都会在本地留下 200MB~350MB 的旧版可执行文件。仅清理已被替换的旧版本，严格保留当前正在运行的最新版本。',
+      subpaths: [
+        { path: '~/.local/share/claude/versions/1.0.24 ~ 1.0.31 (8 个旧版)', size: '2.14 GB', checked: true },
+        { path: '~/.cursor-agent/releases/0.41.0 ~ 0.43.2 (3 个旧版)', size: '1.28 GB', checked: true }
+      ]
+    },
+    {
+      id: 'ai_tool_caches', band: '第一安全带 · 渲染与日志缓存',
+      name: 'Claude Desktop、Cursor 与本地推理引擎渲染缓存及崩溃转储',
+      path: '~/Library/Caches/Cursor & ~/.cache/codex', sizeGb: 2.18, origSizeGb: 2.18,
+      filesCount: '9,410 个文件', lastMod: '今天 09:30', rebuildTime: '小于 2 秒 (启动自动重建)',
+      tier: 'safe', checked: true, cleaned: false,
+      impact: '完全安全：仅清理 GPU 渲染缓存与过期调试日志，不影响任何本地配置或扩展插件。',
+      subpaths: [
+        { path: '~/Library/Caches/Cursor/GPUCache & Code Cache', size: '1.46 GB', checked: true },
+        { path: '~/.cache/codex/logs', size: '720 MB', checked: true }
+      ]
+    },
+    {
+      id: 'ai_stale_worktrees', band: '第二安全带 · 过期临时工作树 (>30天)',
+      name: '已合并超过 30 天的 AI 临时 Git 工作树与孤立渲染截图',
+      path: '~/.codex/worktrees & ~/.claude/orphaned-renders', sizeGb: 4.95, origSizeGb: 4.95,
+      filesCount: '14 个临时目录', lastMod: '38 天前', rebuildTime: '无需重建 (分支已合并)',
+      tier: 'review', checked: true, cleaned: false,
+      impact: '智能生命周期保护：仅列出超过保留窗口未修改且无未提交变更的临时工作树；24 小时内的活跃任务会被强制排除。',
+      subpaths: [
+        { path: '~/.codex/worktrees/feat-refactor-202608', size: '3.40 GB', checked: true },
+        { path: '~/.claude/orphaned-renders/2026-08', size: '1.55 GB', checked: true }
+      ]
+    },
+    {
+      id: 'ai_sqlite_vacuum', band: '第三安全带 · 状态数据库无损整理',
+      name: 'Cursor 与 Claude 本地状态数据库无损碎片压缩 (state.vscdb)',
+      path: '~/Library/Application Support/Cursor/User/globalStorage/state.vscdb', sizeGb: 1.65, origSizeGb: 1.65,
+      filesCount: '2 个状态数据库', lastMod: '昨天 22:10', rebuildTime: '约 4 秒 (原地无损压缩)',
+      tier: 'review', checked: true, cleaned: false,
+      impact: '无损原地压缩：不删除任何键值数据，仅在检测到宿主应用已关闭时回收数据库游离页碎片。',
+      subpaths: [
+        { path: '~/Library/Application Support/Cursor/User/globalStorage/state.vscdb', size: '可缩减 1.65 GB', checked: true }
+      ]
+    },
+    {
+      id: 'ai_chat_history_protected', band: '核心资产永久保护（绝不清理）',
+      name: 'AI 历史对话记录、长期记忆 (Memories)、项目计划与自定义技能',
+      path: '~/.claude/projects, ~/.codex/sessions, ~/.claude/skills', sizeGb: 1.14, origSizeGb: 1.14,
+      filesCount: '1,280 个会话', lastMod: '实时保护中', rebuildTime: '禁止清理 (永久锁定)',
+      tier: 'protected', checked: false, cleaned: false,
+      impact: '永久锁定保护：您的所有对话上下文、项目级记忆与自定义技能均受硬件级白名单保护，永远不会被清理。',
+      subpaths: [
+        { path: '~/.claude/projects & ~/.claude/skills', size: '1.14 GB (永久保护)', checked: false }
+      ]
+    }
+  ],
+  appsList: [
+    {
+      id: 'photoshop', name: 'Adobe Photoshop 2026', bundleId: 'com.adobe.Photoshop', version: '27.1.0',
+      lastUsed: '62 天前', appSizeGb: 4.20, leftoverSizeGb: 8.60, checked: true, keepPersonal: true,
+      impact: '已开启「保留个人配置」：将彻底移除主程序（4.20 GB）及 8.60 GB 缓存与后台服务，但为您保留笔刷、色板与快捷键预设文件。',
+      subpaths: [
+        { path: '/Applications/Adobe Photoshop 2026/Adobe Photoshop 2026.app', size: '4.20 GB' },
+        { path: '~/Library/Application Support/Adobe/Adobe Photoshop 2026', size: '5.82 GB' },
+        { path: '~/Library/Caches/Adobe/Photoshop', size: '2.41 GB' },
+        { path: '~/Library/Logs/Adobe/Photoshop', size: '364 MB' },
+        { path: '~/Library/LaunchAgents/com.adobe.GC.Invoker-1.0.plist', size: '4 KB' }
+      ]
+    },
+    {
+      id: 'docker', name: 'Docker Desktop', bundleId: 'com.docker.docker', version: '4.38.0',
+      lastUsed: '14 天前', appSizeGb: 1.85, leftoverSizeGb: 6.45, checked: false, keepPersonal: true,
+      impact: '深度扫描到 ~/Library/Containers/com.docker.docker 下的虚拟磁盘镜像与后台守护服务。',
+      subpaths: [
+        { path: '/Applications/Docker.app', size: '1.85 GB' },
+        { path: '~/Library/Containers/com.docker.docker/Data/vms', size: '5.90 GB' },
+        { path: '~/Library/Group Containers/group.com.docker', size: '550 MB' }
+      ]
+    },
+    {
+      id: 'intellij', name: 'IntelliJ IDEA Ultimate', bundleId: 'com.jetbrains.intellij', version: '2026.1',
+      lastUsed: '21 天前', appSizeGb: 2.40, leftoverSizeGb: 3.10, checked: false, keepPersonal: true,
+      impact: '精准定位 JetBrains 索引缓存与历史日志目录，同时保护同厂商其他开发工具的共享配置。',
+      subpaths: [
+        { path: '/Applications/IntelliJ IDEA.app', size: '2.40 GB' },
+        { path: '~/Library/Caches/JetBrains/IntelliJIdea2026.1', size: '2.35 GB' },
+        { path: '~/Library/Application Support/JetBrains/IntelliJIdea2026.1/plugins', size: '750 MB' }
+      ]
+    },
+    {
+      id: 'premiere', name: 'Adobe Premiere Pro 2026', bundleId: 'com.adobe.PremierePro', version: '26.0.1',
+      lastUsed: '45 天前', appSizeGb: 3.40, leftoverSizeGb: 4.90, checked: false, keepPersonal: true,
+      impact: '包含音视频峰值缓存与插件配置，开启保留个人配置后将保留您的序列预设与工作区布局。',
+      subpaths: [
+        { path: '/Applications/Adobe Premiere Pro 2026', size: '3.40 GB' },
+        { path: '~/Library/Application Support/Adobe/Common/Media Cache Files', size: '4.90 GB' }
+      ]
+    },
+    {
+      id: 'blender', name: 'Blender 4.3 LTS', bundleId: 'org.blenderfoundation.blender', version: '4.3.2',
+      lastUsed: '3 个月前', appSizeGb: 1.15, leftoverSizeGb: 1.85, checked: false, keepPersonal: true,
+      impact: '包含 Cycles 渲染内核着色器缓存与扩展插件目录。',
+      subpaths: [
+        { path: '/Applications/Blender.app', size: '1.15 GB' },
+        { path: '~/Library/Application Support/Blender/4.3', size: '1.85 GB' }
+      ]
+    },
+    {
+      id: 'android_studio', name: 'Android Studio Ladybug', bundleId: 'com.google.android.studio', version: '2024.2.1',
+      lastUsed: '4 个月前', appSizeGb: 2.10, leftoverSizeGb: 6.20, checked: false, keepPersonal: true,
+      impact: '包含 Gradle 全局构建缓存与 Android 模拟器镜像目录。',
+      subpaths: [
+        { path: '/Applications/Android Studio.app', size: '2.10 GB' },
+        { path: '~/Library/Android/sdk & ~/.android/avd', size: '6.20 GB' }
+      ]
+    }
+  ],
+  optimizeTasks: [
+    { name: '输入法切换延迟修复与系统聚焦索引校验', status: 'applied', done: false, detail: '刷新中文输入法状态机缓存并验证 Spotlight 搜索索引完整性' },
+    { name: '重建快速预览缩略图与访达 (Finder) 图标缓存', status: 'applied', done: false, detail: '修复部分桌面文稿图标显示异常问题并重载系统预览服务' },
+    { name: '刷新系统本地 DNS 域名解析缓存', status: 'applied', done: false, detail: '清空过期本地域名解析记录，修复网页偶发连接缓慢问题' },
+    { name: '无损压缩系统通知中心与下载隔离区数据库', status: 'applied', done: false, detail: '在后台整理 3 个系统级核心数据库碎片，预计提速约 18%' },
+    { name: '扫描并修复损坏的应用偏好设置 (.plist) 与失效启动项', status: 'applied', done: false, detail: '校验 ~/Library/Preferences 配置文件并隔离指向已删除程序的启动项' },
+    { name: '整理 Safari 历史记录与邮件索引数据库', status: 'skipped', done: false, detail: '安全门控自动保护：检测到浏览器正在前台运行（关闭应用后可自动执行）' },
+    { name: '深度回收内核非活跃交换内存', status: 'skipped', done: false, detail: '安全门控自动保护：当前统一内存压力为「正常」（仍有 41.5% 充裕空间，无需强制回收）' }
+  ],
+  treemap2D: [
+    { name: 'Library (系统与应用支持库)', path: '~/Library', sizeGb: 88.4, pct: 35.6, color: 'linear-gradient(145deg, #3b6fd4, #2851a3)', files: 194200, x: 0, y: 0, w: 37, h: 100 },
+    { name: 'Projects (本地工作区与代码)', path: '~/Projects', sizeGb: 62.4, pct: 25.1, color: 'linear-gradient(145deg, #288a5d, #1c6644)', files: 112400, x: 37, y: 0, w: 38, h: 57 },
+    { name: 'Applications (已安装应用程序)', path: '/Applications', sizeGb: 46.8, pct: 18.8, color: 'linear-gradient(145deg, #c6613f, #9a4427)', files: 48200, x: 37, y: 57, w: 38, h: 43 },
+    { name: 'Downloads (下载与归档目录)', path: '~/Downloads', sizeGb: 28.9, pct: 11.6, color: 'linear-gradient(145deg, #c4881d, #966510)', files: 1420, x: 75, y: 0, w: 25, h: 48 },
+    { name: 'Documents (个人办公文稿)', path: '~/Documents', sizeGb: 14.2, pct: 5.7, color: 'linear-gradient(145deg, #2b8299, #1d5d6e)', files: 18900, x: 75, y: 48, w: 25, h: 27 },
+    { name: 'Movies (音视频与媒体创作)', path: '~/Movies', sizeGb: 7.8, pct: 3.2, color: 'linear-gradient(145deg, #7652bd, #553791)', files: 340, x: 75, y: 75, w: 25, h: 25 }
+  ],
+  largeFiles: [
+    { id: 'lf1', name: 'Docker.raw (容器虚拟磁盘镜像)', path: '~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw', sizeGb: 24.0, kind: '虚拟磁盘' },
+    { id: 'lf2', name: 'Xcode_16.2_Universal.xip (离线安装包)', path: '~/Downloads/Xcode_16.2_Universal.xip', sizeGb: 8.42, kind: '安装归档' },
+    { id: 'lf3', name: 'MacTeX-2026.pkg (离线安装包缓存)', path: '~/Library/Caches/Homebrew/downloads/MacTeX-2026.pkg', sizeGb: 4.85, kind: '安装包' }
+  ],
+  processes: [
+    { pid: 1842, name: 'Cursor', cpu: 24.6, memory_mb: 2840, power: 8.4, pinned: true, path: '/Applications/Cursor.app' },
+    { pid: 2190, name: 'Xcode', cpu: 18.2, memory_mb: 3420, power: 6.1, pinned: true, path: '/Applications/Xcode.app' },
+    { pid: 941, name: 'WindowServer', cpu: 11.4, memory_mb: 980, power: 3.7, pinned: false, path: '/System/Library/PrivateFrameworks/SkyLight.framework' },
+    { pid: 4242, name: 'Google Chrome', cpu: 9.8, memory_mb: 3650, power: 4.2, pinned: false, path: '/Applications/Google Chrome.app' },
+    { pid: 5110, name: 'Docker Desktop', cpu: 6.5, memory_mb: 2190, power: 2.8, pinned: false, path: '/Applications/Docker.app' }
+  ],
+  purgeItems: [
+    { id: 'p1', project: '~/Projects/rust-indexer', artifact: 'target', kind: 'Rust 编译构建产物', sizeGb: 4.62, origSizeGb: 4.62, age: '48 天未修改', rebuildNote: '下次编译自动重新生成', gitClean: '主分支 · 工作区干净', recent: false, checked: true },
+    { id: 'p2', project: '~/GitHub/ios-client', artifact: 'DerivedData', kind: 'Xcode 工程构建缓存', sizeGb: 3.15, origSizeGb: 3.15, age: '21 天未修改', rebuildNote: '打开工程编译自动生成', gitClean: '主分支 · 工作区干净', recent: false, checked: true },
+    { id: 'p3', project: '~/Projects/mole-studio', artifact: 'node_modules', kind: '前端项目依赖目录', sizeGb: 1.84, origSizeGb: 1.84, age: '34 天未修改', rebuildNote: '可随时通过包管理器恢复', gitClean: '开发分支 · 工作区干净', recent: false, checked: true },
+    { id: 'p4', project: '~/Projects/ai-agent', artifact: '.venv', kind: 'Python 虚拟环境依赖', sizeGb: 1.28, origSizeGb: 1.28, age: '19 天未修改', rebuildNote: '可随时根据环境锁文件恢复', gitClean: '主分支 · 工作区干净', recent: false, checked: true },
+    { id: 'p5', project: '~/Projects/active-webapp', artifact: '.next', kind: 'Next.js 编译缓存', sizeGb: 0.41, origSizeGb: 0.41, age: '2 天内活跃 (自动保护)', rebuildNote: '活跃工程自动跳过', gitClean: '存在未提交修改 (自动保护)', recent: true, checked: false }
+  ],
+  installerFiles: [
+    { id: 'inst1', name: 'Xcode_16.2_Universal.xip', location: '~/Downloads', sizeGb: 8.42, age: '29 天前下载', checked: true },
+    { id: 'inst2', name: 'MacTeX-2026.pkg', location: '~/Library/Caches/Homebrew/downloads', sizeGb: 4.85, age: '41 天前下载', checked: true },
+    { id: 'inst3', name: 'Docker-AppleSilicon.dmg', location: '~/Downloads', sizeGb: 0.78, age: '18 天前下载', checked: true }
+  ],
+  historyLogs: [
+    { id: '#20261015-1148', time: '今天 11:48', action: '智能深度清理 (Xcode DerivedData 与应用缓存)', sizeGb: 12.49, items: 115, status: '位于废纸篓 · 可还原' },
+    { id: '#20261013-1920', time: '10月13日 19:20', action: 'AI 专项清理 (清理 11 个旧版本更新包)', sizeGb: 5.60, items: 24, status: '位于废纸篓 · 可还原' },
+    { id: '#20261010-1015', time: '10月10日 10:15', action: '项目产物清理 (4 个陈旧构建目录)', sizeGb: 10.89, items: 4, status: '位于废纸篓 · 可还原' }
+  ],
+  whitelist: [
+    '~/.ollama/models (本地大模型权重)',
+    '~/.cache/huggingface (数据集与模型缓存)',
+    '~/.claude/projects (AI 历史会话与记忆)',
+    '~/Library/Caches/com.apple.e5rt.e5bundlecache (Apple 神经网络引擎编译缓存)',
+    '~/Documents/Financials (用户自定义保护目录)'
+  ],
+  doctorChecks: [
+    { id: 'fda', title: '完全磁盘访问权限 (Full Disk Access)', detail: '已授权访问 ~/Library/Caches、~/Library/Logs 与应用沙盒容器', latency: '18ms', passed: true },
+    { id: 'mem', title: '系统统一内存压力评估', detail: '压力正常（已用 18.7 GB / 32.0 GB，交换内存仅 256 MB）', latency: '24ms', passed: true },
+    { id: 'disk', title: '磁盘剩余空间与 SMART 硬件寿命状态', detail: '剩余 302.1 GB 可用 · NVMe SMART 固态寿命验证通过', latency: '31ms', passed: true },
+    { id: 'bat', title: '电池循环健康度与散热表现', detail: '最大容量 98%（142 次循环）· 核心温度 45.2°C 散热良好', latency: '19ms', passed: true },
+    { id: 'up', title: '系统连续运行时间与更新锁检查', detail: '已连续运行 6 天 14 小时 · 无挂起的系统更新锁', latency: '15ms', passed: true },
+    { id: 'log', title: '废纸篓回收与还原快照完整性检查', detail: '所有历史清理快照均可正常关联 ~/.Trash 还原路径', latency: '22ms', passed: true },
+    { id: 'ane', title: '硬件与 AI 核心资产保护锁验证', detail: 'Apple 神经网络引擎缓存与 AI 历史对话目录已锁定保护', latency: '14ms', passed: true }
+  ]
+};
+
+function toggleSystemMenuBarDemo(show) {
+  const bar = document.getElementById('macSysMenuBar');
+  const pop = document.getElementById('macSysPopover');
+  if (typeof show === 'boolean') {
+    bar.classList.toggle('visible', show);
+    pop.classList.toggle('visible', show);
+  } else {
+    pop.classList.toggle('visible');
+  }
+}
+
+// Native Bridge Dispatcher
+function sendNativeBridge(payload) {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.moleNative) {
+    try { window.webkit.messageHandlers.moleNative.postMessage(payload); } catch (e) {}
+  }
+}
+
+// Native Window Dragging on Top Action Bar & Sidebar Header
+function handleTopBarDrag(ev) {
+  if (ev.button !== 0) return;
+  const tag = (ev.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'button' || tag === 'select' || ev.target.closest('.btn') || ev.target.closest('.search-box')) return;
+  sendNativeBridge({ action: 'startWindowDrag' });
+}
+function handleTopBarDoubleClick(ev) {
+  const tag = (ev.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'button' || ev.target.closest('.btn')) return;
+  sendNativeBridge({ action: 'toggleWindowZoom' });
+}
+
+function revealInFinder(pathStr) {
+  sendNativeBridge({ action: 'revealInFinder', path: pathStr });
+  showToast('已在访达 (Finder) 中定位: ' + pathStr);
+}
+
+function copyTextToClipboard(txt) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).catch(() => {});
+  }
+  sendNativeBridge({ action: 'copyText', text: txt });
+  showToast('已复制内容至剪贴板');
+}
+
+function addPathToWhitelist(pathStr, groupIdx) {
+  const entry = pathStr + ' (用户白名单保护)';
+  if (!STATE.whitelist.some(w => w.includes(pathStr))) {
+    STATE.whitelist.unshift(entry);
+  }
+  if (typeof groupIdx === 'number' && STATE.cleanGroups[groupIdx]) {
+    STATE.cleanGroups[groupIdx].checked = false;
+  }
+  sendNativeBridge({ action: 'addWhitelist', path: pathStr });
+  updateSidebarBadges();
+  renderModule();
+  showToast('已将 ' + pathStr + ' 加入白名单保护');
+}
+
+function removeWhitelistIdx(idx) {
+  const removed = STATE.whitelist.splice(idx, 1);
+  renderModule();
+  showToast('已从白名单移除 ' + (removed[0] || ''));
+}
+
+function addCustomWhitelistInput() {
+  const inp = document.getElementById('customWhitelistInput');
+  if (!inp || !inp.value.trim()) return;
+  const val = inp.value.trim();
+  STATE.whitelist.unshift(val + ' (自定义保护路径)');
+  inp.value = '';
+  renderModule();
+  showToast('已添加自定义白名单路径: ' + val);
+}
+
+function renderHeroIcon() {
+  const box = document.getElementById('heroSemanticIcon');
+  if (!box) return;
+  const cfg = SEMANTIC_HERO_ICONS[STATE.module] || SEMANTIC_HERO_ICONS.clean;
+  box.style.background = cfg.bg;
+  box.innerHTML = cfg.svg;
+}
+
+function svgSparkline(points, strokeColor, fillColor) {
+  const max = Math.max(...points, 100);
+  const w = 220, h = 34;
+  const coords = points.map((v, i) => {
+    const x = (i / (points.length - 1)) * w;
+    const y = h - (v / max) * (h - 6) - 3;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const linePath = `M ${coords.join(' L ')}`;
+  const areaPath = `${linePath} L ${w},${h} L 0,${h} Z`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:34px;overflow:visible;">
+    <path d="${areaPath}" fill="${fillColor}" />
+    <path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" />
+  </svg>`;
+}
+
+function formatTemp(c) {
+  return STATE.tempUnit === 'F' ? Math.round(c * 9 / 5 + 32) + '°F' : c.toFixed(1) + '°C';
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toastBanner');
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => { el.style.display = 'none'; }, 2600);
+}
+
+function recomputeDiskAnalyzeTotals() {
+  const total = STATE.treemap2D.reduce((s, d) => s + d.sizeGb, 0);
+  STATE.totalAnalyzedGb = total;
+  STATE.treemap2D.forEach(d => {
+    d.pct = +((d.sizeGb / Math.max(1, total)) * 100).toFixed(1);
+  });
+  const usedPct = Math.max(18, Math.min(72, Math.round(((1000 - STATE.freeDiskGb) / 1000) * 70)));
+  const barEl = document.getElementById('diskUsedBar');
+  if (barEl) barEl.style.width = usedPct + '%';
+  const popDisk = document.getElementById('sysPopDisk');
+  if (popDisk) popDisk.textContent = STATE.freeDiskGb.toFixed(1) + ' GB 可用';
+}
+
+function updateSidebarBadges() {
+  const cleanGb = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.sizeGb, 0);
+  const moonGb = STATE.aiMoonBands.filter(b => b.checked).reduce((s, b) => s + b.sizeGb, 0);
+  const appGb = STATE.appsList.filter(a => a.checked).reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+  const purgeGb = STATE.purgeItems.filter(p => p.checked).reduce((s, p) => s + p.sizeGb, 0) + STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
+
+  document.getElementById('navMetaClean').textContent = cleanGb > 0 ? cleanGb.toFixed(1) + ' GB' : '已清理';
+  document.getElementById('navMetaMoon').textContent = moonGb > 0 ? moonGb.toFixed(1) + ' GB' : '已清理';
+  document.getElementById('navMetaSoftware').textContent = appGb > 0 ? appGb.toFixed(1) + ' GB' : STATE.appsList.length + ' 应用';
+  document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : '已清理';
+  document.getElementById('navMetaHistory').textContent = STATE.historyLogs.length + (STATE.lang === 'zh' ? ' 快照' : ' Snaps');
+  document.getElementById('sidebarFreeDisk').textContent = (STATE.lang === 'zh' ? '剩余 ' : 'Free ') + STATE.freeDiskGb.toFixed(1) + ' GB';
+  document.getElementById('sidebarHealthSub').textContent = `健康分 ${STATE.healthScore} · 7/7 正常`;
+}
+
+window.switchModule = function(mod) {
+  STATE.module = mod;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-mod') === mod);
+  });
+  updateSidebarBadges();
+  renderHeroIcon();
+  renderModule();
+};
+
+// Interactive Handlers for Clean
+function selectCleanRow(idx) { STATE.selectedCleanIdx = idx; renderModule(); }
+function toggleCleanCheck(idx, ev) {
+  if (ev) ev.stopPropagation();
+  const g = STATE.cleanGroups[idx];
+  if (!g || g.tier === 'protected') return;
+  g.checked = !g.checked;
+  if (g.checked && g.sizeGb === 0) {
+    g.sizeGb = g.origSizeGb;
+    g.cleaned = false;
+  }
+  g.subpaths.forEach(sp => { sp.checked = g.checked; });
+  updateSidebarBadges();
+  renderModule();
+}
+function toggleSubpathCheck(groupIdx, subIdx) {
+  const g = STATE.cleanGroups[groupIdx];
+  if (!g || g.tier === 'protected') return;
+  g.subpaths[subIdx].checked = !g.subpaths[subIdx].checked;
+  const activeSum = g.subpaths.filter(sp => sp.checked).reduce((s, sp) => s + (sp.sizeGb || 0.5), 0);
+  g.checked = activeSum > 0;
+  g.sizeGb = activeSum > 0 ? +activeSum.toFixed(2) : 0;
+  updateSidebarBadges();
+  renderModule();
+}
+function setCleanFilter(f) { STATE.cleanFilter = f; renderModule(); }
+
+// Interactive Handlers for AI Care
+function selectMoonRow(idx) { STATE.selectedMoonIdx = idx; renderModule(); }
+function toggleMoonCheck(idx, ev) {
+  if (ev) ev.stopPropagation();
+  const b = STATE.aiMoonBands[idx];
+  if (!b || b.tier === 'protected') return;
+  b.checked = !b.checked;
+  if (b.checked && b.sizeGb === 0) {
+    b.sizeGb = b.origSizeGb;
+    b.cleaned = false;
+  }
+  updateSidebarBadges();
+  renderModule();
+}
+function setAiRetention(win) {
+  STATE.aiRetention = win;
+  const worktreeBand = STATE.aiMoonBands[2];
+  if (worktreeBand && !worktreeBand.cleaned) {
+    worktreeBand.sizeGb = win === '15d' ? 6.10 : win === '30d' ? 4.95 : 2.40;
+  }
+  updateSidebarBadges();
+  renderModule();
+  showToast('已将 AI 临时工作树保留周期切换为: ' + (win === '15d' ? '15 天' : win === '30d' ? '30 天' : '90 天'));
+}
+
+// Interactive Handlers for Software Uninstaller
+function selectAppRow(idx) { STATE.selectedAppIdx = idx; renderModule(); }
+function toggleAppCheck(idx, ev) {
+  if (ev) ev.stopPropagation();
+  STATE.appsList[idx].checked = !STATE.appsList[idx].checked;
+  STATE.selectedAppIdx = idx;
+  updateSidebarBadges();
+  renderModule();
+}
+function toggleAppKeepPersonal(idx, ev) {
+  if (ev) ev.stopPropagation();
+  const app = STATE.appsList[idx];
+  app.keepPersonal = !app.keepPersonal;
+  app.impact = app.keepPersonal
+    ? `已开启「保留个人配置」：将彻底移除主程序（${app.appSizeGb.toFixed(2)} GB）及缓存服务，但为您保留许可证、笔刷与个人预设文件。`
+    : `已切换为「全量彻底删除」：将连同主程序、缓存与 ~/Library/Preferences 下的个人偏好配置一并移入废纸篓。`;
+  updateSidebarBadges();
+  renderModule();
+  showToast(app.name + (app.keepPersonal ? ': 已开启保留个人配置' : ': 已切换为全量彻底删除'));
+}
+
+// Interactive Handlers for Analyze
+function selectTreemapDir(idx) {
+  STATE.selectedTreemapIdx = idx;
+  renderModule();
+}
+function removeLargeFile(idx) {
+  const lf = STATE.largeFiles[idx];
+  if (!lf) return;
+  STATE.largeFiles.splice(idx, 1);
+  STATE.freeDiskGb = +(STATE.freeDiskGb + lf.sizeGb).toFixed(2);
+  if (lf.path.includes('Downloads')) {
+    STATE.treemap2D[3].sizeGb = Math.max(2.0, +(STATE.treemap2D[3].sizeGb - lf.sizeGb).toFixed(2));
+  } else {
+    STATE.treemap2D[0].sizeGb = Math.max(10.0, +(STATE.treemap2D[0].sizeGb - lf.sizeGb).toFixed(2));
+  }
+  recomputeDiskAnalyzeTotals();
+  STATE.historyLogs.unshift({
+    id: '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
+    time: '刚刚',
+    action: `大文件清理 (${lf.name})`,
+    sizeGb: lf.sizeGb,
+    items: 1,
+    status: '位于废纸篓 · 可还原',
+    restoreData: { type: 'largeFile', item: lf }
+  });
+  sendNativeBridge({ action: 'trashPath', path: lf.path });
+  updateSidebarBadges();
+  renderModule();
+  showToast(`已将 ${lf.name} (${lf.sizeGb.toFixed(2)} GB) 移入废纸篓，磁盘空间已实时更新`);
+}
+
+// Interactive Handlers for Status (Real-Time Live Telemetry)
+function setFanMode(m) {
+  STATE.fanMode = m;
+  sendNativeBridge({ action: 'setFanMode', mode: m });
+  renderModule();
+  showToast('已切换双风扇模式为: ' + (m === 'Auto' ? '自动智能温控 (1240 RPM)' : m === 'Cool' ? '静音冷静模式 (2850 RPM)' : '全速散热模式 (4900 RPM)'));
+}
+function togglePinProcess(pid) {
+  const p = STATE.processes.find(x => x.pid === pid);
+  if (p) p.pinned = !p.pinned;
+  renderModule();
+}
+function sortProcessesBy(key) {
+  STATE.procSortKey = key;
+  renderModule();
+  showToast('已按 ' + (key === 'cpu' ? 'CPU 占用' : key === 'memory_mb' ? '内存占用' : '功耗') + ' 实时排序进程');
+}
+function killProcessByPid(pid) {
+  const idx = STATE.processes.findIndex(x => x.pid === pid);
+  if (idx === -1) return;
+  const proc = STATE.processes[idx];
+  STATE.processes.splice(idx, 1);
+  const latestCpu = Math.max(8.5, +(STATE.cpuSeries[STATE.cpuSeries.length - 1] - proc.cpu * 0.6).toFixed(1));
+  STATE.cpuSeries.push(latestCpu); STATE.cpuSeries.shift();
+  STATE.memUsedGb = Math.max(8.0, +(STATE.memUsedGb - proc.memory_mb / 1024).toFixed(1));
+  sendNativeBridge({ action: 'killProcess', pid: pid });
+  renderModule();
+  showToast(`已终止进程 ${proc.name} (PID ${pid})，CPU 与内存负载已实时释放`);
+}
+
+// Real-Time Live Telemetry Heartbeat (Runs every 1.5s & receives native Swift Mach/ps pushes)
+window.stepLiveTelemetry = function(nativeData) {
+  const curCpu = nativeData && nativeData.cpu ? nativeData.cpu : +(Math.max(12, Math.min(88, STATE.cpuSeries[STATE.cpuSeries.length - 1] + (Math.random() - 0.48) * 5.2))).toFixed(1);
+  const curGpu = +(Math.max(6, Math.min(65, STATE.gpuSeries[STATE.gpuSeries.length - 1] + (Math.random() - 0.48) * 3.8))).toFixed(1);
+  const curDisk = +(Math.max(5, Math.min(85, STATE.diskSeries[STATE.diskSeries.length - 1] + (Math.random() - 0.48) * 6.5))).toFixed(1);
+  const curNet = +(Math.max(8, Math.min(92, STATE.netSeries[STATE.netSeries.length - 1] + (Math.random() - 0.48) * 7.0))).toFixed(1);
+
+  if (nativeData && nativeData.freeDiskGb) {
+    STATE.freeDiskGb = +nativeData.freeDiskGb.toFixed(1);
+  }
+  STATE.cpuSeries.push(curCpu); STATE.cpuSeries.shift();
+  STATE.gpuSeries.push(curGpu); STATE.gpuSeries.shift();
+  STATE.diskSeries.push(curDisk); STATE.diskSeries.shift();
+  STATE.netSeries.push(curNet); STATE.netSeries.shift();
+  STATE.cpuTempC = +(44.5 + (curCpu / 25.0)).toFixed(1);
+  STATE.netDownMbs = +(curNet / 10.0).toFixed(2);
+
+  STATE.processes.forEach(p => {
+    p.cpu = Math.max(1.2, +(p.cpu + (Math.random() - 0.49) * 1.4).toFixed(1));
+  });
+
+  const pill = document.getElementById('livePillText');
+  if (pill) {
+    pill.textContent = `实时监控中 · CPU ${curCpu}% · 剩余 ${STATE.freeDiskGb.toFixed(1)}G`;
+  }
+  const sysPopCpu = document.getElementById('sysPopCpu');
+  if (sysPopCpu) {
+    sysPopCpu.textContent = `${curCpu}% · ${formatTemp(STATE.cpuTempC)}`;
+  }
+  updateSidebarBadges();
+  if (STATE.module === 'status') {
+    renderModule();
+  }
+};
+
+// Interactive Handlers for Purge & Installer
+function selectPurgeRow(idx) { STATE.selectedPurgeIdx = idx; renderModule(); }
+function togglePurgeCheck(idx, ev) {
+  if (ev) ev.stopPropagation();
+  const item = STATE.purgeItems[idx];
+  if (!item || item.recent) return;
+  item.checked = !item.checked;
+  if (item.checked && item.sizeGb === 0) item.sizeGb = item.origSizeGb;
+  updateSidebarBadges();
+  renderModule();
+}
+function toggleInstallerCheck(idx) {
+  STATE.installerFiles[idx].checked = !STATE.installerFiles[idx].checked;
+  updateSidebarBadges();
+  renderModule();
+}
+
+// Interactive Handlers for Optimize & History Restore
+function runAllOptimizeTasks() {
+  let count = 0;
+  STATE.optimizeTasks.forEach(t => {
+    if (t.status === 'applied') {
+      t.done = true;
+      count++;
+    }
+  });
+  STATE.healthScore = Math.min(100, STATE.healthScore + 2);
+  sendNativeBridge({ action: 'executeOptimize' });
+  updateSidebarBadges();
+  renderModule();
+  showToast(`已成功执行 ${count} 项系统加速与缓存重建维护，系统健康分提升至 ${STATE.healthScore}`);
+}
+
+function restoreHistorySnapshot(idx) {
+  const snap = STATE.historyLogs[idx];
+  if (!snap) return;
+  STATE.historyLogs.splice(idx, 1);
+
+  if (snap.restoreData) {
+    const rd = snap.restoreData;
+    if (rd.type === 'largeFile') {
+      STATE.largeFiles.unshift(rd.item);
+      STATE.treemap2D[0].sizeGb = +(STATE.treemap2D[0].sizeGb + rd.item.sizeGb).toFixed(2);
+    } else if (rd.type === 'clean') {
+      rd.ids.forEach(id => {
+        const g = STATE.cleanGroups.find(x => x.id === id);
+        if (g) {
+          g.sizeGb = g.origSizeGb;
+          g.checked = true;
+          g.cleaned = false;
+          g.subpaths.forEach(sp => { sp.checked = true; });
+        }
+      });
+      STATE.treemap2D[0].sizeGb = +(STATE.treemap2D[0].sizeGb + snap.sizeGb).toFixed(2);
+    } else if (rd.type === 'ai_moon') {
+      rd.ids.forEach(id => {
+        const b = STATE.aiMoonBands.find(x => x.id === id);
+        if (b) { b.sizeGb = b.origSizeGb; b.checked = true; b.cleaned = false; }
+      });
+      STATE.treemap2D[0].sizeGb = +(STATE.treemap2D[0].sizeGb + snap.sizeGb).toFixed(2);
+    } else if (rd.type === 'software' && rd.removedApps) {
+      STATE.appsList.unshift(...rd.removedApps);
+      STATE.selectedAppIdx = 0;
+      STATE.treemap2D[2].sizeGb = +(STATE.treemap2D[2].sizeGb + snap.sizeGb).toFixed(2);
+    } else if (rd.type === 'purge') {
+      STATE.purgeItems.forEach(p => { if (!p.recent) { p.sizeGb = p.origSizeGb; p.checked = true; } });
+      STATE.treemap2D[1].sizeGb = +(STATE.treemap2D[1].sizeGb + snap.sizeGb).toFixed(2);
+    }
+  }
+  STATE.freeDiskGb = Math.max(100, +(STATE.freeDiskGb - snap.sizeGb).toFixed(2));
+  recomputeDiskAnalyzeTotals();
+  updateSidebarBadges();
+  renderModule();
+  showToast(`已从废纸篓原路还原快照 ${snap.id} (${snap.sizeGb.toFixed(2)} GB)，空间数据已同步更新`);
+}
+
+function handlePrimaryAction() {
+  if (STATE.module === 'optimize') {
+    runAllOptimizeTasks();
+  } else if (STATE.module === 'analyze') {
+    recomputeDiskAnalyzeTotals();
+    renderModule();
+    showToast('已实时刷新本地主目录空间分布与大文件列表');
+  } else if (STATE.module === 'status') {
+    stepLiveTelemetry();
+    showToast('已实时刷新硬件传感器与活跃进程数据');
+  } else if (STATE.module === 'history') {
+    copyTextToClipboard(JSON.stringify(STATE.historyLogs, null, 2));
+  } else {
+    openConfirmSheet();
+  }
+}
+
+function renderModule() {
+  const mod = STATE.module;
+  const topTitle = document.getElementById('topTitle');
+  const primaryBtnText = document.getElementById('primaryBtnText');
+  const heroHeadline = document.getElementById('heroHeadline');
+  const heroDesc = document.getElementById('heroDesc');
+  const heroStatLabel = document.getElementById('heroStatLabel');
+  const heroStatValue = document.getElementById('heroStatValue');
+  const heroStatSub = document.getElementById('heroStatSub');
+  const stage = document.getElementById('moduleStage');
+  const q = STATE.searchQuery.trim().toLowerCase();
+
+  if (mod === 'clean') {
+    const selectedGb = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.sizeGb, 0);
+    const selectedItems = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.items, 0);
+    topTitle.textContent = STATE.lang === 'zh' ? '智能深度清理' : 'Smart Deep Clean';
+    primaryBtnText.textContent = selectedGb > 0 ? `一键清理所选 (${selectedGb.toFixed(2)} GB)` : '全部所选项已清理完毕';
+    heroHeadline.textContent = selectedGb > 0
+      ? `发现 ${selectedGb.toFixed(2)} GB 可安全释放的系统与应用缓存`
+      : '恭喜！当前勾选的系统与应用缓存已全部清理完毕';
+    heroDesc.textContent = '界面列表即实时预览：按重建成本分为「安全可再生」「需确认项」与「硬件保护项」。点击任意分类可在右侧检视具体子目录并执行二次确认清理。';
+    heroStatLabel.textContent = '当前已勾选待清理';
+    heroStatValue.textContent = `${selectedGb.toFixed(2)} GB`;
+    heroStatSub.textContent = selectedGb > 0 ? `共 ${selectedItems} 项 · 二次确认后安全移入废纸篓` : '可在「恢复记录与白名单」中随时还原';
+
+    const filtered = STATE.cleanGroups.filter(g => {
+      const matchTier = STATE.cleanFilter === 'all' || g.tier === STATE.cleanFilter;
+      const matchQ = !q || g.name.toLowerCase().includes(q) || g.path.toLowerCase().includes(q) || g.category.toLowerCase().includes(q);
+      return matchTier && matchQ;
+    });
+    const selGroup = STATE.cleanGroups[STATE.selectedCleanIdx] || STATE.cleanGroups[0];
+    const totalScanGb = Math.max(0.1, STATE.cleanGroups.reduce((s, x) => s + x.sizeGb, 0));
+    const sharePct = selGroup.sizeGb > 0 ? ((selGroup.sizeGb / totalScanGb) * 100).toFixed(1) + '%' : '0.0% (已清理)';
+
+    stage.innerHTML = `
+      <div class="master-detail-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>缓存与日志分类清单（点击行查看右侧目录详情）</span>
+            <div class="segmented-tabs">
+              <div class="seg-tab ${STATE.cleanFilter === 'all' ? 'active' : ''}" onclick="setCleanFilter('all')">全部 (${STATE.cleanGroups.length})</div>
+              <div class="seg-tab ${STATE.cleanFilter === 'safe' ? 'active' : ''}" onclick="setCleanFilter('safe')">安全可再生 (${STATE.cleanGroups.filter(x=>x.tier==='safe').length})</div>
+              <div class="seg-tab ${STATE.cleanFilter === 'review' ? 'active' : ''}" onclick="setCleanFilter('review')">需确认 (${STATE.cleanGroups.filter(x=>x.tier==='review').length})</div>
+              <div class="seg-tab ${STATE.cleanFilter === 'protected' ? 'active' : ''}" onclick="setCleanFilter('protected')">保护项 (${STATE.cleanGroups.filter(x=>x.tier==='protected').length})</div>
+            </div>
+          </div>
+          <div class="list-body">
+            ${filtered.map(g => {
+              const origIdx = STATE.cleanGroups.findIndex(x => x.id === g.id);
+              const isSel = origIdx === STATE.selectedCleanIdx;
+              const pct = Math.min(100, Math.round((g.sizeGb / 5.0) * 100));
+              const barColor = g.tier === 'safe' ? 'var(--accent-emerald)' : g.tier === 'review' ? 'var(--accent-amber)' : 'var(--accent-purple)';
+              return `
+                <div class="list-row ${isSel ? 'selected' : ''}" onclick="selectCleanRow(${origIdx})">
+                  <div class="row-left">
+                    <input type="checkbox" ${g.checked ? 'checked' : ''} ${g.tier === 'protected' ? 'disabled' : ''} onclick="toggleCleanCheck(${origIdx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                    <div style="min-width:0;">
+                      <div class="row-title">${g.name}</div>
+                      <div class="row-sub">${g.path} · ${g.items} 个子项 (${g.filesCount})</div>
+                    </div>
+                  </div>
+                  <div class="row-right">
+                    <div class="prop-bar-wrap"><div class="prop-bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
+                    <span class="badge ${g.cleaned ? 'badge-safe' : g.tier === 'safe' ? 'badge-safe' : g.tier === 'review' ? 'badge-review' : 'badge-protected'}">
+                      ${g.cleaned ? '✅ 已清理' : g.tier === 'safe' ? '安全可再生' : g.tier === 'review' ? '需确认' : '硬件保护'}
+                    </span>
+                    <span class="size-cell">${g.sizeGb.toFixed(2)} GB</span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>目录结构与安全评估</span>
+            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selGroup.sizeGb.toFixed(2)} GB</span>
+          </div>
+          <div class="inspector-content">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">${selGroup.category}</div>
+              <div style="font-size:14px;font-weight:700;margin-top:2px;">${selGroup.name}</div>
+            </div>
+
+            <div class="bento-4">
+              <div class="bento-cell"><div class="bento-label">占扫描总量比例</div><div class="bento-val" style="color:var(--accent-primary);">${sharePct}</div></div>
+              <div class="bento-cell"><div class="bento-label">包含文件总数</div><div class="bento-val">${selGroup.filesCount}</div></div>
+              <div class="bento-cell"><div class="bento-label">最近修改时间</div><div class="bento-val">${selGroup.lastMod}</div></div>
+              <div class="bento-cell"><div class="bento-label">预计重建耗时</div><div class="bento-val" style="color:var(--accent-emerald);">${selGroup.rebuildTime}</div></div>
+            </div>
+
+            <div class="inspector-box" style="border-left:3px solid ${selGroup.tier === 'protected' ? 'var(--accent-purple)' : 'var(--accent-emerald)'};">
+              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">🛡️ 清理影响与安全评估说明</div>
+              <div style="color:var(--text-secondary);font-size:11px;">${selGroup.impact}</div>
+            </div>
+
+            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">包含子目录明细 (${selGroup.subpaths.length} 个主要路径 · 支持单独勾选)</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              ${selGroup.subpaths.map((sp, spIdx) => `
+                <div class="subpath-item">
+                  <div class="subpath-left">
+                    <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} ${selGroup.tier === 'protected' ? 'disabled' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
+                  </div>
+                  <div class="subpath-right">
+                    <span>${selGroup.cleaned ? '0 MB' : sp.size}</span>
+                    <span style="color:var(--text-muted);cursor:pointer;" onclick="revealInFinder('${sp.path}')" title="在访达中定位">↗</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            <div style="margin-top:auto;display:flex;gap:8px;padding-top:4px;">
+              <button class="btn" style="flex:1;justify-content:center;" onclick="revealInFinder('${selGroup.path}')">在访达 (Finder) 中显示</button>
+              <button class="btn" style="flex:1;justify-content:center;" onclick="addPathToWhitelist('${selGroup.path}', ${STATE.selectedCleanIdx})">加入白名单保护</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (mod === 'ai_moon') {
+    const selectedGb = STATE.aiMoonBands.filter(b => b.checked).reduce((s, b) => s + b.sizeGb, 0);
+    topTitle.textContent = 'AI 专项清理';
+    primaryBtnText.textContent = selectedGb > 0 ? `清理所选 AI 冗余 (${selectedGb.toFixed(2)} GB)` : 'AI 冗余已清理完毕';
+    heroHeadline.textContent = selectedGb > 0
+      ? `发现 ${selectedGb.toFixed(2)} GB AI 开发工具旧版本包与过期工作树`
+      : '当前所选 AI 开发工具冗余缓存已全部清理完毕';
+    heroDesc.textContent = '专为本地 AI 编程与桌面工具设计的三段式安全清理：自动清理已被替换的历史旧版本更新包与过期临时树，永久保护历史对话、记忆与技能配置。';
+    heroStatLabel.textContent = 'AI 专项可释放';
+    heroStatValue.textContent = `${selectedGb.toFixed(2)} GB`;
+    heroStatSub.textContent = `保留窗口: ${STATE.aiRetention} · 对话历史永久保护`;
+
+    const selBand = STATE.aiMoonBands[STATE.selectedMoonIdx] || STATE.aiMoonBands[0];
+    stage.innerHTML = `
+      <div class="master-detail-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>AI 工具三级安全清理带（点击行查看右侧详情）</span>
+            <div class="segmented-tabs">
+              <div class="seg-tab ${STATE.aiRetention === '15d' ? 'active' : ''}" onclick="setAiRetention('15d')">保留 15 天</div>
+              <div class="seg-tab ${STATE.aiRetention === '30d' ? 'active' : ''}" onclick="setAiRetention('30d')">保留 30 天</div>
+              <div class="seg-tab ${STATE.aiRetention === '90d' ? 'active' : ''}" onclick="setAiRetention('90d')">保留 90 天</div>
+            </div>
+          </div>
+          <div class="list-body">
+            ${STATE.aiMoonBands.map((b, idx) => `
+              <div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}" onclick="selectMoonRow(${idx})">
+                <div class="row-left">
+                  <input type="checkbox" ${b.checked ? 'checked' : ''} ${b.tier === 'protected' ? 'disabled' : ''} onclick="toggleMoonCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                  <div style="min-width:0;">
+                    <div class="row-title">${b.name}</div>
+                    <div class="row-sub">${b.band} · ${b.path}</div>
+                  </div>
+                </div>
+                <div class="row-right">
+                  <span class="badge ${b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
+                    ${b.cleaned ? '✅ 已清理' : b.tier === 'safe' ? '默认安全' : b.tier === 'review' ? '按期复核' : '永久保护'}
+                  </span>
+                  <span class="size-cell">${b.sizeGb.toFixed(2)} GB</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>AI 路径安全审查明细</span>
+            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selBand.sizeGb.toFixed(2)} GB</span>
+          </div>
+          <div class="inspector-content">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);">${selBand.band}</div>
+              <div style="font-size:14px;font-weight:700;margin-top:2px;">${selBand.name}</div>
+            </div>
+            <div class="bento-4">
+              <div class="bento-cell"><div class="bento-label">可释放空间</div><div class="bento-val" style="color:var(--accent-primary);">${selBand.sizeGb.toFixed(2)} GB</div></div>
+              <div class="bento-cell"><div class="bento-label">涉及对象数量</div><div class="bento-val">${selBand.filesCount}</div></div>
+              <div class="bento-cell"><div class="bento-label">文件时间跨度</div><div class="bento-val">${selBand.lastMod}</div></div>
+              <div class="bento-cell"><div class="bento-label">重建与影响</div><div class="bento-val" style="color:var(--accent-emerald);">${selBand.rebuildTime}</div></div>
+            </div>
+            <div class="inspector-box" style="border-left:3px solid var(--accent-primary);">
+              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">🛡️ AI 数据安全边界说明</div>
+              <div style="color:var(--text-secondary);font-size:11px;">${selBand.impact}</div>
+            </div>
+            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">关联本地路径明细</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              ${selBand.subpaths.map(sp => `
+                <div class="subpath-item">
+                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
+                  <span class="subpath-right">${selBand.cleaned ? '0 MB' : sp.size}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top:auto;display:flex;gap:8px;padding-top:4px;">
+              <button class="btn" style="flex:1;justify-content:center;" onclick="revealInFinder('${selBand.path}')">在访达 (Finder) 中显示</button>
+              <button class="btn" style="flex:1;justify-content:center;" onclick="addPathToWhitelist('${selBand.path}')">加入白名单保护</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (mod === 'software') {
+    const selApp = STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0];
+    const totalSelectedAppGb = STATE.appsList.filter(a => a.checked).reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0) || (selApp ? selApp.appSizeGb + selApp.leftoverSizeGb : 0);
+    topTitle.textContent = '应用彻底卸载';
+    primaryBtnText.textContent = `彻底卸载所选 (${totalSelectedAppGb.toFixed(2)} GB)`;
+    heroHeadline.textContent = selApp ? `${selApp.name} 关联残留深度透视（共 ${(selApp.appSizeGb + selApp.leftoverSizeGb).toFixed(2)} GB）` : '所有勾选应用已卸载完毕';
+    heroDesc.textContent = '精准追踪应用在 ~/Library 下 15+ 个子目录（Application Support、Containers、Caches、Preferences、LaunchAgents）的关联文件，支持点击徽章切换是否保留个人预设。';
+    heroStatLabel.textContent = '已选应用 + 关联残留';
+    heroStatValue.textContent = `${totalSelectedAppGb.toFixed(2)} GB`;
+    heroStatSub.textContent = '二次确认后连同残留一并移入废纸篓';
+
+    if (!selApp) {
+      stage.innerHTML = `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">所有选中应用已卸载，可在「恢复记录与白名单」中还原。</div>`;
+      return;
+    }
+
+    stage.innerHTML = `
+      <div class="master-detail-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>已安装大型应用与关联残留列表（点击徽章可切换是否保留个人数据）</span>
+            <span style="font-size:11px;color:var(--text-secondary);">共 ${STATE.appsList.length} 个大型应用</span>
+          </div>
+          <div class="list-body">
+            ${STATE.appsList.map((app, idx) => `
+              <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
+                <div class="row-left">
+                  <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                  <div style="min-width:0;">
+                    <div class="row-title">${app.name} <span style="font-size:11px;color:var(--text-secondary);">v${app.version}</span></div>
+                    <div class="row-sub">主程序: ${app.appSizeGb.toFixed(2)} GB + Library 残留: ${app.leftoverSizeGb.toFixed(2)} GB · 上次使用: ${app.lastUsed}</div>
+                  </div>
+                </div>
+                <div class="row-right">
+                  <span class="badge ${app.keepPersonal ? 'badge-safe' : 'badge-review'}" onclick="toggleAppKeepPersonal(${idx}, event)" title="点击切换是否保留个人配置">
+                    ${app.keepPersonal ? '保留个人配置' : '全量彻底删除'}
+                  </span>
+                  <span class="size-cell" style="color:var(--accent-rose);">${(app.appSizeGb + app.leftoverSizeGb).toFixed(2)} GB</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>卸载残留路径透视 (${selApp.name})</span>
+            <span style="font-family:var(--font-mono);color:var(--accent-rose);">${(selApp.appSizeGb + selApp.leftoverSizeGb).toFixed(2)} GB</span>
+          </div>
+          <div class="inspector-content">
+            <div class="bento-4">
+              <div class="bento-cell"><div class="bento-label">主程序包 (.app)</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
+              <div class="bento-cell"><div class="bento-label">Library 关联残留</div><div class="bento-val" style="color:var(--accent-rose);">${selApp.leftoverSizeGb.toFixed(2)} GB</div></div>
+              <div class="bento-cell"><div class="bento-label">Bundle 标识符</div><div class="bento-val">${selApp.bundleId}</div></div>
+              <div class="bento-cell"><div class="bento-label">上次启动时间</div><div class="bento-val">${selApp.lastUsed}</div></div>
+            </div>
+            <div class="inspector-box" style="border-left:3px solid ${selApp.keepPersonal ? 'var(--accent-emerald)' : 'var(--accent-amber)'};">
+              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">🔒 个人数据与共享容器保护策略</div>
+              <div style="color:var(--text-secondary);font-size:11px;">${selApp.impact}</div>
+            </div>
+            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">即将移入废纸篓的关联路径 (${selApp.subpaths.length} 处)</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              ${selApp.subpaths.map(sp => `
+                <div class="subpath-item">
+                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${sp.path}')">🗑️ ${sp.path}</span>
+                  <span class="subpath-right">${sp.size}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top:auto;display:flex;gap:8px;padding-top:4px;">
+              <button class="btn" style="flex:1;justify-content:center;" onclick="revealInFinder('/Applications')">在访达中定位</button>
+              <button class="btn btn-danger" style="flex:1;justify-content:center;" onclick="openConfirmSheet()">立即卸载所选应用</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (mod === 'analyze') {
+    recomputeDiskAnalyzeTotals();
+    const selDir = STATE.treemap2D[STATE.selectedTreemapIdx] || STATE.treemap2D[0];
+    const totalLfGb = STATE.largeFiles.reduce((s, f) => s + f.sizeGb, 0);
+    topTitle.textContent = '磁盘空间分析';
+    primaryBtnText.textContent = '实时刷新空间分布';
+    heroHeadline.textContent = `本地主目录 (~) 二维正方化空间矩阵 · 已分析 ${STATE.totalAnalyzedGb.toFixed(1)} GB`;
+    heroDesc.textContent = '采用二维递归正方化布局，色块面积严格正比于真实字节占比。当您执行任何清理或删除大文件后，此处空间占比与剩余容量将立即同步更新。';
+    heroStatLabel.textContent = '磁盘实时可用空间';
+    heroStatValue.textContent = `${STATE.freeDiskGb.toFixed(1)} GB`;
+    heroStatSub.textContent = 'Macintosh HD · SMART 状态正常';
+
+    stage.innerHTML = `
+      <div class="breadcrumb-bar">
+        <div style="display:flex;align-items:center;gap:5px;white-space:nowrap;">
+          <span class="crumb-item" onclick="selectTreemapDir(0)">💽 Macintosh HD (1 TB)</span>
+          <span style="color:var(--text-muted);">▸</span>
+          <span class="crumb-item" onclick="selectTreemapDir(0)">🏠 个人主目录 (~)</span>
+          <span style="color:var(--text-muted);">▸</span>
+          <span class="crumb-item active">📂 ${selDir.name} (${selDir.sizeGb.toFixed(1)} GB · 占比 ${selDir.pct}%)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text-secondary);">
+          <span>🔵 系统与应用库 ${STATE.treemap2D[0].pct}%</span>
+          <span>🟢 本地工作区 ${STATE.treemap2D[1].pct}%</span>
+          <span>🟠 应用程序 ${STATE.treemap2D[2].pct}%</span>
+        </div>
+      </div>
+
+      <div class="treemap-split">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>目录容量实时排行</span>
+            <span style="font-size:11px;color:var(--text-secondary);">6 个顶层目录</span>
+          </div>
+          <div class="list-body">
+            ${STATE.treemap2D.map((d, idx) => `
+              <div class="list-row ${idx === STATE.selectedTreemapIdx ? 'selected' : ''}" style="padding:4.2px 14px;" onclick="selectTreemapDir(${idx})">
+                <div class="row-left">
+                  <span class="planet-indicator" style="background:${d.color};width:8px;height:8px;border-radius:50%;flex-shrink:0;"></span>
+                  <div>
+                    <div style="font-size:12px;font-weight:600;">${d.name}</div>
+                    <div class="row-sub">${d.files.toLocaleString()} 个文件 · ${d.pct}%</div>
+                  </div>
+                </div>
+                <span class="size-cell">${d.sizeGb.toFixed(1)} GB</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="treemap-stage">
+          ${STATE.treemap2D.map((r, idx) => `
+            <div class="treemap-tile ${idx === STATE.selectedTreemapIdx ? 'active-tile' : ''}" onclick="selectTreemapDir(${idx})" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${r.color};">
+              <div>
+                <div style="font-size:12.5px;font-weight:800;color:#fff;">${r.name}</div>
+                <div style="font-size:10px;color:rgba(255,255,255,0.82);margin-top:1px;">${r.files.toLocaleString()} 个文件</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;white-space:nowrap;gap:6px;">
+                <span style="font-family:var(--font-mono);font-size:11.5px;font-weight:700;color:#fff;white-space:nowrap;">${r.sizeGb.toFixed(1)} GB (${r.pct}%)</span>
+                <span style="font-size:9.5px;background:rgba(0,0,0,0.36);padding:2px 6px;border-radius:4px;color:#fff;white-space:nowrap;" onclick="event.stopPropagation();revealInFinder('${r.path}')">访达 ↗</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-header">
+          <span>大文件雷达 (> 1.0 GB 独立大文件)</span>
+          <span style="font-size:11px;color:var(--text-secondary);">共 ${totalLfGb.toFixed(2)} GB · 移除后实时更新上方磁盘容量</span>
+        </div>
+        <div>
+          ${STATE.largeFiles.length === 0 ? `<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;">全部 >1GB 独立大文件已清理完毕</div>` : STATE.largeFiles.map((lf, idx) => `
+            <div class="list-row" style="padding:7.5px 14px;">
+              <div class="row-left">
+                <span>📦</span>
+                <div>
+                  <div class="row-title">${lf.name}</div>
+                  <div class="row-sub">${lf.path}</div>
+                </div>
+              </div>
+              <div class="row-right">
+                <span class="badge badge-review">${lf.kind}</span>
+                <span class="size-cell">${lf.sizeGb.toFixed(2)} GB</span>
+                <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="removeLargeFile(${idx})">移至废纸篓</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } else if (mod === 'status') {
+    const rpmVal = STATE.fanMode === 'Auto' ? '1240 RPM' : STATE.fanMode === 'Cool' ? '2850 RPM' : '4900 RPM';
+    const curCpu = STATE.cpuSeries[STATE.cpuSeries.length - 1];
+    const curGpu = STATE.gpuSeries[STATE.gpuSeries.length - 1];
+    const curDisk = STATE.diskSeries[STATE.diskSeries.length - 1];
+    const memPct = +((STATE.memUsedGb / STATE.memTotalGb) * 100).toFixed(1);
+
+    topTitle.textContent = '实时状态监控';
+    primaryBtnText.textContent = '立即采样刷新';
+    heroHeadline.textContent = `系统健康评分 ● ${STATE.healthScore} · MacBook Pro (Apple M4 Pro · 32GB)`;
+    heroDesc.textContent = '每 1.5 秒自动实时采样 CPU、GPU、统一内存、磁盘读写与网络吞吐曲线，并同步更新 macOS 系统顶部状态栏小窗口数据。';
+    heroStatLabel.textContent = '实时温度与双风扇转速';
+    heroStatValue.textContent = `${formatTemp(STATE.cpuTempC)} · ${rpmVal}`;
+    heroStatSub.textContent = `风扇模式: ${STATE.fanMode === 'Auto' ? '自动温控' : STATE.fanMode === 'Cool' ? '静音冷静' : '全速散热'} · 电池健康度 98%`;
+
+    const sortedProcs = [...STATE.processes].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return (b[STATE.procSortKey] || 0) - (a[STATE.procSortKey] || 0);
+    });
+
+    stage.innerHTML = `
+      <div class="telemetry-grid">
+        <div class="telemetry-card">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
+            <span>⚙ 处理器 (Apple M4 Pro 10核)</span><span>${formatTemp(STATE.cpuTempC)}</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-blue);">${curCpu}%</span>
+            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">实时采样 · 1.5s</span>
+          </div>
+          ${svgSparkline(STATE.cpuSeries, '#4b83f0', 'rgba(75,131,240,0.16)')}
+        </div>
+
+        <div class="telemetry-card">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
+            <span>🎮 图形核心 (16核 Metal GPU)</span><span>${formatTemp(STATE.gpuTempC)}</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-primary);">${curGpu}%</span>
+            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">120Hz ProMotion</span>
+          </div>
+          ${svgSparkline(STATE.gpuSeries, '#d97757', 'rgba(217,119,87,0.16)')}
+        </div>
+
+        <div class="telemetry-card">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
+            <span>▦ 统一内存 (32.0 GB)</span><span style="color:var(--accent-emerald);">压力正常</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-emerald);">${memPct}%</span>
+            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">已用 ${STATE.memUsedGb.toFixed(1)} GB · 交换 256M</span>
+          </div>
+          ${svgSparkline(STATE.memSeries, '#2e9e6b', 'rgba(46,158,107,0.16)')}
+        </div>
+
+        <div class="telemetry-card">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
+            <span>▤ 磁盘吞吐 (Macintosh HD)</span><span>剩余 ${STATE.freeDiskGb.toFixed(1)}G</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-amber);">${curDisk}%</span>
+            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">读 ${STATE.diskReadMbs} · 写 ${STATE.diskWriteMbs} MB/s</span>
+          </div>
+          ${svgSparkline(STATE.diskSeries, '#d99b26', 'rgba(217,155,38,0.16)')}
+        </div>
+
+        <div class="telemetry-card">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
+            <span>⇅ 网络吞吐 (Wi-Fi 6E)</span><span style="color:var(--accent-emerald);">低延迟已启用</span>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-blue);">${STATE.netDownMbs} MB/s</span>
+            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">↑ ${STATE.netUpMbs} MB/s</span>
+          </div>
+          ${svgSparkline(STATE.netSeries, '#4b83f0', 'rgba(75,131,240,0.16)')}
+        </div>
+
+        <div class="telemetry-card">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
+            <span>🌀 双风扇调速与电池养护</span><span>96% · 11.8W</span>
+          </div>
+          <div style="display:flex;gap:6px;margin:3px 0;">
+            ${[['Auto', '自动'], ['Cool', '冷静'], ['Max', '全速']].map(([k, label]) => `
+              <button class="btn ${STATE.fanMode === k ? 'btn-primary' : ''}" style="flex:1;justify-content:center;padding:4.5px 0;" onclick="setFanMode('${k}')">${label}</button>
+            `).join('')}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text-secondary);">
+            <span>当前转速: ${rpmVal}</span><span>循环 142 次 (健康度 98%)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-header">
+          <span>实时活跃进程监控（点击 ★ 置顶 · 点击表头按 CPU / 内存 / 功耗排序 · 结束进程立即释放负载）</span>
+          <span class="badge badge-safe">每 1.5 秒自动同步内核进程表</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="proc-table">
+            <thead>
+              <tr>
+                <th>置顶</th>
+                <th>进程名称</th>
+                <th>PID</th>
+                <th onclick="sortProcessesBy('cpu')">CPU 占用 ${STATE.procSortKey==='cpu'?'▾':''}</th>
+                <th onclick="sortProcessesBy('memory_mb')">内存 ${STATE.procSortKey==='memory_mb'?'▾':''}</th>
+                <th onclick="sortProcessesBy('power')">功耗 ${STATE.procSortKey==='power'?'▾':''}</th>
+                <th>应用路径</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedProcs.map(p => `
+                <tr>
+                  <td style="color:#eab308;cursor:pointer;font-size:13px;" onclick="togglePinProcess(${p.pid})" title="点击切换置顶">${p.pinned ? '★' : '☆'}</td>
+                  <td style="font-weight:700;color:var(--text-primary);">${p.name}</td>
+                  <td>${p.pid}</td>
+                  <td style="color:${p.cpu > 20 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${p.cpu.toFixed(1)}%</td>
+                  <td>${p.memory_mb} MB</td>
+                  <td>${p.power.toFixed(1)} W</td>
+                  <td style="color:var(--text-muted);font-size:11px;cursor:pointer;" onclick="revealInFinder('${p.path}')">${p.path}</td>
+                  <td><button class="btn btn-danger" style="padding:2px 8px;font-size:10.5px;" onclick="killProcessByPid(${p.pid})">结束进程</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } else if (mod === 'purge') {
+    const selPurge = STATE.purgeItems[STATE.selectedPurgeIdx] || STATE.purgeItems[0];
+    const purgeGb = STATE.purgeItems.filter(p => p.checked).reduce((s, p) => s + p.sizeGb, 0);
+    const instGb = STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
+    const totalDevGb = purgeGb + instGb;
+
+    topTitle.textContent = '构建产物与安装包清理';
+    primaryBtnText.textContent = totalDevGb > 0 ? `清理所选构建与安装包 (${totalDevGb.toFixed(2)} GB)` : '已全部清理完毕';
+    heroHeadline.textContent = totalDevGb > 0
+      ? `发现 ${purgeGb.toFixed(2)} GB 跨项目陈旧构建产物 + ${instGb.toFixed(2)} GB 遗留安装包`
+      : '所有陈旧项目构建产物与遗留安装包已清理完毕';
+    heroDesc.textContent = '自动扫描本地工作区下超过 7 天未修改的 node_modules、Rust target、DerivedData 与虚拟环境，并汇总下载目录中的大型安装包归档。';
+    heroStatLabel.textContent = '开发者空间可释放';
+    heroStatValue.textContent = `${totalDevGb.toFixed(2)} GB`;
+    heroStatSub.textContent = '7 天内活跃项目与未提交代码分支自动保护';
+
+    stage.innerHTML = `
+      <div class="master-detail-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>跨项目构建依赖目录（点击行查看右侧工程状态）</span>
+            <span class="badge badge-safe">7 天内活跃项目自动保护</span>
+          </div>
+          <div class="list-body">
+            ${STATE.purgeItems.map((item, idx) => `
+              <div class="list-row ${idx === STATE.selectedPurgeIdx ? 'selected' : ''}" onclick="selectPurgeRow(${idx})">
+                <div class="row-left">
+                  <input type="checkbox" ${item.checked ? 'checked' : ''} ${item.recent ? 'disabled' : ''} onclick="togglePurgeCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                  <div style="min-width:0;">
+                    <div class="row-title">${item.project}/<span style="color:var(--accent-primary);">${item.artifact}</span></div>
+                    <div class="row-sub">${item.kind} · ${item.age} · ${item.gitClean}</div>
+                  </div>
+                </div>
+                <div class="row-right">
+                  <span class="badge ${item.recent ? 'badge-protected' : 'badge-safe'}">${item.recent ? '近期活跃保护' : item.sizeGb === 0 ? '✅ 已清理' : '可安全重建'}</span>
+                  <span class="size-cell">${item.sizeGb.toFixed(2)} GB</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>工程详情与遗留安装包归档</span>
+            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${instGb.toFixed(2)} GB 安装包</span>
+          </div>
+          <div class="inspector-content">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);">${selPurge.kind}</div>
+              <div style="font-size:14px;font-weight:700;margin-top:2px;">${selPurge.project}/${selPurge.artifact}</div>
+            </div>
+            <div class="bento-4">
+              <div class="bento-cell"><div class="bento-label">产物目录体积</div><div class="bento-val" style="color:var(--accent-primary);">${selPurge.sizeGb.toFixed(2)} GB</div></div>
+              <div class="bento-cell"><div class="bento-label">未修改时长</div><div class="bento-val">${selPurge.age}</div></div>
+              <div class="bento-cell"><div class="bento-label">版本库状态</div><div class="bento-val" style="color:var(--accent-emerald);">${selPurge.gitClean}</div></div>
+              <div class="bento-cell"><div class="bento-label">重建方式说明</div><div class="bento-val">${selPurge.rebuildNote}</div></div>
+            </div>
+            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-top:2px;">扫描到的独立大型安装包 (支持单独勾选清理)</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              ${STATE.installerFiles.map((inst, idx) => `
+                <div class="subpath-item">
+                  <div class="subpath-left">
+                    <input type="checkbox" ${inst.checked ? 'checked' : ''} onchange="toggleInstallerCheck(${idx})" style="width:13px;height:13px;cursor:pointer;" />
+                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${inst.location}/${inst.name}')">💿 ${inst.location}/${inst.name}</span>
+                  </div>
+                  <span class="subpath-right">${inst.sizeGb.toFixed(2)} GB</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top:auto;display:flex;gap:8px;padding-top:4px;">
+              <button class="btn" style="flex:1;justify-content:center;" onclick="revealInFinder('${selPurge.project}')">在访达中定位工程</button>
+              <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="openConfirmSheet()">清理所选项目</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    const doneCount = STATE.optimizeTasks.filter(t => t.done).length;
+    topTitle.textContent = mod === 'optimize' ? '系统加速优化' : '恢复记录与白名单保护';
+    primaryBtnText.textContent = mod === 'optimize' ? '一键执行 5 项安全优化' : '导出恢复记录';
+    heroHeadline.textContent = doneCount > 0 ? `已完成 ${doneCount} 项系统加速维护 · 2 项受前台运行保护跳过` : '5 项系统维护就绪 · 2 项受前台应用保护自动跳过';
+    heroDesc.textContent = '一键修复输入法卡顿、重建访达缩略图、刷新本地 DNS 与无损整理系统数据库碎片；右侧支持从废纸篓一键原路还原任何历史清理记录。';
+    heroStatLabel.textContent = '维护就绪状态';
+    heroStatValue.textContent = doneCount > 0 ? `${doneCount} / 5 已优化` : '5 / 7 可执行';
+    heroStatSub.textContent = `当前共有 ${STATE.historyLogs.length} 个可还原快照 · ${STATE.whitelist.length} 条白名单`;
+
+    stage.innerHTML = `
+      <div class="master-detail-grid">
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>系统加速与维护任务清单（点击任意就绪项可单独执行）</span>
+            <button class="btn btn-primary" style="padding:3px 10px;font-size:10.5px;" onclick="runAllOptimizeTasks()">一键执行全部就绪项</button>
+          </div>
+          <div class="list-body">
+            ${STATE.optimizeTasks.map((t, idx) => `
+              <div class="list-row" onclick="if('${t.status}'==='applied'){STATE.optimizeTasks[${idx}].done=true;renderModule();showToast('已完成维护: ${t.name}');}">
+                <div class="row-left">
+                  <span>${t.done ? '✅' : t.status === 'applied' ? '🟢' : '🟡'}</span>
+                  <div style="min-width:0;">
+                    <div class="row-title">${t.name}</div>
+                    <div class="row-sub" style="font-family:var(--font-sans);">${t.detail}</div>
+                  </div>
+                </div>
+                <span class="badge ${t.done ? 'badge-safe' : t.status === 'applied' ? 'badge-safe' : 'badge-review'}">
+                  ${t.done ? '已优化完成' : t.status === 'applied' ? '点击立即优化' : '前台运行保护'}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <span>废纸篓恢复记录与保护白名单</span>
+            <span style="font-size:11px;color:var(--text-secondary);">${STATE.whitelist.length} 条受保护路径</span>
+          </div>
+          <div class="inspector-content">
+            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">最近清理记录（点击「原路还原」立即从废纸篓恢复并同步空间数据）</div>
+            ${STATE.historyLogs.map((h, idx) => `
+              <div class="subpath-item" style="font-family:var(--font-sans);">
+                <div class="subpath-left" style="flex-direction:column;align-items:flex-start;gap:2px;">
+                  <div style="font-size:11.5px;font-weight:600;color:var(--text-primary);">${h.action}</div>
+                  <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);">${h.id} · ${h.time} · ${h.sizeGb.toFixed(2)} GB</div>
+                </div>
+                <button class="btn subpath-right" style="padding:3px 8px;font-size:10.5px;" onclick="restoreHistorySnapshot(${idx})">↩ 原路还原</button>
+              </div>
+            `).join('')}
+
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
+              <span style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">当前生效的白名单路径</span>
+              <div style="display:flex;gap:4px;">
+                <input type="text" id="customWhitelistInput" placeholder="输入自定义保护路径..." style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:10.5px;width:140px;" />
+                <button class="btn" style="padding:2px 7px;font-size:10px;" onclick="addCustomWhitelistInput()">+ 添加</button>
+              </div>
+            </div>
+            ${STATE.whitelist.map((w, idx) => `
+              <div class="subpath-item">
+                <span class="subpath-left">🛡️ ${w}</span>
+                <span class="badge badge-protected subpath-right" style="cursor:pointer;" onclick="removeWhitelistIdx(${idx})" title="点击移除此白名单">已锁定</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function handleSearch(val) { STATE.searchQuery = val; renderModule(); }
+window.toggleTheme = function() {
+  STATE.theme = STATE.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', STATE.theme);
+  document.getElementById('btnTheme').textContent = STATE.theme === 'dark' ? '浅色模式' : '深色模式';
+};
+function toggleLanguage() {
+  STATE.lang = STATE.lang === 'zh' ? 'en' : 'zh';
+  const isZH = STATE.lang === 'zh';
+  document.getElementById('navGroupCore').textContent = isZH ? '核心清理与监控' : 'CORE CLEAN & MONITOR';
+  document.getElementById('navGroupTools').textContent = isZH ? '开发者与安全护栏' : 'DEVELOPER & SAFETY';
+  document.getElementById('navLabelClean').textContent = isZH ? '智能深度清理' : 'Smart Deep Clean';
+  document.getElementById('navLabelMoon').textContent = isZH ? 'AI 专项清理' : 'AI Care & Clean';
+  document.getElementById('navLabelSoftware').textContent = isZH ? '应用彻底卸载' : 'App Uninstaller';
+  document.getElementById('navLabelOptimize').textContent = isZH ? '系统加速优化' : 'System Optimize';
+  document.getElementById('navLabelAnalyze').textContent = isZH ? '磁盘空间分析' : 'Disk Analyzer';
+  document.getElementById('navLabelStatus').textContent = isZH ? '实时状态监控' : 'Live Monitor';
+  document.getElementById('navLabelPurge').textContent = isZH ? '构建与安装包' : 'Build & Installers';
+  document.getElementById('navLabelHistory').textContent = isZH ? '恢复记录与白名单' : 'Restore & Whitelist';
+  document.getElementById('btnRecheckText').textContent = isZH ? '重新体检' : 'Re-Check';
+  updateSidebarBadges();
+  renderModule();
+  showToast(isZH ? '已切换至简体中文界面' : 'Switched to English Interface');
+}
+function toggleTempUnit() { STATE.tempUnit = STATE.tempUnit === 'C' ? 'F' : 'C'; renderModule(); }
+
+// Editable & Live-Filtered ⌘K Command Palette
+const CMD_PALETTE_ITEMS = [
+  { icon: '✨', title: '智能深度清理：检视 Xcode 编译中间产物 (DerivedData)', sub: '~/Library/Developer/Xcode/DerivedData · 安全可再生 · 4.65 GB', kbd: '⏎ 检视目录', run: () => { switchModule('clean'); selectCleanRow(2); } },
+  { icon: '🤖', title: 'AI 专项清理：回收 Claude / Cursor 历史旧版本程序包', sub: '~/.local/share/claude/versions · 第一安全带 · 3.42 GB', kbd: '⌘2', run: () => { switchModule('ai_moon'); selectMoonRow(0); } },
+  { icon: '🗑️', title: '应用彻底卸载：透视 Adobe Photoshop 2026 及关联残留', sub: '/Applications & ~/Library/Application Support/Adobe · 12.80 GB', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
+  { icon: '📦', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/GitHub · 共 24.94 GB 开发者空间可释放', kbd: '⌘7', run: () => { switchModule('purge'); } },
+  { icon: '📊', title: '磁盘空间分析：查看本地主目录二维空间矩阵与大文件雷达', sub: '~/Downloads/Xcode_16.2_Universal.xip · 实时空间树图', kbd: '⌘5', run: () => { switchModule('analyze'); } },
+  { icon: '📈', title: '实时状态监控：查看硬件实时传感器与三档风扇调速控制', sub: 'Apple M4 Pro · 1.5s 实时刷新趋势图与活跃进程管理', kbd: '⌘6', run: () => { switchModule('status'); } },
+  { icon: '🩺', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
+  { icon: '↩️', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '支持单次快照恢复与自定义保护路径添加', kbd: '⌘8', run: () => { switchModule('history'); } }
+];
+
+window.renderCommandPaletteList = function(queryStr) {
+  const q = (queryStr || '').trim().toLowerCase();
+  const matches = CMD_PALETTE_ITEMS.filter(item => !q || item.title.toLowerCase().includes(q) || item.sub.toLowerCase().includes(q));
+  const container = document.getElementById('cmdPaletteList');
+  container.innerHTML = `
+    <div style="padding:5px 16px;font-size:10px;font-weight:700;color:var(--text-muted);">匹配到的功能与清理目标 (${matches.length} 项 · 点击立即跳转)</div>
+    ${matches.map((item, idx) => `
+      <div class="list-row ${idx === 0 ? 'selected' : ''}" onclick="closeCommandPalette(); CMD_PALETTE_ITEMS[${CMD_PALETTE_ITEMS.indexOf(item)}].run();">
+        <div class="row-left">
+          <span>${item.icon}</span>
+          <div>
+            <div class="row-title">${item.title}</div>
+            <div class="row-sub">${item.sub}</div>
+          </div>
+        </div>
+        <span class="kbd-tag">${item.kbd}</span>
+      </div>
+    `).join('')}
+  `;
+};
+
+window.openCommandPalette = function(prefill) {
+  const inp = document.getElementById('cmdPaletteInput');
+  inp.value = typeof prefill === 'string' ? prefill : '';
+  renderCommandPaletteList(inp.value);
+  document.getElementById('cmdPaletteModal').classList.add('open');
+  setTimeout(() => inp.focus(), 50);
+};
+window.closeCommandPalette = function() { document.getElementById('cmdPaletteModal').classList.remove('open'); };
+
+// Secondary Confirmation Sheet (Pure GUI, Real Execution)
+window.openConfirmSheet = function() {
+  const mod = STATE.module;
+  const titleEl = document.getElementById('confirmModalTitle');
+  const sumEl = document.getElementById('confirmModalSummary');
+  const listEl = document.getElementById('confirmModalItemsList');
+
+  let rowsHtml = '';
+  let totalGb = 0;
+  let totalCount = 0;
+
+  if (mod === 'ai_moon') {
+    const sel = STATE.aiMoonBands.filter(b => b.checked && b.sizeGb > 0);
+    totalGb = sel.reduce((s, b) => s + b.sizeGb, 0);
+    totalCount = sel.length;
+    titleEl.textContent = `AI 专项清理二次确认 — 即将移入废纸篓`;
+    rowsHtml = sel.map(b => `
+      <div class="list-row" style="padding:7.5px 14px;">
+        <div class="row-left"><span>🟢</span><div><div style="font-size:12px;font-weight:600;">${b.name}</div><div class="row-sub">${b.path}</div></div></div>
+        <span class="size-cell" style="color:var(--accent-emerald);">${b.sizeGb.toFixed(2)} GB</span>
+      </div>
+    `).join('') + `
+      <div class="list-row" style="padding:7.5px 14px;">
+        <div class="row-left"><span>🟣</span><div><div style="font-size:12px;font-weight:600;">AI 历史对话记录、长期记忆与自定义技能</div><div class="row-sub">~/.claude/projects & ~/.claude/skills</div></div></div>
+        <span class="badge badge-protected">核心资产 · 永久保护</span>
+      </div>
+    `;
+  } else if (mod === 'software') {
+    const sel = STATE.appsList.filter(a => a.checked);
+    const activeApps = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
+    totalGb = activeApps.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+    totalCount = activeApps.length;
+    titleEl.textContent = '应用彻底卸载二次确认 — 即将移入废纸篓';
+    rowsHtml = activeApps.map(a => `
+      <div class="list-row" style="padding:7.5px 14px;">
+        <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人预设' : '全量彻底清理'})</div></div></div>
+        <span class="size-cell" style="color:var(--accent-rose);">${(a.appSizeGb + a.leftoverSizeGb).toFixed(2)} GB</span>
+      </div>
+    `).join('');
+  } else if (mod === 'purge') {
+    const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0);
+    const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);
+    totalGb = selP.reduce((s, p) => s + p.sizeGb, 0) + selI.reduce((s, i) => s + i.sizeGb, 0);
+    totalCount = selP.length + selI.length;
+    titleEl.textContent = '构建产物与安装包清理二次确认';
+    rowsHtml = selP.map(p => `
+      <div class="list-row" style="padding:7.5px 14px;">
+        <div class="row-left"><span>🟢</span><div><div style="font-size:12px;font-weight:600;">${p.project}/${p.artifact}</div><div class="row-sub">${p.kind} · ${p.rebuildNote}</div></div></div>
+        <span class="size-cell" style="color:var(--accent-emerald);">${p.sizeGb.toFixed(2)} GB</span>
+      </div>
+    `).join('') + selI.map(i => `
+      <div class="list-row" style="padding:7.5px 14px;">
+        <div class="row-left"><span>💿</span><div><div style="font-size:12px;font-weight:600;">${i.name}</div><div class="row-sub">${i.location} · ${i.age}</div></div></div>
+        <span class="size-cell" style="color:var(--accent-amber);">${i.sizeGb.toFixed(2)} GB</span>
+      </div>
+    `).join('');
+  } else {
+    const sel = STATE.cleanGroups.filter(g => g.checked && g.sizeGb > 0);
+    totalGb = sel.reduce((s, g) => s + g.sizeGb, 0);
+    totalCount = sel.reduce((s, g) => s + g.items, 0);
+    titleEl.textContent = '智能深度清理二次确认 — 即将移入废纸篓';
+    rowsHtml = sel.slice(0, 5).map(g => `
+      <div class="list-row" style="padding:7.5px 14px;">
+        <div class="row-left"><span>${g.tier === 'safe' ? '🟢' : '🟡'}</span><div><div style="font-size:12px;font-weight:600;">${g.name}</div><div class="row-sub">${g.path} · ${g.items} 个子项 · 重建: ${g.rebuildTime}</div></div></div>
+        <span class="size-cell" style="color:${g.tier === 'safe' ? 'var(--accent-emerald)' : 'var(--accent-amber)'};">${g.sizeGb.toFixed(2)} GB</span>
+      </div>
+    `).join('') + `
+      <div class="list-row" style="padding:7.5px 14px;">
+        <div class="row-left"><span>🟣</span><div><div style="font-size:12px;font-weight:600;">Apple 神经网络引擎编译模型与 AI 会话记录</div><div class="row-sub">com.apple.e5rt.e5bundlecache · ~/.claude/projects</div></div></div>
+        <span class="badge badge-protected">硬件级保护 · 自动跳过</span>
+      </div>
+    `;
+  }
+
+  sumEl.innerHTML = `您已勾选 <strong>${totalCount} 个清理项（合计 ${totalGb.toFixed(2)} GB）</strong>。确认后将立即把目标文件安全移入 macOS 废纸篓（<code>~/.Trash</code>），同时创建恢复快照以便随时在「恢复记录与白名单」中一键原路还原：`;
+  listEl.innerHTML = rowsHtml;
+  document.getElementById('confirmModal').classList.add('open');
+};
+
+window.closeConfirmSheet = function() { document.getElementById('confirmModal').classList.remove('open'); };
+
+// Real Execution Handler: Immediately zeroes/removes cleaned items, updates Disk Analyze & Free Space, and logs restorable snapshot!
+window.executeConfirmedClean = function() {
+  closeConfirmSheet();
+
+  let freedGb = 0;
+  let actionLabel = '智能深度清理';
+  let restoreData = null;
+  let trashedPaths = [];
+
+  if (STATE.module === 'clean') {
+    const sel = STATE.cleanGroups.filter(g => g.checked && g.sizeGb > 0);
+    freedGb = sel.reduce((s, g) => s + g.sizeGb, 0);
+    actionLabel = `智能深度清理 (${sel.length} 大分类缓存与日志)`;
+    restoreData = { type: 'clean', ids: sel.map(g => g.id) };
+    sel.forEach(g => {
+      trashedPaths.push(g.path);
+      g.sizeGb = 0;
+      g.checked = false;
+      g.cleaned = true;
+      g.subpaths.forEach(sp => { sp.checked = false; });
+    });
+    STATE.treemap2D[0].sizeGb = Math.max(12.0, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
+  } else if (STATE.module === 'ai_moon') {
+    const sel = STATE.aiMoonBands.filter(b => b.checked && b.sizeGb > 0);
+    freedGb = sel.reduce((s, b) => s + b.sizeGb, 0);
+    actionLabel = `AI 专项清理 (保留周期 ${STATE.aiRetention})`;
+    restoreData = { type: 'ai_moon', ids: sel.map(b => b.id) };
+    sel.forEach(b => {
+      trashedPaths.push(b.path);
+      b.sizeGb = 0;
+      b.checked = false;
+      b.cleaned = true;
+    });
+    STATE.treemap2D[0].sizeGb = Math.max(12.0, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
+  } else if (STATE.module === 'software') {
+    const sel = STATE.appsList.filter(a => a.checked);
+    const active = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
+    freedGb = active.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+    actionLabel = `应用彻底卸载 (${active.map(a => a.name).join(', ')})`;
+    restoreData = { type: 'software', removedApps: active.map(a => ({ ...a })) };
+    const removeIds = new Set(active.map(a => a.id));
+    STATE.appsList = STATE.appsList.filter(a => !removeIds.has(a.id));
+    STATE.selectedAppIdx = 0;
+    STATE.treemap2D[2].sizeGb = Math.max(8.0, +(STATE.treemap2D[2].sizeGb - freedGb).toFixed(2));
+  } else if (STATE.module === 'purge') {
+    const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0);
+    const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);
+    freedGb = selP.reduce((s, p) => s + p.sizeGb, 0) + selI.reduce((s, i) => s + i.sizeGb, 0);
+    actionLabel = '构建产物与遗留安装包清理';
+    restoreData = { type: 'purge' };
+    selP.forEach(p => { p.sizeGb = 0; p.checked = false; });
+    selI.forEach(i => { i.checked = false; });
+    STATE.treemap2D[1].sizeGb = Math.max(10.0, +(STATE.treemap2D[1].sizeGb - freedGb).toFixed(2));
+  }
+
+  if (freedGb > 0) {
+    STATE.freeDiskGb = +(STATE.freeDiskGb + freedGb).toFixed(2);
+    recomputeDiskAnalyzeTotals();
+    const snapId = '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999));
+    STATE.historyLogs.unshift({
+      id: snapId,
+      time: '刚刚',
+      action: actionLabel,
+      sizeGb: freedGb,
+      items: 1,
+      status: '位于废纸篓 · 可还原',
+      restoreData: restoreData
+    });
+    sendNativeBridge({ action: 'executeClean', module: STATE.module, freedGb: freedGb, paths: trashedPaths });
+    updateSidebarBadges();
+    renderModule();
+    showToast(`已成功清理 ${freedGb.toFixed(2)} GB 并移入废纸篓！磁盘剩余空间已更新为 ${STATE.freeDiskGb.toFixed(1)} GB`);
+  } else {
+    showToast('当前没有勾选需要清理的项目');
+  }
+};
+
+// Mole Doctor Modal with Step-by-Step Live Re-Diagnosis (重新体检 / 复诊)
+function renderDoctorChecksList(activeIdx) {
+  document.getElementById('doctorListContainer').innerHTML = STATE.doctorChecks.map((c, idx) => {
+    const isScanning = typeof activeIdx === 'number' && idx === activeIdx;
+    const isPending = typeof activeIdx === 'number' && idx > activeIdx;
+    return `
+      <div class="list-row" style="padding:8.5px 18px;opacity:${isPending ? '0.45' : '1'};">
+        <div class="row-left">
+          <span style="font-size:15px;">${isScanning ? '⏳' : isPending ? '⚪' : '✅'}</span>
+          <div>
+            <div style="font-size:12px;font-weight:700;">${c.title}</div>
+            <div class="row-sub" style="font-family:var(--font-sans);">${isScanning ? '正在实时校验系统内核与权限状态...' : c.detail}</div>
+          </div>
+        </div>
+        <div class="row-right">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">${isPending ? '--' : c.latency}</span>
+          <span class="badge ${isScanning ? 'badge-review' : 'badge-safe'}">${isScanning ? '检测中...' : isPending ? '待检测' : '正常通过'}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.openDoctorModal = function(autoReRun) {
+  document.getElementById('doctorModal').classList.add('open');
+  if (autoReRun) {
+    startDoctorReDiagnosis();
+  } else {
+    document.getElementById('doctorProgressBanner').style.display = 'none';
+    renderDoctorChecksList(null);
+    document.getElementById('doctorFooterSummary').textContent = `上次体检时间: ${STATE.lastCheckTime} · 综合健康分 ${STATE.healthScore} / 100`;
+  }
+};
+
+window.startDoctorReDiagnosis = function() {
+  const banner = document.getElementById('doctorProgressBanner');
+  const txt = document.getElementById('doctorProgressText');
+  const pctEl = document.getElementById('doctorProgressPct');
+  const bar = document.getElementById('doctorProgressBar');
+  const btn = document.getElementById('btnDoctorReRun');
+
+  banner.style.display = 'block';
+  btn.disabled = true;
+  btn.textContent = '⏳ 正在复诊检测...';
+  sendNativeBridge({ action: 'runDoctorReCheck' });
+
+  let step = 0;
+  const total = STATE.doctorChecks.length;
+  clearInterval(window._docTimer);
+
+  const stepFn = () => {
+    if (step < total) {
+      const pct = Math.round(((step + 1) / total) * 100);
+      txt.textContent = `正在复诊检测 (${step + 1}/${total}): ${STATE.doctorChecks[step].title}...`;
+      pctEl.textContent = pct + '%';
+      bar.style.width = pct + '%';
+      STATE.doctorChecks[step].latency = (12 + Math.floor(Math.random() * 19)) + 'ms';
+      if (step === 2) {
+        STATE.doctorChecks[2].detail = `剩余 ${STATE.freeDiskGb.toFixed(1)} GB 可用 · NVMe SMART 固态寿命验证通过`;
+      }
+      renderDoctorChecksList(step);
+      step++;
+    } else {
+      clearInterval(window._docTimer);
+      STATE.recheckCount++;
+      STATE.healthScore = Math.min(99, 94 + STATE.recheckCount * 2);
+      const nowStr = new Date().toTimeString().slice(0, 8);
+      STATE.lastCheckTime = `刚刚 (${nowStr})`;
+      txt.textContent = `✅ 复诊完成！全部 7 项核心指标检测通过 (耗时 148ms)`;
+      btn.disabled = false;
+      btn.textContent = '🔄 立即重新体检 (复诊)';
+      renderDoctorChecksList(null);
+      document.getElementById('doctorFooterSummary').textContent = `复诊完成时间: ${STATE.lastCheckTime} · 综合健康分 ${STATE.healthScore} / 100 (第 ${STATE.recheckCount} 次复诊)`;
+      updateSidebarBadges();
+      showToast(`系统复诊完成！7/7 项指标正常，最新健康分: ${STATE.healthScore} 分`);
+    }
+  };
+  stepFn();
+  window._docTimer = setInterval(stepFn, 70);
+};
+
+window.closeDoctorModal = function() {
+  clearInterval(window._docTimer);
+  document.getElementById('doctorModal').classList.remove('open');
+};
+
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openCommandPalette();
+  } else if (e.key === 'Escape') {
+    closeCommandPalette();
+    closeConfirmSheet();
+    closeDoctorModal();
+  }
+});
+
+updateSidebarBadges();
+renderHeroIcon();
+renderModule();
+setInterval(() => { window.stepLiveTelemetry(); }, 1500);
+</script>
+</body>
+</html>

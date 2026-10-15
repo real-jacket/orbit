@@ -1,0 +1,78 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Because this app deletes files, please be explicit about whether the
+        problem happened in dry-run or for real.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Select ...
+        3. Click ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: dry-run
+    attributes:
+      label: Was dry-run enabled?
+      options:
+        - "Yes — dry-run was on"
+        - "No — this ran for real"
+        - "Not applicable"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "e.g. 15.2 (Sequoia), Apple Silicon"
+    validations:
+      required: true
+
+  - type: input
+    id: mo-version
+    attributes:
+      label: "`mo --version` output"
+      placeholder: "e.g. Mole version 1.56.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How are you running it?
+      options:
+        - "make run (from a checkout)"
+        - "make app / dist/MoleStudio.app"
+        - "Copied to /Applications"
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant output from `~/Library/Logs/mole/operations.log`, or Console.app entries for the
+        MoleStudio process.
+      render: shell
+    validations:
+      required: false
