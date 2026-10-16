@@ -125,12 +125,11 @@ into JS (`onNativeRealScanComplete`, `onNativeRealTelemetry`, `switchModule`, `o
 ## App icon
 
 The icon is **rendered from code**, not checked in as an opaque bitmap. `scripts/generate-app-icon.swift`
-draws the mark — a terracotta planet inside a warm-obsidian squircle — with CoreGraphics and emits every
-size `iconutil` needs.
+draws the v10 brand mark with CoreGraphics and emits every size `iconutil` needs.
 
-Doing it this way means the `#d97757` accent can never drift from the CSS custom properties in
-`Resources/src-ui/index.html`, each size is drawn natively instead of being downsampled, and a change to
-the mark is a reviewable diff rather than a replaced binary.
+The mark matches the sidebar brand SVG: a `#27272a → #09090b → #7c2d12` squircle plate, a terracotta
+planet lit from the upper left (`#fff7ed → #fdba74 → #ea580c → #7c2d12`), a ring split so the far half
+passes behind the planet and the near half crosses in front, and an ice-blue companion (`#38bdf8`).
 
 ```bash
 make icon           # rewrite Resources/AppIcon.icns + AppIcon-256.png
@@ -139,9 +138,8 @@ make icon-preview   # render every size on dark and light plates → /tmp/icon-p
 
 Three details worth knowing if you edit the renderer:
 
-- **Small sizes are a separate drawing.** At 16–32px the starfield is dropped, the planet gets larger, the
-  ring gets chunkier, and the background floor is lifted — otherwise the shrunken mark reads as a black
-  square with an unreadable smudge in it.
+- **Small sizes keep the same mark, with thicker strokes.** At 16–32px the planet, ring, and companion
+  are enlarged so the silhouette still reads in the Dock.
 - **The output is dithered.** An 8-bit gradient across a large dark surface bands visibly; a ±2 noise
   layer removes the steps and is invisible at 100%.
 - **The background is a superellipse, not a rounded rectangle.** Apple's icon grid uses a continuous
