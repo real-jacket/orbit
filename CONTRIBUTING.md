@@ -44,6 +44,15 @@ lint and test into one command.
 If you change `SafetyTier`, `MoleModule`, or `computeTreemapRects`, extend these rather than adding a
 new file.
 
+## App icon
+
+`Resources/AppIcon.icns` is generated — do not edit it by hand, and do not replace it with a dropped-in
+bitmap. Change `scripts/generate-app-icon.swift` and run `make icon`, then commit both the script and the
+regenerated `AppIcon.icns` / `AppIcon-256.png`.
+
+`make icon-preview` renders every size on dark and light plates to `/tmp/icon-preview.png`; check the
+16px and 32px ends before you commit, since that is where marks usually fall apart.
+
 ## Code style
 
 - **Swift** — 4-space indent. `.swiftlint.yml` is the source of truth; `make format` auto-corrects what

@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="Resources/AppIcon-256.png" width="140" alt="Mole Studio Pro app icon">
+
 # Mole Studio Pro
 
 **A native macOS client for the [`mo`](https://github.com/tw93/mole) CLI.**
@@ -72,6 +74,7 @@ cd orbit
 make run          # build and launch straight from the checkout
 make test         # run the unit test suite
 make app          # package dist/MoleStudio.app
+make icon         # regenerate the app icon from source
 make lint         # SwiftLint in strict mode
 make check        # lint + test, the same gate CI runs
 make help         # list every target
@@ -100,8 +103,10 @@ Sources/MoleStudio/
 └── Views/VisualEffectAndPlanetView.swift  # NSVisualEffectView bridge, Canvas planet renderer
 
 Resources/src-ui/index.html          # The shipping UI: single-file HTML/CSS/JS surface
+Resources/AppIcon.icns               # Generated app icon (all 10 representations)
 Tests/MoleStudioTests/               # Treemap layout math + safety-model invariants
 scripts/build-macos-app.sh           # .app bundler
+scripts/generate-app-icon.swift      # Icon renderer — the icon is code, not a binary blob
 ```
 
 The window is a `WKWebView` hosting `Resources/src-ui/index.html`, wired to native code through a
@@ -112,6 +117,32 @@ into JS (`switchModule`, `openConfirmSheet`, `openDoctorModal`, `stepLiveTelemet
 `UILocator` finds the HTML in all three launch modes: a packaged `.app`
 (`Contents/Resources/src-ui/`), `swift run` from a checkout (walks up to `Resources/`), or an explicit
 `MOLE_UI_HTML` environment variable.
+
+## App icon
+
+The icon is **rendered from code**, not checked in as an opaque bitmap. `scripts/generate-app-icon.swift`
+draws the mark — a terracotta planet inside a warm-obsidian squircle — with CoreGraphics and emits every
+size `iconutil` needs.
+
+Doing it this way means the `#d97757` accent can never drift from the CSS custom properties in
+`Resources/src-ui/index.html`, each size is drawn natively instead of being downsampled, and a change to
+the mark is a reviewable diff rather than a replaced binary.
+
+```bash
+make icon           # rewrite Resources/AppIcon.icns + AppIcon-256.png
+make icon-preview   # render every size on dark and light plates → /tmp/icon-preview.png
+```
+
+Three details worth knowing if you edit the renderer:
+
+- **Small sizes are a separate drawing.** At 16–32px the starfield is dropped, the planet gets larger, the
+  ring gets chunkier, and the background floor is lifted — otherwise the shrunken mark reads as a black
+  square with an unreadable smudge in it.
+- **The output is dithered.** An 8-bit gradient across a large dark surface bands visibly; a ±2 noise
+  layer removes the steps and is invisible at 100%.
+- **The background is a superellipse, not a rounded rectangle.** Apple's icon grid uses a continuous
+  corner curve, so the body is drawn as an n=5 squircle inset 100px in a 1024px canvas (the standard
+  824×824 body).
 
 ## Project status
 

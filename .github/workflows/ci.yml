@@ -45,6 +45,14 @@ jobs:
           test -f dist/MoleStudio.app/Contents/Info.plist
           plutil -lint dist/MoleStudio.app/Contents/Info.plist
 
+          # The icon must ship inside the bundle and be wired up via CFBundleIconFile.
+          test -f dist/MoleStudio.app/Contents/Resources/AppIcon.icns
+          test "$(plutil -extract CFBundleIconFile raw dist/MoleStudio.app/Contents/Info.plist)" = "AppIcon"
+
+          # An .icns is a container: confirm all ten expected representations survived.
+          iconutil -c iconset dist/MoleStudio.app/Contents/Resources/AppIcon.icns -o /tmp/verify.iconset
+          test "$(ls /tmp/verify.iconset | wc -l | tr -d ' ')" = "10"
+
   lint:
     name: SwiftLint
     runs-on: macos-latest

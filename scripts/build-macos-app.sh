@@ -51,12 +51,19 @@ if [[ ! -f "${UI_SOURCE_DIR}/index.html" ]]; then
     exit 1
 fi
 
+ICON_FILE="${REPO_ROOT}/Resources/AppIcon.icns"
+if [[ ! -f "${ICON_FILE}" ]]; then
+    echo "error: missing app icon at ${ICON_FILE} (regenerate with: make icon)" >&2
+    exit 1
+fi
+
 echo "==> Assembling ${APP_BUNDLE}"
 rm -rf "${APP_BUNDLE}"
 mkdir -p "${CONTENTS_DIR}/MacOS" "${CONTENTS_DIR}/Resources"
 
 cp "${BINARY}" "${CONTENTS_DIR}/MacOS/${APP_NAME}"
 cp -R "${UI_SOURCE_DIR}" "${CONTENTS_DIR}/Resources/src-ui"
+cp "${ICON_FILE}" "${CONTENTS_DIR}/Resources/AppIcon.icns"
 
 cat > "${CONTENTS_DIR}/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -69,6 +76,8 @@ cat > "${CONTENTS_DIR}/Info.plist" <<PLIST
 	<string>${DISPLAY_NAME}</string>
 	<key>CFBundleExecutable</key>
 	<string>${APP_NAME}</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>${BUNDLE_ID}</string>
 	<key>CFBundleInfoDictionaryVersion</key>

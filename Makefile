@@ -4,6 +4,7 @@
 #   make run        build and launch straight from the checkout
 #   make test       run the unit test suite
 #   make app        package dist/MoleStudio.app
+#   make icon       regenerate the app icon from source
 #   make lint       run SwiftLint in strict mode
 #   make check      lint + test, the same gate CI runs
 #   make clean      remove build products
@@ -16,8 +17,9 @@ CONFIG      ?= debug
 SWIFT_FLAGS ?=
 DIST_DIR    := dist
 APP_BUNDLE  := $(DIST_DIR)/$(APP_NAME).app
+BUILD_CACHE := .build/icon-tools
 
-.PHONY: all build run test app lint format check clean help
+.PHONY: all build run test app icon icon-preview lint format check clean help
 
 all: build
 
@@ -36,6 +38,19 @@ test:
 ## Package a distributable dist/MoleStudio.app bundle.
 app:
 	bash scripts/build-macos-app.sh release
+
+## Regenerate the app icon assets from scripts/generate-app-icon.swift.
+icon:
+	@mkdir -p $(BUILD_CACHE)
+	swiftc -O -module-cache-path $(BUILD_CACHE) -o $(BUILD_CACHE)/generate-app-icon scripts/generate-app-icon.swift
+	$(BUILD_CACHE)/generate-app-icon icns Resources/AppIcon.icns
+	$(BUILD_CACHE)/generate-app-icon single Resources/AppIcon-256.png 256
+
+## Preview every icon size on a plate (writes /tmp/icon-preview.png).
+icon-preview:
+	@mkdir -p $(BUILD_CACHE)
+	swiftc -O -module-cache-path $(BUILD_CACHE) -o $(BUILD_CACHE)/generate-app-icon scripts/generate-app-icon.swift
+	$(BUILD_CACHE)/generate-app-icon sheet /tmp/icon-preview.png
 
 ## Lint Swift sources (requires: brew install swiftlint).
 lint:
