@@ -60,7 +60,7 @@ final class RealMacSystemScanner {
             let totalBytes = Double(UInt64(fs.f_blocks) * UInt64(fs.f_bsize))
             return (freeBytes / 1_000_000_000.0, totalBytes / 1_000_000_000.0)
         }
-        return (302.1, 1000.0)
+        return (0, 0)
     }
 
     func queryMemoryUsage() -> (usedGb: Double, totalGb: Double) {
@@ -134,6 +134,8 @@ final class RealMacSystemScanner {
                         "name": (commRaw as NSString).lastPathComponent,
                         "cpu": cpu,
                         "memory_mb": Int(max(1.0, rssKb / 1024.0)),
+                        "power": 0,
+                        "pinned": false,
                         "path": fullPath
                     ])
                 }
@@ -422,8 +424,231 @@ final class RealMacSystemScanner {
             "cpuModel": queryCPUModel(),
             "appsList": scanInstalledApps(),
             "orphanLeftoversList": scanOrphanedLeftovers(),
-            "largeFiles": scanLargeFiles()
+            "largeFiles": scanLargeFiles(),
+            "installerFiles": scanInstallerPackages(),
+            "purgeItems": scanBuildArtifacts(),
+            "cleanGroups": scanCleanGroups(),
+            "aiMoonBands": scanAICaches(),
+            "whitelist": loadWhitelistEntries()
         ]
+    }
+
+    func scanCleanGroups() -> [[String: Any]] {
+        let home = NSHomeDirectory()
+        let groups: [(id: String, category: String, name: String, roots: [String], tier: String, impact: String, rebuild: String)] = [
+            ("user_caches", "应用缓存与日志", "用户缓存与诊断日志",
+             ["\(home)/Library/Caches", "\(home)/Library/Logs"],
+             "safe", "只统计本机实际存在的缓存和日志目录。", "应用下次启动时按需重建"),
+            ("browser_caches", "浏览器缓存", "Safari / Chrome / Firefox 缓存",
+             ["\(home)/Library/Caches/com.apple.Safari", "\(home)/Library/Caches/Google"],
+             "safe", "浏览器缓存可以重建，不影响书签和登录状态。", "下次打开网页时重新生成"),
+            ("xcode_derived", "开发缓存", "Xcode DerivedData 与模拟器缓存",
+             ["\(home)/Library/Developer/Xcode/DerivedData", "\(home)/Library/Developer/CoreSimulator/Caches"],
+             "safe", "编译中间产物可以删除，下次编译会重新生成。", "下次编译重新生成"),
+            ("package_caches", "包管理器缓存", "npm / pip / Homebrew 下载缓存",
+             ["\(home)/.npm/_cacache", "\(home)/Library/Caches/pip", "\(home)/Library/Caches/Homebrew"],
+             "review", "包管理器缓存可以重新下载。", "下次安装时重新下载")
+        ]
+        return groups.compactMap { group in
+            catalog(id: group.id, category: group.category, name: group.name, roots: group.roots,
+                    tier: group.tier, impact: group.impact, rebuild: group.rebuild)
+        }
+    }
+
+    func scanAICaches() -> [[String: Any]] {
+        let home = NSHomeDirectory()
+        let bands: [(id: String, band: String, name: String, roots: [String], tier: String, impact: String)] = [
+            ("ai_versions", "可重建程序包", "Claude / Cursor 旧版本与扩展缓存",
+             ["\(home)/.local/share/claude/versions", "\(home)/.cursor/extensions"],
+             "safe", "旧版本程序包和扩展缓存可以重新下载。"),
+            ("ai_runtime_cache", "运行缓存", "Cursor / Claude 运行缓存与日志",
+             ["\(home)/Library/Caches/Cursor", "\(home)/Library/Logs/Claude"],
+             "safe", "运行缓存和日志不影响对话记录。"),
+            ("ai_worktrees", "临时工作树", "Codex 临时工作树与模型下载缓存",
+             ["\(home)/.codex/worktrees", "\(home)/.cache/huggingface"],
+             "review", "删除前确认没有未提交的工作树。")
+        ]
+        return bands.compactMap { band in
+            guard var item = catalog(id: band.id, category: band.band, name: band.name, roots: band.roots,
+                                     tier: band.tier, impact: band.impact, rebuild: "可重新下载或重新生成") else { return nil }
+            item["band"] = band.band
+            item["filesCount"] = "\(item["items"] as? Int ?? 0) 个目录"
+            item["lastMod"] = "本机扫描"
+            return item
+        }
+    }
+
+    func scanInstallerPackages() -> [[String: Any]] {
+        let home = NSHomeDirectory()
+        let roots = ["\(home)/Downloads", "\(home)/Library/Caches/Homebrew/downloads"]
+        let extensions = ["dmg", "pkg", "xip", "iso", "zip"]
+        var found: [(name: String, path: String, bytes: Int64, age: String)] = []
+        for root in roots {
+            guard fm.fileExists(atPath: root),
+                  let enumerator = fm.enumerator(
+                    at: URL(fileURLWithPath: root),
+                    includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey, .contentModificationDateKey],
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                  ) else { continue }
+            var scanned = 0
+            for case let url as URL in enumerator {
+                scanned += 1
+                if scanned > 2500 { break }
+                guard extensions.contains(url.pathExtension.lowercased()),
+                      let vals = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .contentModificationDateKey]),
+                      vals.isRegularFile == true,
+                      let size = vals.fileSize, size > 20_000_000 else { continue }
+                found.append((
+                    url.lastPathComponent,
+                    url.path.replacingOccurrences(of: home, with: "~"),
+                    Int64(size),
+                    ageText(vals.contentModificationDate)
+                ))
+            }
+        }
+        found.sort { $0.bytes > $1.bytes }
+        return found.prefix(20).enumerated().map { idx, item in
+            [
+                "id": "installer_\(idx)",
+                "name": item.name,
+                "location": (item.path as NSString).deletingLastPathComponent,
+                "path": item.path,
+                "sizeGb": gb(item.bytes),
+                "age": item.age,
+                "checked": true
+            ]
+        }
+    }
+
+    func scanBuildArtifacts() -> [[String: Any]] {
+        let home = NSHomeDirectory()
+        let roots = ["\(home)/Projects", "\(home)/GitHub", "\(home)/Developer", "\(home)/code", "\(home)/src"]
+        let names = ["node_modules": "前端依赖目录", "target": "Rust / Java 构建产物",
+                     "DerivedData": "Xcode 构建缓存", ".venv": "Python 虚拟环境",
+                     "venv": "Python 虚拟环境", "dist": "前端构建产物", "build": "构建产物"]
+        var found: [(name: String, path: String, bytes: Int64, age: String)] = []
+        for root in roots where fm.fileExists(atPath: root) {
+            guard let enumerator = fm.enumerator(
+                at: URL(fileURLWithPath: root),
+                includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+            var scanned = 0
+            for case let url as URL in enumerator {
+                scanned += 1
+                if scanned > 4000 { break }
+                let name = url.lastPathComponent
+                guard names[name] != nil else { continue }
+                enumerator.skipDescendants()
+                let (bytes, _) = fastDirectorySize(path: url.path, maxFiles: 1500)
+                guard bytes >= 20_000_000 else { continue }
+                let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+                found.append((name, url.path.replacingOccurrences(of: home, with: "~"), bytes, ageText(modified)))
+            }
+        }
+        found.sort { $0.bytes > $1.bytes }
+        return found.prefix(20).enumerated().map { idx, item in
+            let project = (item.path as NSString).deletingLastPathComponent
+            return [
+                "id": "artifact_\(idx)",
+                "project": project,
+                "artifact": item.name,
+                "path": item.path,
+                "kind": names[item.name] ?? "构建产物",
+                "sizeGb": gb(item.bytes),
+                "origSizeGb": gb(item.bytes),
+                "age": item.age,
+                "rebuildNote": "删除后可重新安装或重新编译",
+                "gitClean": "本机扫描",
+                "checked": true
+            ]
+        }
+    }
+
+    func scanHomeTreemap() -> [[String: Any]] {
+        let home = NSHomeDirectory()
+        let names = ["Library", "Downloads", "Documents", "Desktop", "Movies", "Pictures", "Music", "Projects", "Developer"]
+        var rows: [(name: String, path: String, bytes: Int64)] = []
+        for name in names {
+            let path = (home as NSString).appendingPathComponent(name)
+            guard fm.fileExists(atPath: path) else { continue }
+            let (bytes, _) = fastDirectorySize(path: path, maxFiles: 1800)
+            if bytes > 0 { rows.append((name, "~/\(name)", bytes)) }
+        }
+        let total = rows.reduce(Int64(0)) { $0 + $1.bytes }
+        guard total > 0 else { return [] }
+        var x = 0.0
+        return rows.sorted { $0.bytes > $1.bytes }.map { row in
+            let pct = Double(row.bytes) / Double(total) * 100
+            let width = max(8, pct)
+            let tile: [String: Any] = [
+                "name": row.name,
+                "path": row.path,
+                "sizeGb": gb(row.bytes),
+                "pct": (pct * 10).rounded() / 10,
+                "color": "linear-gradient(145deg, #3b6fd4, #254b9e)",
+                "files": 0,
+                "x": x, "y": 0, "w": width, "h": 100,
+                "children": [] as [[String: Any]]
+            ]
+            x += width
+            return tile
+        }
+    }
+
+    func loadWhitelistEntries() -> [String] {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/mole/whitelist")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        return text.split(whereSeparator: \.isNewline).map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("#") }
+    }
+
+    private func catalog(id: String, category: String, name: String, roots: [String],
+                         tier: String, impact: String, rebuild: String) -> [String: Any]? {
+        let home = NSHomeDirectory()
+        var subpaths: [[String: Any]] = []
+        var total: Int64 = 0
+        for root in roots where fm.fileExists(atPath: root) {
+            let (bytes, count) = fastDirectorySize(path: root, maxFiles: 2500)
+            guard bytes > 0 else { continue }
+            total += bytes
+            subpaths.append([
+                "path": root.replacingOccurrences(of: home, with: "~"),
+                "size": formatBytes(bytes),
+                "sizeGb": gb(bytes),
+                "checked": tier != "protected"
+            ])
+            _ = count
+        }
+        guard !subpaths.isEmpty else { return nil }
+        return [
+            "id": id,
+            "category": category,
+            "name": name,
+            "path": subpaths[0]["path"] as? String ?? "",
+            "sizeGb": gb(total),
+            "origSizeGb": gb(total),
+            "items": subpaths.count,
+            "filesCount": "\(subpaths.count) 个目录",
+            "lastMod": "本机扫描",
+            "rebuildTime": rebuild,
+            "tier": tier,
+            "checked": tier != "protected",
+            "cleaned": false,
+            "impact": impact,
+            "subpaths": subpaths
+        ]
+    }
+
+    private func gb(_ bytes: Int64) -> Double {
+        max(0.01, (Double(bytes) / 1_000_000_000.0 * 100).rounded() / 100.0)
+    }
+
+    private func ageText(_ date: Date?) -> String {
+        guard let date else { return "修改时间未知" }
+        let days = Int(Date().timeIntervalSince(date) / 86_400)
+        if days <= 0 { return "今天修改" }
+        return "\(days) 天未修改"
     }
 
     private func orphanSignatures(home: String) -> [OrphanSignature] {

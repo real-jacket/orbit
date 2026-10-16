@@ -43,15 +43,28 @@ final class SafetyModelTests: XCTestCase {
     @MainActor
     func testProtectedCleanItemsAreNotSelectable() {
         let vm = MoleViewModel()
-        let protected = vm.cleanItems.filter { $0.tier == .protectedSystem }
-        XCTAssertFalse(protected.isEmpty, "expected at least one protected sample row")
+        vm.cleanItems = [
+            CleanCategoryItem(
+                id: "protected",
+                category: "保护项",
+                name: "受保护目录",
+                path: "/System",
+                sizeGB: 1,
+                itemCount: 1,
+                filesCountText: "1",
+                lastModifiedText: "现在",
+                rebuildTimeText: "不可重建",
+                cliCommand: "mo clean",
+                impactDescription: "受保护",
+                tier: .protectedSystem,
+                isSelected: false,
+                subpaths: []
+            )
+        ]
 
-        for item in protected {
-            XCTAssertFalse(item.isSelected, "\(item.id) ships selected despite being protected")
-            vm.toggleCleanSelection(id: item.id)
-            let after = vm.cleanItems.first { $0.id == item.id }
-            XCTAssertFalse(after?.isSelected ?? true, "\(item.id) became selectable via toggle")
-        }
+        vm.toggleCleanSelection(id: "protected")
+
+        XCTAssertFalse(vm.cleanItems[0].isSelected)
     }
 
     @MainActor
@@ -62,6 +75,24 @@ final class SafetyModelTests: XCTestCase {
     @MainActor
     func testTogglingAnUnprotectedItemFlipsSelection() throws {
         let vm = MoleViewModel()
+        vm.cleanItems = [
+            CleanCategoryItem(
+                id: "cache",
+                category: "缓存",
+                name: "可重建缓存",
+                path: "~/Library/Caches",
+                sizeGB: 1,
+                itemCount: 1,
+                filesCountText: "1",
+                lastModifiedText: "现在",
+                rebuildTimeText: "可重建",
+                cliCommand: "mo clean",
+                impactDescription: "可重建",
+                tier: .safeRegenerable,
+                isSelected: true,
+                subpaths: []
+            )
+        ]
         let item = try XCTUnwrap(vm.cleanItems.first { $0.tier == .safeRegenerable })
         let before = item.isSelected
 

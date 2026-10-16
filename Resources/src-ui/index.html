@@ -979,7 +979,7 @@
       <div class="disk-mini-bar">
         <div style="display:flex;justify-content:space-between;font-size:10.5px;">
           <span style="font-weight:600;white-space:nowrap;">Macintosh HD</span>
-          <span style="color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;" id="sidebarFreeDisk">剩余 302.1 GB</span>
+          <span style="color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;" id="sidebarFreeDisk">剩余 — GB</span>
         </div>
         <div class="disk-mini-track">
           <div id="diskUsedBar" style="width:48%;background:var(--accent-blue);transition:width 0.3s ease;"></div>
@@ -1022,7 +1022,7 @@
           <span id="btnRecheckText">重新联检</span>
         </button>
         <button class="btn btn-primary" onclick="handlePrimaryAction()">
-          <span id="primaryBtnText">一键清理所选 (12.49 GB)</span>
+          <span id="primaryBtnText">等待本机扫描</span>
         </button>
       </div>
     </header>
@@ -1037,7 +1037,7 @@
               <span>·</span>
               <span style="color:var(--accent-emerald);">● 关键系统配置与 AI 会话记忆已在后台白名单隔离保护</span>
             </div>
-            <div class="summary-headline" id="heroHeadline">发现 12.49 GB 可安全释放的系统与应用缓存</div>
+            <div class="summary-headline" id="heroHeadline">正在扫描本机目录</div>
             <div class="summary-desc" id="heroDesc">
               列表中仅展示可清理项目（受保护的核心资产已自动在底层隔离，绝不混入清理列表）。点击任意分类可在右侧检视具体子目录并执行二次确认清理。
             </div>
@@ -1045,7 +1045,7 @@
         </div>
         <div class="summary-right">
           <div class="stat-block-label" id="heroStatLabel">当前已勾选待清理</div>
-          <div class="stat-block-val" id="heroStatValue">12.49 GB</div>
+          <div class="stat-block-val" id="heroStatValue">—</div>
           <div class="stat-seg-bar" title="绿色: 安全可再生 · 琥珀色: 需确认">
             <div id="segBarSafe" style="width:78%;background:var(--accent-emerald);"></div>
             <div id="segBarReview" style="width:22%;background:var(--accent-amber);"></div>
@@ -1462,17 +1462,17 @@ const DEFAULT_STATE = {
   tempUnit: 'C',
   fanMode: 'Auto',
   caffeinateActive: false,
-  healthScore: 96,
+  healthScore: 0,
   recheckCount: 0,
   lastCheckTime: '刚刚',
-  cpuModelName: 'Apple Silicon (10核处理器)',
-  freeDiskGb: 302.1,
-  totalDiskGb: 1000.0,
-  totalAnalyzedGb: 248.5,
+  cpuModelName: '正在读取本机处理器',
+  freeDiskGb: 0,
+  totalDiskGb: 0,
+  totalAnalyzedGb: 0,
   cpuTempC: 44.8,
   gpuTempC: 42.5,
-  memUsedGb: 18.2,
-  memTotalGb: 32.0,
+  memUsedGb: 0,
+  memTotalGb: 0,
   diskReadMbs: 14.2,
   diskWriteMbs: 28.6,
   netDownMbs: 4.82,
@@ -1483,413 +1483,25 @@ const DEFAULT_STATE = {
   diskSeries: [10, 18, 15, 28, 22, 19, 25, 21, 18, 20.4],
   netSeries: [15, 24, 35, 28, 42, 38, 31, 39, 34, 36.0],
   deletedPathsRegistry: [],
-  cleanGroups: [
-    {
-      id: 'user_app_caches', category: '应用缓存与日志', name: 'macOS 用户应用缓存与崩溃诊断日志',
-      path: '~/Library/Caches', sizeGb: 3.15, origSizeGb: 3.15, items: 38, filesCount: '24,180 个文件',
-      lastMod: '今天', rebuildTime: '小于 2 秒 (自动按需生成)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：仅清理 ~/Library/Caches 下的临时渲染与网络图片缓存，不会影响应用设置或文稿。下次启动应用时会自动按需生成。',
-      subpaths: [
-        { path: '~/Library/Caches/com.apple.helpd', size: '1.12 GB', sizeGb: 1.12, checked: true },
-        { path: '~/Library/Caches/CloudKit', size: '840 MB', sizeGb: 0.84, checked: true },
-        { path: '~/Library/Logs/DiagnosticReports', size: '690 MB', sizeGb: 0.69, checked: true },
-        { path: '~/Library/Caches/GeoServices', size: '500 MB', sizeGb: 0.50, checked: true }
-      ]
-    },
-    {
-      id: 'browser_caches', category: '浏览器渲染缓存', name: '浏览器离线脚本、媒体与 GPU 着色器缓存',
-      path: '~/Library/Caches/com.apple.Safari', sizeGb: 2.07, origSizeGb: 2.07, items: 50, filesCount: '41,920 个文件',
-      lastMod: '今天', rebuildTime: '小于 3 秒 (网页加载自动生成)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：仅清理离线媒体缓存、WebGL 着色器缓存与失效脚本，严格保留书签、历史记录、Cookie 与已保存密码。',
-      subpaths: [
-        { path: '~/Library/Caches/Google/Chrome/Default/Cache', size: '1.18 GB', sizeGb: 1.18, checked: true },
-        { path: '~/Library/Caches/com.apple.Safari/WebKitCache', size: '890 MB', sizeGb: 0.89, checked: true }
-      ]
-    },
-    {
-      id: 'xcode_derived', category: '开发者构建产物', name: 'Xcode 编译中间产物 (DerivedData) 与模拟器缓存',
-      path: '~/Library/Developer/Xcode/DerivedData', sizeGb: 4.65, origSizeGb: 4.65, items: 12, filesCount: '18,420 个文件',
-      lastMod: '近期', rebuildTime: '约 15~30 秒 (下次编译重新索引)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '安全可再生：清理 Xcode 历史项目的编译索引、预编译头与 iOS Simulator 临时缓存。下次打开对应工程编译时会自动重新生成。',
-      subpaths: [
-        { path: '~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex', size: '2.45 GB', sizeGb: 2.45, checked: true },
-        { path: '~/Library/Developer/CoreSimulator/Caches/dyld', size: '2.20 GB', sizeGb: 2.20, checked: true }
-      ]
-    },
-    {
-      id: 'pkg_http_caches', category: '包管理器缓存', name: 'npm、pnpm、pip、Homebrew 与 Cargo 离线归档缓存',
-      path: '~/.npm/_cacache', sizeGb: 1.88, origSizeGb: 1.88, items: 9, filesCount: '12,640 个文件',
-      lastMod: '近期', rebuildTime: '视网络情况按需下载',
-      tier: 'review', checked: true, cleaned: false,
-      impact: '需确认项：清理后不影响现有项目的依赖目录或虚拟环境；但在离线环境下重新安装旧依赖包时需重新从镜像源下载。',
-      subpaths: [
-        { path: '~/.npm/_cacache', size: '920 MB', sizeGb: 0.92, checked: true },
-        { path: '~/Library/Caches/pip', size: '540 MB', sizeGb: 0.54, checked: true },
-        { path: '~/Library/Caches/Homebrew', size: '420 MB', sizeGb: 0.42, checked: true }
-      ]
-    },
-    {
-      id: 'orphaned_leftovers', category: '已卸载软件残留', name: '已卸载应用的孤立沙盒容器与支持文件残留',
-      path: '~/Library/Application Support', sizeGb: 0.74, origSizeGb: 0.74, items: 6, filesCount: '3,120 个文件',
-      lastMod: '30天前', rebuildTime: '无需重建 (无主残留)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：经与 /Applications 应用程序目录比对，以下目录对应的主程序均已卸载，属于无主残留缓存文件。',
-      subpaths: [
-        { path: '~/Library/Caches/Snapshots', size: '410 MB', sizeGb: 0.41, checked: true },
-        { path: '~/Library/Saved Application State', size: '330 MB', sizeGb: 0.33, checked: true }
-      ]
-    },
-    {
-      id: 'apple_neural_engine', category: '硬件级保护项', name: 'Apple 神经网络引擎 (ANE) 预编译模型缓存',
-      path: '~/Library/Caches/com.apple.e5rt.e5bundlecache', sizeGb: 1.92, origSizeGb: 1.92, items: 14, filesCount: '840 个模型分片',
-      lastMod: '系统实时维护', rebuildTime: '硬件锁定保护 (不可勾选)',
-      tier: 'protected', checked: false, cleaned: false,
-      impact: '内置硬件级保护（无勾选框，永不进入清理确认弹窗）：存储 Apple Silicon 神经网络引擎编译后的 CoreML 权重缓存，确保本地 AI 与系统推理零卡顿。',
-      subpaths: [
-        { path: '~/Library/Caches/com.apple.e5rt.e5bundlecache/ANECompiler', size: '1.92 GB (已锁定保护)', sizeGb: 1.92, checked: false }
-      ]
-    }
-  ],
-  aiMoonBands: [
-    {
-      id: 'ai_superseded_bins', band: '第一安全带 · 历史旧版本更新包',
-      name: 'Claude、Cursor 与 AI 插件历史自更新旧版本程序包',
-      path: '~/.local/share/claude/versions', sizeGb: 3.42, origSizeGb: 3.42,
-      filesCount: '11 个历史版本包', lastMod: '14~60 天前', rebuildTime: '无需重建 (已升级至新版)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：AI 工具每次后台自动升级都会在本地留下 200MB~350MB 的旧版可执行文件。仅清理已被替换的旧版本，严格保留当前正在运行的最新版本。',
-      subpaths: [
-        { path: '~/.local/share/claude/versions', size: '2.14 GB', checked: true },
-        { path: '~/.cursor/extensions', size: '1.28 GB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_tool_caches', band: '第一安全带 · 渲染与着色器缓存',
-      name: 'Claude Desktop、Cursor 与本地推理引擎 GPU 渲染及日志缓存',
-      path: '~/Library/Caches/Cursor', sizeGb: 2.18, origSizeGb: 2.18,
-      filesCount: '9,410 个文件', lastMod: '今天', rebuildTime: '小于 2 秒 (启动自动重建)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：仅清理 GPU 渲染缓存、CachedData 与过期调试日志，不影响任何本地对话记录、记忆或扩展插件。',
-      subpaths: [
-        { path: '~/Library/Application Support/Cursor/CachedData', size: '1.46 GB', checked: true },
-        { path: '~/Library/Logs/Claude', size: '720 MB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_stale_worktrees', band: '第二安全带 · 过期临时工作树',
-      name: '已合并超过保留周期的 AI 临时 Git 工作树与孤立渲染缓存',
-      path: '~/.codex/worktrees', sizeGb: 4.95, origSizeGb: 4.95,
-      filesCount: '14 个临时目录', lastMod: '30 天前', rebuildTime: '无需重建 (分支已合并)',
-      tier: 'review', checked: true, cleaned: false,
-      impact: '智能生命周期保护：仅列出超过保留窗口未修改且无未提交变更的临时工作树；近期活跃任务与所有历史对话记录均已在底层白名单永久隔离保护。',
-      subpaths: [
-        { path: '~/.codex/worktrees', size: '3.40 GB', checked: true },
-        { path: '~/.cache/huggingface/Download', size: '1.55 GB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_sqlite_vacuum', band: '第三安全带 · 状态数据库无损整理',
-      name: 'Cursor 与 Claude 本地状态数据库无损碎片压缩 (state.vscdb)',
-      path: '~/Library/Application Support/Cursor/User/globalStorage', sizeGb: 1.65, origSizeGb: 1.65,
-      filesCount: '2 个状态数据库', lastMod: '近期', rebuildTime: '约 4 秒 (原地无损压缩)',
-      tier: 'review', checked: true, cleaned: false,
-      impact: '无损原地压缩：不删除任何键值数据，仅在检测到宿主应用已关闭时回收数据库游离页碎片。',
-      subpaths: [
-        { path: '~/Library/Application Support/Cursor/User/globalStorage/state.vscdb', size: '可缩减 1.65 GB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_chat_history_protected', band: '核心资产永久保护 · 已锁定排除',
-      name: 'AI 历史对话记录、长期记忆 (Memories)、项目计划与自定义技能',
-      path: '~/.claude/projects, ~/.codex/sessions, ~/.claude/skills', sizeGb: 1.14, origSizeGb: 1.14,
-      filesCount: '1,280 个会话', lastMod: '实时保护中', rebuildTime: '永久锁定保护 (无勾选框)',
-      tier: 'protected', checked: false, cleaned: false,
-      impact: '核心资产永久锁定（无勾选框，绝不进入清理确认弹窗）：您的所有 AI 历史对话、长期记忆与自定义技能均受硬件级白名单保护。',
-      subpaths: [
-        { path: '~/.claude/projects & ~/.claude/skills', size: '1.14 GB (永久保护)', checked: false }
-      ]
-    }
-  ],
-  softwarePanelMode: 'leftovers',
-  selectedOrphanIdx: 0,
-  uninstallMode: 'standard',
-  orphanLeftoversList: [
-    {
-      id: 'orphan_docker', name: 'Docker Desktop', category: '虚拟化与容器残留',
-      bundleId: 'com.docker.docker', statusText: '主程序已卸载 · 孤立残留',
-      iconBg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><rect x="16" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/><rect x="25" y="23" width="7.5" height="7" rx="1.2" fill="#ffffff"/><rect x="34" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/><rect x="25" y="14.5" width="7.5" height="7" rx="1.2" fill="#bae6fd" stroke="#fff" stroke-width="0.8"/><rect x="34" y="14.5" width="7.5" height="7" rx="1.2" fill="#ffffff"/><path d="M10 32 H45 C48.5 32 51.5 29.5 53 26.5 C55.5 28 57 31 55.5 34.5 C52 38 47 49 28 49 C15 49 10 41 10 32 Z" fill="#ffffff"/><circle cx="20" cy="39" r="2.2" fill="#0284c7"/></svg>`,
-      leftoverSizeGb: 6.45, checked: true,
-      impact: '检测到 /Applications/Docker.app 主程序已卸载，但本机仍遗留有 6.45 GB 的容器虚拟磁盘镜像 (Docker.raw)、共享守护进程容器与 ~/.docker 配置目录。',
-      subpaths: [
-        { path: '~/Library/Containers/com.docker.docker', kind: 'cache', size: '5.60 GB', checked: true },
-        { path: '~/Library/Group Containers/group.com.docker', kind: 'cache', size: '480 MB', checked: true },
-        { path: '~/.docker', kind: 'config', size: '250 MB', checked: true },
-        { path: '~/Library/Application Support/Docker Desktop', kind: 'config', size: '120 MB', checked: true }
-      ]
-    },
-    {
-      id: 'orphan_android_studio', name: 'Android Studio & Android SDK', category: '移动开发与模拟器残留',
-      bundleId: 'com.google.android.studio', statusText: '主程序已卸载 · 孤立残留',
-      iconBg: 'linear-gradient(145deg, #10b981 0%, #047857 60%, #1e3a8a 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><path d="M18 28 C18 19.5 24.3 13 32 13 C39.7 13 46 19.5 46 28 H18 Z" fill="#4ade80"/><line x1="23" y1="15" x2="19" y2="9" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round"/><line x1="41" y1="15" x2="45" y2="9" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round"/><circle cx="26.5" cy="21.5" r="2" fill="#064e3b"/><circle cx="37.5" cy="21.5" r="2" fill="#064e3b"/><circle cx="32" cy="31" r="6" fill="#ffffff" stroke="#0284c7" stroke-width="2.2"/><path d="M29 36 L21 54 M35 36 L43 54 M23.5 47 H40.5" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round"/></svg>`,
-      leftoverSizeGb: 8.30, checked: true,
-      impact: '检测到 Android Studio 主程序已卸载，但 ~/Library/Android/sdk、~/.android/avd 模拟器镜像、~/.gradle 以及 Google/AndroidStudio* 仍占用 8.30 GB 磁盘空间。',
-      subpaths: [
-        { path: '~/Library/Android/sdk', kind: 'cache', size: '4.50 GB', checked: true },
-        { path: '~/.android/avd', kind: 'cache', size: '2.15 GB', checked: true },
-        { path: '~/.gradle/caches', kind: 'cache', size: '1.10 GB', checked: true },
-        { path: '~/Library/Application Support/Google/AndroidStudio2024.2', kind: 'config', size: '350 MB', checked: true },
-        { path: '~/Library/Caches/Google/AndroidStudio2024.2', kind: 'cache', size: '200 MB', checked: true }
-      ]
-    },
-    {
-      id: 'orphan_jetbrains', name: 'JetBrains IDEs (IntelliJ / PyCharm)', category: 'IDE 索引与插件残留',
-      bundleId: 'com.jetbrains.intellij', statusText: '主程序已卸载 · 孤立残留',
-      iconBg: 'linear-gradient(145deg, #f43f5e 0%, #f97316 55%, #7c2d12 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><rect x="12" y="12" width="40" height="40" rx="8" fill="#18181b" stroke="#ffffff" stroke-width="1.5"/><path d="M18 22 H28 M23 22 V34 C23 36.5 21 38 18.5 38 M33 22 H42 C44.5 22 46 23.5 46 25.5 C46 27.2 44.8 28.5 43 29 C45.2 29.5 46.5 31 46.5 33 C46.5 35.5 44.5 37.5 41.5 37.5 H33 V22 Z" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="18" y1="45" x2="34" y2="45" stroke="#fb923c" stroke-width="3.4" stroke-linecap="round"/></svg>`,
-      leftoverSizeGb: 1.95, checked: true,
-      impact: '检测到已卸载的 JetBrains IDE 在 ~/Library/Caches/JetBrains 与 Application Support/JetBrains 下遗留了 1.95 GB 的历史代码索引与插件包。',
-      subpaths: [
-        { path: '~/Library/Caches/JetBrains/IntelliJIdea2024.2', kind: 'cache', size: '1.40 GB', checked: true },
-        { path: '~/Library/Application Support/JetBrains/IntelliJIdea2024.2', kind: 'config', size: '550 MB', checked: true }
-      ]
-    },
-    {
-      id: 'orphan_parallels', name: 'Parallels Desktop', category: '虚拟机与驱动残留',
-      bundleId: 'com.parallels.desktop.console', statusText: '主程序已卸载 · 孤立残留',
-      iconBg: 'linear-gradient(145deg, #ef4444 0%, #991b1b 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><rect x="20" y="11" width="8.5" height="42" rx="4.2" fill="#ffffff"/><rect x="35.5" y="11" width="8.5" height="42" rx="4.2" fill="#fecdd3"/></svg>`,
-      leftoverSizeGb: 1.42, checked: false,
-      impact: '检测到 Parallels Desktop 卸载后遗留的虚拟显卡着色器缓存与驱动支持配置目录。',
-      subpaths: [
-        { path: '~/Library/Caches/com.parallels.desktop.console', kind: 'cache', size: '980 MB', checked: true },
-        { path: '~/Library/Application Support/Parallels', kind: 'config', size: '440 MB', checked: true }
-      ]
-    }
-  ],
-  appsList: [
-    {
-      id: 'com.apple.dt.Xcode', name: 'Xcode', category: '开发工具',
-      appPath: '/Applications/Xcode.app', bundleId: 'com.apple.dt.Xcode', version: '16.2',
-      iconBg: 'linear-gradient(145deg, #38bdf8 0%, #1d4ed8 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          
-          <g transform="rotate(-8 32 32)">
-            <rect x="12" y="12" width="40" height="40" rx="6" fill="#ffffff" fill-opacity="0.22" stroke="#ffffff" stroke-width="1.6"/>
-            <line x1="12" y1="25" x2="52" y2="25" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-            <line x1="12" y1="38" x2="52" y2="38" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-            <line x1="25" y1="12" x2="25" y2="52" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-            <line x1="38" y1="12" x2="38" y2="52" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-          </g>
-          
-          <g transform="rotate(-42 32 32)">
-            <rect x="29" y="20" width="6" height="32" rx="3" fill="#fbbf24" stroke="#ffffff" stroke-width="1"/>
-            <path d="M18 14 H46 L43 22 H21 Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
-          </g>
-        </svg>`,
-      lastUsed: '今天', appSizeGb: 7.80, cacheSizeGb: 3.85, configSizeGb: 0.80, leftoverSizeGb: 4.65,
-      checked: true, keepPersonal: true,
-      impact: '支持「📦 标准卸载 App（仅移除 Xcode.app 主程序与编译缓存，保留个人代码片段与配置）」、「🔥 彻底粉碎卸载（含全部关联残留）」或「🧹 仅清理缓存」。',
-      subpaths: [
-        { path: '/Applications/Xcode.app', kind: 'app', size: '7.80 GB', checked: true },
-        { path: '~/Library/Developer/Xcode/DerivedData', kind: 'cache', size: '3.85 GB', checked: true },
-        { path: '~/Library/Developer/Xcode/UserData', kind: 'config', size: '800 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.docker.docker', name: 'Docker Desktop', category: '虚拟化容器',
-      appPath: '/Applications/Docker.app', bundleId: 'com.docker.docker', version: '4.38.0',
-      iconBg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          
-          <rect x="16" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/>
-          <rect x="25" y="23" width="7.5" height="7" rx="1.2" fill="#ffffff"/>
-          <rect x="34" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/>
-          <rect x="25" y="14.5" width="7.5" height="7" rx="1.2" fill="#bae6fd" stroke="#fff" stroke-width="0.8"/>
-          <rect x="34" y="14.5" width="7.5" height="7" rx="1.2" fill="#ffffff"/>
-          
-          <path d="M10 32 H45 C48.5 32 51.5 29.5 53 26.5 C55.5 28 57 31 55.5 34.5 C52 38 47 49 28 49 C15 49 10 41 10 32 Z" fill="#ffffff"/>
-          <circle cx="20" cy="39" r="2.2" fill="#0284c7"/>
-        </svg>`,
-      lastUsed: '昨天', appSizeGb: 1.85, cacheSizeGb: 5.90, configSizeGb: 0.55, leftoverSizeGb: 6.45,
-      checked: false, keepPersonal: true,
-      impact: '关联扫描到 /Applications/Docker.app 主程序、~/Library/Containers 容器镜像缓存以及网络配置。',
-      subpaths: [
-        { path: '/Applications/Docker.app', kind: 'app', size: '1.85 GB', checked: true },
-        { path: '~/Library/Containers/com.docker.docker', kind: 'cache', size: '5.90 GB', checked: true },
-        { path: '~/Library/Preferences/com.docker.docker.plist', kind: 'config', size: '550 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.google.Chrome', name: 'Google Chrome', category: '浏览器',
-      appPath: '/Applications/Google Chrome.app', bundleId: 'com.google.Chrome', version: '134.0',
-      iconBg: 'linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          <circle cx="32" cy="32" r="23" fill="#ffffff"/>
-          
-          <path d="M32 10 A22 22 0 0 1 51 21 H32 L21 26 L14 19 A22 22 0 0 1 32 10 Z" fill="#ef4444"/>
-          
-          <path d="M51 21 A22 22 0 0 1 32 54 L27 38 L39 21 Z" fill="#facc15"/>
-          
-          <path d="M14 19 L25 38 L32 54 A22 22 0 0 1 14 19 Z" fill="#22c55e"/>
-          
-          <circle cx="32" cy="32" r="11" fill="#ffffff"/>
-          <circle cx="32" cy="32" r="8.5" fill="#2563eb"/>
-        </svg>`,
-      lastUsed: '今天', appSizeGb: 0.65, cacheSizeGb: 1.85, configSizeGb: 0.30, leftoverSizeGb: 2.15,
-      checked: false, keepPersonal: true,
-      impact: '标准卸载仅移除 Chrome.app 主程序与离线渲染缓存，自动为您保留书签、密码与个人用户配置。',
-      subpaths: [
-        { path: '/Applications/Google Chrome.app', kind: 'app', size: '650 MB', checked: true },
-        { path: '~/Library/Caches/Google/Chrome', kind: 'cache', size: '1.85 GB', checked: true },
-        { path: '~/Library/Application Support/Google/Chrome', kind: 'config', size: '300 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.todesktop.230313mzl4w4u92', name: 'Cursor', category: 'AI 编程',
-      appPath: '/Applications/Cursor.app', bundleId: 'com.todesktop.230313mzl4w4u92', version: '0.46.0',
-      iconBg: 'linear-gradient(145deg, #52525b 0%, #18181b 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          
-          <polygon points="32,8 53,20 32,32 11,20" fill="#ffffff" fill-opacity="0.92"/>
-          <polygon points="11,20 32,32 32,56 11,44" fill="#a1a1aa"/>
-          <polygon points="32,32 53,20 53,44 32,56" fill="#3f3f46"/>
-          
-          <path d="M24 22 L44 31 L34 35 L30 45 Z" fill="#ffffff" stroke="#18181b" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>`,
-      lastUsed: '今天', appSizeGb: 0.48, cacheSizeGb: 1.52, configSizeGb: 0.40, leftoverSizeGb: 1.92,
-      checked: false, keepPersonal: true,
-      impact: '支持仅清理 CachedData 历史更新缓存，或执行标准卸载（保留您的本地 AI 对话历史与扩展配置）。',
-      subpaths: [
-        { path: '/Applications/Cursor.app', kind: 'app', size: '480 MB', checked: true },
-        { path: '~/Library/Application Support/Cursor/CachedData', kind: 'cache', size: '1.52 GB', checked: true },
-        { path: '~/Library/Application Support/Cursor/User', kind: 'config', size: '400 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.figma.Desktop', name: 'Figma', category: '设计创意',
-      appPath: '/Applications/Figma.app', bundleId: 'com.figma.Desktop', version: '124.5.0',
-      iconBg: 'linear-gradient(145deg, #27272a 0%, #09090b 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          <path d="M22 10 H32 V24 H22 A7 7 0 0 1 22 10 Z" fill="#f43f5e"/>
-          <path d="M32 10 H42 A7 7 0 0 1 42 24 H32 V10 Z" fill="#fb7185"/>
-          <path d="M22 24 H32 V38 H22 A7 7 0 0 1 22 24 Z" fill="#a855f7"/>
-          <circle cx="39" cy="31" r="7" fill="#38bdf8"/>
-          <path d="M22 38 H32 V45 A7 7 0 1 1 22 38 Z" fill="#10b981"/>
-        </svg>`,
-      lastUsed: '3 天前', appSizeGb: 0.42, cacheSizeGb: 1.48, configSizeGb: 0.18, leftoverSizeGb: 1.66,
-      checked: false, keepPersonal: true,
-      impact: '关联扫描到 Figma.app 主程序与本地画布纹理缓存，支持标准卸载 App 或彻底粉碎卸载。',
-      subpaths: [
-        { path: '/Applications/Figma.app', kind: 'app', size: '420 MB', checked: true },
-        { path: '~/Library/Application Support/Figma/DesktopProfile', kind: 'cache', size: '1.48 GB', checked: true },
-        { path: '~/Library/Preferences/com.figma.Desktop.plist', kind: 'config', size: '180 MB', checked: false }
-      ]
-    }
-  ],
-  optimizeTasks: [
-    { name: '输入法切换延迟修复与系统聚焦索引校验', status: 'applied', done: false, detail: '刷新中文输入法状态机缓存并验证 Spotlight 搜索索引完整性' },
-    { name: '重建快速预览缩略图与访达 (Finder) 图标缓存', status: 'applied', done: false, detail: '修复部分桌面文稿图标显示异常问题并重载系统预览服务' },
-    { name: '刷新系统本地 DNS 域名解析缓存', status: 'applied', done: false, detail: '清空过期本地域名解析记录，修复网页偶发连接缓慢问题' },
-    { name: '无损压缩系统通知中心与下载隔离区数据库', status: 'applied', done: false, detail: '在后台整理系统级核心 SQLite 数据库碎片，提升响应速度' },
-    { name: '扫描并校验用户偏好设置 (.plist) 完整性', status: 'applied', done: false, detail: '校验 ~/Library/Preferences 配置文件并清理空字节损坏配置' }
-  ],
-  drillDownDirIdx: null,
-  selectedSubTileIdx: 0,
-  treemap2D: [
-    {
-      name: 'Library (系统与应用库)', path: '~/Library', sizeGb: 88.4, pct: 35.6, color: 'linear-gradient(145deg, #3b6fd4, #254b9e)', files: 194200, x: 0, y: 0, w: 37, h: 100,
-      children: [
-        { name: 'Containers (Docker 与沙盒容器)', path: '~/Library/Containers', sizeGb: 31.2, pct: 35.3, color: 'linear-gradient(145deg, #3b6fd4, #1e40af)', files: 68400, x: 0, y: 0, w: 38, h: 100, cleanable: false },
-        { name: 'Developer (Xcode DerivedData 与模拟器)', path: '~/Library/Developer', sizeGb: 22.8, pct: 25.8, color: 'linear-gradient(145deg, #2563eb, #1d4ed8)', files: 52100, x: 38, y: 0, w: 36, h: 58, cleanable: true },
-        { name: 'Application Support (应用数据与状态库)', path: '~/Library/Application Support', sizeGb: 16.4, pct: 18.6, color: 'linear-gradient(145deg, #0284c7, #0369a1)', files: 34900, x: 38, y: 58, w: 36, h: 42, cleanable: false },
-        { name: 'Caches (用户与浏览器渲染缓存)', path: '~/Library/Caches', sizeGb: 11.5, pct: 13.0, color: 'linear-gradient(145deg, #0d9488, #0f766e)', files: 29800, x: 74, y: 0, w: 26, h: 62, cleanable: true },
-        { name: 'Logs & Saved State (诊断日志与窗口状态)', path: '~/Library/Logs', sizeGb: 6.5, pct: 7.3, color: 'linear-gradient(145deg, #4f46e5, #3730a3)', files: 9000, x: 74, y: 62, w: 26, h: 38, cleanable: true }
-      ]
-    },
-    {
-      name: 'Projects (代码工作区)', path: '~/Projects', sizeGb: 62.4, pct: 25.1, color: 'linear-gradient(145deg, #288a5d, #1b6342)', files: 112400, x: 37, y: 0, w: 38, h: 57,
-      children: [
-        { name: 'rust-indexer (含 target 构建产物)', path: '~/Projects/rust-indexer', sizeGb: 19.8, pct: 31.7, color: 'linear-gradient(145deg, #16a34a, #15803d)', files: 38200, x: 0, y: 0, w: 36, h: 100, cleanable: true },
-        { name: 'ios-client (含 DerivedData 与 Pods)', path: '~/Projects/ios-client', sizeGb: 16.4, pct: 26.3, color: 'linear-gradient(145deg, #059669, #047857)', files: 29400, x: 36, y: 0, w: 38, h: 56, cleanable: true },
-        { name: 'mole-studio (含 node_modules 依赖)', path: '~/Projects/mole-studio', sizeGb: 12.8, pct: 20.5, color: 'linear-gradient(145deg, #0d9488, #0f766e)', files: 24100, x: 36, y: 56, w: 38, h: 44, cleanable: true },
-        { name: 'ai-agent (含 .venv 虚拟环境)', path: '~/Projects/ai-agent', sizeGb: 8.2, pct: 13.1, color: 'linear-gradient(145deg, #0284c7, #0369a1)', files: 14200, x: 74, y: 0, w: 26, h: 60, cleanable: true },
-        { name: 'active-webapp (活跃前端工程)', path: '~/Projects/active-webapp', sizeGb: 5.2, pct: 8.4, color: 'linear-gradient(145deg, #2563eb, #1d4ed8)', files: 6500, x: 74, y: 60, w: 26, h: 40, cleanable: false }
-      ]
-    },
-    {
-      name: 'Applications (应用程序)', path: '/Applications', sizeGb: 46.8, pct: 18.8, color: 'linear-gradient(145deg, #c6613f, #9a4427)', files: 48200, x: 37, y: 57, w: 38, h: 43,
-      children: [
-        { name: 'Xcode.app (Apple 官方开发套件)', path: '/Applications/Xcode.app', sizeGb: 18.4, pct: 39.3, color: 'linear-gradient(145deg, #c6613f, #9a4427)', files: 21400, x: 0, y: 0, w: 40, h: 100 },
-        { name: 'Docker.app (容器虚拟化引擎)', path: '/Applications/Docker.app', sizeGb: 11.2, pct: 23.9, color: 'linear-gradient(145deg, #d97757, #b45334)', files: 12100, x: 40, y: 0, w: 35, h: 58 },
-        { name: 'Google Chrome.app (浏览器)', path: '/Applications/Google Chrome.app', sizeGb: 9.6, pct: 20.5, color: 'linear-gradient(145deg, #ea580c, #c2410c)', files: 8900, x: 40, y: 58, w: 35, h: 42 },
-        { name: 'Cursor.app (AI 编辑器)', path: '/Applications/Cursor.app', sizeGb: 7.6, pct: 16.3, color: 'linear-gradient(145deg, #e11d48, #be123c)', files: 5800, x: 75, y: 0, w: 25, h: 100 }
-      ]
-    },
-    {
-      name: 'Downloads (下载目录)', path: '~/Downloads', sizeGb: 28.9, pct: 11.6, color: 'linear-gradient(145deg, #c4881d, #966510)', files: 1420, x: 75, y: 0, w: 25, h: 48,
-      children: [
-        { name: 'Installers (离线安装包 .xip / .dmg / .pkg)', path: '~/Downloads', sizeGb: 14.8, pct: 51.2, color: 'linear-gradient(145deg, #d99b26, #b45309)', files: 18, x: 0, y: 0, w: 52, h: 100, cleanable: true },
-        { name: 'Archives (压缩归档 .zip / .tar.gz)', path: '~/Downloads', sizeGb: 8.6, pct: 29.8, color: 'linear-gradient(145deg, #ca8a04, #a16207)', files: 410, x: 52, y: 0, w: 48, h: 60 },
-        { name: 'Media & Docs (临时下载媒体与文稿)', path: '~/Downloads', sizeGb: 5.5, pct: 19.0, color: 'linear-gradient(145deg, #0d9488, #0f766e)', files: 992, x: 52, y: 60, w: 48, h: 40 }
-      ]
-    },
-    {
-      name: 'Documents (个人文稿)', path: '~/Documents', sizeGb: 14.2, pct: 5.7, color: 'linear-gradient(145deg, #2b8299, #1d5d6e)', files: 18900, x: 75, y: 48, w: 25, h: 27,
-      children: [
-        { name: 'WorkSpecs (技术方案与设计稿)', path: '~/Documents', sizeGb: 8.4, pct: 59.2, color: 'linear-gradient(145deg, #0284c7, #0369a1)', files: 11200, x: 0, y: 0, w: 60, h: 100 },
-        { name: 'Notes & PDF (电子书与论文归档)', path: '~/Documents', sizeGb: 5.8, pct: 40.8, color: 'linear-gradient(145deg, #2b8299, #1d5d6e)', files: 7700, x: 60, y: 0, w: 40, h: 100 }
-      ]
-    },
-    {
-      name: 'Movies (视频媒体)', path: '~/Movies', sizeGb: 7.8, pct: 3.2, color: 'linear-gradient(145deg, #7652bd, #553791)', files: 340, x: 75, y: 75, w: 25, h: 25,
-      children: [
-        { name: 'ScreenRecordings (屏幕录制素材)', path: '~/Movies', sizeGb: 5.2, pct: 66.7, color: 'linear-gradient(145deg, #7c3aed, #5b21b6)', files: 210, x: 0, y: 0, w: 66, h: 100 },
-        { name: 'FinalCut Cache (视频渲染缓存)', path: '~/Movies', sizeGb: 2.6, pct: 33.3, color: 'linear-gradient(145deg, #9333ea, #6b21a8)', files: 130, x: 66, y: 0, w: 34, h: 100, cleanable: true }
-      ]
-    }
-  ],
-  largeFiles: [
-    { id: 'lf1', name: 'Docker.raw (容器虚拟磁盘镜像)', path: '~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw', sizeGb: 24.0, kind: '虚拟磁盘' },
-    { id: 'lf2', name: 'Xcode_16.2_Universal.xip (离线安装包)', path: '~/Downloads/Xcode_16.2_Universal.xip', sizeGb: 8.42, kind: '安装归档' },
-    { id: 'lf3', name: 'MacTeX-2026.pkg (离线安装包缓存)', path: '~/Library/Caches/Homebrew/downloads/MacTeX-2026.pkg', sizeGb: 4.85, kind: '安装包' }
-  ],
-  processes: [
-    { pid: 941, name: 'WindowServer', cpu: 11.4, memory_mb: 980, power: 3.7, pinned: true, path: '/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer' },
-    { pid: 1842, name: 'MoleStudio-Native', cpu: 2.4, memory_mb: 145, power: 0.6, pinned: true, path: '/Applications/MoleStudio.app/Contents/MacOS/MoleStudio-Native-v8' },
-    { pid: 2190, name: 'Finder', cpu: 1.8, memory_mb: 260, power: 0.4, pinned: false, path: '/System/Library/CoreServices/Finder.app' },
-    { pid: 4242, name: 'Safari', cpu: 6.2, memory_mb: 1120, power: 2.1, pinned: false, path: '/Applications/Safari.app' },
-    { pid: 5110, name: 'mds_stores', cpu: 3.5, memory_mb: 420, power: 1.1, pinned: false, path: '/System/Library/Frameworks/CoreServices.framework/Frameworks/Metadata.framework/Versions/A/Support/mds_stores' }
-  ],
-  purgeItems: [
-    { id: 'p1', project: '~/Projects/rust-indexer', artifact: 'target', path: '~/Projects/rust-indexer/target', kind: 'Rust 编译构建产物', sizeGb: 4.62, origSizeGb: 4.62, age: '48 天未修改', rebuildNote: '下次编译自动重新生成', gitClean: '主分支 · 工作区干净', checked: true },
-    { id: 'p2', project: '~/GitHub/ios-client', artifact: 'DerivedData', path: '~/GitHub/ios-client/DerivedData', kind: 'Xcode 工程构建缓存', sizeGb: 3.15, origSizeGb: 3.15, age: '21 天未修改', rebuildNote: '打开工程编译自动生成', gitClean: '主分支 · 工作区干净', checked: true },
-    { id: 'p3', project: '~/Projects/mole-studio', artifact: 'node_modules', path: '~/Projects/mole-studio/node_modules', kind: '前端项目依赖目录', sizeGb: 1.84, origSizeGb: 1.84, age: '34 天未修改', rebuildNote: '可随时通过包管理器恢复', gitClean: '开发分支 · 工作区干净', checked: true },
-    { id: 'p4', project: '~/Projects/ai-agent', artifact: '.venv', path: '~/Projects/ai-agent/.venv', kind: 'Python 虚拟环境依赖', sizeGb: 1.28, origSizeGb: 1.28, age: '19 天未修改', rebuildNote: '可随时根据环境锁文件恢复', gitClean: '主分支 · 工作区干净', checked: true }
-  ],
-  installerFiles: [
-    { id: 'inst1', name: 'Xcode_16.2_Universal.xip', location: '~/Downloads', path: '~/Downloads/Xcode_16.2_Universal.xip', sizeGb: 8.42, age: '29 天前下载', checked: true },
-    { id: 'inst2', name: 'MacTeX-2026.pkg', location: '~/Library/Caches/Homebrew/downloads', path: '~/Library/Caches/Homebrew/downloads/MacTeX-2026.pkg', sizeGb: 4.85, age: '41 天前下载', checked: true },
-    { id: 'inst3', name: 'Docker-AppleSilicon.dmg', location: '~/Downloads', path: '~/Downloads/Docker-AppleSilicon.dmg', sizeGb: 0.78, age: '18 天前下载', checked: true }
-  ],
-  historyLogs: [
-    { id: '#20261015-1148', time: '今天 11:48', action: '智能深度清理 (应用缓存与诊断日志)', sizeGb: 3.15, items: 38, status: '位于废纸篓 · 可还原' }
-  ],
-  whitelist: [
-    '~/.ollama/models (本地大模型权重 · 自动保护)',
-    '~/.cache/huggingface (数据集与模型缓存 · 自动保护)',
-    '~/.claude/projects (AI 历史会话与记忆 · 永久保护)',
-    '~/.claude/skills (AI 自定义技能脚本 · 永久保护)',
-    '~/Library/Caches/com.apple.e5rt.e5bundlecache (Apple 神经网络引擎编译缓存 · 硬件级保护)'
-  ],
-  doctorChecks: [
+  cleanGroups: [],
+  aiMoonBands: [],
+  appsList: [],
+  orphanLeftoversList: [],
+  largeFiles: [],
+  processes: [],
+  purgeItems: [],
+  installerFiles: [],
+  treemap2D: [],
+  analyzeInsights: [],
+  analyzeSource: 'mo analyze --json',
+  analyzeLoading: false,
+  analyzePath: '',
+  historyLogs: [],
+  whitelist: [],
+    doctorChecks: [
     { id: 'fda', title: '完全磁盘访问权限 (Full Disk Access)', detail: '已授权访问 ~/Library/Caches、~/Library/Logs 与应用沙盒容器', latency: '18ms', passed: true },
-    { id: 'mem', title: '系统统一内存压力评估', detail: '压力正常（已用 18.2 GB / 32.0 GB，交换内存仅 256 MB）', latency: '24ms', passed: true },
-    { id: 'disk', title: '磁盘剩余空间与 SMART 硬件寿命状态', detail: '剩余 302.1 GB 可用 · NVMe SMART 固态寿命验证通过', latency: '31ms', passed: true },
+    { id: 'mem', title: '系统统一内存压力评估', detail: '等待本机内存采样', latency: '24ms', passed: true },
+    { id: 'disk', title: '磁盘剩余空间与 SMART 硬件寿命状态', detail: '等待本机磁盘空间采样', latency: '31ms', passed: true },
     { id: 'bat', title: '电池循环健康度与散热表现', detail: '最大容量 98% · 核心温度 44.8°C 散热良好', latency: '19ms', passed: true },
     { id: 'up', title: '系统连续运行时间与更新锁检查', detail: '系统运行状态正常 · 无挂起的系统更新锁', latency: '15ms', passed: true },
     { id: 'log', title: '废纸篓回收与还原快照完整性检查', detail: '所有历史清理快照均可正常关联 ~/.Trash 还原路径', latency: '22ms', passed: true },
@@ -2448,15 +2060,50 @@ function toggleAppKeepPersonal(idx, ev) {
 }
 
 // Interactive Handlers for Analyze (Real file deletion + persistent state)
-function selectTreemapDir(idx) {
-  STATE.selectedTreemapIdx = idx;
-  STATE.drillDownDirIdx = idx;
-  STATE.selectedSubTileIdx = 0;
+function requestDiskAnalyze(path) {
+  STATE.analyzeLoading = true;
+  STATE.analyzePath = path || '';
+  sendNativeBridge({ action: 'requestDiskAnalyze', path: path || '' });
   renderModule();
+  showToast(path ? '正在用 mo analyze 扫描 ' + path : '正在用 mo analyze 扫描全机概览');
+}
+window.onNativeDiskAnalyze = function(payload) {
+  STATE.analyzeLoading = false;
+  if (!payload) return;
+  STATE.analyzeSource = payload.source || 'mo analyze --json';
+  STATE.analyzeStatus = payload.scanStatus || '';
+  if (typeof payload.totalGb === 'number' && !payload.path) STATE.totalAnalyzedGb = payload.totalGb;
+  const tiles = Array.isArray(payload.treemap2D) ? payload.treemap2D : [];
+  if (!payload.path) STATE.analyzeInsights = Array.isArray(payload.insights) ? payload.insights : [];
+  if (payload.path) {
+    const parent = STATE.treemap2D.find(tile => tile.path === payload.path.replace(STATE.homePath || '', '~') || tile.path === payload.path);
+    const match = parent || STATE.treemap2D[STATE.drillDownDirIdx];
+    if (match) match.children = tiles;
+  } else {
+    STATE.treemap2D = tiles;
+    STATE.drillDownDirIdx = null;
+  }
+  recomputeDiskAnalyzeTotals();
+  updateSidebarBadges();
+  renderModule();
+};
+function selectTreemapDir(idx) {
+  const tile = STATE.treemap2D[idx];
+  STATE.selectedTreemapIdx = idx;
+  STATE.selectedSubTileIdx = 0;
+  if (!tile || tile.isDir === false) {
+    STATE.drillDownDirIdx = null;
+    renderModule();
+    return;
+  }
+  STATE.drillDownDirIdx = idx;
+  if (!Array.isArray(tile.children) || tile.children.length === 0) requestDiskAnalyze(tile.path);
+  else renderModule();
 }
 function exitTreemapDrillDown() {
   STATE.drillDownDirIdx = null;
   STATE.selectedSubTileIdx = 0;
+  STATE.analyzePath = '';
   renderModule();
 }
 function selectSubTile(subIdx) {
@@ -2634,7 +2281,7 @@ function handlePrimaryAction() {
   if (STATE.module === 'optimize') {
     runAllOptimizeTasks();
   } else if (STATE.module === 'analyze') {
-    triggerNativeRescan();
+    requestDiskAnalyze(STATE.analyzePath || '');
   } else if (STATE.module === 'status') {
     sendNativeBridge({ action: 'requestRealTelemetry' });
     stepLiveTelemetry();
@@ -2647,6 +2294,7 @@ function handlePrimaryAction() {
 }
 
 function renderModule() {
+  try {
   const mod = STATE.module;
   const topTitle = document.getElementById('topTitle');
   const primaryBtnText = document.getElementById('primaryBtnText');
@@ -2677,7 +2325,7 @@ function renderModule() {
       return matchTier && matchQ;
     });
     const selGroup = STATE.cleanGroups[STATE.selectedCleanIdx] || STATE.cleanGroups[0];
-    const totalScanGb = Math.max(0.1, STATE.cleanGroups.reduce((s, x) => s + x.sizeGb, 0));
+    const totalScanGb = Math.max(0.1, STATE.cleanGroups.reduce((s, x) => s + (x.sizeGb || 0), 0));
     const sharePct = selGroup && selGroup.sizeGb > 0 ? ((selGroup.sizeGb / totalScanGb) * 100).toFixed(1) + '%' : '0.0% (已清理)';
 
     stage.innerHTML = `
@@ -3123,20 +2771,22 @@ function renderModule() {
   } else if (mod === 'analyze') {
     recomputeDiskAnalyzeTotals();
     const isDrilled = typeof STATE.drillDownDirIdx === 'number' && STATE.treemap2D[STATE.drillDownDirIdx];
-    const parentDir = isDrilled ? STATE.treemap2D[STATE.drillDownDirIdx] : (STATE.treemap2D[STATE.selectedTreemapIdx] || STATE.treemap2D[0]);
+    const parentDir = isDrilled ? STATE.treemap2D[STATE.drillDownDirIdx] : (STATE.treemap2D[STATE.selectedTreemapIdx] || STATE.treemap2D[0] || { name: '个人主目录', path: '~', sizeGb: 0, children: [] });
     const activeTiles = isDrilled && Array.isArray(parentDir.children) ? parentDir.children : STATE.treemap2D;
     const activeIdx = isDrilled ? STATE.selectedSubTileIdx : STATE.selectedTreemapIdx;
-    const curSelectedTile = activeTiles[activeIdx] || activeTiles[0];
+    const curSelectedTile = activeTiles[activeIdx] || activeTiles[0] || { name: '暂无目录', path: '~', sizeGb: 0 };
     const totalLfGb = STATE.largeFiles.reduce((s, f) => s + f.sizeGb, 0);
 
     topTitle.textContent = '星图仪 · 磁盘空间分析 (Astrolabe)';
-    primaryBtnText.textContent = '实时刷新空间分布';
-    heroHeadline.textContent = isDrilled
-      ? `已下钻进入 ${parentDir.name} (${parentDir.sizeGb.toFixed(1)} GB) · 当前选中: ${curSelectedTile.name}`
-      : `本地主目录 (~) 二维正方化空间矩阵 · 已分析 ${STATE.totalAnalyzedGb.toFixed(1)} GB`;
+    primaryBtnText.textContent = STATE.analyzeLoading ? 'mo analyze 扫描中' : '用 mo analyze 重新扫描';
+    heroHeadline.textContent = STATE.analyzeLoading
+      ? '正在调用 mo analyze --json'
+      : (isDrilled
+        ? `mo analyze ${parentDir.path} · ${parentDir.sizeGb.toFixed(2)} GB`
+        : `mo analyze 全机概览 · ${STATE.totalAnalyzedGb.toFixed(2)} GB`);
     heroDesc.textContent = isDrilled
-      ? `当前正在查看 ${parentDir.path} 内部的 ${activeTiles.length} 个子目录块分布。点击左上角「⬅ 返回个人主目录」可退回顶层视图，或点击「在访达中打开」直接管理文件。`
-      : '点击右侧任意色块或左侧目录即可深入下钻查看该目录内部的子目录二维空间分布；点击下方大文件「移至废纸篓」将真实删除并更新内核剩余空间。';
+      ? `这一层来自 mo analyze --json ${parentDir.path}。目录可以继续下钻，文件只显示体积。`
+      : '顶层来自 mo analyze --json 的全机概览，不是本地截断采样。点击目录会再调用一次 CLI 扫描该层。';
     heroStatLabel.textContent = '磁盘实时可用空间';
     heroStatValue.textContent = `${STATE.freeDiskGb.toFixed(1)} GB`;
     heroStatSub.textContent = 'Macintosh HD · 支持多级子目录钻取';
@@ -3145,9 +2795,9 @@ function renderModule() {
       <div class="breadcrumb-bar">
         <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
           ${isDrilled ? `<button class="btn" style="padding:2px 8px;font-size:11px;background:var(--accent-soft);color:var(--accent-primary);border-color:var(--border-selected);" onclick="exitTreemapDrillDown()">⬅ 返回个人主目录 (~)</button>` : ''}
-          <span class="crumb-item" onclick="exitTreemapDrillDown()">💽 Macintosh HD</span>
+          <span class="crumb-item" onclick="exitTreemapDrillDown()">mo analyze</span>
           <span style="color:var(--text-muted);">▸</span>
-          <span class="crumb-item ${!isDrilled ? 'active' : ''}" onclick="exitTreemapDrillDown()">🏠 个人主目录 (~)</span>
+          <span class="crumb-item ${!isDrilled ? 'active' : ''}" onclick="exitTreemapDrillDown()">全机概览</span>
           ${isDrilled ? `
             <span style="color:var(--text-muted);">▸</span>
             <span class="crumb-item active">📂 ${parentDir.name} (${parentDir.sizeGb.toFixed(1)} GB)</span>
@@ -3176,13 +2826,23 @@ function renderModule() {
                   <span style="background:${d.color};width:8px;height:8px;border-radius:50%;flex-shrink:0;"></span>
                   <div style="min-width:0;">
                     <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div>
-                    <div class="row-sub">${d.files.toLocaleString()} 个文件 · 占比 ${d.pct}%</div>
+                    <div class="row-sub">${d.scanStatus || 'complete'} · 占比 ${d.pct}%${d.cleanable ? ' · cleanable' : ''}</div>
                   </div>
                 </div>
                 <span class="size-cell">${d.sizeGb.toFixed(1)} GB</span>
               </div>
             `).join('')}
           </div>
+          ${!isDrilled && STATE.analyzeInsights.length ? `
+            <div style="padding:8px 14px;border-top:1px solid var(--border-subtle);">
+              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">mo analyze insights · 不计入面积图</div>
+              ${STATE.analyzeInsights.map(item => `
+                <div class="subpath-item">
+                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${item.path}')">${item.cleanable ? '🧹' : '🔎'} ${item.name}</span>
+                  <span class="subpath-right">${item.sizeGb.toFixed(2)} GB</span>
+                </div>
+              `).join('')}
+            </div>` : ''}
         </div>
 
         <div class="treemap-stage">
@@ -3191,7 +2851,7 @@ function renderModule() {
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
                 <div style="min-width:0;">
                   <div style="font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.name}</div>
-                  <div style="font-size:10px;color:rgba(255,255,255,0.84);margin-top:2px;font-family:var(--font-mono);">${r.path} · ${r.files.toLocaleString()} 文件</div>
+                  <div style="font-size:10px;color:rgba(255,255,255,0.84);margin-top:2px;font-family:var(--font-mono);">${r.path}${r.scanStatus === 'partial' ? ' · partial' : ''}</div>
                 </div>
                 <span class="drill-pill">${isDrilled ? (idx === activeIdx ? '● 当前检视' : '点击检视') : '下钻子目录 ▸'}</span>
               </div>
@@ -3349,9 +3009,9 @@ function renderModule() {
                   <td style="color:#eab308;cursor:pointer;font-size:13px;" onclick="togglePinProcess(${p.pid})" title="点击切换置顶">${p.pinned ? '★' : '☆'}</td>
                   <td style="font-weight:700;color:var(--text-primary);">${p.name}</td>
                   <td>${p.pid}</td>
-                  <td style="color:${p.cpu > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${p.cpu.toFixed(1)}%</td>
+                  <td style="color:${p.cpu > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${Number(p.cpu || 0).toFixed(1)}%</td>
                   <td>${p.memory_mb} MB</td>
-                  <td>${p.power.toFixed(1)} W</td>
+                  <td>${Number(p.power || 0).toFixed(1)} W</td>
                   <td style="color:var(--text-muted);font-size:11px;cursor:pointer;max-width:290px;overflow:hidden;text-overflow:ellipsis;" onclick="revealInFinder('${p.path}')">${p.path}</td>
                   <td><button class="btn btn-danger" style="padding:2px 8px;font-size:10.5px;" onclick="killProcessByPid(${p.pid})">结束进程</button></td>
                 </tr>
@@ -3447,7 +3107,7 @@ function renderModule() {
     heroHeadline.textContent = doneCount > 0 ? `已完成 ${doneCount} 项系统加速维护` : '5 项系统缓存重建与数据库整理就绪';
     heroDesc.textContent = '一键修复输入法卡顿、重建访达缩略图、刷新本地 DNS 与无损整理系统数据库碎片；右侧集中管理所有受保护的核心资产白名单与废纸篓还原记录。';
     heroStatLabel.textContent = '维护与白名单状态';
-    heroStatValue.textContent = doneCount > 0 ? `${doneCount} / 5 已优化` : `${STATE.whitelist.length} 条白名单`;
+    heroStatValue.textContent = doneCount > 0 ? `${doneCount} / ${STATE.optimizeTasks.length || 0} 已优化` : `${STATE.whitelist.length} 条白名单`;
     heroStatSub.textContent = `当前共有 ${STATE.historyLogs.length} 个可还原快照 · 核心资产已隔离保护`;
 
     stage.innerHTML = `
@@ -3510,6 +3170,11 @@ function renderModule() {
       </div>
     `;
   }
+  } catch (err) {
+    console.error(err);
+    const stage = document.getElementById('moduleStage');
+    if (stage) stage.innerHTML = `<div class="panel-card" style="padding:28px;color:var(--text-secondary);">这个舱段暂时没有可显示的扫描结果。</div>`;
+  }
 }
 
 function handleSearch(val) { STATE.searchQuery = val; renderModule(); }
@@ -3540,11 +3205,11 @@ function toggleTempUnit() { STATE.tempUnit = STATE.tempUnit === 'C' ? 'F' : 'C';
 
 // Editable & Live-Filtered ⌘K Command Palette
 const CMD_PALETTE_ITEMS = [
-  { icon: '✨', title: '智能深度清理：检视 Xcode 编译中间产物 (DerivedData)', sub: '~/Library/Developer/Xcode/DerivedData · 安全可再生', kbd: '⏎ 检视目录', run: () => { switchModule('clean'); selectCleanRow(2); } },
-  { icon: '🤖', title: 'AI 专项清理：回收 Claude / Cursor 历史旧版本程序包', sub: '~/.local/share/claude/versions · 第一安全带', kbd: '⌘2', run: () => { switchModule('ai_moon'); selectMoonRow(0); } },
+  { icon: '✨', title: '智能深度清理：查看本机扫描到的缓存与日志', sub: '气闸舱 · 仅显示真实存在的目录', kbd: '⌘1', run: () => { switchModule('clean'); } },
+  { icon: '🤖', title: 'AI 专项清理：查看本机 AI 工具缓存', sub: '智核舱 · 扫描 Claude / Cursor / Codex 目录', kbd: '⌘2', run: () => { switchModule('ai_moon'); } },
   { icon: '🗑️', title: '应用彻底卸载：扫描本机 /Applications 应用与 Library 残留', sub: '/Applications & ~/Library/Application Support', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
   { icon: '📦', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/Downloads', kbd: '⌘7', run: () => { switchModule('purge'); } },
-  { icon: '📊', title: '磁盘空间分析：查看本地主目录二维空间矩阵与大文件雷达', sub: '本机真实目录占比与大文件清理', kbd: '⌘5', run: () => { switchModule('analyze'); } },
+  { icon: '📊', title: '星图仪：用 mo analyze 查看磁盘占用', sub: 'mo analyze --json · 可下钻目录', kbd: '⌘5', run: () => { switchModule('analyze'); } },
   { icon: '📈', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 实时同步进程表与风扇控制', kbd: '⌘6', run: () => { switchModule('status'); } },
   { icon: '🩺', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
   { icon: '↩️', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '管理受保护的核心白名单路径', kbd: '⌘8', run: () => { switchModule('history'); } }
@@ -3890,7 +3555,10 @@ updateSidebarBadges();
 renderHeroIcon();
 renderModule();
 renderMenuBarTrayContent();
-if (window.isNativeMacApp) triggerNativeRescan();
+if (window.isNativeMacApp) {
+  triggerNativeRescan();
+  requestDiskAnalyze('');
+}
 setInterval(() => { window.stepLiveTelemetry(); }, 1500);
 </script>
 </body>
