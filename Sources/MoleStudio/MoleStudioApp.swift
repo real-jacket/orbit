@@ -83,6 +83,9 @@ final class NativeBridgeController: NSObject, WKScriptMessageHandler {
             }
         case "requestRealSystemScan":
             appDelegate?.pushRealSystemScanNow()
+        case "requestDiskAnalyze":
+            let path = dict["path"] as? String
+            appDelegate?.pushDiskAnalyze(path: path)
         case "requestRealTelemetry":
             appDelegate?.pushRealTelemetryNow()
         case "executeOptimize":
@@ -284,6 +287,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                     disk.freeGb
                 )
                 self.evaluate(script)
+            }
+        }
+    }
+
+    func pushDiskAnalyze(path: String?) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let expanded = path.map { ($0 as NSString).expandingTildeInPath }
+            var payload = expanded.map { MoleAnalyzeBridge.children(path: $0) } ?? MoleAnalyzeBridge.overview()
+            payload["path"] = expanded ?? ""
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
+                  let json = String(data: jsonData, encoding: .utf8) else { return }
+            let script = "if(window.onNativeDiskAnalyze) window.onNativeDiskAnalyze(\(json));"
+            DispatchQueue.main.async {
+                self?.evaluate(script)
             }
         }
     }
