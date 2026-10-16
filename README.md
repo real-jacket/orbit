@@ -51,8 +51,11 @@ Beyond the module list:
 - **Pre-execution diff** — deletions are previewed as a structured sheet (paths, safety tier, Trash
   recovery checkpoint) before anything runs.
 - **Dry-run by default** — `dryRunMode` defaults to `true`.
-- **Menu bar presence** — a status item with a popover for one-click clean, health check and quit.
-- **Live telemetry** — `statfs` disk sampling on a 2 s timer, pushed into the UI over the JS bridge.
+- **Menu bar presence** — an orbit-mark status item whose popover is the same WebKit tray (clean, health check, caffeinate, quit).
+- **Live local scan** — installed apps, leftover Library paths, and large files are sampled on the Mac and pushed into the UI over the JS bridge.
+- **Three uninstall modes** — Standard, Complete, and Cache-only, with per-path selection before anything moves to the Trash.
+- **Treemap drill-down** — disk tiles open into their child directories.
+- **Live telemetry** — `statfs`, memory, and `/bin/ps` sampled on a 1.5 s timer.
 
 ## Requirements
 
@@ -99,7 +102,8 @@ Sources/MoleStudio/
 ├── Engine/
 │   ├── MoleCLIRunner.swift          # actor: resolves `mo`, executes it, parses output, treemap math
 │   ├── MoleViewModel.swift          # ObservableObject state store and the demo dataset
-│   └── NativeSystemMonitor.swift    # Mach/statfs telemetry, screen-shield window
+│   ├── NativeSystemMonitor.swift    # Mach/statfs telemetry, screen-shield window
+│   └── RealMacSystemScanner.swift   # local app, large-file, and process scan for the WebKit UI
 └── Views/VisualEffectAndPlanetView.swift  # NSVisualEffectView bridge, Canvas planet renderer
 
 Resources/src-ui/index.html          # The shipping UI: single-file HTML/CSS/JS surface
@@ -110,9 +114,9 @@ scripts/generate-app-icon.swift      # Icon renderer — the icon is code, not a
 ```
 
 The window is a `WKWebView` hosting `Resources/src-ui/index.html`, wired to native code through a
-`WKScriptMessageHandler` registered as `moleNative`. The HTML posts actions (`revealInFinder`,
-`copyText`, `killProcess`, `executeOptimize`, `startWindowDrag`, `toggleWindowZoom`); Swift calls back
-into JS (`switchModule`, `openConfirmSheet`, `openDoctorModal`, `stepLiveTelemetry`).
+`WKScriptMessageHandler` registered as `moleNative`. The HTML posts actions (`revealInFinder`, `copyText`, `killProcess`, `trashRealPaths`,
+`requestRealSystemScan`, `toggleCaffeinate`, `startWindowDrag`, `toggleWindowZoom`); Swift calls back
+into JS (`onNativeRealScanComplete`, `onNativeRealTelemetry`, `switchModule`, `openConfirmSheet`).
 
 `UILocator` finds the HTML in all three launch modes: a packaged `.app`
 (`Contents/Resources/src-ui/`), `swift run` from a checkout (walks up to `Resources/`), or an explicit
@@ -156,8 +160,9 @@ This is an early-stage client. Being explicit about what is and is not wired up:
 - **Some CLI flags shown in the UI are aspirational.** `mo clean --ai-care`, `--retention` and
   `--band` do not exist in `mo` 1.56.1. Treat those strings as design intent for the AI Care module,
   not as working commands.
-- **CPU load and temperature in the menu bar are simulated** (`Double.random`); disk free space is real
-  (`statfs`).
+- **CPU load, memory, disk free space, installed apps, and large files are sampled on this Mac.**
+  Temperature shown next to CPU is still estimated from load, and the SwiftUI dataset in `MoleViewModel`
+  remains sample data.
 
 ## Safety model
 

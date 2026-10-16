@@ -3,50 +3,45 @@ import WebKit
 import Darwin
 
 final class StatusPopoverViewController: NSViewController {
-    var onAction: ((String) -> Void)?
-    let cpuLabel = NSTextField(labelWithString: "处理器负载: 38.4% · 45.2°C")
-    let memLabel = NSTextField(labelWithString: "统一内存: 18.7 / 32.0 GB (压力正常)")
-    let diskLabel = NSTextField(labelWithString: "可用空间: 302.1 GB (Macintosh HD)")
+    var popoverWebView: WKWebView?
+    let bridge: NativeBridgeController
 
-    override func loadView() {
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: 310, height: 270))
-        self.view = v
-
-        let title = NSTextField(labelWithString: "Mole Studio Pro · 系统状态栏")
-        title.font = NSFont.boldSystemFont(ofSize: 13)
-        title.frame = NSRect(x: 16, y: 232, width: 278, height: 22)
-        v.addSubview(title)
-
-        for (idx, lbl) in [cpuLabel, memLabel, diskLabel].enumerated() {
-            lbl.font = NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .medium)
-            lbl.frame = NSRect(x: 16, y: 196 - idx * 24, width: 278, height: 20)
-            v.addSubview(lbl)
-        }
-
-        let actions: [(String, String, CGFloat)] = [
-            ("🧹 一键清理安全缓存", "clean", 104),
-            ("🩺 立即执行系统健康复诊", "doctor", 70),
-            ("🖥 显示 Mole Studio 主窗口", "show", 36),
-            ("退出 Mole Studio Pro", "quit", 6)
-        ]
-        for (titleStr, act, yPos) in actions {
-            let btn = NSButton(title: titleStr, target: self, action: #selector(handleBtn(_:)))
-            btn.identifier = NSUserInterfaceItemIdentifier(act)
-            btn.bezelStyle = .rounded
-            btn.frame = NSRect(x: 16, y: yPos, width: 278, height: 28)
-            v.addSubview(btn)
-        }
+    init(bridge: NativeBridgeController) {
+        self.bridge = bridge
+        super.init(nibName: nil, bundle: nil)
     }
 
-    @objc func handleBtn(_ sender: NSButton) {
-        let act = sender.identifier?.rawValue ?? "show"
-        onAction?(act)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func loadView() {
+        let rect = NSRect(x: 0, y: 0, width: 356, height: 436)
+        let config = WKWebViewConfiguration()
+        let controller = WKUserContentController()
+        controller.add(bridge, name: "moleNative")
+        let js = """
+        window.isNativeMacApp = true;
+        window.isMenuBarPopover = true;
+        document.addEventListener('DOMContentLoaded', function() {
+          document.body.classList.add('menubar-mode');
+        });
+        """
+        controller.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController = controller
+
+        let webView = WKWebView(frame: rect, configuration: config)
+        webView.setValue(false, forKey: "drawsBackground")
+        popoverWebView = webView
+        view = webView
+
+        if let htmlURL = UILocator.resolve(), let html = try? String(contentsOf: htmlURL, encoding: .utf8) {
+            webView.loadHTMLString(html, baseURL: htmlURL.deletingLastPathComponent())
+        }
     }
 }
 
 final class NativeBridgeController: NSObject, WKScriptMessageHandler {
-    weak var window: NSWindow?
-    weak var webView: WKWebView?
+    weak var appDelegate: AppDelegate?
+    private var caffeinateProc: Process?
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let dict = message.body as? [String: Any],
@@ -54,27 +49,42 @@ final class NativeBridgeController: NSObject, WKScriptMessageHandler {
 
         switch action {
         case "startWindowDrag":
-            if let ev = NSApp.currentEvent, let win = window {
-                win.performDrag(with: ev)
+            if let event = NSApp.currentEvent, let win = appDelegate?.window {
+                win.performDrag(with: event)
             }
         case "toggleWindowZoom":
-            window?.zoom(nil)
+            appDelegate?.window?.zoom(nil)
         case "revealInFinder":
             if let raw = dict["path"] as? String {
-                let clean = raw.components(separatedBy: " ").first ?? raw
-                let expanded = (clean as NSString).expandingTildeInPath
-                if FileManager.default.fileExists(atPath: expanded) {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: expanded)
-                } else {
-                    let parent = (expanded as NSString).deletingLastPathComponent
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: parent.isEmpty ? NSHomeDirectory() : parent)
-                }
+                reveal(raw)
             }
         case "copyText":
             if let txt = dict["text"] as? String {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(txt, forType: .string)
             }
+        case "trashRealPaths", "executeClean", "trashPath":
+            let paths = (dict["paths"] as? [String]) ?? [dict["path"] as? String].compactMap { $0 }
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                _ = RealMacSystemScanner.shared.movePathsToTrash(paths)
+                self?.appDelegate?.pushRealTelemetryNow()
+                self?.appDelegate?.pushRealSystemScanNow()
+            }
+        case "killProcess":
+            if let pid = intValue(dict["pid"]), pid > 1 {
+                NSRunningApplication(processIdentifier: pid_t(pid))?.terminate()
+                kill(pid_t(pid), SIGTERM)
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                    if NSRunningApplication(processIdentifier: pid_t(pid)) != nil {
+                        kill(pid_t(pid), SIGKILL)
+                    }
+                    self?.appDelegate?.pushRealTelemetryNow()
+                }
+            }
+        case "requestRealSystemScan":
+            appDelegate?.pushRealSystemScanNow()
+        case "requestRealTelemetry":
+            appDelegate?.pushRealTelemetryNow()
         case "executeOptimize":
             DispatchQueue.global(qos: .userInitiated).async {
                 let task = Process()
@@ -82,13 +92,54 @@ final class NativeBridgeController: NSObject, WKScriptMessageHandler {
                 task.arguments = ["-r", "cache"]
                 try? task.run()
             }
-        case "killProcess":
-            if let pid = dict["pid"] as? Int32, pid > 100 {
-                kill(pid, SIGTERM)
+        case "toggleCaffeinate":
+            caffeinateProc?.terminate()
+            caffeinateProc = nil
+            if let active = dict["active"] as? Bool, active {
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate")
+                proc.arguments = ["-d", "-i", "-t", "7200"]
+                try? proc.run()
+                caffeinateProc = proc
             }
+        case "menubarOpenClean":
+            showMainWindow("switchModule('clean'); openConfirmSheet();")
+        case "menubarOpenDoctor":
+            showMainWindow("openDoctorModal(true);")
+        case "menubarShowMain":
+            showMainWindow(nil)
+        case "menubarQuit":
+            NSApp.terminate(nil)
         default:
             break
         }
+    }
+
+    private func reveal(_ raw: String) {
+        let clean = raw.components(separatedBy: " ").first ?? raw
+        let expanded = (clean as NSString).expandingTildeInPath
+        if FileManager.default.fileExists(atPath: expanded) {
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: expanded)
+        } else {
+            let parent = (expanded as NSString).deletingLastPathComponent
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: parent.isEmpty ? NSHomeDirectory() : parent)
+        }
+    }
+
+    private func showMainWindow(_ script: String?) {
+        appDelegate?.popover.performClose(nil)
+        appDelegate?.window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        if let script {
+            appDelegate?.webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+
+    private func intValue(_ value: Any?) -> Int? {
+        if let number = value as? Int { return number }
+        if let number = value as? Int32 { return Int(number) }
+        if let number = value as? Double { return Int(number) }
+        return nil
     }
 }
 
@@ -122,17 +173,18 @@ enum UILocator {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     var window: NSWindow!
     var webView: WKWebView!
     var statusItem: NSStatusItem!
     let popover = NSPopover()
-    let popoverVC = StatusPopoverViewController()
+    lazy var popoverVC = StatusPopoverViewController(bridge: bridge)
     let bridge = NativeBridgeController()
     var telemetryTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        bridge.appDelegate = self
 
         let rect = NSRect(x: 0, y: 0, width: 1380, height: 860)
         window = NSWindow(
@@ -158,10 +210,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         webView = WKWebView(frame: rect, configuration: config)
         webView.autoresizingMask = [.width, .height]
+        webView.navigationDelegate = self
         webView.underPageBackgroundColor = window.backgroundColor ?? .black
-
-        bridge.window = window
-        bridge.webView = webView
 
         if let htmlURL = UILocator.resolve(), let html = try? String(contentsOf: htmlURL, encoding: .utf8) {
             webView.loadHTMLString(html, baseURL: htmlURL.deletingLastPathComponent())
@@ -173,52 +223,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        // Setup macOS System Top Menu Bar StatusItem + NSPopover Small Window
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "🧹 94分 · 302G"
-        statusItem.button?.target = self
-        statusItem.button?.action = #selector(toggleStatusPopover(_:))
-
-        popover.contentSize = NSSize(width: 310, height: 270)
-        popover.behavior = .transient
-        popover.contentViewController = popoverVC
-        popoverVC.onAction = { [weak self] act in
-            guard let self = self else { return }
-            self.popover.performClose(nil)
-            self.window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            if act == "clean" {
-                self.webView.evaluateJavaScript("switchModule('clean'); openConfirmSheet();", completionHandler: nil)
-            } else if act == "doctor" {
-                self.webView.evaluateJavaScript("openDoctorModal(true);", completionHandler: nil)
-            } else if act == "quit" {
-                NSApp.terminate(nil)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = statusItem.button {
+            let orbitImage = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+                NSColor.black.setStroke()
+                NSColor.black.setFill()
+                NSBezierPath(ovalIn: NSRect(x: 7.2, y: 7.2, width: 3.6, height: 3.6)).fill()
+                let transform = NSAffineTransform()
+                transform.translateX(by: 9, yBy: 9)
+                transform.rotate(byDegrees: 28)
+                transform.translateX(by: -9, yBy: -9)
+                let ring = NSBezierPath(ovalIn: NSRect(x: 1.5, y: 5.4, width: 15, height: 7.2))
+                ring.lineWidth = 1.6
+                ring.transform(using: transform as AffineTransform)
+                ring.stroke()
+                NSBezierPath(ovalIn: NSRect(x: 13.8, y: 11.2, width: 2.6, height: 2.6)).fill()
+                return true
             }
+            orbitImage.isTemplate = true
+            button.image = orbitImage
+            button.toolTip = "Mole Studio · 点击展开系统状态栏"
+            button.target = self
+            button.action = #selector(toggleStatusPopover(_:))
         }
 
-        // Start Real-Time 2.0s Hardware Telemetry Timer (Samples real statfs disk free space & updates menu bar + WebView)
-        telemetryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            var fs = statfs()
-            var freeGb: Double = 302.1
-            if statfs(NSHomeDirectory(), &fs) == 0 {
-                freeGb = Double(UInt64(fs.f_bavail) * UInt64(fs.f_bsize)) / 1_073_741_824.0
-            }
-            let cpuVal = Double(Int.random(in: 22...48)) + Double(Int.random(in: 0...9)) / 10.0
+        popover.contentSize = NSSize(width: 356, height: 436)
+        popover.behavior = .transient
+        popover.contentViewController = popoverVC
+
+        telemetryTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            self?.pushRealTelemetryNow()
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pushRealTelemetryNow()
+        pushRealSystemScanNow()
+    }
+
+    func pushRealTelemetryNow() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let disk = RealMacSystemScanner.shared.queryDiskSpace()
+            let mem = RealMacSystemScanner.shared.queryMemoryUsage()
+            let procSnap = RealMacSystemScanner.shared.sampleRealProcesses()
+            let payload: [String: Any] = [
+                "cpu": procSnap.cpuTotal,
+                "freeDiskGb": disk.freeGb,
+                "memUsedGb": mem.usedGb,
+                "memTotalGb": mem.totalGb,
+                "processes": procSnap.processes
+            ]
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
+                  let json = String(data: jsonData, encoding: .utf8) else { return }
+            let script = "if(window.onNativeRealTelemetry) window.onNativeRealTelemetry(\(json));"
             DispatchQueue.main.async {
-                self.statusItem.button?.title = String(format: "🧹 %.0f%% · %.0fG", cpuVal, freeGb)
-                self.popoverVC.cpuLabel.stringValue = String(format: "处理器负载: %.1f%% · 45.2°C", cpuVal)
-                self.popoverVC.diskLabel.stringValue = String(format: "可用空间: %.1f GB (Macintosh HD)", freeGb)
-                self.webView.evaluateJavaScript(String(format: "if(window.stepLiveTelemetry) window.stepLiveTelemetry({cpu: %.1f, freeDiskGb: %.1f});", cpuVal, freeGb), completionHandler: nil)
+                guard let self else { return }
+                self.statusItem.button?.toolTip = String(
+                    format: "Mole Studio · CPU %.1f%% · 剩余 %.1f GB",
+                    procSnap.cpuTotal,
+                    disk.freeGb
+                )
+                self.evaluate(script)
             }
+        }
+    }
+
+    func pushRealSystemScanNow() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let scanPayload = RealMacSystemScanner.shared.buildFullScanPayload()
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: scanPayload),
+                  let json = String(data: jsonData, encoding: .utf8) else { return }
+            let script = "if(window.onNativeRealScanComplete) window.onNativeRealScanComplete(\(json));"
+            DispatchQueue.main.async {
+                self?.evaluate(script)
+            }
+        }
+    }
+
+    private func evaluate(_ script: String) {
+        webView?.evaluateJavaScript(script, completionHandler: nil)
+        if popover.isShown {
+            popoverVC.popoverWebView?.evaluateJavaScript(script, completionHandler: nil)
         }
     }
 
     @objc func toggleStatusPopover(_ sender: AnyObject?) {
         if popover.isShown {
             popover.performClose(sender)
-        } else if let btn = statusItem.button {
-            popover.show(relativeTo: btn.bounds, of: btn, preferredEdge: .minY)
+        } else if let button = statusItem.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            pushRealTelemetryNow()
+            pushRealSystemScanNow()
         }
     }
 
