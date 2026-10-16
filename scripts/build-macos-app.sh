@@ -13,7 +13,7 @@ set -euo pipefail
 CONFIGURATION="${1:-release}"
 APP_NAME="MoleStudio"
 BUNDLE_ID="io.github.real-jacket.mole-studio"
-DISPLAY_NAME="Mole Studio Pro"
+DISPLAY_NAME="orbit"
 MARKETING_VERSION="9.0.0"
 MIN_MACOS="13.0"
 

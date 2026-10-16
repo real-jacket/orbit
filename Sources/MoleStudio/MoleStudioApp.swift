@@ -193,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Mole Studio Pro"
+        window.title = "orbit"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -242,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             }
             orbitImage.isTemplate = true
             button.image = orbitImage
-            button.toolTip = "Mole Studio · 点击展开系统状态栏"
+            button.toolTip = "orbit · 点击展开系统状态栏"
             button.target = self
             button.action = #selector(toggleStatusPopover(_:))
         }
@@ -279,7 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.statusItem.button?.toolTip = String(
-                    format: "Mole Studio · CPU %.1f%% · 剩余 %.1f GB",
+                    format: "orbit · CPU %.1f%% · 剩余 %.1f GB",
                     procSnap.cpuTotal,
                     disk.freeGb
                 )

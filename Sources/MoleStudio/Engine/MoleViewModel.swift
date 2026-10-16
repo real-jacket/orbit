@@ -32,7 +32,7 @@ public final class MoleViewModel: ObservableObject {
     @Published public var fanMode: String = "Auto"
     @Published public var selectedRunner: String = "🐹"
     @Published public var cliOutputLog: [String] = [
-        "[Mole Studio v6.0] Ready — Bundled tw93/mole CLI v1.59.1 verified.",
+        "[orbit v9.0] Ready — Bundled tw93/mole CLI v1.59.1 verified.",
         "$ mo clean --dry-run -> 12.49 GB reclaimable across 115 items (0.38s)."
     ]
 

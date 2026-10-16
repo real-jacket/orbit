@@ -1,4 +1,4 @@
-# Contributing to Mole Studio Pro
+# Contributing to orbit
 
 Thanks for taking a look. This is a small project, so the process is deliberately light.
 

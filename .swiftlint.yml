@@ -1,4 +1,4 @@
-# SwiftLint configuration for Mole Studio.
+# SwiftLint configuration for orbit.
 # Run locally with: make lint
 
 included:

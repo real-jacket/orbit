@@ -1,7 +1,7 @@
 #!/usr/bin/env swift
 //
 //  generate-app-icon.swift
-//  Mole Studio Pro — app icon generator
+//  orbit — app icon generator
 //
 //  Renders the app icon from code rather than shipping an opaque bitmap, so every
 //  size is drawn natively (crisp at 16px, detailed at 1024px) and the palette stays

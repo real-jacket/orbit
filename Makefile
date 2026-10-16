@@ -1,4 +1,4 @@
-# Mole Studio — native macOS client for the `mo` CLI.
+# orbit — native macOS client for the `mo` CLI.
 #
 #   make            build the SwiftPM executable (debug)
 #   make run        build and launch straight from the checkout

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="Resources/AppIcon-256.png" width="140" alt="Mole Studio Pro app icon">
+<img src="Resources/AppIcon-256.png" width="140" alt="orbit app icon">
 
-# Mole Studio Pro
+# orbit
 
 **A native macOS client for the [`mo`](https://github.com/tw93/mole) CLI.**
 
@@ -15,13 +15,13 @@ SwiftUI · AppKit · WebKit · IOKit — no Electron, no bundled runtime.
 
 </div>
 
-> This repository is named **orbit**. The application it builds is **Mole Studio Pro**.
+> The application is **orbit**. It is a desktop client for the upstream `mo` CLI.
 
 ---
 
 ## What it is
 
-Mole Studio Pro puts a desktop face on [`tw93/mole`](https://github.com/tw93/mole) — the open-source
+orbit puts a desktop face on [`tw93/mole`](https://github.com/tw93/mole) — the open-source
 `mo` CLI that frees disk space and refreshes macOS caches. It reads real hardware telemetry from the
 Mach kernel, drives `mo` as a subprocess, and renders a warm, low-glare control surface instead of a
 terminal.
