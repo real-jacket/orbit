@@ -1613,7 +1613,64 @@ const DEFAULT_STATE = {
       ]
     }
   ],
+  softwarePanelMode: 'leftovers',
+  selectedOrphanIdx: 0,
   uninstallMode: 'standard',
+  orphanLeftoversList: [
+    {
+      id: 'orphan_docker', name: 'Docker Desktop', category: '虚拟化与容器残留',
+      bundleId: 'com.docker.docker', statusText: '主程序已卸载 · 孤立残留',
+      iconBg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 100%)',
+      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><rect x="16" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/><rect x="25" y="23" width="7.5" height="7" rx="1.2" fill="#ffffff"/><rect x="34" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/><rect x="25" y="14.5" width="7.5" height="7" rx="1.2" fill="#bae6fd" stroke="#fff" stroke-width="0.8"/><rect x="34" y="14.5" width="7.5" height="7" rx="1.2" fill="#ffffff"/><path d="M10 32 H45 C48.5 32 51.5 29.5 53 26.5 C55.5 28 57 31 55.5 34.5 C52 38 47 49 28 49 C15 49 10 41 10 32 Z" fill="#ffffff"/><circle cx="20" cy="39" r="2.2" fill="#0284c7"/></svg>`,
+      leftoverSizeGb: 6.45, checked: true,
+      impact: '检测到 /Applications/Docker.app 主程序已卸载，但本机仍遗留有 6.45 GB 的容器虚拟磁盘镜像 (Docker.raw)、共享守护进程容器与 ~/.docker 配置目录。',
+      subpaths: [
+        { path: '~/Library/Containers/com.docker.docker', kind: 'cache', size: '5.60 GB', checked: true },
+        { path: '~/Library/Group Containers/group.com.docker', kind: 'cache', size: '480 MB', checked: true },
+        { path: '~/.docker', kind: 'config', size: '250 MB', checked: true },
+        { path: '~/Library/Application Support/Docker Desktop', kind: 'config', size: '120 MB', checked: true }
+      ]
+    },
+    {
+      id: 'orphan_android_studio', name: 'Android Studio & Android SDK', category: '移动开发与模拟器残留',
+      bundleId: 'com.google.android.studio', statusText: '主程序已卸载 · 孤立残留',
+      iconBg: 'linear-gradient(145deg, #10b981 0%, #047857 60%, #1e3a8a 100%)',
+      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><path d="M18 28 C18 19.5 24.3 13 32 13 C39.7 13 46 19.5 46 28 H18 Z" fill="#4ade80"/><line x1="23" y1="15" x2="19" y2="9" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round"/><line x1="41" y1="15" x2="45" y2="9" stroke="#4ade80" stroke-width="2.6" stroke-linecap="round"/><circle cx="26.5" cy="21.5" r="2" fill="#064e3b"/><circle cx="37.5" cy="21.5" r="2" fill="#064e3b"/><circle cx="32" cy="31" r="6" fill="#ffffff" stroke="#0284c7" stroke-width="2.2"/><path d="M29 36 L21 54 M35 36 L43 54 M23.5 47 H40.5" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round"/></svg>`,
+      leftoverSizeGb: 8.30, checked: true,
+      impact: '检测到 Android Studio 主程序已卸载，但 ~/Library/Android/sdk、~/.android/avd 模拟器镜像、~/.gradle 以及 Google/AndroidStudio* 仍占用 8.30 GB 磁盘空间。',
+      subpaths: [
+        { path: '~/Library/Android/sdk', kind: 'cache', size: '4.50 GB', checked: true },
+        { path: '~/.android/avd', kind: 'cache', size: '2.15 GB', checked: true },
+        { path: '~/.gradle/caches', kind: 'cache', size: '1.10 GB', checked: true },
+        { path: '~/Library/Application Support/Google/AndroidStudio2024.2', kind: 'config', size: '350 MB', checked: true },
+        { path: '~/Library/Caches/Google/AndroidStudio2024.2', kind: 'cache', size: '200 MB', checked: true }
+      ]
+    },
+    {
+      id: 'orphan_jetbrains', name: 'JetBrains IDEs (IntelliJ / PyCharm)', category: 'IDE 索引与插件残留',
+      bundleId: 'com.jetbrains.intellij', statusText: '主程序已卸载 · 孤立残留',
+      iconBg: 'linear-gradient(145deg, #f43f5e 0%, #f97316 55%, #7c2d12 100%)',
+      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><rect x="12" y="12" width="40" height="40" rx="8" fill="#18181b" stroke="#ffffff" stroke-width="1.5"/><path d="M18 22 H28 M23 22 V34 C23 36.5 21 38 18.5 38 M33 22 H42 C44.5 22 46 23.5 46 25.5 C46 27.2 44.8 28.5 43 29 C45.2 29.5 46.5 31 46.5 33 C46.5 35.5 44.5 37.5 41.5 37.5 H33 V22 Z" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="18" y1="45" x2="34" y2="45" stroke="#fb923c" stroke-width="3.4" stroke-linecap="round"/></svg>`,
+      leftoverSizeGb: 1.95, checked: true,
+      impact: '检测到已卸载的 JetBrains IDE 在 ~/Library/Caches/JetBrains 与 Application Support/JetBrains 下遗留了 1.95 GB 的历史代码索引与插件包。',
+      subpaths: [
+        { path: '~/Library/Caches/JetBrains/IntelliJIdea2024.2', kind: 'cache', size: '1.40 GB', checked: true },
+        { path: '~/Library/Application Support/JetBrains/IntelliJIdea2024.2', kind: 'config', size: '550 MB', checked: true }
+      ]
+    },
+    {
+      id: 'orphan_parallels', name: 'Parallels Desktop', category: '虚拟机与驱动残留',
+      bundleId: 'com.parallels.desktop.console', statusText: '主程序已卸载 · 孤立残留',
+      iconBg: 'linear-gradient(145deg, #ef4444 0%, #991b1b 100%)',
+      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none"><rect x="20" y="11" width="8.5" height="42" rx="4.2" fill="#ffffff"/><rect x="35.5" y="11" width="8.5" height="42" rx="4.2" fill="#fecdd3"/></svg>`,
+      leftoverSizeGb: 1.42, checked: false,
+      impact: '检测到 Parallels Desktop 卸载后遗留的虚拟显卡着色器缓存与驱动支持配置目录。',
+      subpaths: [
+        { path: '~/Library/Caches/com.parallels.desktop.console', kind: 'cache', size: '980 MB', checked: true },
+        { path: '~/Library/Application Support/Parallels', kind: 'config', size: '440 MB', checked: true }
+      ]
+    }
+  ],
   appsList: [
     {
       id: 'com.apple.dt.Xcode', name: 'Xcode', category: '开发工具',
@@ -1894,6 +1951,22 @@ window.onNativeRealScanComplete = function(payload) {
   if (payload.cpuModel) STATE.cpuModelName = payload.cpuModel;
   if (typeof payload.memTotalGb === 'number') STATE.memTotalGb = +payload.memTotalGb.toFixed(1);
 
+  if (Array.isArray(payload.orphanLeftoversList) && payload.orphanLeftoversList.length > 0) {
+    const iconLookup = {
+      orphan_docker: { bg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 100%)', svg: STATE.orphanLeftoversList[0]?.iconSvg },
+      orphan_android_studio: { bg: 'linear-gradient(145deg, #10b981 0%, #047857 60%, #1e3a8a 100%)', svg: STATE.orphanLeftoversList[1]?.iconSvg },
+      orphan_jetbrains: { bg: 'linear-gradient(145deg, #f43f5e 0%, #f97316 55%, #7c2d12 100%)', svg: STATE.orphanLeftoversList[2]?.iconSvg },
+      orphan_parallels: { bg: 'linear-gradient(145deg, #ef4444 0%, #991b1b 100%)', svg: STATE.orphanLeftoversList[3]?.iconSvg }
+    };
+    STATE.orphanLeftoversList = payload.orphanLeftoversList
+      .filter(o => !delSet.has(o.id))
+      .map(o => ({
+        ...o,
+        iconBg: iconLookup[o.id]?.bg || 'linear-gradient(145deg, #f59e0b 0%, #b45309 100%)',
+        iconSvg: iconLookup[o.id]?.svg || '<svg viewBox="0 0 64 64" width="30" height="30" fill="none"><rect x="14" y="14" width="36" height="36" rx="8" fill="#fff" fill-opacity="0.9"/><path d="M24 28H40M24 36H34" stroke="#b45309" stroke-width="3" stroke-linecap="round"/></svg>'
+      }));
+    STATE.selectedOrphanIdx = 0;
+  }
   if (Array.isArray(payload.appsList) && payload.appsList.length > 0) {
     STATE.appsList = payload.appsList.filter(a => !delSet.has(a.appPath) && !delSet.has(a.id));
     STATE.selectedAppIdx = 0;
@@ -2208,7 +2281,9 @@ function recomputeDiskAnalyzeTotals() {
 function updateSidebarBadges() {
   const cleanGb = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.sizeGb, 0);
   const moonGb = STATE.aiMoonBands.filter(b => b.checked).reduce((s, b) => s + b.sizeGb, 0);
-  const appGb = STATE.appsList.filter(a => a.checked).reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+  const orphanGb = (STATE.orphanLeftoversList || []).filter(o => o.checked).reduce((s, o) => s + o.leftoverSizeGb, 0);
+  const installedGb = STATE.appsList.filter(a => a.checked).reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+  const appGb = STATE.softwarePanelMode === 'leftovers' ? orphanGb : installedGb;
   const purgeGb = STATE.purgeItems.filter(p => p.checked).reduce((s, p) => s + p.sizeGb, 0) + STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
 
   document.getElementById('navMetaClean').textContent = cleanGb > 0 ? cleanGb.toFixed(1) + ' GB' : '已清理';
@@ -2296,6 +2371,36 @@ function toggleAppCheck(idx, ev) {
   updateSidebarBadges();
   renderModule();
 }
+function setSoftwarePanelMode(panelMode) {
+  STATE.softwarePanelMode = panelMode;
+  updateSidebarBadges();
+  renderModule();
+  showToast(panelMode === 'leftovers' ? '已切换至：🧹 清理已卸载残留（扫描 Docker 容器、Android Studio 等孤立残留）' : '已切换至：📦 管理应用卸载（管理 /Applications 已安装应用）');
+}
+
+function selectOrphanRow(idx) {
+  STATE.selectedOrphanIdx = idx;
+  renderModule();
+}
+
+function toggleOrphanCheck(idx, ev) {
+  if (ev) ev.stopPropagation();
+  const item = STATE.orphanLeftoversList[idx];
+  if (!item) return;
+  item.checked = !item.checked;
+  persistState();
+  updateSidebarBadges();
+  renderModule();
+}
+
+function toggleOrphanSubpathCheck(orphanIdx, subIdx) {
+  const item = STATE.orphanLeftoversList[orphanIdx];
+  if (!item || !item.subpaths || !item.subpaths[subIdx]) return;
+  item.subpaths[subIdx].checked = !item.subpaths[subIdx].checked;
+  persistState();
+  renderModule();
+}
+
 function setUninstallMode(mode) {
   STATE.uninstallMode = mode;
   STATE.appsList.forEach(app => {
@@ -2752,133 +2857,269 @@ function renderModule() {
       </div>
     `;
   } else if (mod === 'software') {
-    const selApp = STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0];
-    const mode = STATE.uninstallMode || 'standard';
-    const calcAppGb = (a) => {
-      if (!a) return 0;
-      if (mode === 'cache_only') return +(a.cacheSizeGb || a.leftoverSizeGb * 0.8).toFixed(2);
-      if (mode === 'standard' || a.keepPersonal) return +(a.appSizeGb + (a.cacheSizeGb || a.leftoverSizeGb * 0.8)).toFixed(2);
-      return +(a.appSizeGb + a.leftoverSizeGb).toFixed(2);
-    };
-    const checkedApps = STATE.appsList.filter(a => a.checked);
-    const activeApps = checkedApps.length > 0 ? checkedApps : [selApp].filter(Boolean);
-    const totalSelectedAppGb = activeApps.reduce((s, a) => s + calcAppGb(a), 0);
+    const panelMode = STATE.softwarePanelMode || 'leftovers';
+    const orphans = STATE.orphanLeftoversList || [];
+    const totalOrphanAllGb = orphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
+    const totalAppsAllGb = STATE.appsList.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
 
-    topTitle.textContent = '分离器 · Mac 应用卸载与瘦身 (Jettison)';
-    primaryBtnText.textContent = mode === 'cache_only'
-      ? `仅清理所选应用缓存 (${totalSelectedAppGb.toFixed(2)} GB)`
-      : mode === 'standard'
-      ? `标准卸载所选应用 (${totalSelectedAppGb.toFixed(2)} GB)`
-      : `彻底粉碎卸载所选 (${totalSelectedAppGb.toFixed(2)} GB)`;
-
-    heroHeadline.textContent = selApp
-      ? `${selApp.name}.app v${selApp.version} · ${mode === 'standard' ? '标准卸载 App（移除主程序 · 保留个人配置）' : mode === 'complete' ? '彻底粉碎卸载（移除主程序 + 全部 Library 残留）' : '应用瘦身（保留应用 · 仅清理膨胀缓存）'}`
-      : '所有勾选的 Mac 应用已处理完毕';
-    heroDesc.textContent = '支持三种 Mac 应用管理方式：①「📦 标准卸载 App」仅卸载 /Applications 主程序与缓存并保留个人配置；②「🔥 彻底粉碎卸载」连同 Library 全部残留一并清除；③「🧹 仅清理缓存」保留应用不卸载。';
-    heroStatLabel.textContent = mode === 'cache_only' ? '可释放应用缓存' : '当前所选卸载体积';
-    heroStatValue.textContent = `${totalSelectedAppGb.toFixed(2)} GB`;
-    heroStatSub.textContent = mode === 'standard' ? '移除 .app 主程序 · 保留个人配置' : mode === 'complete' ? '移除 .app 主程序 + 全部 Library 残留' : '保留 .app 主程序 · 仅清理缓存';
-
-    if (!selApp) {
-      stage.innerHTML = `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前选中的 Mac 应用已移入废纸篓，可在「黑匣子 · 恢复白名单」中随时原路还原。</div>`;
-      return;
-    }
-
-    const defaultIconBg = 'linear-gradient(145deg, #f43f5e 0%, #9f1239 100%)';
-    const defaultIconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" fill="#fff" fill-opacity="0.9"/></svg>';
-
-    stage.innerHTML = `
-      <div class="master-detail-grid">
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>本机已安装 Mac 应用程序 (/Applications · 共 ${STATE.appsList.length} 款)</span>
-            <div class="segmented-tabs">
-              <div class="seg-tab ${mode === 'standard' ? 'active' : ''}" onclick="setUninstallMode('standard')" title="卸载 /Applications/*.app 主程序与缓存，保留您的个人账号配置">📦 标准卸载 App</div>
-              <div class="seg-tab ${mode === 'complete' ? 'active' : ''}" onclick="setUninstallMode('complete')" title="卸载 .app 主程序并彻底清除所有 Library 偏好设置与沙盒残留">🔥 彻底粉碎卸载</div>
-              <div class="seg-tab ${mode === 'cache_only' ? 'active' : ''}" onclick="setUninstallMode('cache_only')" title="保留 Mac 应用不卸载，仅清理其产生的膨胀缓存">🧹 仅清理缓存</div>
-            </div>
-          </div>
-          <div class="list-body">
-            ${STATE.appsList.map((app, idx) => {
-              const rowGb = calcAppGb(app);
-              return `
-              <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
-                <div class="row-left">
-                  <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
-                  <div class="app-squircle-icon" style="background:${app.iconBg || defaultIconBg};">
-                    ${app.iconSvg || defaultIconSvg}
-                  </div>
-                  <div style="min-width:0;">
-                    <div class="row-title" style="display:flex;align-items:center;gap:6px;">
-                      <span>${app.name}</span>
-                      <span style="font-size:10.5px;color:var(--text-secondary);font-weight:500;">v${app.version}</span>
-                      <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${app.category || 'Mac 应用'}</span>
-                    </div>
-                    <div class="row-sub">📦 主程序: ${app.appSizeGb.toFixed(2)} GB · 🗂️ 缓存与残留: ${app.leftoverSizeGb.toFixed(2)} GB</div>
-                  </div>
-                </div>
-                <div class="row-right">
-                  <span class="badge ${mode === 'cache_only' ? 'badge-safe' : app.keepPersonal ? 'badge-safe' : 'badge-review'}" onclick="toggleAppKeepPersonal(${idx}, event)" title="点击切换标准卸载 / 彻底卸载">
-                    ${mode === 'cache_only' ? '🧹 仅清缓存' : app.keepPersonal ? '📦 标准卸载 App' : '🔥 彻底粉碎卸载'}
-                  </span>
-                  <span class="size-cell" style="color:${mode === 'cache_only' ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${rowGb.toFixed(2)} GB</span>
-                </div>
-              </div>
-            `}).join('')}
-          </div>
+    const dualModeSwitchHtml = `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;padding:7px 12px;margin-bottom:2px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn ${panelMode === 'leftovers' ? 'btn-primary' : ''}" style="padding:5px 14px;font-size:12px;font-weight:700;" onclick="setSoftwarePanelMode('leftovers')">
+            🧹 清理已卸载残留 (${orphans.length} 项 · ${totalOrphanAllGb.toFixed(2)} GB)
+          </button>
+          <button class="btn ${panelMode === 'apps' ? 'btn-primary' : ''}" style="padding:5px 14px;font-size:12px;font-weight:700;" onclick="setSoftwarePanelMode('apps')">
+            📦 管理应用卸载 (${STATE.appsList.length} 款 · ${totalAppsAllGb.toFixed(2)} GB)
+          </button>
         </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>Mac 应用包与残留构成透视 (${selApp.name}.app)</span>
-            <span style="font-family:var(--font-mono);color:var(--accent-rose);">${calcAppGb(selApp).toFixed(2)} GB</span>
-          </div>
-          <div class="inspector-content">
-            <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-              <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${selApp.iconBg || defaultIconBg};">
-                ${selApp.iconSvg || defaultIconSvg}
-              </div>
-              <div style="min-width:0;flex:1;">
-                <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
-                <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">${selApp.appPath} · ${selApp.bundleId}</div>
-              </div>
-            </div>
-
-            <div class="bento-4">
-              <div class="bento-cell"><div class="bento-label">📦 应用主程序 (.app)</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
-              <div class="bento-cell"><div class="bento-label">🗂️ 运行与容器缓存</div><div class="bento-val" style="color:var(--accent-amber);">${(selApp.cacheSizeGb || selApp.leftoverSizeGb).toFixed(2)} GB</div></div>
-              <div class="bento-cell"><div class="bento-label">⚙️ 个人账号与偏好配置</div><div class="bento-val" style="color:var(--accent-emerald);">${(selApp.configSizeGb || 0.25).toFixed(2)} GB (${selApp.keepPersonal ? '保留' : '清除'})</div></div>
-              <div class="bento-cell"><div class="bento-label">当前操作模式</div><div class="bento-val" style="color:var(--accent-primary);">${mode === 'cache_only' ? '仅清缓存 (保留App)' : selApp.keepPersonal ? '标准卸载 App' : '彻底粉碎卸载'}</div></div>
-            </div>
-
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">勾选要移除的组件（支持单独勾选「📦 主程序」「🗂️ 缓存」或「⚙️ 个人配置」）</div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              ${selApp.subpaths.map((sp, spIdx) => `
-                <div class="subpath-item">
-                  <div class="subpath-left">
-                    <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
-                    <span class="badge ${sp.kind === 'app' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
-                      ${sp.kind === 'app' ? '📦 主程序' : sp.kind === 'cache' ? '🗂️ 缓存' : '⚙️ 个人配置'}
-                    </span>
-                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
-                  </div>
-                  <span class="subpath-right">${sp.size}</span>
-                </div>
-              `).join('')}
-            </div>
-
-            <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:7px;padding-top:4px;">
-              <button class="btn" style="justify-content:center;" onclick="setUninstallMode('standard'); openConfirmSheet();">
-                📦 标准卸载 App (保留配置)
-              </button>
-              <button class="btn btn-danger" style="justify-content:center;" onclick="setUninstallMode('complete'); openConfirmSheet();">
-                🔥 彻底卸载 (含全部残留)
-              </button>
-            </div>
-          </div>
+        <div style="font-size:11px;color:var(--text-secondary);">
+          ${panelMode === 'leftovers'
+            ? '🔍 深度检索已从 /Applications 移除但仍滞留在 Containers、Android SDK、~/.docker 与 ~/.gradle 的无主残留'
+            : '💻 扫描本机 /Applications 已安装应用，支持「标准卸载 (保留配置)」「彻底粉碎卸载」与「仅清缓存」'}
         </div>
       </div>
     `;
+
+    if (panelMode === 'leftovers') {
+      const selOrphan = orphans[STATE.selectedOrphanIdx] || orphans[0];
+      const checkedOrphans = orphans.filter(o => o.checked);
+      const activeOrphans = checkedOrphans.length > 0 ? checkedOrphans : [selOrphan].filter(Boolean);
+      const totalSelectedOrphanGb = activeOrphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
+
+      topTitle.textContent = '分离器 · 已卸载应用残留清理 (Jettison · Leftovers)';
+      primaryBtnText.textContent = `一键清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)`;
+      heroHeadline.textContent = selOrphan
+        ? `发现 ${orphans.length} 组已卸载应用的孤立残留（含 Docker 容器与 Android Studio 残留）`
+        : '所有已卸载应用的孤立残留均已清理完毕';
+      heroDesc.textContent = '自动比对 /Applications 已安装列表并深度检索 ~/Library/Containers、~/Library/Android/sdk、~/.android/avd、~/.docker、~/.gradle 与 Google/AndroidStudio* 下的无主残留目录。';
+      heroStatLabel.textContent = '已勾选孤立残留';
+      heroStatValue.textContent = `${totalSelectedOrphanGb.toFixed(2)} GB`;
+      heroStatSub.textContent = `共 ${activeOrphans.length} 组无主残留 · 移入废纸篓安全可还原`;
+
+      if (!selOrphan) {
+        stage.innerHTML = dualModeSwitchHtml + `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前本机没有已卸载应用的孤立残留，点击上方「📦 管理应用卸载」可管理已安装的 Mac 应用。</div>`;
+        return;
+      }
+
+      const defaultIconBg = 'linear-gradient(145deg, #f59e0b 0%, #b45309 100%)';
+      const defaultIconSvg = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" fill="#fff"/></svg>';
+
+      stage.innerHTML = dualModeSwitchHtml + `
+        <div class="master-detail-grid" style="min-height:0;flex:1;">
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>检测到的已卸载应用孤立残留 (共 ${orphans.length} 组 · 主程序均已不在 /Applications)</span>
+              <span class="badge badge-safe">100% 无主残留 · 安全可清</span>
+            </div>
+            <div class="list-body">
+              ${orphans.map((item, idx) => `
+                <div class="list-row ${idx === STATE.selectedOrphanIdx ? 'selected' : ''}" onclick="selectOrphanRow(${idx})">
+                  <div class="row-left">
+                    <input type="checkbox" ${item.checked ? 'checked' : ''} onclick="toggleOrphanCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                    <div class="app-squircle-icon" style="background:${item.iconBg || defaultIconBg};">
+                      ${item.iconSvg || defaultIconSvg}
+                    </div>
+                    <div style="min-width:0;">
+                      <div class="row-title" style="display:flex;align-items:center;gap:6px;">
+                        <span>${item.name}</span>
+                        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${item.category}</span>
+                      </div>
+                      <div class="row-sub">👻 ${item.statusText} · 关联 ${item.subpaths.length} 处遗留目录 (${item.bundleId})</div>
+                    </div>
+                  </div>
+                  <div class="row-right">
+                    <span class="badge badge-review">👻 已卸载残留</span>
+                    <span class="size-cell" style="color:var(--accent-amber);">${item.leftoverSizeGb.toFixed(2)} GB</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>孤立残留目录明细与核验 (${selOrphan.name})</span>
+              <span style="font-family:var(--font-mono);color:var(--accent-amber);">${selOrphan.leftoverSizeGb.toFixed(2)} GB</span>
+            </div>
+            <div class="inspector-content">
+              <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
+                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${selOrphan.iconBg || defaultIconBg};">
+                  ${selOrphan.iconSvg || defaultIconSvg}
+                </div>
+                <div style="min-width:0;flex:1;">
+                  <div style="font-size:14.5px;font-weight:800;">${selOrphan.name} <span style="font-size:11px;font-weight:600;color:var(--accent-amber);">· ${selOrphan.statusText}</span></div>
+                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">Bundle ID: ${selOrphan.bundleId} · /Applications 下已无此应用</div>
+                </div>
+              </div>
+
+              <div class="bento-4">
+                <div class="bento-cell"><div class="bento-label">📦 主程序状态</div><div class="bento-val" style="color:var(--accent-amber);">已卸载 (无 .app)</div></div>
+                <div class="bento-cell"><div class="bento-label">🗂️ 扫描到遗留目录</div><div class="bento-val">${selOrphan.subpaths.length} 处孤立路径</div></div>
+                <div class="bento-cell"><div class="bento-label">💾 占用磁盘体积</div><div class="bento-val" style="color:var(--accent-rose);">${selOrphan.leftoverSizeGb.toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">🛡️ 清理安全性</div><div class="bento-val" style="color:var(--accent-emerald);">完全安全 (无主残留)</div></div>
+              </div>
+
+              <div style="font-size:11px;color:var(--text-secondary);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:7px;padding:6px 10px;line-height:1.4;">
+                🧹 ${selOrphan.impact}
+              </div>
+
+              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">包含遗留子目录明细（支持单独勾选或点击在访达中检视）</div>
+              <div style="display:flex;flex-direction:column;gap:5px;">
+                ${selOrphan.subpaths.map((sp, spIdx) => `
+                  <div class="subpath-item">
+                    <div class="subpath-left">
+                      <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleOrphanSubpathCheck(${STATE.selectedOrphanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <span class="badge ${sp.kind === 'cache' ? 'badge-safe' : 'badge-review'}" style="font-size:9px;padding:1px 5px;">
+                        ${sp.kind === 'cache' ? '🗂️ 容器/SDK缓存' : '⚙️ 遗留配置'}
+                      </span>
+                      <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
+                    </div>
+                    <span class="subpath-right">${sp.size}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1.3fr;gap:7px;padding-top:4px;">
+                <button class="btn" style="justify-content:center;" onclick="revealInFinder('${selOrphan.subpaths[0]?.path || '~/Library'}')">
+                  在访达 (Finder) 中查看
+                </button>
+                <button class="btn btn-primary" style="justify-content:center;" onclick="openConfirmSheet();">
+                  🧹 立即清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      const selApp = STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0];
+      const mode = STATE.uninstallMode || 'standard';
+      const calcAppGb = (a) => {
+        if (!a) return 0;
+        if (mode === 'cache_only') return +(a.cacheSizeGb || a.leftoverSizeGb * 0.8).toFixed(2);
+        if (mode === 'standard' || a.keepPersonal) return +(a.appSizeGb + (a.cacheSizeGb || a.leftoverSizeGb * 0.8)).toFixed(2);
+        return +(a.appSizeGb + a.leftoverSizeGb).toFixed(2);
+      };
+      const checkedApps = STATE.appsList.filter(a => a.checked);
+      const activeApps = checkedApps.length > 0 ? checkedApps : [selApp].filter(Boolean);
+      const totalSelectedAppGb = activeApps.reduce((s, a) => s + calcAppGb(a), 0);
+
+      topTitle.textContent = '分离器 · 管理本机应用卸载 (Jettison · App Uninstaller)';
+      primaryBtnText.textContent = mode === 'cache_only'
+        ? `仅清理所选应用缓存 (${totalSelectedAppGb.toFixed(2)} GB)`
+        : mode === 'standard'
+        ? `标准卸载所选应用 (${totalSelectedAppGb.toFixed(2)} GB)`
+        : `彻底粉碎卸载所选 (${totalSelectedAppGb.toFixed(2)} GB)`;
+
+      heroHeadline.textContent = selApp
+        ? `${selApp.name}.app v${selApp.version} · ${mode === 'standard' ? '标准卸载 App（移除主程序 · 保留个人配置）' : mode === 'complete' ? '彻底粉碎卸载（移除主程序 + 全部 Library 残留）' : '应用瘦身（保留应用 · 仅清理膨胀缓存）'}`
+        : '所有勾选的 Mac 应用已处理完毕';
+      heroDesc.textContent = '管理本机 /Applications 已安装应用：①「📦 标准卸载 App」卸载主程序与缓存并保留配置；②「🔥 彻底粉碎卸载」连同 Library 数据全部清除；③「🧹 仅清理缓存」保留应用。';
+      heroStatLabel.textContent = mode === 'cache_only' ? '可释放应用缓存' : '当前所选卸载体积';
+      heroStatValue.textContent = `${totalSelectedAppGb.toFixed(2)} GB`;
+      heroStatSub.textContent = mode === 'standard' ? '移除 .app 主程序 · 保留个人配置' : mode === 'complete' ? '移除 .app 主程序 + 全部 Library 残留' : '保留 .app 主程序 · 仅清理缓存';
+
+      if (!selApp) {
+        stage.innerHTML = dualModeSwitchHtml + `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前选中的 Mac 应用已移入废纸篓，可在「黑匣子 · 恢复白名单」中随时原路还原。</div>`;
+        return;
+      }
+
+      const defaultIconBg = 'linear-gradient(145deg, #f43f5e 0%, #9f1239 100%)';
+      const defaultIconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" fill="#fff" fill-opacity="0.9"/></svg>';
+
+      stage.innerHTML = dualModeSwitchHtml + `
+        <div class="master-detail-grid" style="min-height:0;flex:1;">
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>本机已安装 Mac 应用程序 (/Applications · 共 ${STATE.appsList.length} 款)</span>
+              <div class="segmented-tabs">
+                <div class="seg-tab ${mode === 'standard' ? 'active' : ''}" onclick="setUninstallMode('standard')" title="卸载 /Applications/*.app 主程序与缓存，保留您的个人账号配置">📦 标准卸载 App</div>
+                <div class="seg-tab ${mode === 'complete' ? 'active' : ''}" onclick="setUninstallMode('complete')" title="卸载 .app 主程序并彻底清除所有 Library 偏好设置与沙盒残留">🔥 彻底粉碎卸载</div>
+                <div class="seg-tab ${mode === 'cache_only' ? 'active' : ''}" onclick="setUninstallMode('cache_only')" title="保留 Mac 应用不卸载，仅清理其产生的膨胀缓存">🧹 仅清理缓存</div>
+              </div>
+            </div>
+            <div class="list-body">
+              ${STATE.appsList.map((app, idx) => {
+                const rowGb = calcAppGb(app);
+                return `
+                <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
+                  <div class="row-left">
+                    <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                    <div class="app-squircle-icon" style="background:${app.iconBg || defaultIconBg};">
+                      ${app.iconSvg || defaultIconSvg}
+                    </div>
+                    <div style="min-width:0;">
+                      <div class="row-title" style="display:flex;align-items:center;gap:6px;">
+                        <span>${app.name}</span>
+                        <span style="font-size:10.5px;color:var(--text-secondary);font-weight:500;">v${app.version}</span>
+                        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${app.category || 'Mac 应用'}</span>
+                      </div>
+                      <div class="row-sub">📦 主程序: ${app.appSizeGb.toFixed(2)} GB · 🗂️ 缓存与关联数据: ${app.leftoverSizeGb.toFixed(2)} GB</div>
+                    </div>
+                  </div>
+                  <div class="row-right">
+                    <span class="badge ${mode === 'cache_only' ? 'badge-safe' : app.keepPersonal ? 'badge-safe' : 'badge-review'}" onclick="toggleAppKeepPersonal(${idx}, event)" title="点击切换标准卸载 / 彻底卸载">
+                      ${mode === 'cache_only' ? '🧹 仅清缓存' : app.keepPersonal ? '📦 标准卸载 App' : '🔥 彻底粉碎卸载'}
+                    </span>
+                    <span class="size-cell" style="color:${mode === 'cache_only' ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${rowGb.toFixed(2)} GB</span>
+                  </div>
+                </div>
+              `}).join('')}
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>Mac 应用包与关联数据透视 (${selApp.name}.app)</span>
+              <span style="font-family:var(--font-mono);color:var(--accent-rose);">${calcAppGb(selApp).toFixed(2)} GB</span>
+            </div>
+            <div class="inspector-content">
+              <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
+                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${selApp.iconBg || defaultIconBg};">
+                  ${selApp.iconSvg || defaultIconSvg}
+                </div>
+                <div style="min-width:0;flex:1;">
+                  <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
+                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">${selApp.appPath} · ${selApp.bundleId}</div>
+                </div>
+              </div>
+
+              <div class="bento-4">
+                <div class="bento-cell"><div class="bento-label">📦 应用主程序 (.app)</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">🗂️ 运行与容器缓存</div><div class="bento-val" style="color:var(--accent-amber);">${(selApp.cacheSizeGb || selApp.leftoverSizeGb).toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">⚙️ 个人账号与偏好配置</div><div class="bento-val" style="color:var(--accent-emerald);">${(selApp.configSizeGb || 0.25).toFixed(2)} GB (${selApp.keepPersonal ? '保留' : '清除'})</div></div>
+                <div class="bento-cell"><div class="bento-label">当前操作模式</div><div class="bento-val" style="color:var(--accent-primary);">${mode === 'cache_only' ? '仅清缓存 (保留App)' : selApp.keepPersonal ? '标准卸载 App' : '彻底粉碎卸载'}</div></div>
+              </div>
+
+              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">勾选要移除的组件（支持单独勾选「📦 主程序」「🗂️ 缓存」或「⚙️ 个人配置」）</div>
+              <div style="display:flex;flex-direction:column;gap:5px;">
+                ${selApp.subpaths.map((sp, spIdx) => `
+                  <div class="subpath-item">
+                    <div class="subpath-left">
+                      <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <span class="badge ${sp.kind === 'app' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
+                        ${sp.kind === 'app' ? '📦 主程序' : sp.kind === 'cache' ? '🗂️ 缓存' : '⚙️ 个人配置'}
+                      </span>
+                      <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
+                    </div>
+                    <span class="subpath-right">${sp.size}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:7px;padding-top:4px;">
+                <button class="btn" style="justify-content:center;" onclick="setUninstallMode('standard'); openConfirmSheet();">
+                  📦 标准卸载 App (保留配置)
+                </button>
+                <button class="btn btn-danger" style="justify-content:center;" onclick="setUninstallMode('complete'); openConfirmSheet();">
+                  🔥 彻底卸载 (含全部残留)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
   } else if (mod === 'analyze') {
     recomputeDiskAnalyzeTotals();
     const isDrilled = typeof STATE.drillDownDirIdx === 'number' && STATE.treemap2D[STATE.drillDownDirIdx];
@@ -3362,17 +3603,32 @@ window.openConfirmSheet = function() {
       </div>
     `).join('');
   } else if (mod === 'software') {
-    const sel = STATE.appsList.filter(a => a.checked);
-    const activeApps = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
-    totalGb = activeApps.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
-    totalCount = activeApps.length;
-    titleEl.textContent = '应用彻底卸载二次确认 — 即将移入废纸篓';
-    rowsHtml = activeApps.map(a => `
-      <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人预设' : '全量彻底清理'})</div></div></div>
-        <span class="size-cell" style="color:var(--accent-rose);">${(a.appSizeGb + a.leftoverSizeGb).toFixed(2)} GB</span>
-      </div>
-    `).join('');
+    if (STATE.softwarePanelMode === 'leftovers') {
+      const orphans = STATE.orphanLeftoversList || [];
+      const sel = orphans.filter(o => o.checked);
+      const activeOrphans = sel.length > 0 ? sel : [orphans[STATE.selectedOrphanIdx] || orphans[0]].filter(Boolean);
+      totalGb = activeOrphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
+      totalCount = activeOrphans.length;
+      titleEl.textContent = '已卸载应用孤立残留清理二次确认 — 即将移入废纸篓';
+      rowsHtml = activeOrphans.map(o => `
+        <div class="list-row" style="padding:7.5px 14px;">
+          <div class="row-left"><span>👻</span><div><div style="font-size:12px;font-weight:600;">${o.name} (${o.statusText})</div><div class="row-sub">${o.subpaths.filter(sp => sp.checked !== false).map(sp => sp.path).join(' · ')}</div></div></div>
+          <span class="size-cell" style="color:var(--accent-amber);">${o.leftoverSizeGb.toFixed(2)} GB</span>
+        </div>
+      `).join('');
+    } else {
+      const sel = STATE.appsList.filter(a => a.checked);
+      const activeApps = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
+      totalGb = activeApps.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+      totalCount = activeApps.length;
+      titleEl.textContent = '管理应用卸载二次确认 — 即将移入废纸篓';
+      rowsHtml = activeApps.map(a => `
+        <div class="list-row" style="padding:7.5px 14px;">
+          <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人配置' : '全量彻底清理'})</div></div></div>
+          <span class="size-cell" style="color:var(--accent-rose);">${(a.appSizeGb + a.leftoverSizeGb).toFixed(2)} GB</span>
+        </div>
+      `).join('');
+    }
   } else if (mod === 'purge') {
     const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0);
     const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);
@@ -3450,20 +3706,41 @@ window.executeConfirmedClean = function() {
     restoreData = { type: 'ai_moon', ids: sel.map(b => b.id), regPaths: regPaths };
     if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = Math.max(0.5, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
   } else if (STATE.module === 'software') {
-    const sel = STATE.appsList.filter(a => a.checked);
-    const active = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
-    freedGb = active.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
-    actionLabel = `应用彻底卸载 (${active.map(a => a.name).join(', ')})`;
-    active.forEach(a => {
-      if (a.appPath) { trashedPaths.push(a.appPath); regPaths.push(a.appPath); }
-      regPaths.push(a.id);
-      a.subpaths.forEach(sp => trashedPaths.push(sp.path));
-    });
-    restoreData = { type: 'software', removedApps: active.map(a => ({ ...a })), regPaths: regPaths };
-    const removeIds = new Set(active.map(a => a.id));
-    STATE.appsList = STATE.appsList.filter(a => !removeIds.has(a.id));
-    STATE.selectedAppIdx = 0;
-    if (STATE.treemap2D[2]) STATE.treemap2D[2].sizeGb = Math.max(0.5, +(STATE.treemap2D[2].sizeGb - freedGb).toFixed(2));
+    if (STATE.softwarePanelMode === 'leftovers') {
+      const orphans = STATE.orphanLeftoversList || [];
+      const sel = orphans.filter(o => o.checked);
+      const active = sel.length > 0 ? sel : [orphans[STATE.selectedOrphanIdx] || orphans[0]].filter(Boolean);
+      freedGb = active.reduce((s, o) => s + o.leftoverSizeGb, 0);
+      actionLabel = `已卸载残留清理 (${active.map(o => o.name).join(', ')})`;
+      active.forEach(o => {
+        regPaths.push(o.id);
+        o.subpaths.forEach(sp => {
+          if (sp.checked !== false) trashedPaths.push(sp.path);
+        });
+      });
+      restoreData = { type: 'orphan_leftovers', removedOrphans: active.map(o => ({ ...o })), regPaths: regPaths };
+      const removeIds = new Set(active.map(o => o.id));
+      STATE.orphanLeftoversList = orphans.filter(o => !removeIds.has(o.id));
+      STATE.selectedOrphanIdx = 0;
+      if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = Math.max(0.5, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
+    } else {
+      const sel = STATE.appsList.filter(a => a.checked);
+      const active = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
+      freedGb = active.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+      actionLabel = `应用卸载 (${active.map(a => a.name).join(', ')})`;
+      active.forEach(a => {
+        if (a.appPath) { trashedPaths.push(a.appPath); regPaths.push(a.appPath); }
+        regPaths.push(a.id);
+        a.subpaths.forEach(sp => {
+          if (sp.checked !== false) trashedPaths.push(sp.path);
+        });
+      });
+      restoreData = { type: 'software', removedApps: active.map(a => ({ ...a })), regPaths: regPaths };
+      const removeIds = new Set(active.map(a => a.id));
+      STATE.appsList = STATE.appsList.filter(a => !removeIds.has(a.id));
+      STATE.selectedAppIdx = 0;
+      if (STATE.treemap2D[2]) STATE.treemap2D[2].sizeGb = Math.max(0.5, +(STATE.treemap2D[2].sizeGb - freedGb).toFixed(2));
+    }
   } else if (STATE.module === 'purge') {
     const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0);
     const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);

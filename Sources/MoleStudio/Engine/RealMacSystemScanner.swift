@@ -1,7 +1,18 @@
 import Cocoa
 import Darwin
 
-/// Samples installed apps, large files, disk, memory, and processes for the WebKit UI.
+private struct OrphanSignature {
+    let id: String
+    let name: String
+    let category: String
+    let bundleId: String
+    let appKeywords: [String]
+    let fixedPaths: [(path: String, kind: String)]
+    let wildcardParents: [(parent: String, prefix: String, kind: String)]
+    let impact: String
+}
+
+/// Samples installed apps, leftover directories, large files, and telemetry for the WebKit UI.
 final class RealMacSystemScanner {
     static let shared = RealMacSystemScanner()
     private let fm = FileManager.default
@@ -17,16 +28,17 @@ final class RealMacSystemScanner {
         let url = URL(fileURLWithPath: expanded)
         guard let enumerator = fm.enumerator(
             at: url,
-            includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.fileSizeKey, .totalFileAllocatedSizeKey, .isRegularFileKey],
+            options: []
         ) else { return (0, 0) }
 
         var totalBytes: Int64 = 0
         var count = 0
         for case let fileURL as URL in enumerator {
-            if let vals = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+            if let vals = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .totalFileAllocatedSizeKey, .isRegularFileKey]),
                vals.isRegularFile == true {
-                totalBytes += Int64(vals.fileSize ?? 0)
+                let actual = vals.totalFileAllocatedSize ?? vals.fileSize ?? 0
+                totalBytes += Int64(actual)
                 count += 1
                 if count >= maxFiles { break }
             }
@@ -219,6 +231,139 @@ final class RealMacSystemScanner {
         return results
     }
 
+    func matchingWildcardPaths(in parentDir: String, prefix: String) -> [String] {
+        let expanded = (parentDir as NSString).expandingTildeInPath
+        guard let items = try? fm.contentsOfDirectory(atPath: expanded) else { return [] }
+        return items
+            .filter { prefix.isEmpty || $0.lowercased().hasPrefix(prefix.lowercased()) }
+            .map { (expanded as NSString).appendingPathComponent($0) }
+    }
+
+    func scanOrphanedLeftovers() -> [[String: Any]] {
+        let home = NSHomeDirectory()
+        let appDirs = ["/Applications", (home as NSString).appendingPathComponent("Applications")]
+        var installedNames = Set<String>()
+        var installedBundleIds = Set<String>()
+
+        for dir in appDirs {
+            guard let items = try? fm.contentsOfDirectory(atPath: dir) else { continue }
+            for item in items where item.hasSuffix(".app") {
+                let fullPath = (dir as NSString).appendingPathComponent(item)
+                installedNames.insert((item as NSString).deletingPathExtension.lowercased())
+                if let bundle = Bundle(path: fullPath) {
+                    if let bid = bundle.bundleIdentifier?.lowercased() {
+                        installedBundleIds.insert(bid)
+                    }
+                    if let display = (bundle.infoDictionary?["CFBundleDisplayName"] as? String)?.lowercased() {
+                        installedNames.insert(display)
+                    }
+                    if let bundleName = (bundle.infoDictionary?["CFBundleName"] as? String)?.lowercased() {
+                        installedNames.insert(bundleName)
+                    }
+                }
+            }
+        }
+
+        var orphans: [[String: Any]] = []
+        var claimedPaths = Set<String>()
+        let signatures = orphanSignatures(home: home)
+
+        for signature in signatures {
+            var subpaths: [[String: Any]] = []
+            var totalBytes: Int64 = 0
+            var candidates = signature.fixedPaths
+            for wildcard in signature.wildcardParents {
+                for matched in matchingWildcardPaths(in: wildcard.parent, prefix: wildcard.prefix) {
+                    candidates.append((matched, wildcard.kind))
+                }
+            }
+
+            for candidate in candidates {
+                if claimedPaths.contains(where: { candidate.path.hasPrefix($0 + "/") || $0.hasPrefix(candidate.path + "/") }) {
+                    continue
+                }
+                guard fm.fileExists(atPath: candidate.path) else { continue }
+                let (bytes, _) = fastDirectorySize(path: candidate.path, maxFiles: 3500)
+                guard bytes > 0 else { continue }
+                claimedPaths.insert(candidate.path)
+                totalBytes += bytes
+                subpaths.append([
+                    "path": candidate.path.replacingOccurrences(of: home, with: "~"),
+                    "kind": candidate.kind,
+                    "size": formatBytes(bytes),
+                    "checked": true
+                ])
+            }
+
+            if !subpaths.isEmpty {
+                let stillInstalled = signature.appKeywords.contains { keyword in
+                    installedNames.contains { $0.contains(keyword) }
+                } || installedBundleIds.contains(signature.bundleId)
+                orphans.append([
+                    "id": signature.id,
+                    "name": signature.name,
+                    "category": signature.category,
+                    "bundleId": signature.bundleId,
+                    "statusText": stillInstalled ? "深层容器与 SDK 残留" : "主程序已卸载 · 孤立残留",
+                    "leftoverSizeGb": max(0.01, (Double(totalBytes) / 1_000_000_000.0 * 100).rounded() / 100.0),
+                    "checked": !stillInstalled,
+                    "impact": signature.impact,
+                    "subpaths": subpaths
+                ])
+            }
+        }
+
+        let scanTargets = [
+            ("\(home)/Library/Containers", "cache", "孤立沙盒容器残留"),
+            ("\(home)/Library/Group Containers", "cache", "孤立沙盒容器残留"),
+            ("\(home)/Library/Application Support", "config", "已卸载应用支持残留"),
+            ("\(home)/Library/Caches", "cache", "已卸载应用支持残留")
+        ]
+        let ignoredPrefixes = [
+            "com.apple.", "group.com.apple.", "apple", "cloudkit", "knowledge", "caches",
+            "crashreporter", "geoservices", "addressbook", "facetime", "homekit", "safari",
+            "spotlight", "google", "jetbrains", "mozilla", "microsoft"
+        ]
+
+        for target in scanTargets {
+            guard let items = try? fm.contentsOfDirectory(atPath: target.0) else { continue }
+            for item in items where !item.hasPrefix(".") {
+                let lower = item.lowercased()
+                if ignoredPrefixes.contains(where: { lower == $0 || lower.hasPrefix($0) }) { continue }
+                let fullPath = (target.0 as NSString).appendingPathComponent(item)
+                if claimedPaths.contains(fullPath) { continue }
+                let matchesInstalled = installedBundleIds.contains(lower)
+                    || installedBundleIds.contains { lower.contains($0) || $0.contains(lower) }
+                    || installedNames.contains { $0.count >= 3 && (lower.contains($0) || $0.contains(lower)) }
+                if matchesInstalled { continue }
+
+                let (bytes, _) = fastDirectorySize(path: fullPath, maxFiles: 1200)
+                guard bytes >= 15_000_000 else { continue }
+                claimedPaths.insert(fullPath)
+                orphans.append([
+                    "id": "orphan_\(item)",
+                    "name": item,
+                    "category": target.2,
+                    "bundleId": item,
+                    "statusText": "主程序已卸载 · 孤立残留",
+                    "leftoverSizeGb": max(0.02, (Double(bytes) / 1_000_000_000.0 * 100).rounded() / 100.0),
+                    "checked": true,
+                    "impact": "经与 /Applications 已安装列表比对，该目录对应的主程序已不存在，属于卸载后遗留的无主残留目录。",
+                    "subpaths": [[
+                        "path": fullPath.replacingOccurrences(of: home, with: "~"),
+                        "kind": target.1,
+                        "size": formatBytes(bytes),
+                        "checked": true
+                    ]]
+                ])
+                if orphans.count >= 18 { break }
+            }
+        }
+
+        orphans.sort { ($0["leftoverSizeGb"] as? Double ?? 0) > ($1["leftoverSizeGb"] as? Double ?? 0) }
+        return orphans
+    }
+
     func scanLargeFiles() -> [[String: Any]] {
         let home = NSHomeDirectory()
         let roots = [
@@ -276,7 +421,80 @@ final class RealMacSystemScanner {
             "memTotalGb": mem.totalGb,
             "cpuModel": queryCPUModel(),
             "appsList": scanInstalledApps(),
+            "orphanLeftoversList": scanOrphanedLeftovers(),
             "largeFiles": scanLargeFiles()
+        ]
+    }
+
+    private func orphanSignatures(home: String) -> [OrphanSignature] {
+        [
+            OrphanSignature(
+                id: "orphan_docker",
+                name: "Docker Desktop",
+                category: "虚拟化与容器残留",
+                bundleId: "com.docker.docker",
+                appKeywords: ["docker"],
+                fixedPaths: [
+                    ("\(home)/Library/Containers/com.docker.docker", "cache"),
+                    ("\(home)/Library/Containers/com.docker.helper", "cache"),
+                    ("\(home)/Library/Group Containers/group.com.docker", "cache"),
+                    ("\(home)/.docker", "config"),
+                    ("\(home)/Library/Application Support/Docker Desktop", "config"),
+                    ("\(home)/Library/Caches/com.docker.docker", "cache"),
+                    ("\(home)/Library/Logs/Docker Desktop", "cache"),
+                    ("\(home)/Library/Preferences/com.docker.docker.plist", "config")
+                ],
+                wildcardParents: [],
+                impact: "检测到 Docker.app 主程序已卸载，或仍留有容器虚拟磁盘、共享守护进程目录与 ~/.docker 配置。"
+            ),
+            OrphanSignature(
+                id: "orphan_android_studio",
+                name: "Android Studio & Android SDK",
+                category: "移动开发与模拟器残留",
+                bundleId: "com.google.android.studio",
+                appKeywords: ["android studio"],
+                fixedPaths: [
+                    ("\(home)/Library/Android/sdk", "cache"),
+                    ("\(home)/.android/avd", "cache"),
+                    ("\(home)/.android", "config"),
+                    ("\(home)/.gradle/caches", "cache"),
+                    ("\(home)/Library/Preferences/com.google.android.studio.plist", "config")
+                ],
+                wildcardParents: [
+                    ("\(home)/Library/Application Support/Google", "AndroidStudio", "config"),
+                    ("\(home)/Library/Caches/Google", "AndroidStudio", "cache"),
+                    ("\(home)/Library/Logs/Google", "AndroidStudio", "cache")
+                ],
+                impact: "检测到 Android Studio 遗留的 SDK、AVD 模拟器镜像、Gradle 缓存与 AndroidStudio 历史目录。"
+            ),
+            OrphanSignature(
+                id: "orphan_jetbrains",
+                name: "JetBrains IDEs",
+                category: "IDE 索引与插件残留",
+                bundleId: "com.jetbrains.intellij",
+                appKeywords: ["intellij", "pycharm", "webstorm", "goland", "clion"],
+                fixedPaths: [],
+                wildcardParents: [
+                    ("\(home)/Library/Caches/JetBrains", "", "cache"),
+                    ("\(home)/Library/Application Support/JetBrains", "", "config"),
+                    ("\(home)/Library/Logs/JetBrains", "", "cache")
+                ],
+                impact: "检测到 JetBrains IDE 卸载后遗留的索引缓存与历史版本插件目录。"
+            ),
+            OrphanSignature(
+                id: "orphan_parallels",
+                name: "Parallels Desktop",
+                category: "虚拟机与驱动残留",
+                bundleId: "com.parallels.desktop.console",
+                appKeywords: ["parallels"],
+                fixedPaths: [
+                    ("\(home)/Library/Caches/com.parallels.desktop.console", "cache"),
+                    ("\(home)/Library/Application Support/Parallels", "config"),
+                    ("\(home)/Library/Preferences/com.parallels.desktop.console.plist", "config")
+                ],
+                wildcardParents: [],
+                impact: "检测到 Parallels Desktop 卸载后遗留的缓存与应用支持目录。"
+            )
         ]
     }
 
