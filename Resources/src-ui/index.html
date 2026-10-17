@@ -185,7 +185,52 @@
   }
   .doctor-card:hover { border-color: var(--border-strong); }
   .doctor-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .app-icon-box {
+  .btn-glyph {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-right: 5px;
+  line-height: 0;
+  vertical-align: -2px;
+}
+.btn-glyph svg { width: 100%; height: 100%; display: block; }
+.lock-glyph {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  vertical-align: -2px;
+}
+.palette-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  padding: 2px;
+  flex: none;
+}
+.row-glyph {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  opacity: 0.85;
+}
+.glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  line-height: 0;
+}
+.glyph svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.app-icon-box {
     width: 32px; height: 32px; border-radius: 8px;
     background: linear-gradient(135deg, var(--accent-primary) 0%, #b45334 100%);
     display: flex; align-items: center; justify-content: center;
@@ -221,7 +266,13 @@
     border-color: var(--border-subtle); box-shadow: var(--shadow-card); font-weight: 600;
   }
   .nav-item-left { display: flex; align-items: center; gap: 8.5px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .nav-svg-icon {
+  .brand-plate {
+  background: linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%);
+  box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.48),
+              inset 0 -2px 3px rgba(0, 0, 0, 0.35),
+              0 3px 8px rgba(0, 0, 0, 0.45);
+}
+.nav-svg-icon {
     width: 28px; height: 28px; border-radius: 7.5px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     box-shadow: inset 0 1px 0.5px rgba(255,255,255,0.45), inset 0 -1px 1.5px rgba(0,0,0,0.3), 0 2px 5px rgba(0,0,0,0.32);
@@ -544,9 +595,7 @@
     <span style="color:#a39f96;font-weight:500;">窗口</span>
   </div>
   <div style="display:flex;align-items:center;gap:14px;font-family:var(--font-mono);font-size:11px;">
-    <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" onclick="toggleSystemMenuBarDemo()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f4f2ed" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" fill="#f4f2ed" stroke="none"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2" transform="rotate(-28 12 12)"/><circle cx="19" cy="8.2" r="1.5" fill="#d97757" stroke="none"/></svg>
-    </span>
+    <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px;" onclick="toggleSystemMenuBarDemo()" data-icon-slot="bar"></span>
     <span>🛜 Wi-Fi</span>
     <span>🔋 98%</span>
     <span>14:32</span>
@@ -571,35 +620,8 @@
 
     <div class="doctor-card" onclick="openDoctorModal(false)" title="点击打开轨道发射前 7 项系统联检中心 (Pre-flight Check)">
       <div class="doctor-left">
-        <div class="app-icon-box" style="background:linear-gradient(145deg, #27272a 0%, #09090b 65%, #7c2d12 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,0.42), 0 3px 8px rgba(0,0,0,0.45);padding:2px;">
-          <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_brand_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2.5" stdDeviation="2.2" flood-color="#000" flood-opacity="0.48"/>
-            </filter>
-            <radialGradient id="sb_brand_planet" cx="35%" cy="30%" r="68%">
-              <stop offset="0%" stop-color="#fff7ed"/>
-              <stop offset="32%" stop-color="#fdba74"/>
-              <stop offset="70%" stop-color="#ea580c"/>
-              <stop offset="100%" stop-color="#7c2d12"/>
-            </radialGradient>
-            <linearGradient id="sb_brand_ring1" x1="6" y1="44" x2="58" y2="20" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="50%" stop-color="#ffffff"/>
-              <stop offset="100%" stop-color="#fb923c"/>
-            </linearGradient>
-          </defs>
-          
-          <path d="M 10 41 A 26 10.5 -26 0 1 54 23" stroke="url(#sb_brand_ring1)" stroke-width="3.6" stroke-opacity="0.45" stroke-linecap="round"/>
-          <ellipse cx="32" cy="32" rx="24" ry="9.5" transform="rotate(32 32 32)" stroke="#fed7aa" stroke-opacity="0.32" stroke-width="2.2"/>
-          
-          <circle cx="32" cy="32" r="13.5" fill="url(#sb_brand_planet)" filter="url(#sb_brand_sh)"/>
-          
-          <path d="M 54 23 A 26 10.5 -26 0 1 10 41" stroke="url(#sb_brand_ring1)" stroke-width="4.2" stroke-linecap="round" filter="url(#sb_brand_sh)"/>
-          
-          <circle cx="50" cy="21" r="4.8" fill="#ffffff" filter="url(#sb_brand_sh)"/>
-          <circle cx="50" cy="21" r="2.6" fill="#38bdf8"/>
-        </svg>
+        <div class="app-icon-box brand-plate">
+          <span class="glyph" data-icon="brand"></span>
         </div>
         <div>
           <div class="app-name">orbit</div>
@@ -614,49 +636,7 @@
       <div class="nav-item active" data-mod="clean" onclick="switchModule('clean')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_clean_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#0a192f" flood-opacity="0.48"/>
-            </filter>
-            <linearGradient id="sb_clean_bristle" x1="14" y1="28" x2="38" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="45%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="sb_clean_handle" x1="34" y1="8" x2="54" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#e0f2fe"/>
-              <stop offset="100%" stop-color="#7dd3fc"/>
-            </linearGradient>
-            <radialGradient id="sb_clean_bub" cx="32%" cy="28%" r="70%">
-              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
-              <stop offset="45%" stop-color="#bae6fd" stop-opacity="0.45"/>
-              <stop offset="100%" stop-color="#ffffff" stop-opacity="0.85"/>
-            </radialGradient>
-          </defs>
-          
-          <circle cx="30" cy="34" r="20" stroke="#ffffff" stroke-opacity="0.28" stroke-width="3.5" stroke-dasharray="28 10"/>
-          
-          <g filter="url(#sb_clean_sh)" transform="rotate(-35 32 32)">
-            
-            <rect x="28.5" y="5" width="7" height="20" rx="3.5" fill="url(#sb_clean_handle)" stroke="#ffffff" stroke-width="1"/>
-            <circle cx="32" cy="9.5" r="1.6" fill="#0284c7"/>
-            
-            <rect x="22" y="23" width="20" height="6.5" rx="2.5" fill="#e2e8f0" stroke="#ffffff" stroke-width="1"/>
-            <rect x="22" y="25.5" width="20" height="2" fill="#38bdf8"/>
-            
-            <path d="M21 29.5 H43 L48 49 C48.4 50.8 47 52.5 45.2 52.5 H18.8 C17 52.5 15.6 50.8 16 49 L21 29.5 Z" fill="url(#sb_clean_bristle)" stroke="#fef08a" stroke-width="1"/>
-            
-            <path d="M23 52.5 L25 38 M29 52.5 L30 36 M35 52.5 L34 36 M41 52.5 L39 38" stroke="#78350f" stroke-opacity="0.45" stroke-width="1.8" stroke-linecap="round"/>
-          </g>
-          
-          <circle cx="48" cy="44" r="7.5" fill="url(#sb_clean_bub)" stroke="#ffffff" stroke-width="1.2" filter="url(#sb_clean_sh)"/>
-          <path d="M44.5 40.5 A 4 4 0 0 1 49.5 39.5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
-          <circle cx="15" cy="22" r="5" fill="url(#sb_clean_bub)" stroke="#ffffff" stroke-width="1"/>
-          
-          <path d="M18 8 L19.8 13.2 L25 15 L19.8 16.8 L18 22 L16.2 16.8 L11 15 L16.2 13.2 Z" fill="#fef08a" filter="url(#sb_clean_sh)"/>
-        </svg>
+            <span class="glyph" data-icon="clean"></span>
           </span>
           <span id="navLabelClean">气闸舱 · 深度清理</span>
         </div>
@@ -666,48 +646,7 @@
       <div class="nav-item" data-mod="ai_moon" onclick="switchModule('ai_moon')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_ai_moon_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2a0800" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="sb_ai_moon_pins" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="55%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="sb_ai_moon_pcb" x1="12" y1="12" x2="52" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="50%" stop-color="#e7e5e4"/>
-              <stop offset="100%" stop-color="#a8a29e"/>
-            </linearGradient>
-            <linearGradient id="sb_ai_moon_die" x1="18" y1="18" x2="46" y2="46" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#292524"/>
-              <stop offset="100%" stop-color="#0c0a09"/>
-            </linearGradient>
-          </defs>
-          
-          <g stroke="url(#sb_ai_moon_pins)" stroke-width="3.6" stroke-linecap="round">
-            <path d="M20 6V13 M28 6V13 M36 6V13 M44 6V13"/>
-            <path d="M20 51V58 M28 51V58 M36 51V58 M44 51V58"/>
-            <path d="M6 20H13 M6 28H13 M6 36H13 M6 44H13"/>
-            <path d="M51 20H58 M51 28H58 M51 36H58 M51 44H58"/>
-          </g>
-          
-          <rect x="12" y="12" width="40" height="40" rx="9" fill="url(#sb_ai_moon_pcb)" stroke="#ffffff" stroke-width="1.5" filter="url(#sb_ai_moon_sh)"/>
-          
-          <circle cx="16.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="16.5" cy="47.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="47.5" r="1.3" fill="#78716c"/>
-          
-          <rect x="18" y="18" width="28" height="28" rx="6" fill="url(#sb_ai_moon_die)" stroke="#fb923c" stroke-width="1.2"/>
-          
-          <path d="M18 27H23 M18 37H23 M41 27H46 M41 37H46 M27 18V23 M37 18V23 M27 41V46 M37 41V46" stroke="#fb923c" stroke-opacity="0.7" stroke-width="1.5"/>
-          
-          <path d="M32 21 L34.6 29.4 L43 32 L34.6 34.6 L32 43 L29.4 34.6 L21 32 L29.4 29.4 Z" fill="#fed7aa"/>
-          <circle cx="32" cy="32" r="3.2" fill="#ffffff"/>
-        </svg>
+            <span class="glyph" data-icon="ai_moon"></span>
           </span>
           <span id="navLabelMoon">智核舱 · AI 清理</span>
         </div>
@@ -717,43 +656,7 @@
       <div class="nav-item" data-mod="software" onclick="switchModule('software')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_software_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#3b0412" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="sb_software_bin" x1="14" y1="24" x2="48" y2="56" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="55%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="sb_software_app" x1="16" y1="6" x2="40" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#38bdf8"/>
-              <stop offset="100%" stop-color="#1d4ed8"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#sb_software_sh)" transform="rotate(-11 29 18)">
-            <rect x="18" y="6" width="22" height="22" rx="5.5" fill="url(#sb_software_app)" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <path d="M29 11 L23.5 22.5 M29 11 L34.5 22.5 M25.2 19.5 H32.8" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-          
-          <g filter="url(#sb_software_sh)">
-            <path d="M14 25 H48 L44.2 53.5 C43.8 55.8 41.8 57.5 39.5 57.5 H22.5 C20.2 57.5 18.2 55.8 17.8 53.5 L14 25 Z" fill="url(#sb_software_bin)" stroke="#ffffff" stroke-width="1.4"/>
-            
-            <rect x="12" y="22.5" width="38" height="4.5" rx="2.2" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
-            
-            <line x1="23.5" y1="31" x2="25" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="31" y1="31" x2="31" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="38.5" y1="31" x2="37" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-          </g>
-          
-          <g filter="url(#sb_software_sh)">
-            <circle cx="48" cy="46" r="10.5" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
-            <line x1="43" y1="46" x2="53" y2="46" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="software"></span>
           </span>
           <span id="navLabelSoftware">分离器 · 应用卸载</span>
         </div>
@@ -763,43 +666,7 @@
       <div class="nav-item" data-mod="optimize" onclick="switchModule('optimize')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #a855f7 0%, #6d28d9 55%, #3b0764 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_optimize_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#1e0538" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="sb_optimize_body" x1="20" y1="10" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="sb_optimize_flame" x1="32" y1="42" x2="32" y2="60" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="50%" stop-color="#f97316"/>
-              <stop offset="100%" stop-color="#dc2626"/>
-            </linearGradient>
-          </defs>
-          
-          <path d="M 10 38 A 23 23 0 1 1 54 38" stroke="#e9d5ff" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/>
-          
-          <g filter="url(#sb_optimize_sh)" transform="rotate(32 32 32)">
-            
-            <path d="M26 44 C26 52 32 59 32 59 C32 59 38 52 38 44 Z" fill="url(#sb_optimize_flame)"/>
-            <path d="M29 44 C29 49 32 54 32 54 C32 54 35 49 35 44 Z" fill="#ffffff"/>
-            
-            <path d="M22 33 L13 43 L23 43 Z" fill="#f43f5e" stroke="#ffffff" stroke-width="0.8"/>
-            <path d="M42 33 L51 43 L41 43 Z" fill="#e11d48" stroke="#ffffff" stroke-width="0.8"/>
-            
-            <path d="M32 6 C23 15 21 28 22 43 H42 C43 28 41 15 32 6 Z" fill="url(#sb_optimize_body)" stroke="#ffffff" stroke-width="1.2"/>
-            
-            <path d="M32 6 C28.2 9.8 25.5 14.2 24.2 18.5 H39.8 C38.5 14.2 35.8 9.8 32 6 Z" fill="#f43f5e"/>
-            
-            <circle cx="32" cy="27" r="5.5" fill="#0284c7" stroke="#e2e8f0" stroke-width="2"/>
-            <circle cx="30.2" cy="25.2" r="1.6" fill="#ffffff"/>
-            
-            <rect x="25.5" y="42.5" width="13" height="3.5" rx="1.5" fill="#475569"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="optimize"></span>
           </span>
           <span id="navLabelOptimize">推进器 · 系统加速</span>
         </div>
@@ -809,36 +676,7 @@
       <div class="nav-item" data-mod="analyze" onclick="switchModule('analyze')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_analyze_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2e1300" flood-opacity="0.5"/>
-            </filter>
-          </defs>
-          
-          <g filter="url(#sb_analyze_sh)">
-            
-            <circle cx="28" cy="29" r="21.5" fill="#ffffff" fill-opacity="0.92"/>
-            
-            <path d="M28 29 L28 9.5 A19.5 19.5 0 0 0 11 38.5 Z" fill="#2563eb"/>
-            
-            <path d="M28 29 L11 38.5 A19.5 19.5 0 0 0 41.8 42.8 Z" fill="#10b981"/>
-            
-            <path d="M28 29 L41.8 42.8 A19.5 19.5 0 0 0 47.5 29 Z" fill="#f43f5e"/>
-            
-            <path d="M30.5 26.5 L30.5 6.5 A20 20 0 0 1 50.5 26.5 Z" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <circle cx="28" cy="29" r="6.5" fill="#fef3c7" stroke="#ffffff" stroke-width="2"/>
-            <circle cx="28" cy="29" r="2.5" fill="#92400e"/>
-          </g>
-          
-          <g filter="url(#sb_analyze_sh)">
-            <line x1="47" y1="47" x2="57" y2="57" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round"/>
-            <line x1="48" y1="48" x2="57" y2="57" stroke="#475569" stroke-width="3.2" stroke-linecap="round"/>
-            <circle cx="40" cy="40" r="11" fill="#ffffff" fill-opacity="0.32" stroke="#ffffff" stroke-width="3.2"/>
-            <path d="M34 35 A 6.5 6.5 0 0 1 43 34" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="analyze"></span>
           </span>
           <span id="navLabelAnalyze">星图仪 · 空间分析</span>
         </div>
@@ -848,35 +686,7 @@
       <div class="nav-item" data-mod="status" onclick="switchModule('status')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_status_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#011f16" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="sb_status_scr" x1="8" y1="10" x2="56" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#064e3b"/>
-              <stop offset="100%" stop-color="#022c22"/>
-            </linearGradient>
-            <linearGradient id="sb_status_glow" x1="32" y1="18" x2="32" y2="48" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#34d399" stop-opacity="0.55"/>
-              <stop offset="100%" stop-color="#34d399" stop-opacity="0.0"/>
-            </linearGradient>
-          </defs>
-          
-          <rect x="7" y="9" width="50" height="46" rx="11" fill="url(#sb_status_scr)" stroke="#ffffff" stroke-width="2.4" filter="url(#sb_status_sh)"/>
-          
-          <line x1="10" y1="24" x2="54" y2="24" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="10" y1="39" x2="54" y2="39" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="25" y1="12" x2="25" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="40" y1="12" x2="40" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          
-          <path d="M11 36 H19 L25 18 L33 46 L39 29 L44 36 H53 V50 H11 Z" fill="url(#sb_status_glow)"/>
-          
-          <polyline points="11,36 19,36 25,18 33,46 39,29 44,36 53,36" stroke="#a7f3d0" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#sb_status_sh)"/>
-          
-          <circle cx="48" cy="17" r="3.6" fill="#4ade80"/>
-          <circle cx="48" cy="17" r="1.6" fill="#ffffff"/>
-        </svg>
+            <span class="glyph" data-icon="status"></span>
           </span>
           <span id="navLabelStatus">遥测台 · 状态监控</span>
         </div>
@@ -888,43 +698,7 @@
       <div class="nav-item" data-mod="purge" onclick="switchModule('purge')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_purge_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#041e36" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="sb_purge_top" x1="12" y1="12" x2="52" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef3c7"/>
-              <stop offset="100%" stop-color="#fcd34d"/>
-            </linearGradient>
-            <linearGradient id="sb_purge_left" x1="12" y1="24" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fbbf24"/>
-              <stop offset="100%" stop-color="#d97706"/>
-            </linearGradient>
-            <linearGradient id="sb_purge_right" x1="32" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d97706"/>
-              <stop offset="100%" stop-color="#92400e"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#sb_purge_sh)">
-            
-            <polygon points="32,10 53,21 32,32 11,21" fill="url(#sb_purge_top)" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
-            
-            <polygon points="11,21 32,32 32,55 11,44" fill="url(#sb_purge_left)" stroke="#fef3c7" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="32,32 53,21 53,44 32,55" fill="url(#sb_purge_right)" stroke="#fde68a" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="22,15.5 43,26.5 39,28.5 18,17.5" fill="#ffffff" fill-opacity="0.7"/>
-            
-            <polygon points="15,28 26,33.8 26,40 15,34.2" fill="#ffffff" fill-opacity="0.9"/>
-          </g>
-          
-          <g filter="url(#sb_purge_sh)">
-            <rect x="33" y="34" width="24" height="19" rx="5.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M42 40 L38.5 43.5 L42 47 M48 40 L51.5 43.5 L48 47" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="purge"></span>
           </span>
           <span id="navLabelPurge">载荷舱 · 构建清理</span>
         </div>
@@ -934,40 +708,7 @@
       <div class="nav-item" data-mod="history" onclick="switchModule('history')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_history_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#09090b" flood-opacity="0.55"/>
-            </filter>
-            <linearGradient id="sb_history_shL" x1="12" y1="8" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="100%" stop-color="#d4d4d8"/>
-            </linearGradient>
-            <linearGradient id="sb_history_shR" x1="32" y1="8" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d4d4d8"/>
-              <stop offset="100%" stop-color="#71717a"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#sb_history_sh)">
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 C21.5 52.2 13 43.5 13 30.5 V14.5 L32 7 Z" fill="url(#sb_history_shL)" stroke="#ffffff" stroke-width="1.5"/>
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 V7 Z" fill="url(#sb_history_shR)"/>
-            
-            <path d="M32 12 L46 17.5 V30 C46 40 39.5 47 32 50.5 C24.5 47 18 40 18 30 V17.5 L32 12 Z" fill="#27272a"/>
-          </g>
-          
-          <g filter="url(#sb_history_sh)">
-            <path d="M27.5 27 V23.5 C27.5 21 29.5 19 32 19 C34.5 19 36.5 21 36.5 23.5 V27" stroke="#fde047" stroke-width="2.8" stroke-linecap="round"/>
-            <rect x="24.5" y="26.5" width="15" height="12.5" rx="3" fill="#f59e0b" stroke="#fef08a" stroke-width="1"/>
-            <circle cx="32" cy="32.5" r="1.8" fill="#451a03"/>
-          </g>
-          
-          <g filter="url(#sb_history_sh)">
-            <circle cx="47.5" cy="46.5" r="10" fill="#10b981" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M44 43.5 H41 V40.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M42 43.5 A 6 6 0 1 1 43 50.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="history"></span>
           </span>
           <span id="navLabelHistory">黑匣子 · 恢复白名单</span>
         </div>
@@ -979,7 +720,7 @@
       <div class="disk-mini-bar">
         <div style="display:flex;justify-content:space-between;font-size:10.5px;">
           <span style="font-weight:600;white-space:nowrap;">Macintosh HD</span>
-          <span style="color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;" id="sidebarFreeDisk">剩余 302.1 GB</span>
+          <span style="color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;" id="sidebarFreeDisk">剩余 — GB</span>
         </div>
         <div class="disk-mini-track">
           <div id="diskUsedBar" style="width:48%;background:var(--accent-blue);transition:width 0.3s ease;"></div>
@@ -1014,15 +755,15 @@
           <span class="kbd-tag" onclick="openCommandPalette()">⌘K</span>
         </div>
         <button class="btn" onclick="triggerNativeRescan()" title="立即重新扫描本机真实缓存、应用与大文件">
-          <span>🔄</span>
+          <span class="btn-glyph" data-icon="brand" data-prefix="rescan"></span>
           <span id="btnRescanText">刷新扫描</span>
         </button>
         <button class="btn" onclick="openDoctorModal(true)" title="立即重新扫描检测 7 项系统健康指标">
-          <span>🛰️</span>
+          <span class="btn-glyph" data-icon="status" data-prefix="recheck"></span>
           <span id="btnRecheckText">重新联检</span>
         </button>
         <button class="btn btn-primary" onclick="handlePrimaryAction()">
-          <span id="primaryBtnText">一键清理所选 (12.49 GB)</span>
+          <span id="primaryBtnText">等待本机扫描</span>
         </button>
       </div>
     </header>
@@ -1037,7 +778,7 @@
               <span>·</span>
               <span style="color:var(--accent-emerald);">● 关键系统配置与 AI 会话记忆已在后台白名单隔离保护</span>
             </div>
-            <div class="summary-headline" id="heroHeadline">发现 12.49 GB 可安全释放的系统与应用缓存</div>
+            <div class="summary-headline" id="heroHeadline">正在扫描本机目录</div>
             <div class="summary-desc" id="heroDesc">
               列表中仅展示可清理项目（受保护的核心资产已自动在底层隔离，绝不混入清理列表）。点击任意分类可在右侧检视具体子目录并执行二次确认清理。
             </div>
@@ -1045,7 +786,7 @@
         </div>
         <div class="summary-right">
           <div class="stat-block-label" id="heroStatLabel">当前已勾选待清理</div>
-          <div class="stat-block-val" id="heroStatValue">12.49 GB</div>
+          <div class="stat-block-val" id="heroStatValue">—</div>
           <div class="stat-seg-bar" title="绿色: 安全可再生 · 琥珀色: 需确认">
             <div id="segBarSafe" style="width:78%;background:var(--accent-emerald);"></div>
             <div id="segBarReview" style="width:22%;background:var(--accent-amber);"></div>
@@ -1100,11 +841,13 @@
   <div class="modal-sheet">
     <div class="panel-header" style="padding:12px 18px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span>🩺</span>
+        <span class="palette-glyph" style="background:${'linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%)'};width:20px;height:20px;border-radius:5px;">
+          ${get_skeuo_svg('brand', 'doc')}
+        </span>
         <span id="doctorModalHeaderTitle">轨道发射前联检中心 · Pre-flight Check (7 项系统实时联检)</span>
       </div>
       <div style="display:flex;gap:6px;">
-        <button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" onclick="startDoctorReDiagnosis()" id="btnDoctorReRun">🔄 立即重新联检 (Pre-flight)</button>
+        <button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" onclick="startDoctorReDiagnosis()" id="btnDoctorReRun">立即重新联检 (Pre-flight)</button>
         <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="closeDoctorModal()">关闭</button>
       </div>
     </div>
@@ -1128,324 +871,246 @@
 <div class="toast" id="toastBanner">操作已完成</div>
 
 <script>
-const SEMANTIC_HERO_ICONS = {
-  clean: {
-    bg: 'linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_clean_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#0a192f" flood-opacity="0.48"/>
-            </filter>
-            <linearGradient id="hero_clean_bristle" x1="14" y1="28" x2="38" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="45%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="hero_clean_handle" x1="34" y1="8" x2="54" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#e0f2fe"/>
-              <stop offset="100%" stop-color="#7dd3fc"/>
-            </linearGradient>
-            <radialGradient id="hero_clean_bub" cx="32%" cy="28%" r="70%">
-              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
-              <stop offset="45%" stop-color="#bae6fd" stop-opacity="0.45"/>
-              <stop offset="100%" stop-color="#ffffff" stop-opacity="0.85"/>
-            </radialGradient>
-          </defs>
-          
-          <circle cx="30" cy="34" r="20" stroke="#ffffff" stroke-opacity="0.28" stroke-width="3.5" stroke-dasharray="28 10"/>
-          
-          <g filter="url(#hero_clean_sh)" transform="rotate(-35 32 32)">
-            
-            <rect x="28.5" y="5" width="7" height="20" rx="3.5" fill="url(#hero_clean_handle)" stroke="#ffffff" stroke-width="1"/>
-            <circle cx="32" cy="9.5" r="1.6" fill="#0284c7"/>
-            
-            <rect x="22" y="23" width="20" height="6.5" rx="2.5" fill="#e2e8f0" stroke="#ffffff" stroke-width="1"/>
-            <rect x="22" y="25.5" width="20" height="2" fill="#38bdf8"/>
-            
-            <path d="M21 29.5 H43 L48 49 C48.4 50.8 47 52.5 45.2 52.5 H18.8 C17 52.5 15.6 50.8 16 49 L21 29.5 Z" fill="url(#hero_clean_bristle)" stroke="#fef08a" stroke-width="1"/>
-            
-            <path d="M23 52.5 L25 38 M29 52.5 L30 36 M35 52.5 L34 36 M41 52.5 L39 38" stroke="#78350f" stroke-opacity="0.45" stroke-width="1.8" stroke-linecap="round"/>
-          </g>
-          
-          <circle cx="48" cy="44" r="7.5" fill="url(#hero_clean_bub)" stroke="#ffffff" stroke-width="1.2" filter="url(#hero_clean_sh)"/>
-          <path d="M44.5 40.5 A 4 4 0 0 1 49.5 39.5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
-          <circle cx="15" cy="22" r="5" fill="url(#hero_clean_bub)" stroke="#ffffff" stroke-width="1"/>
-          
-          <path d="M18 8 L19.8 13.2 L25 15 L19.8 16.8 L18 22 L16.2 16.8 L11 15 L16.2 13.2 Z" fill="#fef08a" filter="url(#hero_clean_sh)"/>
-        </svg>`
-  },
-  ai_moon: {
-    bg: 'linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_ai_moon_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2a0800" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="hero_ai_moon_pins" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="55%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="hero_ai_moon_pcb" x1="12" y1="12" x2="52" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="50%" stop-color="#e7e5e4"/>
-              <stop offset="100%" stop-color="#a8a29e"/>
-            </linearGradient>
-            <linearGradient id="hero_ai_moon_die" x1="18" y1="18" x2="46" y2="46" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#292524"/>
-              <stop offset="100%" stop-color="#0c0a09"/>
-            </linearGradient>
-          </defs>
-          
-          <g stroke="url(#hero_ai_moon_pins)" stroke-width="3.6" stroke-linecap="round">
-            <path d="M20 6V13 M28 6V13 M36 6V13 M44 6V13"/>
-            <path d="M20 51V58 M28 51V58 M36 51V58 M44 51V58"/>
-            <path d="M6 20H13 M6 28H13 M6 36H13 M6 44H13"/>
-            <path d="M51 20H58 M51 28H58 M51 36H58 M51 44H58"/>
-          </g>
-          
-          <rect x="12" y="12" width="40" height="40" rx="9" fill="url(#hero_ai_moon_pcb)" stroke="#ffffff" stroke-width="1.5" filter="url(#hero_ai_moon_sh)"/>
-          
-          <circle cx="16.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="16.5" cy="47.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="47.5" r="1.3" fill="#78716c"/>
-          
-          <rect x="18" y="18" width="28" height="28" rx="6" fill="url(#hero_ai_moon_die)" stroke="#fb923c" stroke-width="1.2"/>
-          
-          <path d="M18 27H23 M18 37H23 M41 27H46 M41 37H46 M27 18V23 M37 18V23 M27 41V46 M37 41V46" stroke="#fb923c" stroke-opacity="0.7" stroke-width="1.5"/>
-          
-          <path d="M32 21 L34.6 29.4 L43 32 L34.6 34.6 L32 43 L29.4 34.6 L21 32 L29.4 29.4 Z" fill="#fed7aa"/>
-          <circle cx="32" cy="32" r="3.2" fill="#ffffff"/>
-        </svg>`
-  },
-  software: {
-    bg: 'linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_software_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#3b0412" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="hero_software_bin" x1="14" y1="24" x2="48" y2="56" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="55%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="hero_software_app" x1="16" y1="6" x2="40" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#38bdf8"/>
-              <stop offset="100%" stop-color="#1d4ed8"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#hero_software_sh)" transform="rotate(-11 29 18)">
-            <rect x="18" y="6" width="22" height="22" rx="5.5" fill="url(#hero_software_app)" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <path d="M29 11 L23.5 22.5 M29 11 L34.5 22.5 M25.2 19.5 H32.8" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-          
-          <g filter="url(#hero_software_sh)">
-            <path d="M14 25 H48 L44.2 53.5 C43.8 55.8 41.8 57.5 39.5 57.5 H22.5 C20.2 57.5 18.2 55.8 17.8 53.5 L14 25 Z" fill="url(#hero_software_bin)" stroke="#ffffff" stroke-width="1.4"/>
-            
-            <rect x="12" y="22.5" width="38" height="4.5" rx="2.2" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
-            
-            <line x1="23.5" y1="31" x2="25" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="31" y1="31" x2="31" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="38.5" y1="31" x2="37" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-          </g>
-          
-          <g filter="url(#hero_software_sh)">
-            <circle cx="48" cy="46" r="10.5" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
-            <line x1="43" y1="46" x2="53" y2="46" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
-          </g>
-        </svg>`
-  },
-  optimize: {
-    bg: 'linear-gradient(145deg, #a855f7 0%, #6d28d9 55%, #3b0764 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_optimize_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#1e0538" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="hero_optimize_body" x1="20" y1="10" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="hero_optimize_flame" x1="32" y1="42" x2="32" y2="60" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="50%" stop-color="#f97316"/>
-              <stop offset="100%" stop-color="#dc2626"/>
-            </linearGradient>
-          </defs>
-          
-          <path d="M 10 38 A 23 23 0 1 1 54 38" stroke="#e9d5ff" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/>
-          
-          <g filter="url(#hero_optimize_sh)" transform="rotate(32 32 32)">
-            
-            <path d="M26 44 C26 52 32 59 32 59 C32 59 38 52 38 44 Z" fill="url(#hero_optimize_flame)"/>
-            <path d="M29 44 C29 49 32 54 32 54 C32 54 35 49 35 44 Z" fill="#ffffff"/>
-            
-            <path d="M22 33 L13 43 L23 43 Z" fill="#f43f5e" stroke="#ffffff" stroke-width="0.8"/>
-            <path d="M42 33 L51 43 L41 43 Z" fill="#e11d48" stroke="#ffffff" stroke-width="0.8"/>
-            
-            <path d="M32 6 C23 15 21 28 22 43 H42 C43 28 41 15 32 6 Z" fill="url(#hero_optimize_body)" stroke="#ffffff" stroke-width="1.2"/>
-            
-            <path d="M32 6 C28.2 9.8 25.5 14.2 24.2 18.5 H39.8 C38.5 14.2 35.8 9.8 32 6 Z" fill="#f43f5e"/>
-            
-            <circle cx="32" cy="27" r="5.5" fill="#0284c7" stroke="#e2e8f0" stroke-width="2"/>
-            <circle cx="30.2" cy="25.2" r="1.6" fill="#ffffff"/>
-            
-            <rect x="25.5" y="42.5" width="13" height="3.5" rx="1.5" fill="#475569"/>
-          </g>
-        </svg>`
-  },
-  analyze: {
-    bg: 'linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_analyze_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2e1300" flood-opacity="0.5"/>
-            </filter>
-          </defs>
-          
-          <g filter="url(#hero_analyze_sh)">
-            
-            <circle cx="28" cy="29" r="21.5" fill="#ffffff" fill-opacity="0.92"/>
-            
-            <path d="M28 29 L28 9.5 A19.5 19.5 0 0 0 11 38.5 Z" fill="#2563eb"/>
-            
-            <path d="M28 29 L11 38.5 A19.5 19.5 0 0 0 41.8 42.8 Z" fill="#10b981"/>
-            
-            <path d="M28 29 L41.8 42.8 A19.5 19.5 0 0 0 47.5 29 Z" fill="#f43f5e"/>
-            
-            <path d="M30.5 26.5 L30.5 6.5 A20 20 0 0 1 50.5 26.5 Z" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <circle cx="28" cy="29" r="6.5" fill="#fef3c7" stroke="#ffffff" stroke-width="2"/>
-            <circle cx="28" cy="29" r="2.5" fill="#92400e"/>
-          </g>
-          
-          <g filter="url(#hero_analyze_sh)">
-            <line x1="47" y1="47" x2="57" y2="57" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round"/>
-            <line x1="48" y1="48" x2="57" y2="57" stroke="#475569" stroke-width="3.2" stroke-linecap="round"/>
-            <circle cx="40" cy="40" r="11" fill="#ffffff" fill-opacity="0.32" stroke="#ffffff" stroke-width="3.2"/>
-            <path d="M34 35 A 6.5 6.5 0 0 1 43 34" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
-          </g>
-        </svg>`
-  },
-  status: {
-    bg: 'linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_status_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#011f16" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="hero_status_scr" x1="8" y1="10" x2="56" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#064e3b"/>
-              <stop offset="100%" stop-color="#022c22"/>
-            </linearGradient>
-            <linearGradient id="hero_status_glow" x1="32" y1="18" x2="32" y2="48" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#34d399" stop-opacity="0.55"/>
-              <stop offset="100%" stop-color="#34d399" stop-opacity="0.0"/>
-            </linearGradient>
-          </defs>
-          
-          <rect x="7" y="9" width="50" height="46" rx="11" fill="url(#hero_status_scr)" stroke="#ffffff" stroke-width="2.4" filter="url(#hero_status_sh)"/>
-          
-          <line x1="10" y1="24" x2="54" y2="24" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="10" y1="39" x2="54" y2="39" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="25" y1="12" x2="25" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="40" y1="12" x2="40" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          
-          <path d="M11 36 H19 L25 18 L33 46 L39 29 L44 36 H53 V50 H11 Z" fill="url(#hero_status_glow)"/>
-          
-          <polyline points="11,36 19,36 25,18 33,46 39,29 44,36 53,36" stroke="#a7f3d0" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#hero_status_sh)"/>
-          
-          <circle cx="48" cy="17" r="3.6" fill="#4ade80"/>
-          <circle cx="48" cy="17" r="1.6" fill="#ffffff"/>
-        </svg>`
-  },
-  purge: {
-    bg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_purge_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#041e36" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="hero_purge_top" x1="12" y1="12" x2="52" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef3c7"/>
-              <stop offset="100%" stop-color="#fcd34d"/>
-            </linearGradient>
-            <linearGradient id="hero_purge_left" x1="12" y1="24" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fbbf24"/>
-              <stop offset="100%" stop-color="#d97706"/>
-            </linearGradient>
-            <linearGradient id="hero_purge_right" x1="32" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d97706"/>
-              <stop offset="100%" stop-color="#92400e"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#hero_purge_sh)">
-            
-            <polygon points="32,10 53,21 32,32 11,21" fill="url(#hero_purge_top)" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
-            
-            <polygon points="11,21 32,32 32,55 11,44" fill="url(#hero_purge_left)" stroke="#fef3c7" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="32,32 53,21 53,44 32,55" fill="url(#hero_purge_right)" stroke="#fde68a" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="22,15.5 43,26.5 39,28.5 18,17.5" fill="#ffffff" fill-opacity="0.7"/>
-            
-            <polygon points="15,28 26,33.8 26,40 15,34.2" fill="#ffffff" fill-opacity="0.9"/>
-          </g>
-          
-          <g filter="url(#hero_purge_sh)">
-            <rect x="33" y="34" width="24" height="19" rx="5.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M42 40 L38.5 43.5 L42 47 M48 40 L51.5 43.5 L48 47" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-        </svg>`
-  },
-  history: {
-    bg: 'linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_history_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#09090b" flood-opacity="0.55"/>
-            </filter>
-            <linearGradient id="hero_history_shL" x1="12" y1="8" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="100%" stop-color="#d4d4d8"/>
-            </linearGradient>
-            <linearGradient id="hero_history_shR" x1="32" y1="8" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d4d4d8"/>
-              <stop offset="100%" stop-color="#71717a"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#hero_history_sh)">
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 C21.5 52.2 13 43.5 13 30.5 V14.5 L32 7 Z" fill="url(#hero_history_shL)" stroke="#ffffff" stroke-width="1.5"/>
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 V7 Z" fill="url(#hero_history_shR)"/>
-            
-            <path d="M32 12 L46 17.5 V30 C46 40 39.5 47 32 50.5 C24.5 47 18 40 18 30 V17.5 L32 12 Z" fill="#27272a"/>
-          </g>
-          
-          <g filter="url(#hero_history_sh)">
-            <path d="M27.5 27 V23.5 C27.5 21 29.5 19 32 19 C34.5 19 36.5 21 36.5 23.5 V27" stroke="#fde047" stroke-width="2.8" stroke-linecap="round"/>
-            <rect x="24.5" y="26.5" width="15" height="12.5" rx="3" fill="#f59e0b" stroke="#fef08a" stroke-width="1"/>
-            <circle cx="32" cy="32.5" r="1.8" fill="#451a03"/>
-          </g>
-          
-          <g filter="url(#hero_history_sh)">
-            <circle cx="47.5" cy="46.5" r="10" fill="#10b981" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M44 43.5 H41 V40.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M42 43.5 A 6 6 0 1 1 43 50.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
-          </g>
-        </svg>`
-  }
+// ---------------------------------------------------------------------------
+// Icon system: one source of truth.
+//
+// Every mark in the UI is produced by get_skeuo_svg(kind, prefix). The prefix
+// namespaces every <defs> id so the same mark can appear in the sidebar, the
+// hero banner and the tray without two gradients ever sharing an id (spec 五.1).
+//
+// Each glyph is built from the same three moves and nothing more:
+//   1  a flat plate colour supplied by the container
+//   2  one solid body, optionally with a single two-stop gradient for volume
+//   3  one accent detail in a second hue
+// Occlusion and cast shadows are used only where they carry meaning. Earlier
+// revisions stacked five gradients, three drop shadows, dashed rings, glints and
+// rivets into every glyph; at 28px that resolved to noise. The test applied
+// here is: if an element cannot be named at 28px, it is not drawn.
+// ---------------------------------------------------------------------------
+
+const MODULE_PLATE = {
+  clean:    'linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%)',
+  ai_moon:  'linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%)',
+  software: 'linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%)',
+  optimize: 'linear-gradient(145deg, #a855f7 0%, #6d28d9 55%, #3b0764 100%)',
+  analyze:  'linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%)',
+  status:   'linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%)',
+  purge:    'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%)',
+  history:  'linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%)',
+  brand:    'linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%)'
 };
 
-// Note: ZERO `protected` items exist in `cleanGroups`, `aiMoonBands`, or `purgeItems`!
-// All protected assets are isolated in `whitelist` (Module 8) so users never see protected assets inside a deletion list.
+// Solid accent palette. Two hues per glyph at most: the body, plus one accent.
+const GLYPH_INK = {
+  ice:    '#38bdf8',
+  iceDeep:'#0284c7',
+  gold:   '#f7c24a',
+  goldDeep:'#9c6b12',
+  clay:   '#f97316',
+  clayDeep:'#c2410c',
+  cream:  '#fde68a',
+  white:  '#f8fafc',
+  slate:  '#cbd5e1',
+  slateDeep:'#475569',
+  mint:   '#4ade80',
+  rose:   '#f43f5e',
+  plum:   '#c084fc'
+};
+
+/**
+ * Returns the complete <svg> markup for one mark.
+ * @param {string} kind   glyph key
+ * @param {string} prefix namespace for every id inside the glyph
+ */
+function get_skeuo_svg(kind, prefix) {
+  const p = prefix || 'g';
+  const body = (GLYPHS[kind] || GLYPHS.clean)(p);
+  return `<svg viewBox="0 0 64 64" width="100%" height="100%" fill="none" aria-hidden="true">${body}</svg>`;
+}
+
+const GLYPHS = {
+  // Brand master mark: terracotta sphere, one gold orbit with a true occlusion
+  // seam, and the ice-blue companion. Same geometry as scripts/generate-app-icon.swift.
+  brand: () => `
+    <path d="M10 41 A26 10.5 -26 0 1 54 23" stroke="${GLYPH_INK.goldDeep}" stroke-width="3.6" stroke-linecap="round"/>
+    <circle cx="32" cy="32" r="13.5" fill="${GLYPH_INK.clay}"/>
+    <path d="M54 23 A26 10.5 -26 0 1 10 41" stroke="${GLYPH_INK.gold}" stroke-width="4.2" stroke-linecap="round"/>
+    <circle cx="50" cy="21" r="4.4" fill="${GLYPH_INK.ice}"/>`,
+
+  // Airlock: a brush. The head is the widest element and its notches cut up
+  // from the bottom edge, which is what makes it a brush and not a pen.
+  clean: () => `
+    <g transform="rotate(-38 32 32)">
+      <rect x="28" y="7" width="8" height="21" rx="3.4" fill="${GLYPH_INK.white}"/>
+      <rect x="25" y="26" width="14" height="6" rx="2.2" fill="${GLYPH_INK.cream}"/>
+      <path d="M24 32 h16 v9 a8 8 0 0 1 -16 0 z" fill="${GLYPH_INK.gold}"/>
+      <path d="M28.5 33.5 v8.5 M32 33.5 v9.5 M35.5 33.5 v8.5"
+            stroke="${GLYPH_INK.goldDeep}" stroke-width="1.8" stroke-linecap="round"/>
+    </g>
+    <circle cx="48" cy="44" r="4.6" fill="none" stroke="${GLYPH_INK.white}"
+            stroke-width="2.2" stroke-opacity="0.9"/>`,
+
+  // Cortex: a processor. Sixteen pins become eight, which is what reads at 28px.
+  ai_moon: () => `
+    <rect x="16" y="16" width="32" height="32" rx="7" fill="${GLYPH_INK.slate}"/>
+    <rect x="22" y="22" width="20" height="20" rx="4" fill="${GLYPH_INK.slateDeep}"/>
+    <rect x="27" y="27" width="10" height="10" rx="2.5" fill="${GLYPH_INK.gold}"/>
+    <path d="M22 13 v3 M32 13 v3 M42 13 v3 M22 48 v3 M32 48 v3 M42 48 v3 M13 22 h3 M13 32 h3 M13 42 h3 M48 22 h3 M48 32 h3 M48 42 h3"
+          stroke="${GLYPH_INK.cream}" stroke-width="2.6" stroke-linecap="round"/>`,
+
+  // Jettison: a bin. The rim is wider than the body and the body tapers, which
+  // is the whole read; the ejecting card and the minus badge carry the action.
+  software: () => `
+    <rect x="18" y="6" width="17" height="14" rx="3.5" transform="rotate(-12 26 13)" fill="${GLYPH_INK.ice}"/>
+    <rect x="15" y="20" width="34" height="7" rx="3.5" fill="${GLYPH_INK.cream}"/>
+    <path d="M20 27 h24 l-3 22 a5 5 0 0 1 -5 4.5 h-8 a5 5 0 0 1 -5 -4.5 z" fill="${GLYPH_INK.white}"/>
+    <path d="M27 33 v14 M37 33 v14" stroke="${GLYPH_INK.slate}" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="47" cy="47" r="9.5" fill="${GLYPH_INK.rose}"/>
+    <path d="M42 47 h10" stroke="${GLYPH_INK.white}" stroke-width="3" stroke-linecap="round"/>`,
+
+  // Thruster: a rocket. One fin pair, one flame, no porthole glass stack.
+  optimize: () => `
+    <g transform="rotate(32 32 32)">
+      <path d="M32 6 c6 6 9 14 9 22 v14 h-18 v-14 c0 -8 3 -16 9 -22 z" fill="${GLYPH_INK.white}"/>
+      <path d="M32 6 c-6 6 -9 14 -9 22 v14 h9 z" fill="${GLYPH_INK.slate}"/>
+      <circle cx="32" cy="24" r="4.2" fill="${GLYPH_INK.ice}"/>
+      <path d="M23 34 l-6 8 v6 l6 -4 z M41 34 l6 8 v6 l-6 -4 z" fill="${GLYPH_INK.rose}"/>
+      <path d="M32 46 c3 4 3 8 0 12 c-3 -4 -3 -8 0 -12 z" fill="${GLYPH_INK.cream}"/>
+    </g>`,
+
+  // Astrolabe: a four-sector disc and one magnifier. The sector gap is the tell.
+  analyze: () => `
+    <circle cx="30" cy="30" r="19" fill="${GLYPH_INK.white}"/>
+    <path d="M30 30 L30 11 A19 19 0 0 1 49 30 Z" fill="${GLYPH_INK.ice}"/>
+    <path d="M30 30 L49 30 A19 19 0 0 1 30 49 Z" fill="${GLYPH_INK.mint}"/>
+    <path d="M30 30 L30 49 A19 19 0 0 1 11 30 Z" fill="${GLYPH_INK.rose}"/>
+    <circle cx="30" cy="30" r="3.4" fill="${GLYPH_INK.gold}"/>
+    <circle cx="44" cy="44" r="9" fill="${GLYPH_INK.cream}" fill-opacity="0.55" stroke="${GLYPH_INK.white}" stroke-width="2.4"/>
+    <path d="M50.5 50.5 l6 6" stroke="${GLYPH_INK.white}" stroke-width="3.4" stroke-linecap="round"/>`,
+
+  // Telemetry: a screen with one pulse line. The grid is two faint rules.
+  status: () => `
+    <rect x="10" y="15" width="44" height="30" rx="6" fill="${GLYPH_INK.slateDeep}"/>
+    <path d="M22 21 v18 M42 21 v18" stroke="${GLYPH_INK.mint}" stroke-width="1" stroke-opacity="0.28"/>
+    <path d="M15 33 h7 l3 -8 l4 15 l3 -9 l3 4 h9" stroke="${GLYPH_INK.mint}" stroke-width="3.2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="47" cy="21" r="3" fill="${GLYPH_INK.mint}"/>
+    <rect x="27" y="49" width="10" height="5" rx="2.5" fill="${GLYPH_INK.slate}"/>`,
+
+  // Payload: an isometric crate. Three faces, one tape strip, one code badge.
+  purge: () => `
+    <path d="M32 10 L52 21 L32 32 L12 21 Z" fill="${GLYPH_INK.cream}"/>
+    <path d="M12 21 L32 32 v21 L12 42 Z" fill="${GLYPH_INK.gold}"/>
+    <path d="M52 21 L32 32 v21 L52 42 Z" fill="${GLYPH_INK.goldDeep}"/>
+    <path d="M22 15.5 L42 26.5 v7 L22 22.5 Z" fill="${GLYPH_INK.white}" fill-opacity="0.4"/>
+    <circle cx="46" cy="46" r="9" fill="${GLYPH_INK.iceDeep}"/>
+    <path d="M44 42 l-3 4 l3 4 M48 42 l3 4 l-3 4" stroke="${GLYPH_INK.white}" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>`,
+
+  // Blackbox: a shield split into two facets with one keyhole, plus a restore
+  // badge in the corner. The arc is no longer drawn across the shield face.
+  history: () => `
+    <path d="M32 7 L50 14 v17 c0 11 -8 19 -18 23 Z" fill="${GLYPH_INK.white}"/>
+    <path d="M32 7 L14 14 v17 c0 11 8 19 18 23 Z" fill="${GLYPH_INK.slate}"/>
+    <circle cx="32" cy="26" r="5.2" fill="${GLYPH_INK.gold}"/>
+    <path d="M32 29 v9" stroke="${GLYPH_INK.gold}" stroke-width="4.4" stroke-linecap="round"/>
+    <circle cx="46" cy="45" r="10" fill="${GLYPH_INK.mint}"/>
+    <path d="M50.5 41 a6.5 6.5 0 1 0 1.2 6.5" stroke="${GLYPH_INK.white}" stroke-width="2.2"
+          stroke-linecap="round" fill="none"/>
+    <path d="M50.8 38.6 v3.6 h-3.6" stroke="${GLYPH_INK.white}" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+
+  // Installed apps (spec 四.4.2), drawn to the same restraint.
+  app_xcode: () => `
+    <rect x="12" y="13" width="40" height="37" rx="5" transform="rotate(-8 32 32)"
+          fill="${GLYPH_INK.white}" fill-opacity="0.34"/>
+    <path d="M17 22 h30 M17 31 h30 M17 40 h30" stroke="${GLYPH_INK.iceDeep}" stroke-width="1.4"
+          stroke-opacity="0.5" transform="rotate(-8 32 32)"/>
+    <g transform="rotate(-42 32 32)">
+      <rect x="29" y="12" width="6" height="26" rx="2.5" fill="${GLYPH_INK.gold}"/>
+      <rect x="21" y="12" width="22" height="9" rx="3" fill="${GLYPH_INK.white}"/>
+    </g>`,
+  app_docker: () => `
+    <path d="M12 35 c2 9 11 15 21 15 c12 0 19 -7 19 -15 z" fill="${GLYPH_INK.white}"/>
+    <path d="M12 35 c-4 -2 -6 -6 -5 -10 c4 1 7 4 8 8 z" fill="${GLYPH_INK.white}"/>
+    <circle cx="46" cy="32" r="1.7" fill="${GLYPH_INK.iceDeep}"/>
+    <g fill="${GLYPH_INK.ice}">
+      <rect x="20" y="23" width="7.5" height="7.5" rx="1.4"/><rect x="29" y="23" width="7.5" height="7.5" rx="1.4"/>
+      <rect x="38" y="23" width="7.5" height="7.5" rx="1.4"/><rect x="29" y="14" width="7.5" height="7.5" rx="1.4"/>
+      <rect x="38" y="14" width="7.5" height="7.5" rx="1.4"/>
+    </g>`,
+
+  app_chrome: () => `
+    <circle cx="32" cy="32" r="21" fill="${GLYPH_INK.white}"/>
+    <path d="M32 32 L32 11 A21 21 0 0 1 50 22 Z" fill="${GLYPH_INK.rose}"/>
+    <path d="M32 32 L50 22 A21 21 0 0 1 32 53 Z" fill="${GLYPH_INK.gold}"/>
+    <path d="M32 32 L32 53 A21 21 0 0 1 14 22 Z" fill="${GLYPH_INK.mint}"/>
+    <circle cx="32" cy="32" r="8.5" fill="${GLYPH_INK.ice}"/>`,
+  app_cursor: () => `
+    <path d="M32 12 L50 22 v20 L32 52 L14 42 V22 Z" fill="#2b2b30"/>
+    <path d="M14 22 L32 32 v20 L14 42 Z" fill="#15151a"/>
+    <path d="M50 22 L32 32 v20 L50 42 Z" fill="#3c3c44"/>
+    <path d="M30 24 l0 18 l4.5 -5 l3.5 7 l4 -2 l-3.5 -7 l6.5 -1 z" fill="${GLYPH_INK.white}"/>`,
+  app_figma: () => `
+    <circle cx="24" cy="20" r="8" fill="${GLYPH_INK.rose}"/>
+    <circle cx="40" cy="20" r="8" fill="${GLYPH_INK.plum}"/>
+    <circle cx="24" cy="36" r="8" fill="${GLYPH_INK.ice}"/>
+    <path d="M40 28 a8 8 0 1 1 0 16 a8 8 0 0 1 0 -16 z" fill="${GLYPH_INK.mint}"/>`,
+  app_generic: () => `
+    <rect x="15" y="15" width="34" height="34" rx="9" fill="${GLYPH_INK.white}" fill-opacity="0.94"/>
+    <rect x="26" y="24" width="12" height="16" rx="2.5" fill="${GLYPH_INK.slateDeep}" fill-opacity="0.35"/>
+    <path d="M29 29 h6 M29 34 h6" stroke="${GLYPH_INK.slateDeep}" stroke-width="2.2" stroke-linecap="round"/>`
+};
+
+/** Maps a discovered app to one of the spec'd marks, or the monogram fallback. */
+function appGlyphFor(name, bundleId) {
+  const key = ((bundleId || '') + ' ' + (name || '')).toLowerCase();
+  if (key.includes('xcode')) return 'app_xcode';
+  if (key.includes('docker')) return 'app_docker';
+  if (key.includes('chrome')) return 'app_chrome';
+  if (key.includes('cursor')) return 'app_cursor';
+  if (key.includes('figma')) return 'app_figma';
+  return 'app_generic';
+}
+
+/** Deterministic plate gradient for an unknown app, from its name. */
+function appPlateFor(name) {
+  const palettes = [
+    ['#38bdf8', '#0284c7'], ['#34d399', '#047857'], ['#fb7185', '#be123c'],
+    ['#a855f7', '#6d28d9'], ['#fbbf24', '#b45309'], ['#f97316', '#9a3412'],
+    ['#818cf8', '#4338ca'], ['#2dd4bf', '#0f766e']
+  ];
+  let hash = 0;
+  for (const ch of String(name || 'app')) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  const pair = palettes[hash % palettes.length];
+  return `linear-gradient(145deg, ${pair[0]} 0%, ${pair[1]} 100%)`;
+}
+
+/** Hydrates every empty glyph slot in the document. */
+function hydrateGlyphs(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-icon]').forEach((slot, index) => {
+    const kind = slot.dataset.icon;
+    const prefix = (slot.dataset.prefix || 'g') + index;
+    slot.innerHTML = get_skeuo_svg(kind, prefix);
+  });
+  const bar = scope.querySelector('[data-icon-slot="bar"]');
+  if (bar && !bar.querySelector('svg')) bar.innerHTML = get_skeuo_svg('brand', 'bar');
+}
+
+// Hero marks are built lazily: GLYPHS is declared below this point, so calling
+// get_skeuo_svg while evaluating this object would hit the temporal dead zone.
+const HERO_MODULES = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'];
+const SEMANTIC_HERO_ICONS = Object.fromEntries(
+  HERO_MODULES.map((mod) => [mod, { bg: MODULE_PLATE[mod], svg: null }])
+);
+function heroIconFor(mod) {
+  const key = SEMANTIC_HERO_ICONS[mod] ? mod : 'clean';
+  const entry = SEMANTIC_HERO_ICONS[key];
+  if (!entry.svg) entry.svg = get_skeuo_svg(key, 'hero');
+  return entry;
+}
+
 const DEFAULT_STATE = {
   module: 'clean',
   cleanFilter: 'all',
@@ -1462,17 +1127,17 @@ const DEFAULT_STATE = {
   tempUnit: 'C',
   fanMode: 'Auto',
   caffeinateActive: false,
-  healthScore: 96,
+  healthScore: 0,
   recheckCount: 0,
   lastCheckTime: '刚刚',
-  cpuModelName: 'Apple Silicon (10核处理器)',
-  freeDiskGb: 302.1,
-  totalDiskGb: 1000.0,
-  totalAnalyzedGb: 248.5,
+  cpuModelName: '正在读取本机处理器',
+  freeDiskGb: 0,
+  totalDiskGb: 0,
+  totalAnalyzedGb: 0,
   cpuTempC: 44.8,
   gpuTempC: 42.5,
-  memUsedGb: 18.2,
-  memTotalGb: 32.0,
+  memUsedGb: 0,
+  memTotalGb: 0,
   diskReadMbs: 14.2,
   diskWriteMbs: 28.6,
   netDownMbs: 4.82,
@@ -1483,356 +1148,25 @@ const DEFAULT_STATE = {
   diskSeries: [10, 18, 15, 28, 22, 19, 25, 21, 18, 20.4],
   netSeries: [15, 24, 35, 28, 42, 38, 31, 39, 34, 36.0],
   deletedPathsRegistry: [],
-  cleanGroups: [
-    {
-      id: 'user_app_caches', category: '应用缓存与日志', name: 'macOS 用户应用缓存与崩溃诊断日志',
-      path: '~/Library/Caches', sizeGb: 3.15, origSizeGb: 3.15, items: 38, filesCount: '24,180 个文件',
-      lastMod: '今天', rebuildTime: '小于 2 秒 (自动按需生成)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：仅清理 ~/Library/Caches 下的临时渲染与网络图片缓存，不会影响应用设置或文稿。下次启动应用时会自动按需生成。',
-      subpaths: [
-        { path: '~/Library/Caches/com.apple.helpd', size: '1.12 GB', sizeGb: 1.12, checked: true },
-        { path: '~/Library/Caches/CloudKit', size: '840 MB', sizeGb: 0.84, checked: true },
-        { path: '~/Library/Logs/DiagnosticReports', size: '690 MB', sizeGb: 0.69, checked: true },
-        { path: '~/Library/Caches/GeoServices', size: '500 MB', sizeGb: 0.50, checked: true }
-      ]
-    },
-    {
-      id: 'browser_caches', category: '浏览器渲染缓存', name: '浏览器离线脚本、媒体与 GPU 着色器缓存',
-      path: '~/Library/Caches/com.apple.Safari', sizeGb: 2.07, origSizeGb: 2.07, items: 50, filesCount: '41,920 个文件',
-      lastMod: '今天', rebuildTime: '小于 3 秒 (网页加载自动生成)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：仅清理离线媒体缓存、WebGL 着色器缓存与失效脚本，严格保留书签、历史记录、Cookie 与已保存密码。',
-      subpaths: [
-        { path: '~/Library/Caches/Google/Chrome/Default/Cache', size: '1.18 GB', sizeGb: 1.18, checked: true },
-        { path: '~/Library/Caches/com.apple.Safari/WebKitCache', size: '890 MB', sizeGb: 0.89, checked: true }
-      ]
-    },
-    {
-      id: 'xcode_derived', category: '开发者构建产物', name: 'Xcode 编译中间产物 (DerivedData) 与模拟器缓存',
-      path: '~/Library/Developer/Xcode/DerivedData', sizeGb: 4.65, origSizeGb: 4.65, items: 12, filesCount: '18,420 个文件',
-      lastMod: '近期', rebuildTime: '约 15~30 秒 (下次编译重新索引)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '安全可再生：清理 Xcode 历史项目的编译索引、预编译头与 iOS Simulator 临时缓存。下次打开对应工程编译时会自动重新生成。',
-      subpaths: [
-        { path: '~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex', size: '2.45 GB', sizeGb: 2.45, checked: true },
-        { path: '~/Library/Developer/CoreSimulator/Caches/dyld', size: '2.20 GB', sizeGb: 2.20, checked: true }
-      ]
-    },
-    {
-      id: 'pkg_http_caches', category: '包管理器缓存', name: 'npm、pnpm、pip、Homebrew 与 Cargo 离线归档缓存',
-      path: '~/.npm/_cacache', sizeGb: 1.88, origSizeGb: 1.88, items: 9, filesCount: '12,640 个文件',
-      lastMod: '近期', rebuildTime: '视网络情况按需下载',
-      tier: 'review', checked: true, cleaned: false,
-      impact: '需确认项：清理后不影响现有项目的依赖目录或虚拟环境；但在离线环境下重新安装旧依赖包时需重新从镜像源下载。',
-      subpaths: [
-        { path: '~/.npm/_cacache', size: '920 MB', sizeGb: 0.92, checked: true },
-        { path: '~/Library/Caches/pip', size: '540 MB', sizeGb: 0.54, checked: true },
-        { path: '~/Library/Caches/Homebrew', size: '420 MB', sizeGb: 0.42, checked: true }
-      ]
-    },
-    {
-      id: 'orphaned_leftovers', category: '已卸载软件残留', name: '已卸载应用的孤立沙盒容器与支持文件残留',
-      path: '~/Library/Application Support', sizeGb: 0.74, origSizeGb: 0.74, items: 6, filesCount: '3,120 个文件',
-      lastMod: '30天前', rebuildTime: '无需重建 (无主残留)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：经与 /Applications 应用程序目录比对，以下目录对应的主程序均已卸载，属于无主残留缓存文件。',
-      subpaths: [
-        { path: '~/Library/Caches/Snapshots', size: '410 MB', sizeGb: 0.41, checked: true },
-        { path: '~/Library/Saved Application State', size: '330 MB', sizeGb: 0.33, checked: true }
-      ]
-    },
-    {
-      id: 'apple_neural_engine', category: '硬件级保护项', name: 'Apple 神经网络引擎 (ANE) 预编译模型缓存',
-      path: '~/Library/Caches/com.apple.e5rt.e5bundlecache', sizeGb: 1.92, origSizeGb: 1.92, items: 14, filesCount: '840 个模型分片',
-      lastMod: '系统实时维护', rebuildTime: '硬件锁定保护 (不可勾选)',
-      tier: 'protected', checked: false, cleaned: false,
-      impact: '内置硬件级保护（无勾选框，永不进入清理确认弹窗）：存储 Apple Silicon 神经网络引擎编译后的 CoreML 权重缓存，确保本地 AI 与系统推理零卡顿。',
-      subpaths: [
-        { path: '~/Library/Caches/com.apple.e5rt.e5bundlecache/ANECompiler', size: '1.92 GB (已锁定保护)', sizeGb: 1.92, checked: false }
-      ]
-    }
-  ],
-  aiMoonBands: [
-    {
-      id: 'ai_superseded_bins', band: '第一安全带 · 历史旧版本更新包',
-      name: 'Claude、Cursor 与 AI 插件历史自更新旧版本程序包',
-      path: '~/.local/share/claude/versions', sizeGb: 3.42, origSizeGb: 3.42,
-      filesCount: '11 个历史版本包', lastMod: '14~60 天前', rebuildTime: '无需重建 (已升级至新版)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：AI 工具每次后台自动升级都会在本地留下 200MB~350MB 的旧版可执行文件。仅清理已被替换的旧版本，严格保留当前正在运行的最新版本。',
-      subpaths: [
-        { path: '~/.local/share/claude/versions', size: '2.14 GB', checked: true },
-        { path: '~/.cursor/extensions', size: '1.28 GB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_tool_caches', band: '第一安全带 · 渲染与着色器缓存',
-      name: 'Claude Desktop、Cursor 与本地推理引擎 GPU 渲染及日志缓存',
-      path: '~/Library/Caches/Cursor', sizeGb: 2.18, origSizeGb: 2.18,
-      filesCount: '9,410 个文件', lastMod: '今天', rebuildTime: '小于 2 秒 (启动自动重建)',
-      tier: 'safe', checked: true, cleaned: false,
-      impact: '完全安全：仅清理 GPU 渲染缓存、CachedData 与过期调试日志，不影响任何本地对话记录、记忆或扩展插件。',
-      subpaths: [
-        { path: '~/Library/Application Support/Cursor/CachedData', size: '1.46 GB', checked: true },
-        { path: '~/Library/Logs/Claude', size: '720 MB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_stale_worktrees', band: '第二安全带 · 过期临时工作树',
-      name: '已合并超过保留周期的 AI 临时 Git 工作树与孤立渲染缓存',
-      path: '~/.codex/worktrees', sizeGb: 4.95, origSizeGb: 4.95,
-      filesCount: '14 个临时目录', lastMod: '30 天前', rebuildTime: '无需重建 (分支已合并)',
-      tier: 'review', checked: true, cleaned: false,
-      impact: '智能生命周期保护：仅列出超过保留窗口未修改且无未提交变更的临时工作树；近期活跃任务与所有历史对话记录均已在底层白名单永久隔离保护。',
-      subpaths: [
-        { path: '~/.codex/worktrees', size: '3.40 GB', checked: true },
-        { path: '~/.cache/huggingface/Download', size: '1.55 GB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_sqlite_vacuum', band: '第三安全带 · 状态数据库无损整理',
-      name: 'Cursor 与 Claude 本地状态数据库无损碎片压缩 (state.vscdb)',
-      path: '~/Library/Application Support/Cursor/User/globalStorage', sizeGb: 1.65, origSizeGb: 1.65,
-      filesCount: '2 个状态数据库', lastMod: '近期', rebuildTime: '约 4 秒 (原地无损压缩)',
-      tier: 'review', checked: true, cleaned: false,
-      impact: '无损原地压缩：不删除任何键值数据，仅在检测到宿主应用已关闭时回收数据库游离页碎片。',
-      subpaths: [
-        { path: '~/Library/Application Support/Cursor/User/globalStorage/state.vscdb', size: '可缩减 1.65 GB', checked: true }
-      ]
-    },
-    {
-      id: 'ai_chat_history_protected', band: '核心资产永久保护 · 已锁定排除',
-      name: 'AI 历史对话记录、长期记忆 (Memories)、项目计划与自定义技能',
-      path: '~/.claude/projects, ~/.codex/sessions, ~/.claude/skills', sizeGb: 1.14, origSizeGb: 1.14,
-      filesCount: '1,280 个会话', lastMod: '实时保护中', rebuildTime: '永久锁定保护 (无勾选框)',
-      tier: 'protected', checked: false, cleaned: false,
-      impact: '核心资产永久锁定（无勾选框，绝不进入清理确认弹窗）：您的所有 AI 历史对话、长期记忆与自定义技能均受硬件级白名单保护。',
-      subpaths: [
-        { path: '~/.claude/projects & ~/.claude/skills', size: '1.14 GB (永久保护)', checked: false }
-      ]
-    }
-  ],
-  uninstallMode: 'standard',
-  appsList: [
-    {
-      id: 'com.apple.dt.Xcode', name: 'Xcode', category: '开发工具',
-      appPath: '/Applications/Xcode.app', bundleId: 'com.apple.dt.Xcode', version: '16.2',
-      iconBg: 'linear-gradient(145deg, #38bdf8 0%, #1d4ed8 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          
-          <g transform="rotate(-8 32 32)">
-            <rect x="12" y="12" width="40" height="40" rx="6" fill="#ffffff" fill-opacity="0.22" stroke="#ffffff" stroke-width="1.6"/>
-            <line x1="12" y1="25" x2="52" y2="25" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-            <line x1="12" y1="38" x2="52" y2="38" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-            <line x1="25" y1="12" x2="25" y2="52" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-            <line x1="38" y1="12" x2="38" y2="52" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1"/>
-          </g>
-          
-          <g transform="rotate(-42 32 32)">
-            <rect x="29" y="20" width="6" height="32" rx="3" fill="#fbbf24" stroke="#ffffff" stroke-width="1"/>
-            <path d="M18 14 H46 L43 22 H21 Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
-          </g>
-        </svg>`,
-      lastUsed: '今天', appSizeGb: 7.80, cacheSizeGb: 3.85, configSizeGb: 0.80, leftoverSizeGb: 4.65,
-      checked: true, keepPersonal: true,
-      impact: '支持「📦 标准卸载 App（仅移除 Xcode.app 主程序与编译缓存，保留个人代码片段与配置）」、「🔥 彻底粉碎卸载（含全部关联残留）」或「🧹 仅清理缓存」。',
-      subpaths: [
-        { path: '/Applications/Xcode.app', kind: 'app', size: '7.80 GB', checked: true },
-        { path: '~/Library/Developer/Xcode/DerivedData', kind: 'cache', size: '3.85 GB', checked: true },
-        { path: '~/Library/Developer/Xcode/UserData', kind: 'config', size: '800 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.docker.docker', name: 'Docker Desktop', category: '虚拟化容器',
-      appPath: '/Applications/Docker.app', bundleId: 'com.docker.docker', version: '4.38.0',
-      iconBg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          
-          <rect x="16" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/>
-          <rect x="25" y="23" width="7.5" height="7" rx="1.2" fill="#ffffff"/>
-          <rect x="34" y="23" width="7.5" height="7" rx="1.2" fill="#e0f2fe" stroke="#fff" stroke-width="0.8"/>
-          <rect x="25" y="14.5" width="7.5" height="7" rx="1.2" fill="#bae6fd" stroke="#fff" stroke-width="0.8"/>
-          <rect x="34" y="14.5" width="7.5" height="7" rx="1.2" fill="#ffffff"/>
-          
-          <path d="M10 32 H45 C48.5 32 51.5 29.5 53 26.5 C55.5 28 57 31 55.5 34.5 C52 38 47 49 28 49 C15 49 10 41 10 32 Z" fill="#ffffff"/>
-          <circle cx="20" cy="39" r="2.2" fill="#0284c7"/>
-        </svg>`,
-      lastUsed: '昨天', appSizeGb: 1.85, cacheSizeGb: 5.90, configSizeGb: 0.55, leftoverSizeGb: 6.45,
-      checked: false, keepPersonal: true,
-      impact: '关联扫描到 /Applications/Docker.app 主程序、~/Library/Containers 容器镜像缓存以及网络配置。',
-      subpaths: [
-        { path: '/Applications/Docker.app', kind: 'app', size: '1.85 GB', checked: true },
-        { path: '~/Library/Containers/com.docker.docker', kind: 'cache', size: '5.90 GB', checked: true },
-        { path: '~/Library/Preferences/com.docker.docker.plist', kind: 'config', size: '550 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.google.Chrome', name: 'Google Chrome', category: '浏览器',
-      appPath: '/Applications/Google Chrome.app', bundleId: 'com.google.Chrome', version: '134.0',
-      iconBg: 'linear-gradient(145deg, #f8fafc 0%, #e2e8f0 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          <circle cx="32" cy="32" r="23" fill="#ffffff"/>
-          
-          <path d="M32 10 A22 22 0 0 1 51 21 H32 L21 26 L14 19 A22 22 0 0 1 32 10 Z" fill="#ef4444"/>
-          
-          <path d="M51 21 A22 22 0 0 1 32 54 L27 38 L39 21 Z" fill="#facc15"/>
-          
-          <path d="M14 19 L25 38 L32 54 A22 22 0 0 1 14 19 Z" fill="#22c55e"/>
-          
-          <circle cx="32" cy="32" r="11" fill="#ffffff"/>
-          <circle cx="32" cy="32" r="8.5" fill="#2563eb"/>
-        </svg>`,
-      lastUsed: '今天', appSizeGb: 0.65, cacheSizeGb: 1.85, configSizeGb: 0.30, leftoverSizeGb: 2.15,
-      checked: false, keepPersonal: true,
-      impact: '标准卸载仅移除 Chrome.app 主程序与离线渲染缓存，自动为您保留书签、密码与个人用户配置。',
-      subpaths: [
-        { path: '/Applications/Google Chrome.app', kind: 'app', size: '650 MB', checked: true },
-        { path: '~/Library/Caches/Google/Chrome', kind: 'cache', size: '1.85 GB', checked: true },
-        { path: '~/Library/Application Support/Google/Chrome', kind: 'config', size: '300 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.todesktop.230313mzl4w4u92', name: 'Cursor', category: 'AI 编程',
-      appPath: '/Applications/Cursor.app', bundleId: 'com.todesktop.230313mzl4w4u92', version: '0.46.0',
-      iconBg: 'linear-gradient(145deg, #52525b 0%, #18181b 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          
-          <polygon points="32,8 53,20 32,32 11,20" fill="#ffffff" fill-opacity="0.92"/>
-          <polygon points="11,20 32,32 32,56 11,44" fill="#a1a1aa"/>
-          <polygon points="32,32 53,20 53,44 32,56" fill="#3f3f46"/>
-          
-          <path d="M24 22 L44 31 L34 35 L30 45 Z" fill="#ffffff" stroke="#18181b" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>`,
-      lastUsed: '今天', appSizeGb: 0.48, cacheSizeGb: 1.52, configSizeGb: 0.40, leftoverSizeGb: 1.92,
-      checked: false, keepPersonal: true,
-      impact: '支持仅清理 CachedData 历史更新缓存，或执行标准卸载（保留您的本地 AI 对话历史与扩展配置）。',
-      subpaths: [
-        { path: '/Applications/Cursor.app', kind: 'app', size: '480 MB', checked: true },
-        { path: '~/Library/Application Support/Cursor/CachedData', kind: 'cache', size: '1.52 GB', checked: true },
-        { path: '~/Library/Application Support/Cursor/User', kind: 'config', size: '400 MB', checked: false }
-      ]
-    },
-    {
-      id: 'com.figma.Desktop', name: 'Figma', category: '设计创意',
-      appPath: '/Applications/Figma.app', bundleId: 'com.figma.Desktop', version: '124.5.0',
-      iconBg: 'linear-gradient(145deg, #27272a 0%, #09090b 100%)',
-      iconSvg: `<svg viewBox="0 0 64 64" width="32" height="32" fill="none">
-          <path d="M22 10 H32 V24 H22 A7 7 0 0 1 22 10 Z" fill="#f43f5e"/>
-          <path d="M32 10 H42 A7 7 0 0 1 42 24 H32 V10 Z" fill="#fb7185"/>
-          <path d="M22 24 H32 V38 H22 A7 7 0 0 1 22 24 Z" fill="#a855f7"/>
-          <circle cx="39" cy="31" r="7" fill="#38bdf8"/>
-          <path d="M22 38 H32 V45 A7 7 0 1 1 22 38 Z" fill="#10b981"/>
-        </svg>`,
-      lastUsed: '3 天前', appSizeGb: 0.42, cacheSizeGb: 1.48, configSizeGb: 0.18, leftoverSizeGb: 1.66,
-      checked: false, keepPersonal: true,
-      impact: '关联扫描到 Figma.app 主程序与本地画布纹理缓存，支持标准卸载 App 或彻底粉碎卸载。',
-      subpaths: [
-        { path: '/Applications/Figma.app', kind: 'app', size: '420 MB', checked: true },
-        { path: '~/Library/Application Support/Figma/DesktopProfile', kind: 'cache', size: '1.48 GB', checked: true },
-        { path: '~/Library/Preferences/com.figma.Desktop.plist', kind: 'config', size: '180 MB', checked: false }
-      ]
-    }
-  ],
-  optimizeTasks: [
-    { name: '输入法切换延迟修复与系统聚焦索引校验', status: 'applied', done: false, detail: '刷新中文输入法状态机缓存并验证 Spotlight 搜索索引完整性' },
-    { name: '重建快速预览缩略图与访达 (Finder) 图标缓存', status: 'applied', done: false, detail: '修复部分桌面文稿图标显示异常问题并重载系统预览服务' },
-    { name: '刷新系统本地 DNS 域名解析缓存', status: 'applied', done: false, detail: '清空过期本地域名解析记录，修复网页偶发连接缓慢问题' },
-    { name: '无损压缩系统通知中心与下载隔离区数据库', status: 'applied', done: false, detail: '在后台整理系统级核心 SQLite 数据库碎片，提升响应速度' },
-    { name: '扫描并校验用户偏好设置 (.plist) 完整性', status: 'applied', done: false, detail: '校验 ~/Library/Preferences 配置文件并清理空字节损坏配置' }
-  ],
-  drillDownDirIdx: null,
-  selectedSubTileIdx: 0,
-  treemap2D: [
-    {
-      name: 'Library (系统与应用库)', path: '~/Library', sizeGb: 88.4, pct: 35.6, color: 'linear-gradient(145deg, #3b6fd4, #254b9e)', files: 194200, x: 0, y: 0, w: 37, h: 100,
-      children: [
-        { name: 'Containers (Docker 与沙盒容器)', path: '~/Library/Containers', sizeGb: 31.2, pct: 35.3, color: 'linear-gradient(145deg, #3b6fd4, #1e40af)', files: 68400, x: 0, y: 0, w: 38, h: 100, cleanable: false },
-        { name: 'Developer (Xcode DerivedData 与模拟器)', path: '~/Library/Developer', sizeGb: 22.8, pct: 25.8, color: 'linear-gradient(145deg, #2563eb, #1d4ed8)', files: 52100, x: 38, y: 0, w: 36, h: 58, cleanable: true },
-        { name: 'Application Support (应用数据与状态库)', path: '~/Library/Application Support', sizeGb: 16.4, pct: 18.6, color: 'linear-gradient(145deg, #0284c7, #0369a1)', files: 34900, x: 38, y: 58, w: 36, h: 42, cleanable: false },
-        { name: 'Caches (用户与浏览器渲染缓存)', path: '~/Library/Caches', sizeGb: 11.5, pct: 13.0, color: 'linear-gradient(145deg, #0d9488, #0f766e)', files: 29800, x: 74, y: 0, w: 26, h: 62, cleanable: true },
-        { name: 'Logs & Saved State (诊断日志与窗口状态)', path: '~/Library/Logs', sizeGb: 6.5, pct: 7.3, color: 'linear-gradient(145deg, #4f46e5, #3730a3)', files: 9000, x: 74, y: 62, w: 26, h: 38, cleanable: true }
-      ]
-    },
-    {
-      name: 'Projects (代码工作区)', path: '~/Projects', sizeGb: 62.4, pct: 25.1, color: 'linear-gradient(145deg, #288a5d, #1b6342)', files: 112400, x: 37, y: 0, w: 38, h: 57,
-      children: [
-        { name: 'rust-indexer (含 target 构建产物)', path: '~/Projects/rust-indexer', sizeGb: 19.8, pct: 31.7, color: 'linear-gradient(145deg, #16a34a, #15803d)', files: 38200, x: 0, y: 0, w: 36, h: 100, cleanable: true },
-        { name: 'ios-client (含 DerivedData 与 Pods)', path: '~/Projects/ios-client', sizeGb: 16.4, pct: 26.3, color: 'linear-gradient(145deg, #059669, #047857)', files: 29400, x: 36, y: 0, w: 38, h: 56, cleanable: true },
-        { name: 'mole-studio (含 node_modules 依赖)', path: '~/Projects/mole-studio', sizeGb: 12.8, pct: 20.5, color: 'linear-gradient(145deg, #0d9488, #0f766e)', files: 24100, x: 36, y: 56, w: 38, h: 44, cleanable: true },
-        { name: 'ai-agent (含 .venv 虚拟环境)', path: '~/Projects/ai-agent', sizeGb: 8.2, pct: 13.1, color: 'linear-gradient(145deg, #0284c7, #0369a1)', files: 14200, x: 74, y: 0, w: 26, h: 60, cleanable: true },
-        { name: 'active-webapp (活跃前端工程)', path: '~/Projects/active-webapp', sizeGb: 5.2, pct: 8.4, color: 'linear-gradient(145deg, #2563eb, #1d4ed8)', files: 6500, x: 74, y: 60, w: 26, h: 40, cleanable: false }
-      ]
-    },
-    {
-      name: 'Applications (应用程序)', path: '/Applications', sizeGb: 46.8, pct: 18.8, color: 'linear-gradient(145deg, #c6613f, #9a4427)', files: 48200, x: 37, y: 57, w: 38, h: 43,
-      children: [
-        { name: 'Xcode.app (Apple 官方开发套件)', path: '/Applications/Xcode.app', sizeGb: 18.4, pct: 39.3, color: 'linear-gradient(145deg, #c6613f, #9a4427)', files: 21400, x: 0, y: 0, w: 40, h: 100 },
-        { name: 'Docker.app (容器虚拟化引擎)', path: '/Applications/Docker.app', sizeGb: 11.2, pct: 23.9, color: 'linear-gradient(145deg, #d97757, #b45334)', files: 12100, x: 40, y: 0, w: 35, h: 58 },
-        { name: 'Google Chrome.app (浏览器)', path: '/Applications/Google Chrome.app', sizeGb: 9.6, pct: 20.5, color: 'linear-gradient(145deg, #ea580c, #c2410c)', files: 8900, x: 40, y: 58, w: 35, h: 42 },
-        { name: 'Cursor.app (AI 编辑器)', path: '/Applications/Cursor.app', sizeGb: 7.6, pct: 16.3, color: 'linear-gradient(145deg, #e11d48, #be123c)', files: 5800, x: 75, y: 0, w: 25, h: 100 }
-      ]
-    },
-    {
-      name: 'Downloads (下载目录)', path: '~/Downloads', sizeGb: 28.9, pct: 11.6, color: 'linear-gradient(145deg, #c4881d, #966510)', files: 1420, x: 75, y: 0, w: 25, h: 48,
-      children: [
-        { name: 'Installers (离线安装包 .xip / .dmg / .pkg)', path: '~/Downloads', sizeGb: 14.8, pct: 51.2, color: 'linear-gradient(145deg, #d99b26, #b45309)', files: 18, x: 0, y: 0, w: 52, h: 100, cleanable: true },
-        { name: 'Archives (压缩归档 .zip / .tar.gz)', path: '~/Downloads', sizeGb: 8.6, pct: 29.8, color: 'linear-gradient(145deg, #ca8a04, #a16207)', files: 410, x: 52, y: 0, w: 48, h: 60 },
-        { name: 'Media & Docs (临时下载媒体与文稿)', path: '~/Downloads', sizeGb: 5.5, pct: 19.0, color: 'linear-gradient(145deg, #0d9488, #0f766e)', files: 992, x: 52, y: 60, w: 48, h: 40 }
-      ]
-    },
-    {
-      name: 'Documents (个人文稿)', path: '~/Documents', sizeGb: 14.2, pct: 5.7, color: 'linear-gradient(145deg, #2b8299, #1d5d6e)', files: 18900, x: 75, y: 48, w: 25, h: 27,
-      children: [
-        { name: 'WorkSpecs (技术方案与设计稿)', path: '~/Documents', sizeGb: 8.4, pct: 59.2, color: 'linear-gradient(145deg, #0284c7, #0369a1)', files: 11200, x: 0, y: 0, w: 60, h: 100 },
-        { name: 'Notes & PDF (电子书与论文归档)', path: '~/Documents', sizeGb: 5.8, pct: 40.8, color: 'linear-gradient(145deg, #2b8299, #1d5d6e)', files: 7700, x: 60, y: 0, w: 40, h: 100 }
-      ]
-    },
-    {
-      name: 'Movies (视频媒体)', path: '~/Movies', sizeGb: 7.8, pct: 3.2, color: 'linear-gradient(145deg, #7652bd, #553791)', files: 340, x: 75, y: 75, w: 25, h: 25,
-      children: [
-        { name: 'ScreenRecordings (屏幕录制素材)', path: '~/Movies', sizeGb: 5.2, pct: 66.7, color: 'linear-gradient(145deg, #7c3aed, #5b21b6)', files: 210, x: 0, y: 0, w: 66, h: 100 },
-        { name: 'FinalCut Cache (视频渲染缓存)', path: '~/Movies', sizeGb: 2.6, pct: 33.3, color: 'linear-gradient(145deg, #9333ea, #6b21a8)', files: 130, x: 66, y: 0, w: 34, h: 100, cleanable: true }
-      ]
-    }
-  ],
-  largeFiles: [
-    { id: 'lf1', name: 'Docker.raw (容器虚拟磁盘镜像)', path: '~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw', sizeGb: 24.0, kind: '虚拟磁盘' },
-    { id: 'lf2', name: 'Xcode_16.2_Universal.xip (离线安装包)', path: '~/Downloads/Xcode_16.2_Universal.xip', sizeGb: 8.42, kind: '安装归档' },
-    { id: 'lf3', name: 'MacTeX-2026.pkg (离线安装包缓存)', path: '~/Library/Caches/Homebrew/downloads/MacTeX-2026.pkg', sizeGb: 4.85, kind: '安装包' }
-  ],
-  processes: [
-    { pid: 941, name: 'WindowServer', cpu: 11.4, memory_mb: 980, power: 3.7, pinned: true, path: '/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer' },
-    { pid: 1842, name: 'MoleStudio-Native', cpu: 2.4, memory_mb: 145, power: 0.6, pinned: true, path: '/Applications/MoleStudio.app/Contents/MacOS/MoleStudio-Native-v8' },
-    { pid: 2190, name: 'Finder', cpu: 1.8, memory_mb: 260, power: 0.4, pinned: false, path: '/System/Library/CoreServices/Finder.app' },
-    { pid: 4242, name: 'Safari', cpu: 6.2, memory_mb: 1120, power: 2.1, pinned: false, path: '/Applications/Safari.app' },
-    { pid: 5110, name: 'mds_stores', cpu: 3.5, memory_mb: 420, power: 1.1, pinned: false, path: '/System/Library/Frameworks/CoreServices.framework/Frameworks/Metadata.framework/Versions/A/Support/mds_stores' }
-  ],
-  purgeItems: [
-    { id: 'p1', project: '~/Projects/rust-indexer', artifact: 'target', path: '~/Projects/rust-indexer/target', kind: 'Rust 编译构建产物', sizeGb: 4.62, origSizeGb: 4.62, age: '48 天未修改', rebuildNote: '下次编译自动重新生成', gitClean: '主分支 · 工作区干净', checked: true },
-    { id: 'p2', project: '~/GitHub/ios-client', artifact: 'DerivedData', path: '~/GitHub/ios-client/DerivedData', kind: 'Xcode 工程构建缓存', sizeGb: 3.15, origSizeGb: 3.15, age: '21 天未修改', rebuildNote: '打开工程编译自动生成', gitClean: '主分支 · 工作区干净', checked: true },
-    { id: 'p3', project: '~/Projects/mole-studio', artifact: 'node_modules', path: '~/Projects/mole-studio/node_modules', kind: '前端项目依赖目录', sizeGb: 1.84, origSizeGb: 1.84, age: '34 天未修改', rebuildNote: '可随时通过包管理器恢复', gitClean: '开发分支 · 工作区干净', checked: true },
-    { id: 'p4', project: '~/Projects/ai-agent', artifact: '.venv', path: '~/Projects/ai-agent/.venv', kind: 'Python 虚拟环境依赖', sizeGb: 1.28, origSizeGb: 1.28, age: '19 天未修改', rebuildNote: '可随时根据环境锁文件恢复', gitClean: '主分支 · 工作区干净', checked: true }
-  ],
-  installerFiles: [
-    { id: 'inst1', name: 'Xcode_16.2_Universal.xip', location: '~/Downloads', path: '~/Downloads/Xcode_16.2_Universal.xip', sizeGb: 8.42, age: '29 天前下载', checked: true },
-    { id: 'inst2', name: 'MacTeX-2026.pkg', location: '~/Library/Caches/Homebrew/downloads', path: '~/Library/Caches/Homebrew/downloads/MacTeX-2026.pkg', sizeGb: 4.85, age: '41 天前下载', checked: true },
-    { id: 'inst3', name: 'Docker-AppleSilicon.dmg', location: '~/Downloads', path: '~/Downloads/Docker-AppleSilicon.dmg', sizeGb: 0.78, age: '18 天前下载', checked: true }
-  ],
-  historyLogs: [
-    { id: '#20261015-1148', time: '今天 11:48', action: '智能深度清理 (应用缓存与诊断日志)', sizeGb: 3.15, items: 38, status: '位于废纸篓 · 可还原' }
-  ],
-  whitelist: [
-    '~/.ollama/models (本地大模型权重 · 自动保护)',
-    '~/.cache/huggingface (数据集与模型缓存 · 自动保护)',
-    '~/.claude/projects (AI 历史会话与记忆 · 永久保护)',
-    '~/.claude/skills (AI 自定义技能脚本 · 永久保护)',
-    '~/Library/Caches/com.apple.e5rt.e5bundlecache (Apple 神经网络引擎编译缓存 · 硬件级保护)'
-  ],
-  doctorChecks: [
+  cleanGroups: [],
+  aiMoonBands: [],
+  appsList: [],
+  orphanLeftoversList: [],
+  largeFiles: [],
+  processes: [],
+  purgeItems: [],
+  installerFiles: [],
+  treemap2D: [],
+  analyzeInsights: [],
+  analyzeSource: 'mo analyze --json',
+  analyzeLoading: false,
+  analyzePath: '',
+  historyLogs: [],
+  whitelist: [],
+    doctorChecks: [
     { id: 'fda', title: '完全磁盘访问权限 (Full Disk Access)', detail: '已授权访问 ~/Library/Caches、~/Library/Logs 与应用沙盒容器', latency: '18ms', passed: true },
-    { id: 'mem', title: '系统统一内存压力评估', detail: '压力正常（已用 18.2 GB / 32.0 GB，交换内存仅 256 MB）', latency: '24ms', passed: true },
-    { id: 'disk', title: '磁盘剩余空间与 SMART 硬件寿命状态', detail: '剩余 302.1 GB 可用 · NVMe SMART 固态寿命验证通过', latency: '31ms', passed: true },
+    { id: 'mem', title: '系统统一内存压力评估', detail: '等待本机内存采样', latency: '24ms', passed: true },
+    { id: 'disk', title: '磁盘剩余空间与 SMART 硬件寿命状态', detail: '等待本机磁盘空间采样', latency: '31ms', passed: true },
     { id: 'bat', title: '电池循环健康度与散热表现', detail: '最大容量 98% · 核心温度 44.8°C 散热良好', latency: '19ms', passed: true },
     { id: 'up', title: '系统连续运行时间与更新锁检查', detail: '系统运行状态正常 · 无挂起的系统更新锁', latency: '15ms', passed: true },
     { id: 'log', title: '废纸篓回收与还原快照完整性检查', detail: '所有历史清理快照均可正常关联 ~/.Trash 还原路径', latency: '22ms', passed: true },
@@ -1894,6 +1228,22 @@ window.onNativeRealScanComplete = function(payload) {
   if (payload.cpuModel) STATE.cpuModelName = payload.cpuModel;
   if (typeof payload.memTotalGb === 'number') STATE.memTotalGb = +payload.memTotalGb.toFixed(1);
 
+  if (Array.isArray(payload.orphanLeftoversList) && payload.orphanLeftoversList.length > 0) {
+    const iconLookup = {
+      orphan_docker: { bg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 100%)', svg: STATE.orphanLeftoversList[0]?.iconSvg },
+      orphan_android_studio: { bg: 'linear-gradient(145deg, #10b981 0%, #047857 60%, #1e3a8a 100%)', svg: STATE.orphanLeftoversList[1]?.iconSvg },
+      orphan_jetbrains: { bg: 'linear-gradient(145deg, #f43f5e 0%, #f97316 55%, #7c2d12 100%)', svg: STATE.orphanLeftoversList[2]?.iconSvg },
+      orphan_parallels: { bg: 'linear-gradient(145deg, #ef4444 0%, #991b1b 100%)', svg: STATE.orphanLeftoversList[3]?.iconSvg }
+    };
+    STATE.orphanLeftoversList = payload.orphanLeftoversList
+      .filter(o => !delSet.has(o.id))
+      .map(o => ({
+        ...o,
+        iconBg: iconLookup[o.id]?.bg || 'linear-gradient(145deg, #f59e0b 0%, #b45309 100%)',
+        iconSvg: iconLookup[o.id]?.svg || '<svg viewBox="0 0 64 64" width="30" height="30" fill="none"><rect x="14" y="14" width="36" height="36" rx="8" fill="#fff" fill-opacity="0.9"/><path d="M24 28H40M24 36H34" stroke="#b45309" stroke-width="3" stroke-linecap="round"/></svg>'
+      }));
+    STATE.selectedOrphanIdx = 0;
+  }
   if (Array.isArray(payload.appsList) && payload.appsList.length > 0) {
     STATE.appsList = payload.appsList.filter(a => !delSet.has(a.appPath) && !delSet.has(a.id));
     STATE.selectedAppIdx = 0;
@@ -1979,8 +1329,8 @@ function buildMenuBarTrayHTML() {
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
       <div style="display:flex;align-items:center;gap:9px;">
-        <div class="app-icon-box" style="width:28px;height:28px;border-radius:7px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10" ry="4.4" transform="rotate(-28 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.4" transform="rotate(32 12 12)" stroke-opacity="0.55"/><circle cx="19.5" cy="8" r="1.6" fill="#fff" stroke="none"/></svg>
+        <div class="app-icon-box brand-plate" style="width:28px;height:28px;border-radius:7px;">
+          ${get_skeuo_svg('brand', 'tray')}
         </div>
         <div>
           <div style="font-size:12.5px;font-weight:700;color:var(--text-primary);">orbit · 系统状态栏</div>
@@ -2049,10 +1399,10 @@ function buildMenuBarTrayHTML() {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto;">
       <button class="btn btn-primary" style="grid-column:span 2;justify-content:center;padding:7px;" onclick="sendNativeBridge({action:'menubarOpenClean'}); switchModule('clean'); openConfirmSheet();">
-        ✨ 一键清理安全缓存 (${cleanableGb.toFixed(2)} GB)
+        一键清理安全缓存 (${cleanableGb.toFixed(2)} GB)
       </button>
       <button class="btn" style="justify-content:center;" onclick="sendNativeBridge({action:'menubarOpenDoctor'}); openDoctorModal(true);">
-        🛰️ 立即系统联检
+        立即系统联检
       </button>
       <button class="btn" style="justify-content:center;" onclick="toggleCaffeinateState()">
         ☕ 防休眠: ${STATE.caffeinateActive ? '已开启' : '关闭'}
@@ -2161,10 +1511,13 @@ function addCustomWhitelistInput() {
 function renderHeroIcon() {
   const box = document.getElementById('heroSemanticIcon');
   if (!box) return;
-  const cfg = SEMANTIC_HERO_ICONS[STATE.module] || SEMANTIC_HERO_ICONS.clean;
+  const cfg = heroIconFor(STATE.module);
   box.style.background = cfg.bg;
   box.innerHTML = cfg.svg;
 }
+
+/** Kept as the single entry point the boot sequence calls. */
+function renderHeroGlyph() { renderHeroIcon(); }
 
 function svgSparkline(points, strokeColor, fillColor, heightPx) {
   const max = Math.max(...points, 100);
@@ -2208,7 +1561,9 @@ function recomputeDiskAnalyzeTotals() {
 function updateSidebarBadges() {
   const cleanGb = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.sizeGb, 0);
   const moonGb = STATE.aiMoonBands.filter(b => b.checked).reduce((s, b) => s + b.sizeGb, 0);
-  const appGb = STATE.appsList.filter(a => a.checked).reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+  const orphanGb = (STATE.orphanLeftoversList || []).filter(o => o.checked).reduce((s, o) => s + o.leftoverSizeGb, 0);
+  const installedGb = STATE.appsList.filter(a => a.checked).reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+  const appGb = STATE.softwarePanelMode === 'leftovers' ? orphanGb : installedGb;
   const purgeGb = STATE.purgeItems.filter(p => p.checked).reduce((s, p) => s + p.sizeGb, 0) + STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
 
   document.getElementById('navMetaClean').textContent = cleanGb > 0 ? cleanGb.toFixed(1) + ' GB' : '已清理';
@@ -2296,6 +1651,36 @@ function toggleAppCheck(idx, ev) {
   updateSidebarBadges();
   renderModule();
 }
+function setSoftwarePanelMode(panelMode) {
+  STATE.softwarePanelMode = panelMode;
+  updateSidebarBadges();
+  renderModule();
+  showToast(panelMode === 'leftovers' ? '已切换至：🧹 清理已卸载残留（扫描 Docker 容器、Android Studio 等孤立残留）' : '已切换至：📦 管理应用卸载（管理 /Applications 已安装应用）');
+}
+
+function selectOrphanRow(idx) {
+  STATE.selectedOrphanIdx = idx;
+  renderModule();
+}
+
+function toggleOrphanCheck(idx, ev) {
+  if (ev) ev.stopPropagation();
+  const item = STATE.orphanLeftoversList[idx];
+  if (!item) return;
+  item.checked = !item.checked;
+  persistState();
+  updateSidebarBadges();
+  renderModule();
+}
+
+function toggleOrphanSubpathCheck(orphanIdx, subIdx) {
+  const item = STATE.orphanLeftoversList[orphanIdx];
+  if (!item || !item.subpaths || !item.subpaths[subIdx]) return;
+  item.subpaths[subIdx].checked = !item.subpaths[subIdx].checked;
+  persistState();
+  renderModule();
+}
+
 function setUninstallMode(mode) {
   STATE.uninstallMode = mode;
   STATE.appsList.forEach(app => {
@@ -2343,15 +1728,50 @@ function toggleAppKeepPersonal(idx, ev) {
 }
 
 // Interactive Handlers for Analyze (Real file deletion + persistent state)
-function selectTreemapDir(idx) {
-  STATE.selectedTreemapIdx = idx;
-  STATE.drillDownDirIdx = idx;
-  STATE.selectedSubTileIdx = 0;
+function requestDiskAnalyze(path) {
+  STATE.analyzeLoading = true;
+  STATE.analyzePath = path || '';
+  sendNativeBridge({ action: 'requestDiskAnalyze', path: path || '' });
   renderModule();
+  showToast(path ? '正在用 mo analyze 扫描 ' + path : '正在用 mo analyze 扫描全机概览');
+}
+window.onNativeDiskAnalyze = function(payload) {
+  STATE.analyzeLoading = false;
+  if (!payload) return;
+  STATE.analyzeSource = payload.source || 'mo analyze --json';
+  STATE.analyzeStatus = payload.scanStatus || '';
+  if (typeof payload.totalGb === 'number' && !payload.path) STATE.totalAnalyzedGb = payload.totalGb;
+  const tiles = Array.isArray(payload.treemap2D) ? payload.treemap2D : [];
+  if (!payload.path) STATE.analyzeInsights = Array.isArray(payload.insights) ? payload.insights : [];
+  if (payload.path) {
+    const parent = STATE.treemap2D.find(tile => tile.path === payload.path.replace(STATE.homePath || '', '~') || tile.path === payload.path);
+    const match = parent || STATE.treemap2D[STATE.drillDownDirIdx];
+    if (match) match.children = tiles;
+  } else {
+    STATE.treemap2D = tiles;
+    STATE.drillDownDirIdx = null;
+  }
+  recomputeDiskAnalyzeTotals();
+  updateSidebarBadges();
+  renderModule();
+};
+function selectTreemapDir(idx) {
+  const tile = STATE.treemap2D[idx];
+  STATE.selectedTreemapIdx = idx;
+  STATE.selectedSubTileIdx = 0;
+  if (!tile || tile.isDir === false) {
+    STATE.drillDownDirIdx = null;
+    renderModule();
+    return;
+  }
+  STATE.drillDownDirIdx = idx;
+  if (!Array.isArray(tile.children) || tile.children.length === 0) requestDiskAnalyze(tile.path);
+  else renderModule();
 }
 function exitTreemapDrillDown() {
   STATE.drillDownDirIdx = null;
   STATE.selectedSubTileIdx = 0;
+  STATE.analyzePath = '';
   renderModule();
 }
 function selectSubTile(subIdx) {
@@ -2529,7 +1949,7 @@ function handlePrimaryAction() {
   if (STATE.module === 'optimize') {
     runAllOptimizeTasks();
   } else if (STATE.module === 'analyze') {
-    triggerNativeRescan();
+    requestDiskAnalyze(STATE.analyzePath || '');
   } else if (STATE.module === 'status') {
     sendNativeBridge({ action: 'requestRealTelemetry' });
     stepLiveTelemetry();
@@ -2542,6 +1962,7 @@ function handlePrimaryAction() {
 }
 
 function renderModule() {
+  try {
   const mod = STATE.module;
   const topTitle = document.getElementById('topTitle');
   const primaryBtnText = document.getElementById('primaryBtnText');
@@ -2572,7 +1993,7 @@ function renderModule() {
       return matchTier && matchQ;
     });
     const selGroup = STATE.cleanGroups[STATE.selectedCleanIdx] || STATE.cleanGroups[0];
-    const totalScanGb = Math.max(0.1, STATE.cleanGroups.reduce((s, x) => s + x.sizeGb, 0));
+    const totalScanGb = Math.max(0.1, STATE.cleanGroups.reduce((s, x) => s + (x.sizeGb || 0), 0));
     const sharePct = selGroup && selGroup.sizeGb > 0 ? ((selGroup.sizeGb / totalScanGb) * 100).toFixed(1) + '%' : '0.0% (已清理)';
 
     stage.innerHTML = `
@@ -2596,7 +2017,7 @@ function renderModule() {
                 <div class="list-row ${isSel ? 'selected' : ''}" onclick="selectCleanRow(${origIdx})">
                   <div class="row-left">
                     ${g.tier === 'protected'
-                      ? `<span style="width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;" title="硬件级保护，不可勾选">🔒</span>`
+                      ? `<span class="lock-glyph" title="硬件级保护，不可勾选">${get_skeuo_svg('history', 'lk1')}</span>`
                       : `<input type="checkbox" ${g.checked ? 'checked' : ''} onclick="toggleCleanCheck(${origIdx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
                     }
                     <div style="min-width:0;">
@@ -2607,7 +2028,7 @@ function renderModule() {
                   <div class="row-right">
                     <div class="prop-bar-wrap"><div class="prop-bar-fill" style="width:${pct}%;background:${g.tier === 'protected' ? 'var(--accent-purple)' : barColor};"></div></div>
                     <span class="badge ${g.cleaned ? 'badge-safe' : g.tier === 'safe' ? 'badge-safe' : g.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-                      ${g.cleaned ? '✅ 已清理' : g.tier === 'safe' ? '安全可再生' : g.tier === 'review' ? '需确认' : '🔒 硬件保护'}
+                      ${g.cleaned ? '已清理' : g.tier === 'safe' ? '安全可再生' : g.tier === 'review' ? '需确认' : '硬件保护'}
                     </span>
                     <span class="size-cell">${g.sizeGb.toFixed(2)} GB</span>
                   </div>
@@ -2646,7 +2067,7 @@ function renderModule() {
               ${selGroup.subpaths.map((sp, spIdx) => `
                 <div class="subpath-item">
                   <div class="subpath-left">
-                    ${selGroup.tier === 'protected' ? '<span>🔒</span>' : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
+                    ${selGroup.tier === 'protected' ? `<span class="lock-glyph">${get_skeuo_svg('history', 'lk3')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
                     <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
                   </div>
                   <div class="subpath-right">
@@ -2694,7 +2115,7 @@ function renderModule() {
               <div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}" onclick="selectMoonRow(${idx})">
                 <div class="row-left">
                   ${b.tier === 'protected'
-                    ? `<span style="width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;" title="核心资产永久保护，无勾选框">🔒</span>`
+                    ? `<span class="lock-glyph" title="核心资产永久保护，无勾选框">${get_skeuo_svg('history', 'lk2')}</span>`
                     : `<input type="checkbox" ${b.checked ? 'checked' : ''} onclick="toggleMoonCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
                   }
                   <div style="min-width:0;">
@@ -2704,7 +2125,7 @@ function renderModule() {
                 </div>
                 <div class="row-right">
                   <span class="badge ${b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-                    ${b.cleaned ? '✅ 已清理' : b.tier === 'safe' ? '默认安全' : b.tier === 'review' ? '按期清理' : '🔒 永久保护'}
+                    ${b.cleaned ? '已清理' : b.tier === 'safe' ? '默认安全' : b.tier === 'review' ? '按期清理' : '永久保护'}
                   </span>
                   <span class="size-cell">${b.sizeGb.toFixed(2)} GB</span>
                 </div>
@@ -2752,150 +2173,302 @@ function renderModule() {
       </div>
     `;
   } else if (mod === 'software') {
-    const selApp = STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0];
-    const mode = STATE.uninstallMode || 'standard';
-    const calcAppGb = (a) => {
-      if (!a) return 0;
-      if (mode === 'cache_only') return +(a.cacheSizeGb || a.leftoverSizeGb * 0.8).toFixed(2);
-      if (mode === 'standard' || a.keepPersonal) return +(a.appSizeGb + (a.cacheSizeGb || a.leftoverSizeGb * 0.8)).toFixed(2);
-      return +(a.appSizeGb + a.leftoverSizeGb).toFixed(2);
-    };
-    const checkedApps = STATE.appsList.filter(a => a.checked);
-    const activeApps = checkedApps.length > 0 ? checkedApps : [selApp].filter(Boolean);
-    const totalSelectedAppGb = activeApps.reduce((s, a) => s + calcAppGb(a), 0);
+    const panelMode = STATE.softwarePanelMode || 'leftovers';
+    const orphans = STATE.orphanLeftoversList || [];
+    const totalOrphanAllGb = orphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
+    const totalAppsAllGb = STATE.appsList.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
 
-    topTitle.textContent = '分离器 · Mac 应用卸载与瘦身 (Jettison)';
-    primaryBtnText.textContent = mode === 'cache_only'
-      ? `仅清理所选应用缓存 (${totalSelectedAppGb.toFixed(2)} GB)`
-      : mode === 'standard'
-      ? `标准卸载所选应用 (${totalSelectedAppGb.toFixed(2)} GB)`
-      : `彻底粉碎卸载所选 (${totalSelectedAppGb.toFixed(2)} GB)`;
-
-    heroHeadline.textContent = selApp
-      ? `${selApp.name}.app v${selApp.version} · ${mode === 'standard' ? '标准卸载 App（移除主程序 · 保留个人配置）' : mode === 'complete' ? '彻底粉碎卸载（移除主程序 + 全部 Library 残留）' : '应用瘦身（保留应用 · 仅清理膨胀缓存）'}`
-      : '所有勾选的 Mac 应用已处理完毕';
-    heroDesc.textContent = '支持三种 Mac 应用管理方式：①「📦 标准卸载 App」仅卸载 /Applications 主程序与缓存并保留个人配置；②「🔥 彻底粉碎卸载」连同 Library 全部残留一并清除；③「🧹 仅清理缓存」保留应用不卸载。';
-    heroStatLabel.textContent = mode === 'cache_only' ? '可释放应用缓存' : '当前所选卸载体积';
-    heroStatValue.textContent = `${totalSelectedAppGb.toFixed(2)} GB`;
-    heroStatSub.textContent = mode === 'standard' ? '移除 .app 主程序 · 保留个人配置' : mode === 'complete' ? '移除 .app 主程序 + 全部 Library 残留' : '保留 .app 主程序 · 仅清理缓存';
-
-    if (!selApp) {
-      stage.innerHTML = `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前选中的 Mac 应用已移入废纸篓，可在「黑匣子 · 恢复白名单」中随时原路还原。</div>`;
-      return;
-    }
-
-    const defaultIconBg = 'linear-gradient(145deg, #f43f5e 0%, #9f1239 100%)';
-    const defaultIconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" fill="#fff" fill-opacity="0.9"/></svg>';
-
-    stage.innerHTML = `
-      <div class="master-detail-grid">
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>本机已安装 Mac 应用程序 (/Applications · 共 ${STATE.appsList.length} 款)</span>
-            <div class="segmented-tabs">
-              <div class="seg-tab ${mode === 'standard' ? 'active' : ''}" onclick="setUninstallMode('standard')" title="卸载 /Applications/*.app 主程序与缓存，保留您的个人账号配置">📦 标准卸载 App</div>
-              <div class="seg-tab ${mode === 'complete' ? 'active' : ''}" onclick="setUninstallMode('complete')" title="卸载 .app 主程序并彻底清除所有 Library 偏好设置与沙盒残留">🔥 彻底粉碎卸载</div>
-              <div class="seg-tab ${mode === 'cache_only' ? 'active' : ''}" onclick="setUninstallMode('cache_only')" title="保留 Mac 应用不卸载，仅清理其产生的膨胀缓存">🧹 仅清理缓存</div>
-            </div>
-          </div>
-          <div class="list-body">
-            ${STATE.appsList.map((app, idx) => {
-              const rowGb = calcAppGb(app);
-              return `
-              <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
-                <div class="row-left">
-                  <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
-                  <div class="app-squircle-icon" style="background:${app.iconBg || defaultIconBg};">
-                    ${app.iconSvg || defaultIconSvg}
-                  </div>
-                  <div style="min-width:0;">
-                    <div class="row-title" style="display:flex;align-items:center;gap:6px;">
-                      <span>${app.name}</span>
-                      <span style="font-size:10.5px;color:var(--text-secondary);font-weight:500;">v${app.version}</span>
-                      <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${app.category || 'Mac 应用'}</span>
-                    </div>
-                    <div class="row-sub">📦 主程序: ${app.appSizeGb.toFixed(2)} GB · 🗂️ 缓存与残留: ${app.leftoverSizeGb.toFixed(2)} GB</div>
-                  </div>
-                </div>
-                <div class="row-right">
-                  <span class="badge ${mode === 'cache_only' ? 'badge-safe' : app.keepPersonal ? 'badge-safe' : 'badge-review'}" onclick="toggleAppKeepPersonal(${idx}, event)" title="点击切换标准卸载 / 彻底卸载">
-                    ${mode === 'cache_only' ? '🧹 仅清缓存' : app.keepPersonal ? '📦 标准卸载 App' : '🔥 彻底粉碎卸载'}
-                  </span>
-                  <span class="size-cell" style="color:${mode === 'cache_only' ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${rowGb.toFixed(2)} GB</span>
-                </div>
-              </div>
-            `}).join('')}
-          </div>
+    const dualModeSwitchHtml = `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;padding:7px 12px;margin-bottom:2px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn ${panelMode === 'leftovers' ? 'btn-primary' : ''}" style="padding:5px 14px;font-size:12px;font-weight:700;" onclick="setSoftwarePanelMode('leftovers')">
+            🧹 清理已卸载残留 (${orphans.length} 项 · ${totalOrphanAllGb.toFixed(2)} GB)
+          </button>
+          <button class="btn ${panelMode === 'apps' ? 'btn-primary' : ''}" style="padding:5px 14px;font-size:12px;font-weight:700;" onclick="setSoftwarePanelMode('apps')">
+            📦 管理应用卸载 (${STATE.appsList.length} 款 · ${totalAppsAllGb.toFixed(2)} GB)
+          </button>
         </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>Mac 应用包与残留构成透视 (${selApp.name}.app)</span>
-            <span style="font-family:var(--font-mono);color:var(--accent-rose);">${calcAppGb(selApp).toFixed(2)} GB</span>
-          </div>
-          <div class="inspector-content">
-            <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-              <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${selApp.iconBg || defaultIconBg};">
-                ${selApp.iconSvg || defaultIconSvg}
-              </div>
-              <div style="min-width:0;flex:1;">
-                <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
-                <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">${selApp.appPath} · ${selApp.bundleId}</div>
-              </div>
-            </div>
-
-            <div class="bento-4">
-              <div class="bento-cell"><div class="bento-label">📦 应用主程序 (.app)</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
-              <div class="bento-cell"><div class="bento-label">🗂️ 运行与容器缓存</div><div class="bento-val" style="color:var(--accent-amber);">${(selApp.cacheSizeGb || selApp.leftoverSizeGb).toFixed(2)} GB</div></div>
-              <div class="bento-cell"><div class="bento-label">⚙️ 个人账号与偏好配置</div><div class="bento-val" style="color:var(--accent-emerald);">${(selApp.configSizeGb || 0.25).toFixed(2)} GB (${selApp.keepPersonal ? '保留' : '清除'})</div></div>
-              <div class="bento-cell"><div class="bento-label">当前操作模式</div><div class="bento-val" style="color:var(--accent-primary);">${mode === 'cache_only' ? '仅清缓存 (保留App)' : selApp.keepPersonal ? '标准卸载 App' : '彻底粉碎卸载'}</div></div>
-            </div>
-
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">勾选要移除的组件（支持单独勾选「📦 主程序」「🗂️ 缓存」或「⚙️ 个人配置」）</div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              ${selApp.subpaths.map((sp, spIdx) => `
-                <div class="subpath-item">
-                  <div class="subpath-left">
-                    <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
-                    <span class="badge ${sp.kind === 'app' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
-                      ${sp.kind === 'app' ? '📦 主程序' : sp.kind === 'cache' ? '🗂️ 缓存' : '⚙️ 个人配置'}
-                    </span>
-                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
-                  </div>
-                  <span class="subpath-right">${sp.size}</span>
-                </div>
-              `).join('')}
-            </div>
-
-            <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:7px;padding-top:4px;">
-              <button class="btn" style="justify-content:center;" onclick="setUninstallMode('standard'); openConfirmSheet();">
-                📦 标准卸载 App (保留配置)
-              </button>
-              <button class="btn btn-danger" style="justify-content:center;" onclick="setUninstallMode('complete'); openConfirmSheet();">
-                🔥 彻底卸载 (含全部残留)
-              </button>
-            </div>
-          </div>
+        <div style="font-size:11px;color:var(--text-secondary);">
+          ${panelMode === 'leftovers'
+            ? '🔍 深度检索已从 /Applications 移除但仍滞留在 Containers、Android SDK、~/.docker 与 ~/.gradle 的无主残留'
+            : '💻 扫描本机 /Applications 已安装应用，支持「标准卸载 (保留配置)」「彻底粉碎卸载」与「仅清缓存」'}
         </div>
       </div>
     `;
+
+    if (panelMode === 'leftovers') {
+      const selOrphan = orphans[STATE.selectedOrphanIdx] || orphans[0];
+      const checkedOrphans = orphans.filter(o => o.checked);
+      const activeOrphans = checkedOrphans.length > 0 ? checkedOrphans : [selOrphan].filter(Boolean);
+      const totalSelectedOrphanGb = activeOrphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
+
+      topTitle.textContent = '分离器 · 已卸载应用残留清理 (Jettison · Leftovers)';
+      primaryBtnText.textContent = `一键清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)`;
+      heroHeadline.textContent = selOrphan
+        ? `发现 ${orphans.length} 组已卸载应用的孤立残留（含 Docker 容器与 Android Studio 残留）`
+        : '所有已卸载应用的孤立残留均已清理完毕';
+      heroDesc.textContent = '自动比对 /Applications 已安装列表并深度检索 ~/Library/Containers、~/Library/Android/sdk、~/.android/avd、~/.docker、~/.gradle 与 Google/AndroidStudio* 下的无主残留目录。';
+      heroStatLabel.textContent = '已勾选孤立残留';
+      heroStatValue.textContent = `${totalSelectedOrphanGb.toFixed(2)} GB`;
+      heroStatSub.textContent = `共 ${activeOrphans.length} 组无主残留 · 移入废纸篓安全可还原`;
+
+      if (!selOrphan) {
+        stage.innerHTML = dualModeSwitchHtml + `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前本机没有已卸载应用的孤立残留，点击上方「📦 管理应用卸载」可管理已安装的 Mac 应用。</div>`;
+        return;
+      }
+
+      // Every row resolves through the shared glyph system: a spec'd mark for a
+      // known app, a deterministic plate plus monogram for anything else.
+      const iconFor = (name, bundleId, index) => {
+        const kind = appGlyphFor(name, bundleId);
+        return {
+          bg: appPlateFor(name),
+          svg: get_skeuo_svg(kind, 'orph' + index),
+          mark: String(name || '?').trim().charAt(0).toUpperCase()
+        };
+      };
+
+      stage.innerHTML = dualModeSwitchHtml + `
+        <div class="master-detail-grid" style="min-height:0;flex:1;">
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>检测到的已卸载应用孤立残留 (共 ${orphans.length} 组 · 主程序均已不在 /Applications)</span>
+              <span class="badge badge-safe">100% 无主残留 · 安全可清</span>
+            </div>
+            <div class="list-body">
+              ${orphans.map((item, idx) => `
+                <div class="list-row ${idx === STATE.selectedOrphanIdx ? 'selected' : ''}" onclick="selectOrphanRow(${idx})">
+                  <div class="row-left">
+                    <input type="checkbox" ${item.checked ? 'checked' : ''} onclick="toggleOrphanCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                    <div class="app-squircle-icon" style="background:${iconFor(item.name, item.bundleId, idx).bg};">
+                      ${iconFor(item.name, item.bundleId, idx).svg}
+                    </div>
+                    <div style="min-width:0;">
+                      <div class="row-title" style="display:flex;align-items:center;gap:6px;">
+                        <span>${item.name}</span>
+                        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${item.category}</span>
+                      </div>
+                      <div class="row-sub">👻 ${item.statusText} · 关联 ${item.subpaths.length} 处遗留目录 (${item.bundleId})</div>
+                    </div>
+                  </div>
+                  <div class="row-right">
+                    <span class="badge badge-review">👻 已卸载残留</span>
+                    <span class="size-cell" style="color:var(--accent-amber);">${item.leftoverSizeGb.toFixed(2)} GB</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>孤立残留目录明细与核验 (${selOrphan.name})</span>
+              <span style="font-family:var(--font-mono);color:var(--accent-amber);">${selOrphan.leftoverSizeGb.toFixed(2)} GB</span>
+            </div>
+            <div class="inspector-content">
+              <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
+                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selOrphan.name, selOrphan.bundleId, 0).bg};">
+                  ${iconFor(selOrphan.name, selOrphan.bundleId, 0).svg}
+                </div>
+                <div style="min-width:0;flex:1;">
+                  <div style="font-size:14.5px;font-weight:800;">${selOrphan.name} <span style="font-size:11px;font-weight:600;color:var(--accent-amber);">· ${selOrphan.statusText}</span></div>
+                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">Bundle ID: ${selOrphan.bundleId} · /Applications 下已无此应用</div>
+                </div>
+              </div>
+
+              <div class="bento-4">
+                <div class="bento-cell"><div class="bento-label">📦 主程序状态</div><div class="bento-val" style="color:var(--accent-amber);">已卸载 (无 .app)</div></div>
+                <div class="bento-cell"><div class="bento-label">🗂️ 扫描到遗留目录</div><div class="bento-val">${selOrphan.subpaths.length} 处孤立路径</div></div>
+                <div class="bento-cell"><div class="bento-label">💾 占用磁盘体积</div><div class="bento-val" style="color:var(--accent-rose);">${selOrphan.leftoverSizeGb.toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">🛡️ 清理安全性</div><div class="bento-val" style="color:var(--accent-emerald);">完全安全 (无主残留)</div></div>
+              </div>
+
+              <div style="font-size:11px;color:var(--text-secondary);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:7px;padding:6px 10px;line-height:1.4;">
+                🧹 ${selOrphan.impact}
+              </div>
+
+              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">包含遗留子目录明细（支持单独勾选或点击在访达中检视）</div>
+              <div style="display:flex;flex-direction:column;gap:5px;">
+                ${selOrphan.subpaths.map((sp, spIdx) => `
+                  <div class="subpath-item">
+                    <div class="subpath-left">
+                      <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleOrphanSubpathCheck(${STATE.selectedOrphanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <span class="badge ${sp.kind === 'cache' ? 'badge-safe' : 'badge-review'}" style="font-size:9px;padding:1px 5px;">
+                        ${sp.kind === 'cache' ? '🗂️ 容器/SDK缓存' : '⚙️ 遗留配置'}
+                      </span>
+                      <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
+                    </div>
+                    <span class="subpath-right">${sp.size}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1.3fr;gap:7px;padding-top:4px;">
+                <button class="btn" style="justify-content:center;" onclick="revealInFinder('${selOrphan.subpaths[0]?.path || '~/Library'}')">
+                  在访达 (Finder) 中查看
+                </button>
+                <button class="btn btn-primary" style="justify-content:center;" onclick="openConfirmSheet();">
+                  🧹 立即清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      const selApp = STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0];
+      const mode = STATE.uninstallMode || 'standard';
+      const calcAppGb = (a) => {
+        if (!a) return 0;
+        if (mode === 'cache_only') return +(a.cacheSizeGb || a.leftoverSizeGb * 0.8).toFixed(2);
+        if (mode === 'standard' || a.keepPersonal) return +(a.appSizeGb + (a.cacheSizeGb || a.leftoverSizeGb * 0.8)).toFixed(2);
+        return +(a.appSizeGb + a.leftoverSizeGb).toFixed(2);
+      };
+      const checkedApps = STATE.appsList.filter(a => a.checked);
+      const activeApps = checkedApps.length > 0 ? checkedApps : [selApp].filter(Boolean);
+      const totalSelectedAppGb = activeApps.reduce((s, a) => s + calcAppGb(a), 0);
+
+      topTitle.textContent = '分离器 · 管理本机应用卸载 (Jettison · App Uninstaller)';
+      primaryBtnText.textContent = mode === 'cache_only'
+        ? `仅清理所选应用缓存 (${totalSelectedAppGb.toFixed(2)} GB)`
+        : mode === 'standard'
+        ? `标准卸载所选应用 (${totalSelectedAppGb.toFixed(2)} GB)`
+        : `彻底粉碎卸载所选 (${totalSelectedAppGb.toFixed(2)} GB)`;
+
+      heroHeadline.textContent = selApp
+        ? `${selApp.name}.app v${selApp.version} · ${mode === 'standard' ? '标准卸载 App（移除主程序 · 保留个人配置）' : mode === 'complete' ? '彻底粉碎卸载（移除主程序 + 全部 Library 残留）' : '应用瘦身（保留应用 · 仅清理膨胀缓存）'}`
+        : '所有勾选的 Mac 应用已处理完毕';
+      heroDesc.textContent = '管理本机 /Applications 已安装应用：①「📦 标准卸载 App」卸载主程序与缓存并保留配置；②「🔥 彻底粉碎卸载」连同 Library 数据全部清除；③「🧹 仅清理缓存」保留应用。';
+      heroStatLabel.textContent = mode === 'cache_only' ? '可释放应用缓存' : '当前所选卸载体积';
+      heroStatValue.textContent = `${totalSelectedAppGb.toFixed(2)} GB`;
+      heroStatSub.textContent = mode === 'standard' ? '移除 .app 主程序 · 保留个人配置' : mode === 'complete' ? '移除 .app 主程序 + 全部 Library 残留' : '保留 .app 主程序 · 仅清理缓存';
+
+      if (!selApp) {
+        stage.innerHTML = dualModeSwitchHtml + `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前选中的 Mac 应用已移入废纸篓，可在「黑匣子 · 恢复白名单」中随时原路还原。</div>`;
+        return;
+      }
+
+      const iconFor = (name, bundleId, index) => {
+        const kind = appGlyphFor(name, bundleId);
+        return {
+          bg: appPlateFor(name),
+          svg: get_skeuo_svg(kind, 'app' + index),
+          mark: String(name || '?').trim().charAt(0).toUpperCase()
+        };
+      };
+
+      stage.innerHTML = dualModeSwitchHtml + `
+        <div class="master-detail-grid" style="min-height:0;flex:1;">
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>本机已安装 Mac 应用程序 (/Applications · 共 ${STATE.appsList.length} 款)</span>
+              <div class="segmented-tabs">
+                <div class="seg-tab ${mode === 'standard' ? 'active' : ''}" onclick="setUninstallMode('standard')" title="卸载 /Applications/*.app 主程序与缓存，保留您的个人账号配置">📦 标准卸载 App</div>
+                <div class="seg-tab ${mode === 'complete' ? 'active' : ''}" onclick="setUninstallMode('complete')" title="卸载 .app 主程序并彻底清除所有 Library 偏好设置与沙盒残留">🔥 彻底粉碎卸载</div>
+                <div class="seg-tab ${mode === 'cache_only' ? 'active' : ''}" onclick="setUninstallMode('cache_only')" title="保留 Mac 应用不卸载，仅清理其产生的膨胀缓存">🧹 仅清理缓存</div>
+              </div>
+            </div>
+            <div class="list-body">
+              ${STATE.appsList.map((app, idx) => {
+                const rowGb = calcAppGb(app);
+                return `
+                <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
+                  <div class="row-left">
+                    <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                    <div class="app-squircle-icon" style="background:${iconFor(app.name, app.bundleId, idx).bg};">
+                      ${iconFor(app.name, app.bundleId, idx).svg}
+                    </div>
+                    <div style="min-width:0;">
+                      <div class="row-title" style="display:flex;align-items:center;gap:6px;">
+                        <span>${app.name}</span>
+                        <span style="font-size:10.5px;color:var(--text-secondary);font-weight:500;">v${app.version}</span>
+                        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${app.category || 'Mac 应用'}</span>
+                      </div>
+                      <div class="row-sub">📦 主程序: ${app.appSizeGb.toFixed(2)} GB · 🗂️ 缓存与关联数据: ${app.leftoverSizeGb.toFixed(2)} GB</div>
+                    </div>
+                  </div>
+                  <div class="row-right">
+                    <span class="badge ${mode === 'cache_only' ? 'badge-safe' : app.keepPersonal ? 'badge-safe' : 'badge-review'}" onclick="toggleAppKeepPersonal(${idx}, event)" title="点击切换标准卸载 / 彻底卸载">
+                      ${mode === 'cache_only' ? '🧹 仅清缓存' : app.keepPersonal ? '📦 标准卸载 App' : '🔥 彻底粉碎卸载'}
+                    </span>
+                    <span class="size-cell" style="color:${mode === 'cache_only' ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${rowGb.toFixed(2)} GB</span>
+                  </div>
+                </div>
+              `}).join('')}
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-header">
+              <span>Mac 应用包与关联数据透视 (${selApp.name}.app)</span>
+              <span style="font-family:var(--font-mono);color:var(--accent-rose);">${calcAppGb(selApp).toFixed(2)} GB</span>
+            </div>
+            <div class="inspector-content">
+              <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
+                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
+                  ${iconFor(selApp.name, selApp.bundleId, 0).svg}
+                </div>
+                <div style="min-width:0;flex:1;">
+                  <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
+                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">${selApp.appPath} · ${selApp.bundleId}</div>
+                </div>
+              </div>
+
+              <div class="bento-4">
+                <div class="bento-cell"><div class="bento-label">📦 应用主程序 (.app)</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">🗂️ 运行与容器缓存</div><div class="bento-val" style="color:var(--accent-amber);">${(selApp.cacheSizeGb || selApp.leftoverSizeGb).toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">⚙️ 个人账号与偏好配置</div><div class="bento-val" style="color:var(--accent-emerald);">${(selApp.configSizeGb || 0.25).toFixed(2)} GB (${selApp.keepPersonal ? '保留' : '清除'})</div></div>
+                <div class="bento-cell"><div class="bento-label">当前操作模式</div><div class="bento-val" style="color:var(--accent-primary);">${mode === 'cache_only' ? '仅清缓存 (保留App)' : selApp.keepPersonal ? '标准卸载 App' : '彻底粉碎卸载'}</div></div>
+              </div>
+
+              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">勾选要移除的组件（支持单独勾选「📦 主程序」「🗂️ 缓存」或「⚙️ 个人配置」）</div>
+              <div style="display:flex;flex-direction:column;gap:5px;">
+                ${selApp.subpaths.map((sp, spIdx) => `
+                  <div class="subpath-item">
+                    <div class="subpath-left">
+                      <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <span class="badge ${sp.kind === 'app' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
+                        ${sp.kind === 'app' ? '📦 主程序' : sp.kind === 'cache' ? '🗂️ 缓存' : '⚙️ 个人配置'}
+                      </span>
+                      <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
+                    </div>
+                    <span class="subpath-right">${sp.size}</span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:7px;padding-top:4px;">
+                <button class="btn" style="justify-content:center;" onclick="setUninstallMode('standard'); openConfirmSheet();">
+                  📦 标准卸载 App (保留配置)
+                </button>
+                <button class="btn btn-danger" style="justify-content:center;" onclick="setUninstallMode('complete'); openConfirmSheet();">
+                  🔥 彻底卸载 (含全部残留)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
   } else if (mod === 'analyze') {
     recomputeDiskAnalyzeTotals();
     const isDrilled = typeof STATE.drillDownDirIdx === 'number' && STATE.treemap2D[STATE.drillDownDirIdx];
-    const parentDir = isDrilled ? STATE.treemap2D[STATE.drillDownDirIdx] : (STATE.treemap2D[STATE.selectedTreemapIdx] || STATE.treemap2D[0]);
+    const parentDir = isDrilled ? STATE.treemap2D[STATE.drillDownDirIdx] : (STATE.treemap2D[STATE.selectedTreemapIdx] || STATE.treemap2D[0] || { name: '个人主目录', path: '~', sizeGb: 0, children: [] });
     const activeTiles = isDrilled && Array.isArray(parentDir.children) ? parentDir.children : STATE.treemap2D;
     const activeIdx = isDrilled ? STATE.selectedSubTileIdx : STATE.selectedTreemapIdx;
-    const curSelectedTile = activeTiles[activeIdx] || activeTiles[0];
+    const curSelectedTile = activeTiles[activeIdx] || activeTiles[0] || { name: '暂无目录', path: '~', sizeGb: 0 };
     const totalLfGb = STATE.largeFiles.reduce((s, f) => s + f.sizeGb, 0);
 
     topTitle.textContent = '星图仪 · 磁盘空间分析 (Astrolabe)';
-    primaryBtnText.textContent = '实时刷新空间分布';
-    heroHeadline.textContent = isDrilled
-      ? `已下钻进入 ${parentDir.name} (${parentDir.sizeGb.toFixed(1)} GB) · 当前选中: ${curSelectedTile.name}`
-      : `本地主目录 (~) 二维正方化空间矩阵 · 已分析 ${STATE.totalAnalyzedGb.toFixed(1)} GB`;
+    primaryBtnText.textContent = STATE.analyzeLoading ? 'mo analyze 扫描中' : '用 mo analyze 重新扫描';
+    heroHeadline.textContent = STATE.analyzeLoading
+      ? '正在调用 mo analyze --json'
+      : (isDrilled
+        ? `mo analyze ${parentDir.path} · ${parentDir.sizeGb.toFixed(2)} GB`
+        : `mo analyze 全机概览 · ${STATE.totalAnalyzedGb.toFixed(2)} GB`);
     heroDesc.textContent = isDrilled
-      ? `当前正在查看 ${parentDir.path} 内部的 ${activeTiles.length} 个子目录块分布。点击左上角「⬅ 返回个人主目录」可退回顶层视图，或点击「在访达中打开」直接管理文件。`
-      : '点击右侧任意色块或左侧目录即可深入下钻查看该目录内部的子目录二维空间分布；点击下方大文件「移至废纸篓」将真实删除并更新内核剩余空间。';
+      ? `这一层来自 mo analyze --json ${parentDir.path}。目录可以继续下钻，文件只显示体积。`
+      : '顶层来自 mo analyze --json 的全机概览，不是本地截断采样。点击目录会再调用一次 CLI 扫描该层。';
     heroStatLabel.textContent = '磁盘实时可用空间';
     heroStatValue.textContent = `${STATE.freeDiskGb.toFixed(1)} GB`;
     heroStatSub.textContent = 'Macintosh HD · 支持多级子目录钻取';
@@ -2904,9 +2477,9 @@ function renderModule() {
       <div class="breadcrumb-bar">
         <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
           ${isDrilled ? `<button class="btn" style="padding:2px 8px;font-size:11px;background:var(--accent-soft);color:var(--accent-primary);border-color:var(--border-selected);" onclick="exitTreemapDrillDown()">⬅ 返回个人主目录 (~)</button>` : ''}
-          <span class="crumb-item" onclick="exitTreemapDrillDown()">💽 Macintosh HD</span>
+          <span class="crumb-item" onclick="exitTreemapDrillDown()">mo analyze</span>
           <span style="color:var(--text-muted);">▸</span>
-          <span class="crumb-item ${!isDrilled ? 'active' : ''}" onclick="exitTreemapDrillDown()">🏠 个人主目录 (~)</span>
+          <span class="crumb-item ${!isDrilled ? 'active' : ''}" onclick="exitTreemapDrillDown()">全机概览</span>
           ${isDrilled ? `
             <span style="color:var(--text-muted);">▸</span>
             <span class="crumb-item active">📂 ${parentDir.name} (${parentDir.sizeGb.toFixed(1)} GB)</span>
@@ -2935,13 +2508,23 @@ function renderModule() {
                   <span style="background:${d.color};width:8px;height:8px;border-radius:50%;flex-shrink:0;"></span>
                   <div style="min-width:0;">
                     <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div>
-                    <div class="row-sub">${d.files.toLocaleString()} 个文件 · 占比 ${d.pct}%</div>
+                    <div class="row-sub">${d.scanStatus || 'complete'} · 占比 ${d.pct}%${d.cleanable ? ' · cleanable' : ''}</div>
                   </div>
                 </div>
                 <span class="size-cell">${d.sizeGb.toFixed(1)} GB</span>
               </div>
             `).join('')}
           </div>
+          ${!isDrilled && STATE.analyzeInsights.length ? `
+            <div style="padding:8px 14px;border-top:1px solid var(--border-subtle);">
+              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">mo analyze insights · 不计入面积图</div>
+              ${STATE.analyzeInsights.map(item => `
+                <div class="subpath-item">
+                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${item.path}')">${item.cleanable ? '🧹' : '🔎'} ${item.name}</span>
+                  <span class="subpath-right">${item.sizeGb.toFixed(2)} GB</span>
+                </div>
+              `).join('')}
+            </div>` : ''}
         </div>
 
         <div class="treemap-stage">
@@ -2950,7 +2533,7 @@ function renderModule() {
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
                 <div style="min-width:0;">
                   <div style="font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.name}</div>
-                  <div style="font-size:10px;color:rgba(255,255,255,0.84);margin-top:2px;font-family:var(--font-mono);">${r.path} · ${r.files.toLocaleString()} 文件</div>
+                  <div style="font-size:10px;color:rgba(255,255,255,0.84);margin-top:2px;font-family:var(--font-mono);">${r.path}${r.scanStatus === 'partial' ? ' · partial' : ''}</div>
                 </div>
                 <span class="drill-pill">${isDrilled ? (idx === activeIdx ? '● 当前检视' : '点击检视') : '下钻子目录 ▸'}</span>
               </div>
@@ -2975,7 +2558,7 @@ function renderModule() {
           ${STATE.largeFiles.length === 0 ? `<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;">当前扫描目录下无符合条件的大文件，或已全部移入废纸篓</div>` : STATE.largeFiles.map((lf, idx) => `
             <div class="list-row" style="padding:7.5px 14px;">
               <div class="row-left">
-                <span>📦</span>
+                <span class="row-glyph">${get_skeuo_svg('purge', 'lf' + idx)}</span>
                 <div style="min-width:0;">
                   <div class="row-title">${lf.name}</div>
                   <div class="row-sub" style="cursor:pointer;" onclick="revealInFinder('${lf.path}')">${lf.path}</div>
@@ -3108,9 +2691,9 @@ function renderModule() {
                   <td style="color:#eab308;cursor:pointer;font-size:13px;" onclick="togglePinProcess(${p.pid})" title="点击切换置顶">${p.pinned ? '★' : '☆'}</td>
                   <td style="font-weight:700;color:var(--text-primary);">${p.name}</td>
                   <td>${p.pid}</td>
-                  <td style="color:${p.cpu > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${p.cpu.toFixed(1)}%</td>
+                  <td style="color:${p.cpu > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${Number(p.cpu || 0).toFixed(1)}%</td>
                   <td>${p.memory_mb} MB</td>
-                  <td>${p.power.toFixed(1)} W</td>
+                  <td>${Number(p.power || 0).toFixed(1)} W</td>
                   <td style="color:var(--text-muted);font-size:11px;cursor:pointer;max-width:290px;overflow:hidden;text-overflow:ellipsis;" onclick="revealInFinder('${p.path}')">${p.path}</td>
                   <td><button class="btn btn-danger" style="padding:2px 8px;font-size:10.5px;" onclick="killProcessByPid(${p.pid})">结束进程</button></td>
                 </tr>
@@ -3206,7 +2789,7 @@ function renderModule() {
     heroHeadline.textContent = doneCount > 0 ? `已完成 ${doneCount} 项系统加速维护` : '5 项系统缓存重建与数据库整理就绪';
     heroDesc.textContent = '一键修复输入法卡顿、重建访达缩略图、刷新本地 DNS 与无损整理系统数据库碎片；右侧集中管理所有受保护的核心资产白名单与废纸篓还原记录。';
     heroStatLabel.textContent = '维护与白名单状态';
-    heroStatValue.textContent = doneCount > 0 ? `${doneCount} / 5 已优化` : `${STATE.whitelist.length} 条白名单`;
+    heroStatValue.textContent = doneCount > 0 ? `${doneCount} / ${STATE.optimizeTasks.length || 0} 已优化` : `${STATE.whitelist.length} 条白名单`;
     heroStatSub.textContent = `当前共有 ${STATE.historyLogs.length} 个可还原快照 · 核心资产已隔离保护`;
 
     stage.innerHTML = `
@@ -3269,6 +2852,11 @@ function renderModule() {
       </div>
     `;
   }
+  } catch (err) {
+    console.error(err);
+    const stage = document.getElementById('moduleStage');
+    if (stage) stage.innerHTML = `<div class="panel-card" style="padding:28px;color:var(--text-secondary);">这个舱段暂时没有可显示的扫描结果。</div>`;
+  }
 }
 
 function handleSearch(val) { STATE.searchQuery = val; renderModule(); }
@@ -3299,14 +2887,14 @@ function toggleTempUnit() { STATE.tempUnit = STATE.tempUnit === 'C' ? 'F' : 'C';
 
 // Editable & Live-Filtered ⌘K Command Palette
 const CMD_PALETTE_ITEMS = [
-  { icon: '✨', title: '智能深度清理：检视 Xcode 编译中间产物 (DerivedData)', sub: '~/Library/Developer/Xcode/DerivedData · 安全可再生', kbd: '⏎ 检视目录', run: () => { switchModule('clean'); selectCleanRow(2); } },
-  { icon: '🤖', title: 'AI 专项清理：回收 Claude / Cursor 历史旧版本程序包', sub: '~/.local/share/claude/versions · 第一安全带', kbd: '⌘2', run: () => { switchModule('ai_moon'); selectMoonRow(0); } },
-  { icon: '🗑️', title: '应用彻底卸载：扫描本机 /Applications 应用与 Library 残留', sub: '/Applications & ~/Library/Application Support', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
-  { icon: '📦', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/Downloads', kbd: '⌘7', run: () => { switchModule('purge'); } },
-  { icon: '📊', title: '磁盘空间分析：查看本地主目录二维空间矩阵与大文件雷达', sub: '本机真实目录占比与大文件清理', kbd: '⌘5', run: () => { switchModule('analyze'); } },
-  { icon: '📈', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 实时同步进程表与风扇控制', kbd: '⌘6', run: () => { switchModule('status'); } },
-  { icon: '🩺', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
-  { icon: '↩️', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '管理受保护的核心白名单路径', kbd: '⌘8', run: () => { switchModule('history'); } }
+  { icon: 'clean', title: '智能深度清理：查看本机扫描到的缓存与日志', sub: '气闸舱 · 仅显示真实存在的目录', kbd: '⌘1', run: () => { switchModule('clean'); } },
+  { icon: 'ai_moon', title: 'AI 专项清理：查看本机 AI 工具缓存', sub: '智核舱 · 扫描 Claude / Cursor / Codex 目录', kbd: '⌘2', run: () => { switchModule('ai_moon'); } },
+  { icon: 'software', title: '应用彻底卸载：扫描本机 /Applications 应用与 Library 残留', sub: '/Applications & ~/Library/Application Support', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
+  { icon: 'purge', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/Downloads', kbd: '⌘7', run: () => { switchModule('purge'); } },
+  { icon: 'analyze', title: '星图仪：用 mo analyze 查看磁盘占用', sub: 'mo analyze --json · 可下钻目录', kbd: '⌘5', run: () => { switchModule('analyze'); } },
+  { icon: 'status', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 实时同步进程表与风扇控制', kbd: '⌘6', run: () => { switchModule('status'); } },
+  { icon: 'brand', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
+  { icon: 'history', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '管理受保护的核心白名单路径', kbd: '⌘8', run: () => { switchModule('history'); } }
 ];
 
 window.renderCommandPaletteList = function(queryStr) {
@@ -3318,7 +2906,9 @@ window.renderCommandPaletteList = function(queryStr) {
     ${matches.map((item, idx) => `
       <div class="list-row ${idx === 0 ? 'selected' : ''}" onclick="closeCommandPalette(); CMD_PALETTE_ITEMS[${CMD_PALETTE_ITEMS.indexOf(item)}].run();">
         <div class="row-left">
-          <span>${item.icon}</span>
+          <span class="palette-glyph" style="background:${MODULE_PLATE[item.icon] || MODULE_PLATE.brand};">
+            ${get_skeuo_svg(item.icon, 'pal' + item.title.length)}
+          </span>
           <div>
             <div class="row-title">${item.title}</div>
             <div class="row-sub">${item.sub}</div>
@@ -3362,17 +2952,32 @@ window.openConfirmSheet = function() {
       </div>
     `).join('');
   } else if (mod === 'software') {
-    const sel = STATE.appsList.filter(a => a.checked);
-    const activeApps = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
-    totalGb = activeApps.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
-    totalCount = activeApps.length;
-    titleEl.textContent = '应用彻底卸载二次确认 — 即将移入废纸篓';
-    rowsHtml = activeApps.map(a => `
-      <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人预设' : '全量彻底清理'})</div></div></div>
-        <span class="size-cell" style="color:var(--accent-rose);">${(a.appSizeGb + a.leftoverSizeGb).toFixed(2)} GB</span>
-      </div>
-    `).join('');
+    if (STATE.softwarePanelMode === 'leftovers') {
+      const orphans = STATE.orphanLeftoversList || [];
+      const sel = orphans.filter(o => o.checked);
+      const activeOrphans = sel.length > 0 ? sel : [orphans[STATE.selectedOrphanIdx] || orphans[0]].filter(Boolean);
+      totalGb = activeOrphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
+      totalCount = activeOrphans.length;
+      titleEl.textContent = '已卸载应用孤立残留清理二次确认 — 即将移入废纸篓';
+      rowsHtml = activeOrphans.map(o => `
+        <div class="list-row" style="padding:7.5px 14px;">
+          <div class="row-left"><span>👻</span><div><div style="font-size:12px;font-weight:600;">${o.name} (${o.statusText})</div><div class="row-sub">${o.subpaths.filter(sp => sp.checked !== false).map(sp => sp.path).join(' · ')}</div></div></div>
+          <span class="size-cell" style="color:var(--accent-amber);">${o.leftoverSizeGb.toFixed(2)} GB</span>
+        </div>
+      `).join('');
+    } else {
+      const sel = STATE.appsList.filter(a => a.checked);
+      const activeApps = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
+      totalGb = activeApps.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+      totalCount = activeApps.length;
+      titleEl.textContent = '管理应用卸载二次确认 — 即将移入废纸篓';
+      rowsHtml = activeApps.map(a => `
+        <div class="list-row" style="padding:7.5px 14px;">
+          <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人配置' : '全量彻底清理'})</div></div></div>
+          <span class="size-cell" style="color:var(--accent-rose);">${(a.appSizeGb + a.leftoverSizeGb).toFixed(2)} GB</span>
+        </div>
+      `).join('');
+    }
   } else if (mod === 'purge') {
     const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0);
     const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);
@@ -3450,20 +3055,41 @@ window.executeConfirmedClean = function() {
     restoreData = { type: 'ai_moon', ids: sel.map(b => b.id), regPaths: regPaths };
     if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = Math.max(0.5, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
   } else if (STATE.module === 'software') {
-    const sel = STATE.appsList.filter(a => a.checked);
-    const active = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
-    freedGb = active.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
-    actionLabel = `应用彻底卸载 (${active.map(a => a.name).join(', ')})`;
-    active.forEach(a => {
-      if (a.appPath) { trashedPaths.push(a.appPath); regPaths.push(a.appPath); }
-      regPaths.push(a.id);
-      a.subpaths.forEach(sp => trashedPaths.push(sp.path));
-    });
-    restoreData = { type: 'software', removedApps: active.map(a => ({ ...a })), regPaths: regPaths };
-    const removeIds = new Set(active.map(a => a.id));
-    STATE.appsList = STATE.appsList.filter(a => !removeIds.has(a.id));
-    STATE.selectedAppIdx = 0;
-    if (STATE.treemap2D[2]) STATE.treemap2D[2].sizeGb = Math.max(0.5, +(STATE.treemap2D[2].sizeGb - freedGb).toFixed(2));
+    if (STATE.softwarePanelMode === 'leftovers') {
+      const orphans = STATE.orphanLeftoversList || [];
+      const sel = orphans.filter(o => o.checked);
+      const active = sel.length > 0 ? sel : [orphans[STATE.selectedOrphanIdx] || orphans[0]].filter(Boolean);
+      freedGb = active.reduce((s, o) => s + o.leftoverSizeGb, 0);
+      actionLabel = `已卸载残留清理 (${active.map(o => o.name).join(', ')})`;
+      active.forEach(o => {
+        regPaths.push(o.id);
+        o.subpaths.forEach(sp => {
+          if (sp.checked !== false) trashedPaths.push(sp.path);
+        });
+      });
+      restoreData = { type: 'orphan_leftovers', removedOrphans: active.map(o => ({ ...o })), regPaths: regPaths };
+      const removeIds = new Set(active.map(o => o.id));
+      STATE.orphanLeftoversList = orphans.filter(o => !removeIds.has(o.id));
+      STATE.selectedOrphanIdx = 0;
+      if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = Math.max(0.5, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
+    } else {
+      const sel = STATE.appsList.filter(a => a.checked);
+      const active = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
+      freedGb = active.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+      actionLabel = `应用卸载 (${active.map(a => a.name).join(', ')})`;
+      active.forEach(a => {
+        if (a.appPath) { trashedPaths.push(a.appPath); regPaths.push(a.appPath); }
+        regPaths.push(a.id);
+        a.subpaths.forEach(sp => {
+          if (sp.checked !== false) trashedPaths.push(sp.path);
+        });
+      });
+      restoreData = { type: 'software', removedApps: active.map(a => ({ ...a })), regPaths: regPaths };
+      const removeIds = new Set(active.map(a => a.id));
+      STATE.appsList = STATE.appsList.filter(a => !removeIds.has(a.id));
+      STATE.selectedAppIdx = 0;
+      if (STATE.treemap2D[2]) STATE.treemap2D[2].sizeGb = Math.max(0.5, +(STATE.treemap2D[2].sizeGb - freedGb).toFixed(2));
+    }
   } else if (STATE.module === 'purge') {
     const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0);
     const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);
@@ -3610,10 +3236,14 @@ document.addEventListener('keydown', (e) => {
 });
 
 updateSidebarBadges();
-renderHeroIcon();
+hydrateGlyphs();
+renderHeroGlyph();
 renderModule();
 renderMenuBarTrayContent();
-if (window.isNativeMacApp) triggerNativeRescan();
+if (window.isNativeMacApp) {
+  triggerNativeRescan();
+  requestDiskAnalyze('');
+}
 setInterval(() => { window.stepLiveTelemetry(); }, 1500);
 </script>
 </body>

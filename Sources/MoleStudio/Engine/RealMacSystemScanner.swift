@@ -1,10 +1,11 @@
 import Cocoa
 import Darwin
 
-/// Samples installed apps, large files, disk, memory, and processes for the WebKit UI.
+/// Samples installed apps, leftover directories, large files, and telemetry for the WebKit UI.
 final class RealMacSystemScanner {
     static let shared = RealMacSystemScanner()
-    private let fm = FileManager.default
+    /// Shared by the extensions in this folder (orphan scanning, telemetry).
+    let fm = FileManager.default
 
     func fastDirectorySize(path: String, maxFiles: Int = 2500) -> (bytes: Int64, count: Int) {
         let expanded = (path as NSString).expandingTildeInPath
@@ -17,16 +18,17 @@ final class RealMacSystemScanner {
         let url = URL(fileURLWithPath: expanded)
         guard let enumerator = fm.enumerator(
             at: url,
-            includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.fileSizeKey, .totalFileAllocatedSizeKey, .isRegularFileKey],
+            options: []
         ) else { return (0, 0) }
 
         var totalBytes: Int64 = 0
         var count = 0
         for case let fileURL as URL in enumerator {
-            if let vals = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+            if let vals = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .totalFileAllocatedSizeKey, .isRegularFileKey]),
                vals.isRegularFile == true {
-                totalBytes += Int64(vals.fileSize ?? 0)
+                let actual = vals.totalFileAllocatedSize ?? vals.fileSize ?? 0
+                totalBytes += Int64(actual)
                 count += 1
                 if count >= maxFiles { break }
             }
@@ -48,7 +50,7 @@ final class RealMacSystemScanner {
             let totalBytes = Double(UInt64(fs.f_blocks) * UInt64(fs.f_bsize))
             return (freeBytes / 1_000_000_000.0, totalBytes / 1_000_000_000.0)
         }
-        return (302.1, 1000.0)
+        return (0, 0)
     }
 
     func queryMemoryUsage() -> (usedGb: Double, totalGb: Double) {
@@ -122,6 +124,8 @@ final class RealMacSystemScanner {
                         "name": (commRaw as NSString).lastPathComponent,
                         "cpu": cpu,
                         "memory_mb": Int(max(1.0, rssKb / 1024.0)),
+                        "power": 0,
+                        "pinned": false,
                         "path": fullPath
                     ])
                 }
@@ -219,6 +223,41 @@ final class RealMacSystemScanner {
         return results
     }
 
+    func matchingWildcardPaths(in parentDir: String, prefix: String) -> [String] {
+        let expanded = (parentDir as NSString).expandingTildeInPath
+        guard let items = try? fm.contentsOfDirectory(atPath: expanded) else { return [] }
+        return items
+            .filter { prefix.isEmpty || $0.lowercased().hasPrefix(prefix.lowercased()) }
+            .map { (expanded as NSString).appendingPathComponent($0) }
+    }
+
+    /// Names and bundle identifiers of every app currently in /Applications, used
+    /// to decide whether a leftover directory still has an owner.
+    func installedAppIndex(home: String) -> (names: Set<String>, bundleIds: Set<String>) {
+        let appDirs = ["/Applications", (home as NSString).appendingPathComponent("Applications")]
+        var installedNames = Set<String>()
+        var installedBundleIds = Set<String>()
+
+        for dir in appDirs {
+            guard let items = try? fm.contentsOfDirectory(atPath: dir) else { continue }
+            for item in items where item.hasSuffix(".app") {
+                let fullPath = (dir as NSString).appendingPathComponent(item)
+                installedNames.insert((item as NSString).deletingPathExtension.lowercased())
+                guard let bundle = Bundle(path: fullPath) else { continue }
+                if let bid = bundle.bundleIdentifier?.lowercased() {
+                    installedBundleIds.insert(bid)
+                }
+                if let display = (bundle.infoDictionary?["CFBundleDisplayName"] as? String)?.lowercased() {
+                    installedNames.insert(display)
+                }
+                if let bundleName = (bundle.infoDictionary?["CFBundleName"] as? String)?.lowercased() {
+                    installedNames.insert(bundleName)
+                }
+            }
+        }
+        return (installedNames, installedBundleIds)
+    }
+
     func scanLargeFiles() -> [[String: Any]] {
         let home = NSHomeDirectory()
         let roots = [
@@ -276,8 +315,113 @@ final class RealMacSystemScanner {
             "memTotalGb": mem.totalGb,
             "cpuModel": queryCPUModel(),
             "appsList": scanInstalledApps(),
-            "largeFiles": scanLargeFiles()
+            "orphanLeftoversList": scanOrphanedLeftovers(),
+            "largeFiles": scanLargeFiles(),
+            "installerFiles": scanInstallerPackages(),
+            "purgeItems": scanBuildArtifacts(),
+            "cleanGroups": scanCleanGroups(),
+            "aiMoonBands": scanAICaches(),
+            "whitelist": loadWhitelistEntries()
         ]
+    }
+
+    func scanHomeTreemap() -> [[String: Any]] {
+        let home = NSHomeDirectory()
+        let names = ["Library", "Downloads", "Documents", "Desktop", "Movies", "Pictures", "Music", "Projects", "Developer"]
+        var rows: [(name: String, path: String, bytes: Int64)] = []
+        for name in names {
+            let path = (home as NSString).appendingPathComponent(name)
+            guard fm.fileExists(atPath: path) else { continue }
+            let (bytes, _) = fastDirectorySize(path: path, maxFiles: 1800)
+            if bytes > 0 { rows.append((name, "~/\(name)", bytes)) }
+        }
+        let total = rows.reduce(Int64(0)) { $0 + $1.bytes }
+        guard total > 0 else { return [] }
+        var x = 0.0
+        return rows.sorted { $0.bytes > $1.bytes }.map { row in
+            let pct = Double(row.bytes) / Double(total) * 100
+            let width = max(8, pct)
+            let tile: [String: Any] = [
+                "name": row.name,
+                "path": row.path,
+                "sizeGb": gb(row.bytes),
+                "pct": (pct * 10).rounded() / 10,
+                "color": "linear-gradient(145deg, #3b6fd4, #254b9e)",
+                "files": 0,
+                "x": x, "y": 0, "w": width, "h": 100,
+                "children": [] as [[String: Any]]
+            ]
+            x += width
+            return tile
+        }
+    }
+
+    func loadWhitelistEntries() -> [String] {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/mole/whitelist")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        return text.split(whereSeparator: \.isNewline).map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("#") }
+    }
+
+    /// One catalogue entry's identity and copy. Grouping these keeps `catalog`
+    /// under the parameter limit without turning the call sites into noise.
+    struct CatalogSpec {
+        let id: String
+        let category: String
+        let name: String
+        let roots: [String]
+        let tier: String
+        let impact: String
+        let rebuild: String
+    }
+
+    func catalog(_ spec: CatalogSpec) -> [String: Any]? {
+        let home = NSHomeDirectory()
+        let (id, category, name, roots) = (spec.id, spec.category, spec.name, spec.roots)
+        let (tier, impact, rebuild) = (spec.tier, spec.impact, spec.rebuild)
+        var subpaths: [[String: Any]] = []
+        var total: Int64 = 0
+        for root in roots where fm.fileExists(atPath: root) {
+            let (bytes, count) = fastDirectorySize(path: root, maxFiles: 2500)
+            guard bytes > 0 else { continue }
+            total += bytes
+            subpaths.append([
+                "path": root.replacingOccurrences(of: home, with: "~"),
+                "size": formatBytes(bytes),
+                "sizeGb": gb(bytes),
+                "checked": tier != "protected"
+            ])
+            _ = count
+        }
+        guard !subpaths.isEmpty else { return nil }
+        return [
+            "id": id,
+            "category": category,
+            "name": name,
+            "path": subpaths[0]["path"] as? String ?? "",
+            "sizeGb": gb(total),
+            "origSizeGb": gb(total),
+            "items": subpaths.count,
+            "filesCount": "\(subpaths.count) 个目录",
+            "lastMod": "本机扫描",
+            "rebuildTime": rebuild,
+            "tier": tier,
+            "checked": tier != "protected",
+            "cleaned": false,
+            "impact": impact,
+            "subpaths": subpaths
+        ]
+    }
+
+    func gb(_ bytes: Int64) -> Double {
+        max(0.01, (Double(bytes) / 1_000_000_000.0 * 100).rounded() / 100.0)
+    }
+
+    func ageText(_ date: Date?) -> String {
+        guard let date else { return "修改时间未知" }
+        let days = Int(Date().timeIntervalSince(date) / 86_400)
+        if days <= 0 { return "今天修改" }
+        return "\(days) 天未修改"
     }
 
     func movePathsToTrash(_ rawPaths: [String]) -> Int {
