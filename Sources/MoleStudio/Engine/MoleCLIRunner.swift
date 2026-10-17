@@ -38,7 +38,7 @@ public actor MoleCLIRunner {
         try? fm.createDirectory(at: operationsLogURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     }
 
-    public func resolveMoBinaryPath() -> String {
+    public nonisolated func resolveMoBinaryPath() -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let candidates = [
             "/opt/homebrew/bin/mo",

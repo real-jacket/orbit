@@ -38,7 +38,7 @@ so you always run the upstream version you installed.
 | **AI Care** · Moon | `mo clean --ai-care` | Stale AI CLI binaries, render caches, expired agent worktrees, SQLite compaction |
 | **Uninstaller** · Mars | `mo uninstall` | Removes app bundles plus their leftover support files, with "keep personal data" |
 | **Optimize** · Mercury | `mo optimize` | Refreshes caches, rebuilds QuickLook/icon caches, vacuums system SQLite databases |
-| **Disk Analyzer** · Jupiter | `mo analyze` | Squarified 2D treemap of disk usage plus a large-file list |
+| **Astrolabe** · disk analyzer | `mo analyze --json` | Treemap of the CLI overview, with a fresh CLI scan when a directory is opened |
 | **Live Status** · Sun | `mo status` | Process table with CPU, memory and power draw |
 | **Purge** | `mo purge`, `mo installer` | Removes rebuildable project artifacts and stale installer packages |
 | **History & Whitelist** | `mo history`, `mo clean --whitelist` | Cleanup audit log and protected-path management |
@@ -101,7 +101,7 @@ Sources/MoleStudio/
 ├── Models/MoleModels.swift          # Domain types: modules, safety tiers, scan/cleanup entries
 ├── Engine/
 │   ├── MoleCLIRunner.swift          # actor: resolves `mo`, executes it, parses output, treemap math
-│   ├── MoleViewModel.swift          # ObservableObject state store and the demo dataset
+│   ├── MoleViewModel.swift          # ObservableObject state store; lists start empty until a scan fills them
 │   ├── NativeSystemMonitor.swift    # Mach/statfs telemetry, screen-shield window
 │   └── RealMacSystemScanner.swift   # local app, large-file, and process scan for the WebKit UI
 └── Views/VisualEffectAndPlanetView.swift  # NSVisualEffectView bridge, Canvas planet renderer
@@ -153,14 +153,13 @@ This is an early-stage client. Being explicit about what is and is not wired up:
 - **The WebKit surface in `Resources/src-ui/index.html` is the shipping UI.** The SwiftUI layer
   (`MoleViewModel`, `MoleModels`, `VisualEffectAndPlanetView`) is a parallel, partly-built native
   implementation that the running app does not yet consume.
-- **The dataset in `MoleViewModel` is sample data**, not live scan output. `MoleCLIRunner` is wired to
+- **Lists start empty.** The window shows scan results only. `MoleCLIRunner` is wired to
   execute `mo` for real; the UI is not yet reading its results back.
 - **Some CLI flags shown in the UI are aspirational.** `mo clean --ai-care`, `--retention` and
   `--band` do not exist in `mo` 1.56.1. Treat those strings as design intent for the AI Care module,
   not as working commands.
-- **CPU load, memory, disk free space, installed apps, and large files are sampled on this Mac.**
-  Temperature shown next to CPU is still estimated from load, and the SwiftUI dataset in `MoleViewModel`
-  remains sample data.
+- **CPU load, memory, disk free space, installed apps, leftovers, installers, and build artifacts are sampled on this Mac.**
+  Temperature shown next to CPU is still estimated from load.
 
 ## Safety model
 

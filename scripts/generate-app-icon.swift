@@ -3,22 +3,41 @@
 //  generate-app-icon.swift
 //  orbit — app icon generator
 //
-//  Renders the Dock icon from the v10 brand mark: a three-stop squircle plate,
-//  a terracotta planet, front/back occluding rings, and an ice-blue companion.
-//  Geometry matches the sidebar brand SVG in Resources/src-ui/index.html.
+//  Renders the Orbit Studio brand master mark (spec 四.4.1 row 0) as a macOS
+//  squircle plate, from code, at every size `iconutil` needs.
+//
+//  The mark is deliberately built from four elements and nothing else:
+//
+//    1  obsidian squircle plate: one 145° ramp and one lit top edge
+//    2  a terracotta sphere, lit from the upper left
+//    3  a gold orbit, drawn behind the sphere for its far half and in front of
+//       it for its near half (三.3 真实空间遮挡关系)
+//    4  a flat ice-blue companion riding the orbit, from 32pt up
+//
+//  Everything an earlier revision carried — a second orbit, a dashed airlock
+//  ring, corner gauge ticks, a warm bloom, a vignette, a specular hotspot, limb
+//  darkening, bounce light, an inner hairline, a bottom shade, a dark outer rim
+//  and a highlight tube along the ring — was removed. Each looked defensible on
+//  its own; together they made the mark noisy and expensive-looking. The rule
+//  that replaces them: add an element only if it changes what the mark *means*
+//  at 32pt.
+//
+//  Geometry is expressed in the same 64×64 space as the brand SVG in
+//  Resources/src-ui/index.html, then mapped into Apple's 824pt icon body.
 //
 //  Usage:
 //    swift scripts/generate-app-icon.swift iconset <out.iconset>
 //    swift scripts/generate-app-icon.swift icns    <out.icns>
 //    swift scripts/generate-app-icon.swift sheet   <out.png>
-//    swift scripts/generate-app-icon.swift single  <out.png> <size> [concept]
+//    swift scripts/generate-app-icon.swift single  <out.png> <size>
+//    swift scripts/generate-app-icon.swift zoom    <out.png> <size> <factor>
 //
 import CoreGraphics
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-// MARK: - Palette (mirrors the CSS custom properties in Resources/src-ui/index.html)
+// MARK: - Palette
 
 enum Brand {
     static func hex(_ value: UInt32, _ alpha: CGFloat = 1) -> CGColor {
@@ -30,14 +49,25 @@ enum Brand {
         )
     }
 
-    // v10 brand plate and planet, matching the sidebar SVG.
-    static let plateTop = hex(0x27272A)
-    static let plateMid = hex(0x09090B)
-    static let plateEnd = hex(0x7C2D12)
-    static let planetHighlight = hex(0xFFF7ED)
-    static let planetGold = hex(0xFDBA74)
-    static let planetWarm = hex(0xEA580C)
+    // Plate: the spec's three-stop ramp (四.4.1 row 0), with the terracotta kept
+    // to the last fifth so it reads as obsidian with a warm corner, not as brown.
+    static let plateTop = hex(0x2E2E33)
+    static let plateMid = hex(0x0A0A0C)
+    static let plateEnd = hex(0x6E2910)
+
+    // Sphere: one terracotta family, three steps from the key light to the limb.
+    static let sphereLight = hex(0xFDBA74)
+    static let sphereWarm = hex(0xF97316)
+    static let sphereDeep = hex(0xC2410C)
+
+    // Orbit: one gold and its darker far-side twin, so the ring reads as a
+    // single object crossing behind the sphere rather than two different bands.
+    static let ringGold = hex(0xF7C24A)
+    static let ringGoldDim = hex(0x9C6B12)
+
+    // Companion: the brand's cool accent, with a slightly deeper rim.
     static let companion = hex(0x38BDF8)
+    static let companionRim = hex(0x0284C7)
 }
 
 // MARK: - Geometry helpers
@@ -72,101 +102,91 @@ struct LCG {
         state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
         return Double((state >> 11) & 0xFFFF_FFFF) / Double(0xFFFF_FFFF)
     }
-    mutating func range(_ lo: Double, _ hi: Double) -> Double { lo + next() * (hi - lo) }
 }
 
-func linearGradient(_ colors: [CGColor], _ locations: [CGFloat]) -> CGGradient {
+func gradient(_ colors: [CGColor], _ locations: [CGFloat]) -> CGGradient {
     CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                colors: colors as CFArray,
                locations: locations)!
 }
 
-func radialGradient(_ colors: [CGColor], _ locations: [CGFloat]) -> CGGradient {
-    linearGradient(colors, locations)
-}
+// MARK: - Brand mark coordinate space
 
-// MARK: - v10 brand mark
-
-/// Maps the sidebar SVG's 64×64 viewBox into the 824px icon body.
+/// Maps the 64×64 brand grid into the 824pt icon body, with y flipped so the
+/// numbers here read the same way as the SVG in the shipping UI.
 enum OrbitMark {
     static let unit: CGFloat = 824 / 64
+
+    /// Orbit: the ellipse from 三.3, shared with the sidebar brand SVG.
+    static let orbitRx: CGFloat = 26
+    static let orbitRy: CGFloat = 10.5
+    static let orbitTilt: CGFloat = -26
+
+    /// The ice-blue companion sits on the orbit where it clears the sphere,
+    /// matching the sidebar SVG's circle at (50, 21).
+    static let companionHome = CGPoint(x: 50, y: 21)
 
     static func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
         CGPoint(x: 100 + x * unit, y: 924 - y * unit)
     }
+
+    static func length(_ svgUnits: CGFloat) -> CGFloat { svgUnits * unit }
 }
 
-func svgArcPath(from start: CGPoint, to end: CGPoint,
-                rx rawRx: CGFloat, ry rawRy: CGFloat,
-                rotationDegrees: CGFloat, largeArc: Bool, sweep: Bool,
-                steps: Int = 220) -> CGPath {
-    let path = CGMutablePath()
-    let phi = rotationDegrees * .pi / 180
-    let cosPhi = cos(phi)
-    let sinPhi = sin(phi)
-    let dx = (start.x - end.x) / 2
-    let dy = (start.y - end.y) / 2
-    let x1p = cosPhi * dx + sinPhi * dy
-    let y1p = -sinPhi * dx + cosPhi * dy
+// MARK: - Per-size optical profile
 
-    var rx = abs(rawRx)
-    var ry = abs(rawRy)
-    let lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry)
-    if lambda > 1 {
-        let fit = sqrt(lambda)
-        rx *= fit
-        ry *= fit
-    }
+/// Three drawings of one mark. A 16pt icon is a silhouette test, a 512pt icon
+/// is a geometry test, and 32–64pt sits between them; each tier only thickens
+/// what that size cannot resolve.
+struct IconProfile {
+    let planetRadius: CGFloat
+    let ringWidth: CGFloat
+    let backRingWidth: CGFloat
+    let orbitStretch: CGFloat
+    let showsShading: Bool
+    /// Radius of the ice-blue companion on the 64-grid. Zero means "do not draw
+    /// it": at 16pt a companion is a stray dot beside the sphere, not a symbol.
+    let companionRadius: CGFloat
+    let plateTop: CGColor
+    let plateMid: CGColor
+    let plateEnd: CGColor
 
-    let numerator = max(0, rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p)
-    let denominator = max(0.000_001, rx * rx * y1p * y1p + ry * ry * x1p * x1p)
-    let sign: CGFloat = largeArc == sweep ? -1 : 1
-    let coef = sign * sqrt(numerator / denominator)
-    let cxp = coef * rx * y1p / ry
-    let cyp = coef * -ry * x1p / rx
-    let cx = cosPhi * cxp - sinPhi * cyp + (start.x + end.x) / 2
-    let cy = sinPhi * cxp + cosPhi * cyp + (start.y + end.y) / 2
-
-    func signedAngle(_ ux: CGFloat, _ uy: CGFloat, _ vx: CGFloat, _ vy: CGFloat) -> CGFloat {
-        atan2(ux * vy - uy * vx, ux * vx + uy * vy)
-    }
-    let theta1 = signedAngle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry)
-    var delta = signedAngle(
-        (x1p - cxp) / rx, (y1p - cyp) / ry,
-        (-x1p - cxp) / rx, (-y1p - cyp) / ry
+    /// 128pt and up: the mark at full detail.
+    static let full = IconProfile(
+        planetRadius: 12.6, ringWidth: 3.2, backRingWidth: 3.2, orbitStretch: 1.0,
+        showsShading: true, companionRadius: 3.3,
+        plateTop: Brand.plateTop, plateMid: Brand.plateMid, plateEnd: Brand.plateEnd
     )
-    if !sweep && delta > 0 { delta -= 2 * .pi }
-    if sweep && delta < 0 { delta += 2 * .pi }
 
-    for i in 0...steps {
-        let theta = theta1 + delta * CGFloat(i) / CGFloat(steps)
-        let x = cx + rx * cos(theta) * cosPhi - ry * sin(theta) * sinPhi
-        let y = cy + rx * cos(theta) * sinPhi + ry * sin(theta) * cosPhi
-        let mapped = OrbitMark.point(x, y)
-        if i == 0 { path.move(to: mapped) } else { path.addLine(to: mapped) }
+    /// 32–64pt: the same drawing, a touch heavier so it survives downscaling.
+    static let compact = IconProfile(
+        planetRadius: 13.0, ringWidth: 3.6, backRingWidth: 3.6, orbitStretch: 1.06,
+        showsShading: true, companionRadius: 3.7,
+        plateTop: Brand.hex(0x34341F), plateMid: Brand.hex(0x0C0C0E), plateEnd: Brand.hex(0x3A1A0A)
+    )
+
+    /// 16pt: a pictogram. One uniform ring, opened far enough to clear the
+    /// sphere, because at this size a thin occluded band degenerates into mush.
+    static let mini = IconProfile(
+        planetRadius: 12.6, ringWidth: 4.2, backRingWidth: 4.2, orbitStretch: 1.46,
+        showsShading: false, companionRadius: 0,
+        plateTop: Brand.hex(0x3E3E45), plateMid: Brand.hex(0x17171A), plateEnd: Brand.hex(0x4A2110)
+    )
+
+    static func forSize(_ size: Int) -> IconProfile {
+        switch size {
+        case ...16: return .mini
+        case ...64: return .compact
+        default: return .full
+        }
     }
-    return path
 }
 
-func svgRotatedEllipse(cx: CGFloat, cy: CGFloat, rx: CGFloat, ry: CGFloat,
-                       rotationDegrees: CGFloat, steps: Int = 240) -> CGPath {
-    let path = CGMutablePath()
-    let phi = rotationDegrees * .pi / 180
-    for i in 0...steps {
-        let t = CGFloat(i) / CGFloat(steps) * 2 * .pi
-        let localX = rx * cos(t)
-        let localY = ry * sin(t)
-        let x = cx + localX * cos(phi) + localY * sin(phi)
-        let y = cy - localX * sin(phi) + localY * cos(phi)
-        let mapped = OrbitMark.point(x, y)
-        if i == 0 { path.move(to: mapped) } else { path.addLine(to: mapped) }
-    }
-    path.closeSubpath()
-    return path
-}
+// MARK: - Element 1: the plate
 
-func drawOrbitPlate(in ctx: CGContext, size: Int) {
-    let tiny = size <= 32
+/// One gradient and one lit edge. The plate is a container, not a subject:
+/// every extra treatment here competes with the mark it is holding.
+func drawPlate(in ctx: CGContext, profile: IconProfile) {
     let centre = CGPoint(x: canvas / 2, y: canvas / 2)
     ctx.saveGState()
     ctx.addPath(squircle(center: centre, radius: bodyRadius))
@@ -175,155 +195,177 @@ func drawOrbitPlate(in ctx: CGContext, size: Int) {
     // 145deg in CSS points down-right. In this y-up canvas that is (+sin, +cos).
     let angle = 145 * CGFloat.pi / 180
     let direction = CGPoint(x: sin(angle), y: cos(angle))
-    let reach = bodyRadius * 1.2
-    let plate = linearGradient(
-        [
-            tiny ? Brand.hex(0x3F3F46) : Brand.plateTop,
-            tiny ? Brand.hex(0x1C1917) : Brand.plateMid,
-            Brand.plateEnd
-        ],
-        [0, 0.65, 1]
-    )
+    let reach = bodyRadius * 1.15
     ctx.drawLinearGradient(
-        plate,
+        gradient([profile.plateTop, profile.plateMid, profile.plateEnd], [0, 0.90, 1]),
         start: CGPoint(x: centre.x - direction.x * reach, y: centre.y - direction.y * reach),
         end: CGPoint(x: centre.x + direction.x * reach, y: centre.y + direction.y * reach),
         options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
     )
 
-    let highlight = linearGradient(
-        [Brand.hex(0xFFFFFF, tiny ? 0.22 : 0.42), Brand.hex(0xFFFFFF, 0)],
-        [0, 1]
-    )
+    // A single lit edge along the top, so the squircle reads as a raised tile.
+    let band = bodyRadius * 0.09
     ctx.drawLinearGradient(
-        highlight,
+        gradient([Brand.hex(0xFFFFFF, 0.28), Brand.hex(0xFFFFFF, 0)], [0, 1]),
         start: CGPoint(x: centre.x, y: centre.y + bodyRadius),
-        end: CGPoint(x: centre.x, y: centre.y + bodyRadius * 0.62),
-        options: []
-    )
-    let shade = linearGradient(
-        [Brand.hex(0x000000, 0), Brand.hex(0x000000, tiny ? 0.22 : 0.35)],
-        [0, 1]
-    )
-    ctx.drawLinearGradient(
-        shade,
-        start: CGPoint(x: centre.x, y: centre.y - bodyRadius * 0.42),
-        end: CGPoint(x: centre.x, y: centre.y - bodyRadius),
+        end: CGPoint(x: centre.x, y: centre.y + bodyRadius - band),
         options: []
     )
     ctx.restoreGState()
+}
+
+// MARK: - Element 2: the sphere
+
+func drawSphere(in ctx: CGContext, profile: IconProfile) {
+    let radius = OrbitMark.length(profile.planetRadius)
+    let centre = OrbitMark.point(32, 32)
+    let extent = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
+    // Key light at 35% / 30% of the bounding box, as in the sidebar SVG.
+    let svg = profile.planetRadius
+    let light = OrbitMark.point((32 - svg) + 0.35 * svg * 2, (32 - svg) + 0.30 * svg * 2)
 
     ctx.saveGState()
-    ctx.addPath(squircle(center: centre, radius: bodyRadius - 1.5))
-    ctx.setStrokeColor(Brand.hex(0xFFFFFF, tiny ? 0.20 : 0.12))
-    ctx.setLineWidth(tiny ? 6 : 3)
+    ctx.addEllipse(in: extent)
+    ctx.clip()
+    if profile.showsShading {
+        ctx.drawRadialGradient(
+            gradient([Brand.sphereLight, Brand.sphereWarm, Brand.sphereDeep], [0, 0.62, 1]),
+            startCenter: light, startRadius: 1,
+            endCenter: light, endRadius: radius * 1.06,
+            options: [.drawsAfterEndLocation]
+        )
+    } else {
+        // 16pt: one flat terracotta disc reads better than a gradient that the
+        // rasteriser turns into two muddy bands.
+        ctx.setFillColor(Brand.sphereWarm)
+        ctx.fill(extent)
+    }
+    ctx.restoreGState()
+}
+
+// MARK: - Element 3: the orbit
+
+/// Splits the orbit at the two points where it crosses the sphere's silhouette.
+///
+/// For a tilted circle seen in projection the near half is exactly the 180° of
+/// parameter space centred on the lowest projected point, so the seams land on
+/// the ends of the major axis and the two halves abut with no gap. 三.3 asks for
+/// this: the far half runs behind the sphere, the near half in front of it.
+func orbitHalves(stretch: CGFloat, steps: Int = 720) -> (front: CGPath, back: CGPath) {
+    let phi = OrbitMark.orbitTilt * .pi / 180
+    var points: [CGPoint] = []
+    points.reserveCapacity(steps)
+    for index in 0..<steps {
+        let t = CGFloat(index) / CGFloat(steps) * 2 * .pi
+        let localX = OrbitMark.orbitRx * cos(t)
+        let localY = OrbitMark.orbitRy * stretch * sin(t)
+        let x = 32 + localX * cos(phi) + localY * sin(phi)
+        let y = 32 - localX * sin(phi) + localY * cos(phi)
+        points.append(OrbitMark.point(x, y))
+    }
+
+    // This canvas is y-up, so the near half is centred on the smallest y.
+    var near = 0
+    for index in points.indices where points[index].y < points[near].y { near = index }
+
+    let seamA = ((near - steps / 4) % steps + steps) % steps
+    let seamB = (near + steps / 4) % steps
+
+    func walk(from: Int, to: Int) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: points[from])
+        var index = (from + 1) % steps
+        while index != (to + 1) % steps {
+            path.addLine(to: points[index])
+            index = (index + 1) % steps
+        }
+        path.addLine(to: points[to])
+        return path
+    }
+    return (walk(from: seamA, to: seamB), walk(from: seamB, to: seamA))
+}
+
+/// The 16pt pictogram: one closed ring, stroked flat, drawn clear of the sphere.
+func orbitPictogram(stretch: CGFloat, steps: Int = 360) -> CGPath {
+    let phi = OrbitMark.orbitTilt * .pi / 180
+    let path = CGMutablePath()
+    for index in 0...steps {
+        let t = CGFloat(index) / CGFloat(steps) * 2 * .pi
+        let localX = OrbitMark.orbitRx * 0.94 * cos(t)
+        let localY = OrbitMark.orbitRy * stretch * sin(t)
+        let x = 32 + localX * cos(phi) + localY * sin(phi)
+        let y = 32 - localX * sin(phi) + localY * cos(phi)
+        let point = OrbitMark.point(x, y)
+        if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+    }
+    path.closeSubpath()
+    return path
+}
+
+func stroke(_ ctx: CGContext, path: CGPath, width: CGFloat, color: CGColor) {
+    ctx.saveGState()
+    ctx.setStrokeColor(color)
+    ctx.setLineWidth(width)
+    ctx.setLineCap(.round)
+    ctx.addPath(path)
     ctx.strokePath()
     ctx.restoreGState()
 }
 
-func paintRing(_ ctx: CGContext, path: CGPath, width: CGFloat, alpha: CGFloat, shadow: Bool) {
-    ctx.saveGState()
-    if shadow {
-        ctx.setShadow(
-            offset: CGSize(width: 0, height: -2.5 * OrbitMark.unit),
-            blur: 2.2 * OrbitMark.unit,
-            color: Brand.hex(0x000000, 0.48)
-        )
+func drawOrbit(in ctx: CGContext, profile: IconProfile) {
+    if !profile.showsShading {
+        drawSphere(in: ctx, profile: profile)
+        stroke(ctx, path: orbitPictogram(stretch: profile.orbitStretch),
+               width: OrbitMark.length(profile.ringWidth), color: Brand.ringGold)
+        return
     }
-    let outline = path.copy(strokingWithWidth: width, lineCap: .round, lineJoin: .round, miterLimit: 4)
-    ctx.addPath(outline)
-    ctx.clip()
-    ctx.setAlpha(alpha)
-    ctx.drawLinearGradient(
-        linearGradient(
-            [Brand.hex(0xFEF08A), Brand.hex(0xFFFFFF), Brand.hex(0xFB923C)],
-            [0, 0.5, 1]
-        ),
-        start: OrbitMark.point(6, 44),
-        end: OrbitMark.point(58, 20),
-        options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-    )
+    let halves = orbitHalves(stretch: profile.orbitStretch)
+    // Far half first, then the sphere, then the near half: the sphere paints
+    // over the far arc, which is what produces the occlusion seam.
+    stroke(ctx, path: halves.back, width: OrbitMark.length(profile.backRingWidth),
+           color: Brand.ringGoldDim)
+    drawSphere(in: ctx, profile: profile)
+    stroke(ctx, path: halves.front, width: OrbitMark.length(profile.ringWidth),
+           color: Brand.ringGold)
+}
+
+// MARK: - Element 4: the ice-blue companion
+
+/// A flat disc and a slightly darker rim. No highlight: the companion carries
+/// the brand's cool accent, and a second light source inside one 28pt badge
+/// would fight the sphere for attention.
+func drawCompanion(in ctx: CGContext, profile: IconProfile) {
+    guard profile.companionRadius > 0 else { return }
+    let centre = OrbitMark.point(OrbitMark.companionHome.x, OrbitMark.companionHome.y)
+    let radius = OrbitMark.length(profile.companionRadius)
+    let extent = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
+
+    ctx.saveGState()
+    ctx.setFillColor(Brand.companion)
+    ctx.fillEllipse(in: extent)
+    ctx.restoreGState()
+
+    guard profile.showsShading else { return }
+    ctx.saveGState()
+    ctx.addEllipse(in: extent.insetBy(dx: radius * 0.09, dy: radius * 0.09))
+    ctx.setStrokeColor(Brand.companionRim)
+    ctx.setLineWidth(max(1, radius * 0.16))
+    ctx.strokePath()
     ctx.restoreGState()
 }
 
-func drawOrbit(in ctx: CGContext, size: Int) {
-    let tiny = size <= 32
-    let boost: CGFloat = size <= 16 ? 2.6 : (tiny ? 1.75 : 1)
-    drawOrbitPlate(in: ctx, size: size)
+// MARK: - Composition
+
+func drawMark(in ctx: CGContext, size: Int) {
+    let profile = IconProfile.forSize(size)
+    drawPlate(in: ctx, profile: profile)
 
     let centre = CGPoint(x: canvas / 2, y: canvas / 2)
     ctx.saveGState()
     ctx.addPath(squircle(center: centre, radius: bodyRadius - 2))
     ctx.clip()
-
-    if !tiny {
-        ctx.saveGState()
-        ctx.setStrokeColor(Brand.hex(0xFED7AA, 0.32))
-        ctx.setLineWidth(2.2 * OrbitMark.unit)
-        ctx.setLineCap(.round)
-        ctx.addPath(svgRotatedEllipse(cx: 32, cy: 32, rx: 24, ry: 9.5, rotationDegrees: 32))
-        ctx.strokePath()
-        ctx.restoreGState()
-    }
-
-    let back = svgArcPath(
-        from: CGPoint(x: 10, y: 41), to: CGPoint(x: 54, y: 23),
-        rx: 26, ry: 10.5, rotationDegrees: -26, largeArc: false, sweep: true
-    )
-    let front = svgArcPath(
-        from: CGPoint(x: 54, y: 23), to: CGPoint(x: 10, y: 41),
-        rx: 26, ry: 10.5, rotationDegrees: -26, largeArc: false, sweep: true
-    )
-    paintRing(ctx, path: back, width: 3.6 * OrbitMark.unit * boost, alpha: 0.45, shadow: false)
-
-    let planetSVG: CGFloat = tiny ? 16.2 : 13.5
-    let planetR = planetSVG * OrbitMark.unit
-    let planet = OrbitMark.point(32, 32)
-    let light = OrbitMark.point(
-        (32 - planetSVG) + 0.35 * planetSVG * 2,
-        (32 - planetSVG) + 0.30 * planetSVG * 2
-    )
-    ctx.saveGState()
-    if !tiny {
-        ctx.setShadow(
-            offset: CGSize(width: 0, height: -2.5 * OrbitMark.unit),
-            blur: 2.2 * OrbitMark.unit,
-            color: Brand.hex(0x000000, 0.48)
-        )
-    }
-    ctx.addEllipse(in: CGRect(x: planet.x - planetR, y: planet.y - planetR,
-                              width: planetR * 2, height: planetR * 2))
-    ctx.clip()
-    ctx.drawRadialGradient(
-        radialGradient(
-            [Brand.planetHighlight, Brand.planetGold, Brand.planetWarm, Brand.plateEnd],
-            [0, 0.32, 0.70, 1]
-        ),
-        startCenter: light, startRadius: 1,
-        endCenter: light, endRadius: 0.68 * planetSVG * 2 * OrbitMark.unit,
-        options: [.drawsAfterEndLocation]
-    )
-    ctx.restoreGState()
-
-    paintRing(ctx, path: front, width: 4.2 * OrbitMark.unit * boost, alpha: 1, shadow: !tiny)
-
-    let star = OrbitMark.point(50, 21)
-    let outer = (size <= 16 ? 8.4 : (tiny ? 6.4 : 4.8)) * OrbitMark.unit
-    let inner = (size <= 16 ? 4.8 : (tiny ? 3.6 : 2.6)) * OrbitMark.unit
-    ctx.saveGState()
-    if !tiny {
-        ctx.setShadow(
-            offset: CGSize(width: 0, height: -2.5 * OrbitMark.unit),
-            blur: 2.2 * OrbitMark.unit,
-            color: Brand.hex(0x000000, 0.48)
-        )
-    }
-    ctx.setFillColor(Brand.hex(0xFFFFFF))
-    ctx.fillEllipse(in: CGRect(x: star.x - outer, y: star.y - outer, width: outer * 2, height: outer * 2))
-    ctx.restoreGState()
-    ctx.setFillColor(Brand.companion)
-    ctx.fillEllipse(in: CGRect(x: star.x - inner, y: star.y - inner, width: inner * 2, height: inner * 2))
-
+    drawOrbit(in: ctx, profile: profile)
+    drawCompanion(in: ctx, profile: profile)
     ctx.restoreGState()
 }
 
@@ -340,13 +382,13 @@ func render(size: Int) -> CGImage? {
     ctx.setAllowsAntialiasing(true)
     ctx.scaleBy(x: scale, y: scale)
 
-    drawOrbit(in: ctx, size: size)
+    drawMark(in: ctx, size: size)
     dither(ctx, size: size)
     return ctx.makeImage()
 }
 
 /// An 8-bit gradient across a large, dark surface bands visibly — the obsidian
-/// background shows concentric steps and blotches. A sub-percent noise layer breaks
+/// plate shows concentric steps and blotches. A sub-percent noise layer breaks
 /// the steps up; it is invisible at 100% but removes the banding entirely.
 func dither(_ ctx: CGContext, size: Int) {
     guard size >= 64, let base = ctx.data else { return }
@@ -395,7 +437,6 @@ let iconsetEntries: [(name: String, pixels: Int)] = [
     ("icon_512x512@2x.png", 1024)
 ]
 
-
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data(("error: " + message + "\n").utf8))
     exit(1)
@@ -403,7 +444,7 @@ func fail(_ message: String) -> Never {
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first else {
-    fail("usage: generate-app-icon.swift <iconset|icns|sheet|single> ...")
+    fail("usage: generate-app-icon.swift <iconset|icns|sheet|single|zoom> ...")
 }
 
 switch command {
@@ -453,6 +494,27 @@ case "single":
     guard let image = render(size: size) else { fail("render failed") }
     guard writePNG(image, to: URL(fileURLWithPath: arguments[1])) else { fail("write failed") }
     print("wrote \(arguments[1]) (\(size)px)")
+
+case "zoom":
+    // 三.4 双尺度自适应检验: a true-pixel render blown up with nearest-neighbour,
+    // so a 16pt or 32pt mark can be inspected without judging an upscaler.
+    guard arguments.count >= 4, let size = Int(arguments[2]), let factor = Int(arguments[3]),
+          factor >= 1, factor <= 32 else {
+        fail("zoom requires <out.png> <size> <factor 1-32>")
+    }
+    guard let image = render(size: size) else { fail("render failed") }
+    let side = size * factor
+    guard let ctx = CGContext(
+        data: nil, width: side, height: side,
+        bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else { fail("no zoom context") }
+    ctx.interpolationQuality = .none
+    ctx.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+    guard let zoomed = ctx.makeImage() else { fail("no zoom image") }
+    guard writePNG(zoomed, to: URL(fileURLWithPath: arguments[1])) else { fail("write failed") }
+    print("wrote \(arguments[1]) (\(size)px at \(factor)x)")
 
 case "sheet":
     guard arguments.count >= 2 else { fail("sheet requires an output path") }
