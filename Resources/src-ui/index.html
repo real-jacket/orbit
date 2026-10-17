@@ -185,7 +185,52 @@
   }
   .doctor-card:hover { border-color: var(--border-strong); }
   .doctor-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .app-icon-box {
+  .btn-glyph {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-right: 5px;
+  line-height: 0;
+  vertical-align: -2px;
+}
+.btn-glyph svg { width: 100%; height: 100%; display: block; }
+.lock-glyph {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  vertical-align: -2px;
+}
+.palette-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  padding: 2px;
+  flex: none;
+}
+.row-glyph {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  opacity: 0.85;
+}
+.glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  line-height: 0;
+}
+.glyph svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.app-icon-box {
     width: 32px; height: 32px; border-radius: 8px;
     background: linear-gradient(135deg, var(--accent-primary) 0%, #b45334 100%);
     display: flex; align-items: center; justify-content: center;
@@ -221,7 +266,13 @@
     border-color: var(--border-subtle); box-shadow: var(--shadow-card); font-weight: 600;
   }
   .nav-item-left { display: flex; align-items: center; gap: 8.5px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .nav-svg-icon {
+  .brand-plate {
+  background: linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%);
+  box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.48),
+              inset 0 -2px 3px rgba(0, 0, 0, 0.35),
+              0 3px 8px rgba(0, 0, 0, 0.45);
+}
+.nav-svg-icon {
     width: 28px; height: 28px; border-radius: 7.5px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     box-shadow: inset 0 1px 0.5px rgba(255,255,255,0.45), inset 0 -1px 1.5px rgba(0,0,0,0.3), 0 2px 5px rgba(0,0,0,0.32);
@@ -544,9 +595,7 @@
     <span style="color:#a39f96;font-weight:500;">窗口</span>
   </div>
   <div style="display:flex;align-items:center;gap:14px;font-family:var(--font-mono);font-size:11px;">
-    <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" onclick="toggleSystemMenuBarDemo()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f4f2ed" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" fill="#f4f2ed" stroke="none"/><ellipse cx="12" cy="12" rx="9.5" ry="4.2" transform="rotate(-28 12 12)"/><circle cx="19" cy="8.2" r="1.5" fill="#d97757" stroke="none"/></svg>
-    </span>
+    <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px;" onclick="toggleSystemMenuBarDemo()" data-icon-slot="bar"></span>
     <span>🛜 Wi-Fi</span>
     <span>🔋 98%</span>
     <span>14:32</span>
@@ -571,35 +620,8 @@
 
     <div class="doctor-card" onclick="openDoctorModal(false)" title="点击打开轨道发射前 7 项系统联检中心 (Pre-flight Check)">
       <div class="doctor-left">
-        <div class="app-icon-box" style="background:linear-gradient(145deg, #27272a 0%, #09090b 65%, #7c2d12 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,0.42), 0 3px 8px rgba(0,0,0,0.45);padding:2px;">
-          <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_brand_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2.5" stdDeviation="2.2" flood-color="#000" flood-opacity="0.48"/>
-            </filter>
-            <radialGradient id="sb_brand_planet" cx="35%" cy="30%" r="68%">
-              <stop offset="0%" stop-color="#fff7ed"/>
-              <stop offset="32%" stop-color="#fdba74"/>
-              <stop offset="70%" stop-color="#ea580c"/>
-              <stop offset="100%" stop-color="#7c2d12"/>
-            </radialGradient>
-            <linearGradient id="sb_brand_ring1" x1="6" y1="44" x2="58" y2="20" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="50%" stop-color="#ffffff"/>
-              <stop offset="100%" stop-color="#fb923c"/>
-            </linearGradient>
-          </defs>
-          
-          <path d="M 10 41 A 26 10.5 -26 0 1 54 23" stroke="url(#sb_brand_ring1)" stroke-width="3.6" stroke-opacity="0.45" stroke-linecap="round"/>
-          <ellipse cx="32" cy="32" rx="24" ry="9.5" transform="rotate(32 32 32)" stroke="#fed7aa" stroke-opacity="0.32" stroke-width="2.2"/>
-          
-          <circle cx="32" cy="32" r="13.5" fill="url(#sb_brand_planet)" filter="url(#sb_brand_sh)"/>
-          
-          <path d="M 54 23 A 26 10.5 -26 0 1 10 41" stroke="url(#sb_brand_ring1)" stroke-width="4.2" stroke-linecap="round" filter="url(#sb_brand_sh)"/>
-          
-          <circle cx="50" cy="21" r="4.8" fill="#ffffff" filter="url(#sb_brand_sh)"/>
-          <circle cx="50" cy="21" r="2.6" fill="#38bdf8"/>
-        </svg>
+        <div class="app-icon-box brand-plate">
+          <span class="glyph" data-icon="brand"></span>
         </div>
         <div>
           <div class="app-name">orbit</div>
@@ -614,49 +636,7 @@
       <div class="nav-item active" data-mod="clean" onclick="switchModule('clean')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_clean_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#0a192f" flood-opacity="0.48"/>
-            </filter>
-            <linearGradient id="sb_clean_bristle" x1="14" y1="28" x2="38" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="45%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="sb_clean_handle" x1="34" y1="8" x2="54" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#e0f2fe"/>
-              <stop offset="100%" stop-color="#7dd3fc"/>
-            </linearGradient>
-            <radialGradient id="sb_clean_bub" cx="32%" cy="28%" r="70%">
-              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
-              <stop offset="45%" stop-color="#bae6fd" stop-opacity="0.45"/>
-              <stop offset="100%" stop-color="#ffffff" stop-opacity="0.85"/>
-            </radialGradient>
-          </defs>
-          
-          <circle cx="30" cy="34" r="20" stroke="#ffffff" stroke-opacity="0.28" stroke-width="3.5" stroke-dasharray="28 10"/>
-          
-          <g filter="url(#sb_clean_sh)" transform="rotate(-35 32 32)">
-            
-            <rect x="28.5" y="5" width="7" height="20" rx="3.5" fill="url(#sb_clean_handle)" stroke="#ffffff" stroke-width="1"/>
-            <circle cx="32" cy="9.5" r="1.6" fill="#0284c7"/>
-            
-            <rect x="22" y="23" width="20" height="6.5" rx="2.5" fill="#e2e8f0" stroke="#ffffff" stroke-width="1"/>
-            <rect x="22" y="25.5" width="20" height="2" fill="#38bdf8"/>
-            
-            <path d="M21 29.5 H43 L48 49 C48.4 50.8 47 52.5 45.2 52.5 H18.8 C17 52.5 15.6 50.8 16 49 L21 29.5 Z" fill="url(#sb_clean_bristle)" stroke="#fef08a" stroke-width="1"/>
-            
-            <path d="M23 52.5 L25 38 M29 52.5 L30 36 M35 52.5 L34 36 M41 52.5 L39 38" stroke="#78350f" stroke-opacity="0.45" stroke-width="1.8" stroke-linecap="round"/>
-          </g>
-          
-          <circle cx="48" cy="44" r="7.5" fill="url(#sb_clean_bub)" stroke="#ffffff" stroke-width="1.2" filter="url(#sb_clean_sh)"/>
-          <path d="M44.5 40.5 A 4 4 0 0 1 49.5 39.5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
-          <circle cx="15" cy="22" r="5" fill="url(#sb_clean_bub)" stroke="#ffffff" stroke-width="1"/>
-          
-          <path d="M18 8 L19.8 13.2 L25 15 L19.8 16.8 L18 22 L16.2 16.8 L11 15 L16.2 13.2 Z" fill="#fef08a" filter="url(#sb_clean_sh)"/>
-        </svg>
+            <span class="glyph" data-icon="clean"></span>
           </span>
           <span id="navLabelClean">气闸舱 · 深度清理</span>
         </div>
@@ -666,48 +646,7 @@
       <div class="nav-item" data-mod="ai_moon" onclick="switchModule('ai_moon')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_ai_moon_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2a0800" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="sb_ai_moon_pins" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="55%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="sb_ai_moon_pcb" x1="12" y1="12" x2="52" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="50%" stop-color="#e7e5e4"/>
-              <stop offset="100%" stop-color="#a8a29e"/>
-            </linearGradient>
-            <linearGradient id="sb_ai_moon_die" x1="18" y1="18" x2="46" y2="46" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#292524"/>
-              <stop offset="100%" stop-color="#0c0a09"/>
-            </linearGradient>
-          </defs>
-          
-          <g stroke="url(#sb_ai_moon_pins)" stroke-width="3.6" stroke-linecap="round">
-            <path d="M20 6V13 M28 6V13 M36 6V13 M44 6V13"/>
-            <path d="M20 51V58 M28 51V58 M36 51V58 M44 51V58"/>
-            <path d="M6 20H13 M6 28H13 M6 36H13 M6 44H13"/>
-            <path d="M51 20H58 M51 28H58 M51 36H58 M51 44H58"/>
-          </g>
-          
-          <rect x="12" y="12" width="40" height="40" rx="9" fill="url(#sb_ai_moon_pcb)" stroke="#ffffff" stroke-width="1.5" filter="url(#sb_ai_moon_sh)"/>
-          
-          <circle cx="16.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="16.5" cy="47.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="47.5" r="1.3" fill="#78716c"/>
-          
-          <rect x="18" y="18" width="28" height="28" rx="6" fill="url(#sb_ai_moon_die)" stroke="#fb923c" stroke-width="1.2"/>
-          
-          <path d="M18 27H23 M18 37H23 M41 27H46 M41 37H46 M27 18V23 M37 18V23 M27 41V46 M37 41V46" stroke="#fb923c" stroke-opacity="0.7" stroke-width="1.5"/>
-          
-          <path d="M32 21 L34.6 29.4 L43 32 L34.6 34.6 L32 43 L29.4 34.6 L21 32 L29.4 29.4 Z" fill="#fed7aa"/>
-          <circle cx="32" cy="32" r="3.2" fill="#ffffff"/>
-        </svg>
+            <span class="glyph" data-icon="ai_moon"></span>
           </span>
           <span id="navLabelMoon">智核舱 · AI 清理</span>
         </div>
@@ -717,43 +656,7 @@
       <div class="nav-item" data-mod="software" onclick="switchModule('software')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_software_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#3b0412" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="sb_software_bin" x1="14" y1="24" x2="48" y2="56" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="55%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="sb_software_app" x1="16" y1="6" x2="40" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#38bdf8"/>
-              <stop offset="100%" stop-color="#1d4ed8"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#sb_software_sh)" transform="rotate(-11 29 18)">
-            <rect x="18" y="6" width="22" height="22" rx="5.5" fill="url(#sb_software_app)" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <path d="M29 11 L23.5 22.5 M29 11 L34.5 22.5 M25.2 19.5 H32.8" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-          
-          <g filter="url(#sb_software_sh)">
-            <path d="M14 25 H48 L44.2 53.5 C43.8 55.8 41.8 57.5 39.5 57.5 H22.5 C20.2 57.5 18.2 55.8 17.8 53.5 L14 25 Z" fill="url(#sb_software_bin)" stroke="#ffffff" stroke-width="1.4"/>
-            
-            <rect x="12" y="22.5" width="38" height="4.5" rx="2.2" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
-            
-            <line x1="23.5" y1="31" x2="25" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="31" y1="31" x2="31" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="38.5" y1="31" x2="37" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-          </g>
-          
-          <g filter="url(#sb_software_sh)">
-            <circle cx="48" cy="46" r="10.5" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
-            <line x1="43" y1="46" x2="53" y2="46" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="software"></span>
           </span>
           <span id="navLabelSoftware">分离器 · 应用卸载</span>
         </div>
@@ -763,43 +666,7 @@
       <div class="nav-item" data-mod="optimize" onclick="switchModule('optimize')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #a855f7 0%, #6d28d9 55%, #3b0764 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_optimize_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#1e0538" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="sb_optimize_body" x1="20" y1="10" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="sb_optimize_flame" x1="32" y1="42" x2="32" y2="60" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="50%" stop-color="#f97316"/>
-              <stop offset="100%" stop-color="#dc2626"/>
-            </linearGradient>
-          </defs>
-          
-          <path d="M 10 38 A 23 23 0 1 1 54 38" stroke="#e9d5ff" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/>
-          
-          <g filter="url(#sb_optimize_sh)" transform="rotate(32 32 32)">
-            
-            <path d="M26 44 C26 52 32 59 32 59 C32 59 38 52 38 44 Z" fill="url(#sb_optimize_flame)"/>
-            <path d="M29 44 C29 49 32 54 32 54 C32 54 35 49 35 44 Z" fill="#ffffff"/>
-            
-            <path d="M22 33 L13 43 L23 43 Z" fill="#f43f5e" stroke="#ffffff" stroke-width="0.8"/>
-            <path d="M42 33 L51 43 L41 43 Z" fill="#e11d48" stroke="#ffffff" stroke-width="0.8"/>
-            
-            <path d="M32 6 C23 15 21 28 22 43 H42 C43 28 41 15 32 6 Z" fill="url(#sb_optimize_body)" stroke="#ffffff" stroke-width="1.2"/>
-            
-            <path d="M32 6 C28.2 9.8 25.5 14.2 24.2 18.5 H39.8 C38.5 14.2 35.8 9.8 32 6 Z" fill="#f43f5e"/>
-            
-            <circle cx="32" cy="27" r="5.5" fill="#0284c7" stroke="#e2e8f0" stroke-width="2"/>
-            <circle cx="30.2" cy="25.2" r="1.6" fill="#ffffff"/>
-            
-            <rect x="25.5" y="42.5" width="13" height="3.5" rx="1.5" fill="#475569"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="optimize"></span>
           </span>
           <span id="navLabelOptimize">推进器 · 系统加速</span>
         </div>
@@ -809,36 +676,7 @@
       <div class="nav-item" data-mod="analyze" onclick="switchModule('analyze')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_analyze_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2e1300" flood-opacity="0.5"/>
-            </filter>
-          </defs>
-          
-          <g filter="url(#sb_analyze_sh)">
-            
-            <circle cx="28" cy="29" r="21.5" fill="#ffffff" fill-opacity="0.92"/>
-            
-            <path d="M28 29 L28 9.5 A19.5 19.5 0 0 0 11 38.5 Z" fill="#2563eb"/>
-            
-            <path d="M28 29 L11 38.5 A19.5 19.5 0 0 0 41.8 42.8 Z" fill="#10b981"/>
-            
-            <path d="M28 29 L41.8 42.8 A19.5 19.5 0 0 0 47.5 29 Z" fill="#f43f5e"/>
-            
-            <path d="M30.5 26.5 L30.5 6.5 A20 20 0 0 1 50.5 26.5 Z" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <circle cx="28" cy="29" r="6.5" fill="#fef3c7" stroke="#ffffff" stroke-width="2"/>
-            <circle cx="28" cy="29" r="2.5" fill="#92400e"/>
-          </g>
-          
-          <g filter="url(#sb_analyze_sh)">
-            <line x1="47" y1="47" x2="57" y2="57" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round"/>
-            <line x1="48" y1="48" x2="57" y2="57" stroke="#475569" stroke-width="3.2" stroke-linecap="round"/>
-            <circle cx="40" cy="40" r="11" fill="#ffffff" fill-opacity="0.32" stroke="#ffffff" stroke-width="3.2"/>
-            <path d="M34 35 A 6.5 6.5 0 0 1 43 34" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="analyze"></span>
           </span>
           <span id="navLabelAnalyze">星图仪 · 空间分析</span>
         </div>
@@ -848,35 +686,7 @@
       <div class="nav-item" data-mod="status" onclick="switchModule('status')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_status_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#011f16" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="sb_status_scr" x1="8" y1="10" x2="56" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#064e3b"/>
-              <stop offset="100%" stop-color="#022c22"/>
-            </linearGradient>
-            <linearGradient id="sb_status_glow" x1="32" y1="18" x2="32" y2="48" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#34d399" stop-opacity="0.55"/>
-              <stop offset="100%" stop-color="#34d399" stop-opacity="0.0"/>
-            </linearGradient>
-          </defs>
-          
-          <rect x="7" y="9" width="50" height="46" rx="11" fill="url(#sb_status_scr)" stroke="#ffffff" stroke-width="2.4" filter="url(#sb_status_sh)"/>
-          
-          <line x1="10" y1="24" x2="54" y2="24" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="10" y1="39" x2="54" y2="39" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="25" y1="12" x2="25" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="40" y1="12" x2="40" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          
-          <path d="M11 36 H19 L25 18 L33 46 L39 29 L44 36 H53 V50 H11 Z" fill="url(#sb_status_glow)"/>
-          
-          <polyline points="11,36 19,36 25,18 33,46 39,29 44,36 53,36" stroke="#a7f3d0" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#sb_status_sh)"/>
-          
-          <circle cx="48" cy="17" r="3.6" fill="#4ade80"/>
-          <circle cx="48" cy="17" r="1.6" fill="#ffffff"/>
-        </svg>
+            <span class="glyph" data-icon="status"></span>
           </span>
           <span id="navLabelStatus">遥测台 · 状态监控</span>
         </div>
@@ -888,43 +698,7 @@
       <div class="nav-item" data-mod="purge" onclick="switchModule('purge')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_purge_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#041e36" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="sb_purge_top" x1="12" y1="12" x2="52" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef3c7"/>
-              <stop offset="100%" stop-color="#fcd34d"/>
-            </linearGradient>
-            <linearGradient id="sb_purge_left" x1="12" y1="24" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fbbf24"/>
-              <stop offset="100%" stop-color="#d97706"/>
-            </linearGradient>
-            <linearGradient id="sb_purge_right" x1="32" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d97706"/>
-              <stop offset="100%" stop-color="#92400e"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#sb_purge_sh)">
-            
-            <polygon points="32,10 53,21 32,32 11,21" fill="url(#sb_purge_top)" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
-            
-            <polygon points="11,21 32,32 32,55 11,44" fill="url(#sb_purge_left)" stroke="#fef3c7" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="32,32 53,21 53,44 32,55" fill="url(#sb_purge_right)" stroke="#fde68a" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="22,15.5 43,26.5 39,28.5 18,17.5" fill="#ffffff" fill-opacity="0.7"/>
-            
-            <polygon points="15,28 26,33.8 26,40 15,34.2" fill="#ffffff" fill-opacity="0.9"/>
-          </g>
-          
-          <g filter="url(#sb_purge_sh)">
-            <rect x="33" y="34" width="24" height="19" rx="5.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M42 40 L38.5 43.5 L42 47 M48 40 L51.5 43.5 L48 47" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="purge"></span>
           </span>
           <span id="navLabelPurge">载荷舱 · 构建清理</span>
         </div>
@@ -934,40 +708,7 @@
       <div class="nav-item" data-mod="history" onclick="switchModule('history')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%);padding:1.5px;">
-            <svg viewBox="0 0 64 64" width="100%" height="100%" fill="none">
-          <defs>
-            <filter id="sb_history_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#09090b" flood-opacity="0.55"/>
-            </filter>
-            <linearGradient id="sb_history_shL" x1="12" y1="8" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="100%" stop-color="#d4d4d8"/>
-            </linearGradient>
-            <linearGradient id="sb_history_shR" x1="32" y1="8" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d4d4d8"/>
-              <stop offset="100%" stop-color="#71717a"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#sb_history_sh)">
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 C21.5 52.2 13 43.5 13 30.5 V14.5 L32 7 Z" fill="url(#sb_history_shL)" stroke="#ffffff" stroke-width="1.5"/>
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 V7 Z" fill="url(#sb_history_shR)"/>
-            
-            <path d="M32 12 L46 17.5 V30 C46 40 39.5 47 32 50.5 C24.5 47 18 40 18 30 V17.5 L32 12 Z" fill="#27272a"/>
-          </g>
-          
-          <g filter="url(#sb_history_sh)">
-            <path d="M27.5 27 V23.5 C27.5 21 29.5 19 32 19 C34.5 19 36.5 21 36.5 23.5 V27" stroke="#fde047" stroke-width="2.8" stroke-linecap="round"/>
-            <rect x="24.5" y="26.5" width="15" height="12.5" rx="3" fill="#f59e0b" stroke="#fef08a" stroke-width="1"/>
-            <circle cx="32" cy="32.5" r="1.8" fill="#451a03"/>
-          </g>
-          
-          <g filter="url(#sb_history_sh)">
-            <circle cx="47.5" cy="46.5" r="10" fill="#10b981" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M44 43.5 H41 V40.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M42 43.5 A 6 6 0 1 1 43 50.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
-          </g>
-        </svg>
+            <span class="glyph" data-icon="history"></span>
           </span>
           <span id="navLabelHistory">黑匣子 · 恢复白名单</span>
         </div>
@@ -1014,11 +755,11 @@
           <span class="kbd-tag" onclick="openCommandPalette()">⌘K</span>
         </div>
         <button class="btn" onclick="triggerNativeRescan()" title="立即重新扫描本机真实缓存、应用与大文件">
-          <span>🔄</span>
+          <span class="btn-glyph" data-icon="brand" data-prefix="rescan"></span>
           <span id="btnRescanText">刷新扫描</span>
         </button>
         <button class="btn" onclick="openDoctorModal(true)" title="立即重新扫描检测 7 项系统健康指标">
-          <span>🛰️</span>
+          <span class="btn-glyph" data-icon="status" data-prefix="recheck"></span>
           <span id="btnRecheckText">重新联检</span>
         </button>
         <button class="btn btn-primary" onclick="handlePrimaryAction()">
@@ -1100,11 +841,13 @@
   <div class="modal-sheet">
     <div class="panel-header" style="padding:12px 18px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span>🩺</span>
+        <span class="palette-glyph" style="background:${'linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%)'};width:20px;height:20px;border-radius:5px;">
+          ${get_skeuo_svg('brand', 'doc')}
+        </span>
         <span id="doctorModalHeaderTitle">轨道发射前联检中心 · Pre-flight Check (7 项系统实时联检)</span>
       </div>
       <div style="display:flex;gap:6px;">
-        <button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" onclick="startDoctorReDiagnosis()" id="btnDoctorReRun">🔄 立即重新联检 (Pre-flight)</button>
+        <button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" onclick="startDoctorReDiagnosis()" id="btnDoctorReRun">立即重新联检 (Pre-flight)</button>
         <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="closeDoctorModal()">关闭</button>
       </div>
     </div>
@@ -1128,324 +871,246 @@
 <div class="toast" id="toastBanner">操作已完成</div>
 
 <script>
-const SEMANTIC_HERO_ICONS = {
-  clean: {
-    bg: 'linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_clean_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#0a192f" flood-opacity="0.48"/>
-            </filter>
-            <linearGradient id="hero_clean_bristle" x1="14" y1="28" x2="38" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="45%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="hero_clean_handle" x1="34" y1="8" x2="54" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#e0f2fe"/>
-              <stop offset="100%" stop-color="#7dd3fc"/>
-            </linearGradient>
-            <radialGradient id="hero_clean_bub" cx="32%" cy="28%" r="70%">
-              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
-              <stop offset="45%" stop-color="#bae6fd" stop-opacity="0.45"/>
-              <stop offset="100%" stop-color="#ffffff" stop-opacity="0.85"/>
-            </radialGradient>
-          </defs>
-          
-          <circle cx="30" cy="34" r="20" stroke="#ffffff" stroke-opacity="0.28" stroke-width="3.5" stroke-dasharray="28 10"/>
-          
-          <g filter="url(#hero_clean_sh)" transform="rotate(-35 32 32)">
-            
-            <rect x="28.5" y="5" width="7" height="20" rx="3.5" fill="url(#hero_clean_handle)" stroke="#ffffff" stroke-width="1"/>
-            <circle cx="32" cy="9.5" r="1.6" fill="#0284c7"/>
-            
-            <rect x="22" y="23" width="20" height="6.5" rx="2.5" fill="#e2e8f0" stroke="#ffffff" stroke-width="1"/>
-            <rect x="22" y="25.5" width="20" height="2" fill="#38bdf8"/>
-            
-            <path d="M21 29.5 H43 L48 49 C48.4 50.8 47 52.5 45.2 52.5 H18.8 C17 52.5 15.6 50.8 16 49 L21 29.5 Z" fill="url(#hero_clean_bristle)" stroke="#fef08a" stroke-width="1"/>
-            
-            <path d="M23 52.5 L25 38 M29 52.5 L30 36 M35 52.5 L34 36 M41 52.5 L39 38" stroke="#78350f" stroke-opacity="0.45" stroke-width="1.8" stroke-linecap="round"/>
-          </g>
-          
-          <circle cx="48" cy="44" r="7.5" fill="url(#hero_clean_bub)" stroke="#ffffff" stroke-width="1.2" filter="url(#hero_clean_sh)"/>
-          <path d="M44.5 40.5 A 4 4 0 0 1 49.5 39.5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
-          <circle cx="15" cy="22" r="5" fill="url(#hero_clean_bub)" stroke="#ffffff" stroke-width="1"/>
-          
-          <path d="M18 8 L19.8 13.2 L25 15 L19.8 16.8 L18 22 L16.2 16.8 L11 15 L16.2 13.2 Z" fill="#fef08a" filter="url(#hero_clean_sh)"/>
-        </svg>`
-  },
-  ai_moon: {
-    bg: 'linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_ai_moon_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2a0800" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="hero_ai_moon_pins" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="55%" stop-color="#f59e0b"/>
-              <stop offset="100%" stop-color="#b45309"/>
-            </linearGradient>
-            <linearGradient id="hero_ai_moon_pcb" x1="12" y1="12" x2="52" y2="52" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="50%" stop-color="#e7e5e4"/>
-              <stop offset="100%" stop-color="#a8a29e"/>
-            </linearGradient>
-            <linearGradient id="hero_ai_moon_die" x1="18" y1="18" x2="46" y2="46" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#292524"/>
-              <stop offset="100%" stop-color="#0c0a09"/>
-            </linearGradient>
-          </defs>
-          
-          <g stroke="url(#hero_ai_moon_pins)" stroke-width="3.6" stroke-linecap="round">
-            <path d="M20 6V13 M28 6V13 M36 6V13 M44 6V13"/>
-            <path d="M20 51V58 M28 51V58 M36 51V58 M44 51V58"/>
-            <path d="M6 20H13 M6 28H13 M6 36H13 M6 44H13"/>
-            <path d="M51 20H58 M51 28H58 M51 36H58 M51 44H58"/>
-          </g>
-          
-          <rect x="12" y="12" width="40" height="40" rx="9" fill="url(#hero_ai_moon_pcb)" stroke="#ffffff" stroke-width="1.5" filter="url(#hero_ai_moon_sh)"/>
-          
-          <circle cx="16.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="16.5" r="1.3" fill="#78716c"/>
-          <circle cx="16.5" cy="47.5" r="1.3" fill="#78716c"/>
-          <circle cx="47.5" cy="47.5" r="1.3" fill="#78716c"/>
-          
-          <rect x="18" y="18" width="28" height="28" rx="6" fill="url(#hero_ai_moon_die)" stroke="#fb923c" stroke-width="1.2"/>
-          
-          <path d="M18 27H23 M18 37H23 M41 27H46 M41 37H46 M27 18V23 M37 18V23 M27 41V46 M37 41V46" stroke="#fb923c" stroke-opacity="0.7" stroke-width="1.5"/>
-          
-          <path d="M32 21 L34.6 29.4 L43 32 L34.6 34.6 L32 43 L29.4 34.6 L21 32 L29.4 29.4 Z" fill="#fed7aa"/>
-          <circle cx="32" cy="32" r="3.2" fill="#ffffff"/>
-        </svg>`
-  },
-  software: {
-    bg: 'linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_software_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#3b0412" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="hero_software_bin" x1="14" y1="24" x2="48" y2="56" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="55%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="hero_software_app" x1="16" y1="6" x2="40" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#38bdf8"/>
-              <stop offset="100%" stop-color="#1d4ed8"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#hero_software_sh)" transform="rotate(-11 29 18)">
-            <rect x="18" y="6" width="22" height="22" rx="5.5" fill="url(#hero_software_app)" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <path d="M29 11 L23.5 22.5 M29 11 L34.5 22.5 M25.2 19.5 H32.8" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-          
-          <g filter="url(#hero_software_sh)">
-            <path d="M14 25 H48 L44.2 53.5 C43.8 55.8 41.8 57.5 39.5 57.5 H22.5 C20.2 57.5 18.2 55.8 17.8 53.5 L14 25 Z" fill="url(#hero_software_bin)" stroke="#ffffff" stroke-width="1.4"/>
-            
-            <rect x="12" y="22.5" width="38" height="4.5" rx="2.2" fill="#ffffff" stroke="#cbd5e1" stroke-width="1"/>
-            
-            <line x1="23.5" y1="31" x2="25" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="31" y1="31" x2="31" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-            <line x1="38.5" y1="31" x2="37" y2="51" stroke="#64748b" stroke-opacity="0.55" stroke-width="2.6" stroke-linecap="round"/>
-          </g>
-          
-          <g filter="url(#hero_software_sh)">
-            <circle cx="48" cy="46" r="10.5" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
-            <line x1="43" y1="46" x2="53" y2="46" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"/>
-          </g>
-        </svg>`
-  },
-  optimize: {
-    bg: 'linear-gradient(145deg, #a855f7 0%, #6d28d9 55%, #3b0764 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_optimize_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#1e0538" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="hero_optimize_body" x1="20" y1="10" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="60%" stop-color="#f1f5f9"/>
-              <stop offset="100%" stop-color="#94a3b8"/>
-            </linearGradient>
-            <linearGradient id="hero_optimize_flame" x1="32" y1="42" x2="32" y2="60" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef08a"/>
-              <stop offset="50%" stop-color="#f97316"/>
-              <stop offset="100%" stop-color="#dc2626"/>
-            </linearGradient>
-          </defs>
-          
-          <path d="M 10 38 A 23 23 0 1 1 54 38" stroke="#e9d5ff" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/>
-          
-          <g filter="url(#hero_optimize_sh)" transform="rotate(32 32 32)">
-            
-            <path d="M26 44 C26 52 32 59 32 59 C32 59 38 52 38 44 Z" fill="url(#hero_optimize_flame)"/>
-            <path d="M29 44 C29 49 32 54 32 54 C32 54 35 49 35 44 Z" fill="#ffffff"/>
-            
-            <path d="M22 33 L13 43 L23 43 Z" fill="#f43f5e" stroke="#ffffff" stroke-width="0.8"/>
-            <path d="M42 33 L51 43 L41 43 Z" fill="#e11d48" stroke="#ffffff" stroke-width="0.8"/>
-            
-            <path d="M32 6 C23 15 21 28 22 43 H42 C43 28 41 15 32 6 Z" fill="url(#hero_optimize_body)" stroke="#ffffff" stroke-width="1.2"/>
-            
-            <path d="M32 6 C28.2 9.8 25.5 14.2 24.2 18.5 H39.8 C38.5 14.2 35.8 9.8 32 6 Z" fill="#f43f5e"/>
-            
-            <circle cx="32" cy="27" r="5.5" fill="#0284c7" stroke="#e2e8f0" stroke-width="2"/>
-            <circle cx="30.2" cy="25.2" r="1.6" fill="#ffffff"/>
-            
-            <rect x="25.5" y="42.5" width="13" height="3.5" rx="1.5" fill="#475569"/>
-          </g>
-        </svg>`
-  },
-  analyze: {
-    bg: 'linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_analyze_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#2e1300" flood-opacity="0.5"/>
-            </filter>
-          </defs>
-          
-          <g filter="url(#hero_analyze_sh)">
-            
-            <circle cx="28" cy="29" r="21.5" fill="#ffffff" fill-opacity="0.92"/>
-            
-            <path d="M28 29 L28 9.5 A19.5 19.5 0 0 0 11 38.5 Z" fill="#2563eb"/>
-            
-            <path d="M28 29 L11 38.5 A19.5 19.5 0 0 0 41.8 42.8 Z" fill="#10b981"/>
-            
-            <path d="M28 29 L41.8 42.8 A19.5 19.5 0 0 0 47.5 29 Z" fill="#f43f5e"/>
-            
-            <path d="M30.5 26.5 L30.5 6.5 A20 20 0 0 1 50.5 26.5 Z" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5"/>
-            
-            <circle cx="28" cy="29" r="6.5" fill="#fef3c7" stroke="#ffffff" stroke-width="2"/>
-            <circle cx="28" cy="29" r="2.5" fill="#92400e"/>
-          </g>
-          
-          <g filter="url(#hero_analyze_sh)">
-            <line x1="47" y1="47" x2="57" y2="57" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round"/>
-            <line x1="48" y1="48" x2="57" y2="57" stroke="#475569" stroke-width="3.2" stroke-linecap="round"/>
-            <circle cx="40" cy="40" r="11" fill="#ffffff" fill-opacity="0.32" stroke="#ffffff" stroke-width="3.2"/>
-            <path d="M34 35 A 6.5 6.5 0 0 1 43 34" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
-          </g>
-        </svg>`
-  },
-  status: {
-    bg: 'linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_status_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#011f16" flood-opacity="0.52"/>
-            </filter>
-            <linearGradient id="hero_status_scr" x1="8" y1="10" x2="56" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#064e3b"/>
-              <stop offset="100%" stop-color="#022c22"/>
-            </linearGradient>
-            <linearGradient id="hero_status_glow" x1="32" y1="18" x2="32" y2="48" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#34d399" stop-opacity="0.55"/>
-              <stop offset="100%" stop-color="#34d399" stop-opacity="0.0"/>
-            </linearGradient>
-          </defs>
-          
-          <rect x="7" y="9" width="50" height="46" rx="11" fill="url(#hero_status_scr)" stroke="#ffffff" stroke-width="2.4" filter="url(#hero_status_sh)"/>
-          
-          <line x1="10" y1="24" x2="54" y2="24" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="10" y1="39" x2="54" y2="39" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="25" y1="12" x2="25" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          <line x1="40" y1="12" x2="40" y2="52" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-          
-          <path d="M11 36 H19 L25 18 L33 46 L39 29 L44 36 H53 V50 H11 Z" fill="url(#hero_status_glow)"/>
-          
-          <polyline points="11,36 19,36 25,18 33,46 39,29 44,36 53,36" stroke="#a7f3d0" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#hero_status_sh)"/>
-          
-          <circle cx="48" cy="17" r="3.6" fill="#4ade80"/>
-          <circle cx="48" cy="17" r="1.6" fill="#ffffff"/>
-        </svg>`
-  },
-  purge: {
-    bg: 'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_purge_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#041e36" flood-opacity="0.5"/>
-            </filter>
-            <linearGradient id="hero_purge_top" x1="12" y1="12" x2="52" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fef3c7"/>
-              <stop offset="100%" stop-color="#fcd34d"/>
-            </linearGradient>
-            <linearGradient id="hero_purge_left" x1="12" y1="24" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#fbbf24"/>
-              <stop offset="100%" stop-color="#d97706"/>
-            </linearGradient>
-            <linearGradient id="hero_purge_right" x1="32" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d97706"/>
-              <stop offset="100%" stop-color="#92400e"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#hero_purge_sh)">
-            
-            <polygon points="32,10 53,21 32,32 11,21" fill="url(#hero_purge_top)" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
-            
-            <polygon points="11,21 32,32 32,55 11,44" fill="url(#hero_purge_left)" stroke="#fef3c7" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="32,32 53,21 53,44 32,55" fill="url(#hero_purge_right)" stroke="#fde68a" stroke-width="1" stroke-linejoin="round"/>
-            
-            <polygon points="22,15.5 43,26.5 39,28.5 18,17.5" fill="#ffffff" fill-opacity="0.7"/>
-            
-            <polygon points="15,28 26,33.8 26,40 15,34.2" fill="#ffffff" fill-opacity="0.9"/>
-          </g>
-          
-          <g filter="url(#hero_purge_sh)">
-            <rect x="33" y="34" width="24" height="19" rx="5.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M42 40 L38.5 43.5 L42 47 M48 40 L51.5 43.5 L48 47" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-          </g>
-        </svg>`
-  },
-  history: {
-    bg: 'linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%)',
-    svg: `<svg viewBox="0 0 64 64" width="50" height="50" fill="none">
-          <defs>
-            <filter id="hero_history_sh" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.4" flood-color="#09090b" flood-opacity="0.55"/>
-            </filter>
-            <linearGradient id="hero_history_shL" x1="12" y1="8" x2="32" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#ffffff"/>
-              <stop offset="100%" stop-color="#d4d4d8"/>
-            </linearGradient>
-            <linearGradient id="hero_history_shR" x1="32" y1="8" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#d4d4d8"/>
-              <stop offset="100%" stop-color="#71717a"/>
-            </linearGradient>
-          </defs>
-          
-          <g filter="url(#hero_history_sh)">
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 C21.5 52.2 13 43.5 13 30.5 V14.5 L32 7 Z" fill="url(#hero_history_shL)" stroke="#ffffff" stroke-width="1.5"/>
-            <path d="M32 7 L51 14.5 V30.5 C51 43.5 42.5 52.2 32 56.5 V7 Z" fill="url(#hero_history_shR)"/>
-            
-            <path d="M32 12 L46 17.5 V30 C46 40 39.5 47 32 50.5 C24.5 47 18 40 18 30 V17.5 L32 12 Z" fill="#27272a"/>
-          </g>
-          
-          <g filter="url(#hero_history_sh)">
-            <path d="M27.5 27 V23.5 C27.5 21 29.5 19 32 19 C34.5 19 36.5 21 36.5 23.5 V27" stroke="#fde047" stroke-width="2.8" stroke-linecap="round"/>
-            <rect x="24.5" y="26.5" width="15" height="12.5" rx="3" fill="#f59e0b" stroke="#fef08a" stroke-width="1"/>
-            <circle cx="32" cy="32.5" r="1.8" fill="#451a03"/>
-          </g>
-          
-          <g filter="url(#hero_history_sh)">
-            <circle cx="47.5" cy="46.5" r="10" fill="#10b981" stroke="#ffffff" stroke-width="1.8"/>
-            <path d="M44 43.5 H41 V40.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M42 43.5 A 6 6 0 1 1 43 50.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
-          </g>
-        </svg>`
-  }
+// ---------------------------------------------------------------------------
+// Icon system: one source of truth.
+//
+// Every mark in the UI is produced by get_skeuo_svg(kind, prefix). The prefix
+// namespaces every <defs> id so the same mark can appear in the sidebar, the
+// hero banner and the tray without two gradients ever sharing an id (spec 五.1).
+//
+// Each glyph is built from the same three moves and nothing more:
+//   1  a flat plate colour supplied by the container
+//   2  one solid body, optionally with a single two-stop gradient for volume
+//   3  one accent detail in a second hue
+// Occlusion and cast shadows are used only where they carry meaning. Earlier
+// revisions stacked five gradients, three drop shadows, dashed rings, glints and
+// rivets into every glyph; at 28px that resolved to noise. The test applied
+// here is: if an element cannot be named at 28px, it is not drawn.
+// ---------------------------------------------------------------------------
+
+const MODULE_PLATE = {
+  clean:    'linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%)',
+  ai_moon:  'linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%)',
+  software: 'linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%)',
+  optimize: 'linear-gradient(145deg, #a855f7 0%, #6d28d9 55%, #3b0764 100%)',
+  analyze:  'linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%)',
+  status:   'linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%)',
+  purge:    'linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%)',
+  history:  'linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%)',
+  brand:    'linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%)'
 };
 
-// Note: ZERO `protected` items exist in `cleanGroups`, `aiMoonBands`, or `purgeItems`!
-// All protected assets are isolated in `whitelist` (Module 8) so users never see protected assets inside a deletion list.
+// Solid accent palette. Two hues per glyph at most: the body, plus one accent.
+const GLYPH_INK = {
+  ice:    '#38bdf8',
+  iceDeep:'#0284c7',
+  gold:   '#f7c24a',
+  goldDeep:'#9c6b12',
+  clay:   '#f97316',
+  clayDeep:'#c2410c',
+  cream:  '#fde68a',
+  white:  '#f8fafc',
+  slate:  '#cbd5e1',
+  slateDeep:'#475569',
+  mint:   '#4ade80',
+  rose:   '#f43f5e',
+  plum:   '#c084fc'
+};
+
+/**
+ * Returns the complete <svg> markup for one mark.
+ * @param {string} kind   glyph key
+ * @param {string} prefix namespace for every id inside the glyph
+ */
+function get_skeuo_svg(kind, prefix) {
+  const p = prefix || 'g';
+  const body = (GLYPHS[kind] || GLYPHS.clean)(p);
+  return `<svg viewBox="0 0 64 64" width="100%" height="100%" fill="none" aria-hidden="true">${body}</svg>`;
+}
+
+const GLYPHS = {
+  // Brand master mark: terracotta sphere, one gold orbit with a true occlusion
+  // seam, and the ice-blue companion. Same geometry as scripts/generate-app-icon.swift.
+  brand: () => `
+    <path d="M10 41 A26 10.5 -26 0 1 54 23" stroke="${GLYPH_INK.goldDeep}" stroke-width="3.6" stroke-linecap="round"/>
+    <circle cx="32" cy="32" r="13.5" fill="${GLYPH_INK.clay}"/>
+    <path d="M54 23 A26 10.5 -26 0 1 10 41" stroke="${GLYPH_INK.gold}" stroke-width="4.2" stroke-linecap="round"/>
+    <circle cx="50" cy="21" r="4.4" fill="${GLYPH_INK.ice}"/>`,
+
+  // Airlock: a brush. The head is the widest element and its notches cut up
+  // from the bottom edge, which is what makes it a brush and not a pen.
+  clean: () => `
+    <g transform="rotate(-38 32 32)">
+      <rect x="28" y="7" width="8" height="21" rx="3.4" fill="${GLYPH_INK.white}"/>
+      <rect x="25" y="26" width="14" height="6" rx="2.2" fill="${GLYPH_INK.cream}"/>
+      <path d="M24 32 h16 v9 a8 8 0 0 1 -16 0 z" fill="${GLYPH_INK.gold}"/>
+      <path d="M28.5 33.5 v8.5 M32 33.5 v9.5 M35.5 33.5 v8.5"
+            stroke="${GLYPH_INK.goldDeep}" stroke-width="1.8" stroke-linecap="round"/>
+    </g>
+    <circle cx="48" cy="44" r="4.6" fill="none" stroke="${GLYPH_INK.white}"
+            stroke-width="2.2" stroke-opacity="0.9"/>`,
+
+  // Cortex: a processor. Sixteen pins become eight, which is what reads at 28px.
+  ai_moon: () => `
+    <rect x="16" y="16" width="32" height="32" rx="7" fill="${GLYPH_INK.slate}"/>
+    <rect x="22" y="22" width="20" height="20" rx="4" fill="${GLYPH_INK.slateDeep}"/>
+    <rect x="27" y="27" width="10" height="10" rx="2.5" fill="${GLYPH_INK.gold}"/>
+    <path d="M22 13 v3 M32 13 v3 M42 13 v3 M22 48 v3 M32 48 v3 M42 48 v3 M13 22 h3 M13 32 h3 M13 42 h3 M48 22 h3 M48 32 h3 M48 42 h3"
+          stroke="${GLYPH_INK.cream}" stroke-width="2.6" stroke-linecap="round"/>`,
+
+  // Jettison: a bin. The rim is wider than the body and the body tapers, which
+  // is the whole read; the ejecting card and the minus badge carry the action.
+  software: () => `
+    <rect x="18" y="6" width="17" height="14" rx="3.5" transform="rotate(-12 26 13)" fill="${GLYPH_INK.ice}"/>
+    <rect x="15" y="20" width="34" height="7" rx="3.5" fill="${GLYPH_INK.cream}"/>
+    <path d="M20 27 h24 l-3 22 a5 5 0 0 1 -5 4.5 h-8 a5 5 0 0 1 -5 -4.5 z" fill="${GLYPH_INK.white}"/>
+    <path d="M27 33 v14 M37 33 v14" stroke="${GLYPH_INK.slate}" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="47" cy="47" r="9.5" fill="${GLYPH_INK.rose}"/>
+    <path d="M42 47 h10" stroke="${GLYPH_INK.white}" stroke-width="3" stroke-linecap="round"/>`,
+
+  // Thruster: a rocket. One fin pair, one flame, no porthole glass stack.
+  optimize: () => `
+    <g transform="rotate(32 32 32)">
+      <path d="M32 6 c6 6 9 14 9 22 v14 h-18 v-14 c0 -8 3 -16 9 -22 z" fill="${GLYPH_INK.white}"/>
+      <path d="M32 6 c-6 6 -9 14 -9 22 v14 h9 z" fill="${GLYPH_INK.slate}"/>
+      <circle cx="32" cy="24" r="4.2" fill="${GLYPH_INK.ice}"/>
+      <path d="M23 34 l-6 8 v6 l6 -4 z M41 34 l6 8 v6 l-6 -4 z" fill="${GLYPH_INK.rose}"/>
+      <path d="M32 46 c3 4 3 8 0 12 c-3 -4 -3 -8 0 -12 z" fill="${GLYPH_INK.cream}"/>
+    </g>`,
+
+  // Astrolabe: a four-sector disc and one magnifier. The sector gap is the tell.
+  analyze: () => `
+    <circle cx="30" cy="30" r="19" fill="${GLYPH_INK.white}"/>
+    <path d="M30 30 L30 11 A19 19 0 0 1 49 30 Z" fill="${GLYPH_INK.ice}"/>
+    <path d="M30 30 L49 30 A19 19 0 0 1 30 49 Z" fill="${GLYPH_INK.mint}"/>
+    <path d="M30 30 L30 49 A19 19 0 0 1 11 30 Z" fill="${GLYPH_INK.rose}"/>
+    <circle cx="30" cy="30" r="3.4" fill="${GLYPH_INK.gold}"/>
+    <circle cx="44" cy="44" r="9" fill="${GLYPH_INK.cream}" fill-opacity="0.55" stroke="${GLYPH_INK.white}" stroke-width="2.4"/>
+    <path d="M50.5 50.5 l6 6" stroke="${GLYPH_INK.white}" stroke-width="3.4" stroke-linecap="round"/>`,
+
+  // Telemetry: a screen with one pulse line. The grid is two faint rules.
+  status: () => `
+    <rect x="10" y="15" width="44" height="30" rx="6" fill="${GLYPH_INK.slateDeep}"/>
+    <path d="M22 21 v18 M42 21 v18" stroke="${GLYPH_INK.mint}" stroke-width="1" stroke-opacity="0.28"/>
+    <path d="M15 33 h7 l3 -8 l4 15 l3 -9 l3 4 h9" stroke="${GLYPH_INK.mint}" stroke-width="3.2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="47" cy="21" r="3" fill="${GLYPH_INK.mint}"/>
+    <rect x="27" y="49" width="10" height="5" rx="2.5" fill="${GLYPH_INK.slate}"/>`,
+
+  // Payload: an isometric crate. Three faces, one tape strip, one code badge.
+  purge: () => `
+    <path d="M32 10 L52 21 L32 32 L12 21 Z" fill="${GLYPH_INK.cream}"/>
+    <path d="M12 21 L32 32 v21 L12 42 Z" fill="${GLYPH_INK.gold}"/>
+    <path d="M52 21 L32 32 v21 L52 42 Z" fill="${GLYPH_INK.goldDeep}"/>
+    <path d="M22 15.5 L42 26.5 v7 L22 22.5 Z" fill="${GLYPH_INK.white}" fill-opacity="0.4"/>
+    <circle cx="46" cy="46" r="9" fill="${GLYPH_INK.iceDeep}"/>
+    <path d="M44 42 l-3 4 l3 4 M48 42 l3 4 l-3 4" stroke="${GLYPH_INK.white}" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>`,
+
+  // Blackbox: a shield split into two facets with one keyhole, plus a restore
+  // badge in the corner. The arc is no longer drawn across the shield face.
+  history: () => `
+    <path d="M32 7 L50 14 v17 c0 11 -8 19 -18 23 Z" fill="${GLYPH_INK.white}"/>
+    <path d="M32 7 L14 14 v17 c0 11 8 19 18 23 Z" fill="${GLYPH_INK.slate}"/>
+    <circle cx="32" cy="26" r="5.2" fill="${GLYPH_INK.gold}"/>
+    <path d="M32 29 v9" stroke="${GLYPH_INK.gold}" stroke-width="4.4" stroke-linecap="round"/>
+    <circle cx="46" cy="45" r="10" fill="${GLYPH_INK.mint}"/>
+    <path d="M50.5 41 a6.5 6.5 0 1 0 1.2 6.5" stroke="${GLYPH_INK.white}" stroke-width="2.2"
+          stroke-linecap="round" fill="none"/>
+    <path d="M50.8 38.6 v3.6 h-3.6" stroke="${GLYPH_INK.white}" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+
+  // Installed apps (spec 四.4.2), drawn to the same restraint.
+  app_xcode: () => `
+    <rect x="12" y="13" width="40" height="37" rx="5" transform="rotate(-8 32 32)"
+          fill="${GLYPH_INK.white}" fill-opacity="0.34"/>
+    <path d="M17 22 h30 M17 31 h30 M17 40 h30" stroke="${GLYPH_INK.iceDeep}" stroke-width="1.4"
+          stroke-opacity="0.5" transform="rotate(-8 32 32)"/>
+    <g transform="rotate(-42 32 32)">
+      <rect x="29" y="12" width="6" height="26" rx="2.5" fill="${GLYPH_INK.gold}"/>
+      <rect x="21" y="12" width="22" height="9" rx="3" fill="${GLYPH_INK.white}"/>
+    </g>`,
+  app_docker: () => `
+    <path d="M12 35 c2 9 11 15 21 15 c12 0 19 -7 19 -15 z" fill="${GLYPH_INK.white}"/>
+    <path d="M12 35 c-4 -2 -6 -6 -5 -10 c4 1 7 4 8 8 z" fill="${GLYPH_INK.white}"/>
+    <circle cx="46" cy="32" r="1.7" fill="${GLYPH_INK.iceDeep}"/>
+    <g fill="${GLYPH_INK.ice}">
+      <rect x="20" y="23" width="7.5" height="7.5" rx="1.4"/><rect x="29" y="23" width="7.5" height="7.5" rx="1.4"/>
+      <rect x="38" y="23" width="7.5" height="7.5" rx="1.4"/><rect x="29" y="14" width="7.5" height="7.5" rx="1.4"/>
+      <rect x="38" y="14" width="7.5" height="7.5" rx="1.4"/>
+    </g>`,
+
+  app_chrome: () => `
+    <circle cx="32" cy="32" r="21" fill="${GLYPH_INK.white}"/>
+    <path d="M32 32 L32 11 A21 21 0 0 1 50 22 Z" fill="${GLYPH_INK.rose}"/>
+    <path d="M32 32 L50 22 A21 21 0 0 1 32 53 Z" fill="${GLYPH_INK.gold}"/>
+    <path d="M32 32 L32 53 A21 21 0 0 1 14 22 Z" fill="${GLYPH_INK.mint}"/>
+    <circle cx="32" cy="32" r="8.5" fill="${GLYPH_INK.ice}"/>`,
+  app_cursor: () => `
+    <path d="M32 12 L50 22 v20 L32 52 L14 42 V22 Z" fill="#2b2b30"/>
+    <path d="M14 22 L32 32 v20 L14 42 Z" fill="#15151a"/>
+    <path d="M50 22 L32 32 v20 L50 42 Z" fill="#3c3c44"/>
+    <path d="M30 24 l0 18 l4.5 -5 l3.5 7 l4 -2 l-3.5 -7 l6.5 -1 z" fill="${GLYPH_INK.white}"/>`,
+  app_figma: () => `
+    <circle cx="24" cy="20" r="8" fill="${GLYPH_INK.rose}"/>
+    <circle cx="40" cy="20" r="8" fill="${GLYPH_INK.plum}"/>
+    <circle cx="24" cy="36" r="8" fill="${GLYPH_INK.ice}"/>
+    <path d="M40 28 a8 8 0 1 1 0 16 a8 8 0 0 1 0 -16 z" fill="${GLYPH_INK.mint}"/>`,
+  app_generic: () => `
+    <rect x="15" y="15" width="34" height="34" rx="9" fill="${GLYPH_INK.white}" fill-opacity="0.94"/>
+    <rect x="26" y="24" width="12" height="16" rx="2.5" fill="${GLYPH_INK.slateDeep}" fill-opacity="0.35"/>
+    <path d="M29 29 h6 M29 34 h6" stroke="${GLYPH_INK.slateDeep}" stroke-width="2.2" stroke-linecap="round"/>`
+};
+
+/** Maps a discovered app to one of the spec'd marks, or the monogram fallback. */
+function appGlyphFor(name, bundleId) {
+  const key = ((bundleId || '') + ' ' + (name || '')).toLowerCase();
+  if (key.includes('xcode')) return 'app_xcode';
+  if (key.includes('docker')) return 'app_docker';
+  if (key.includes('chrome')) return 'app_chrome';
+  if (key.includes('cursor')) return 'app_cursor';
+  if (key.includes('figma')) return 'app_figma';
+  return 'app_generic';
+}
+
+/** Deterministic plate gradient for an unknown app, from its name. */
+function appPlateFor(name) {
+  const palettes = [
+    ['#38bdf8', '#0284c7'], ['#34d399', '#047857'], ['#fb7185', '#be123c'],
+    ['#a855f7', '#6d28d9'], ['#fbbf24', '#b45309'], ['#f97316', '#9a3412'],
+    ['#818cf8', '#4338ca'], ['#2dd4bf', '#0f766e']
+  ];
+  let hash = 0;
+  for (const ch of String(name || 'app')) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  const pair = palettes[hash % palettes.length];
+  return `linear-gradient(145deg, ${pair[0]} 0%, ${pair[1]} 100%)`;
+}
+
+/** Hydrates every empty glyph slot in the document. */
+function hydrateGlyphs(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[data-icon]').forEach((slot, index) => {
+    const kind = slot.dataset.icon;
+    const prefix = (slot.dataset.prefix || 'g') + index;
+    slot.innerHTML = get_skeuo_svg(kind, prefix);
+  });
+  const bar = scope.querySelector('[data-icon-slot="bar"]');
+  if (bar && !bar.querySelector('svg')) bar.innerHTML = get_skeuo_svg('brand', 'bar');
+}
+
+// Hero marks are built lazily: GLYPHS is declared below this point, so calling
+// get_skeuo_svg while evaluating this object would hit the temporal dead zone.
+const HERO_MODULES = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'];
+const SEMANTIC_HERO_ICONS = Object.fromEntries(
+  HERO_MODULES.map((mod) => [mod, { bg: MODULE_PLATE[mod], svg: null }])
+);
+function heroIconFor(mod) {
+  const key = SEMANTIC_HERO_ICONS[mod] ? mod : 'clean';
+  const entry = SEMANTIC_HERO_ICONS[key];
+  if (!entry.svg) entry.svg = get_skeuo_svg(key, 'hero');
+  return entry;
+}
+
 const DEFAULT_STATE = {
   module: 'clean',
   cleanFilter: 'all',
@@ -1664,8 +1329,8 @@ function buildMenuBarTrayHTML() {
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
       <div style="display:flex;align-items:center;gap:9px;">
-        <div class="app-icon-box" style="width:28px;height:28px;border-radius:7px;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="10" ry="4.4" transform="rotate(-28 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.4" transform="rotate(32 12 12)" stroke-opacity="0.55"/><circle cx="19.5" cy="8" r="1.6" fill="#fff" stroke="none"/></svg>
+        <div class="app-icon-box brand-plate" style="width:28px;height:28px;border-radius:7px;">
+          ${get_skeuo_svg('brand', 'tray')}
         </div>
         <div>
           <div style="font-size:12.5px;font-weight:700;color:var(--text-primary);">orbit · 系统状态栏</div>
@@ -1734,10 +1399,10 @@ function buildMenuBarTrayHTML() {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto;">
       <button class="btn btn-primary" style="grid-column:span 2;justify-content:center;padding:7px;" onclick="sendNativeBridge({action:'menubarOpenClean'}); switchModule('clean'); openConfirmSheet();">
-        ✨ 一键清理安全缓存 (${cleanableGb.toFixed(2)} GB)
+        一键清理安全缓存 (${cleanableGb.toFixed(2)} GB)
       </button>
       <button class="btn" style="justify-content:center;" onclick="sendNativeBridge({action:'menubarOpenDoctor'}); openDoctorModal(true);">
-        🛰️ 立即系统联检
+        立即系统联检
       </button>
       <button class="btn" style="justify-content:center;" onclick="toggleCaffeinateState()">
         ☕ 防休眠: ${STATE.caffeinateActive ? '已开启' : '关闭'}
@@ -1846,10 +1511,13 @@ function addCustomWhitelistInput() {
 function renderHeroIcon() {
   const box = document.getElementById('heroSemanticIcon');
   if (!box) return;
-  const cfg = SEMANTIC_HERO_ICONS[STATE.module] || SEMANTIC_HERO_ICONS.clean;
+  const cfg = heroIconFor(STATE.module);
   box.style.background = cfg.bg;
   box.innerHTML = cfg.svg;
 }
+
+/** Kept as the single entry point the boot sequence calls. */
+function renderHeroGlyph() { renderHeroIcon(); }
 
 function svgSparkline(points, strokeColor, fillColor, heightPx) {
   const max = Math.max(...points, 100);
@@ -2349,7 +2017,7 @@ function renderModule() {
                 <div class="list-row ${isSel ? 'selected' : ''}" onclick="selectCleanRow(${origIdx})">
                   <div class="row-left">
                     ${g.tier === 'protected'
-                      ? `<span style="width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;" title="硬件级保护，不可勾选">🔒</span>`
+                      ? `<span class="lock-glyph" title="硬件级保护，不可勾选">${get_skeuo_svg('history', 'lk1')}</span>`
                       : `<input type="checkbox" ${g.checked ? 'checked' : ''} onclick="toggleCleanCheck(${origIdx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
                     }
                     <div style="min-width:0;">
@@ -2360,7 +2028,7 @@ function renderModule() {
                   <div class="row-right">
                     <div class="prop-bar-wrap"><div class="prop-bar-fill" style="width:${pct}%;background:${g.tier === 'protected' ? 'var(--accent-purple)' : barColor};"></div></div>
                     <span class="badge ${g.cleaned ? 'badge-safe' : g.tier === 'safe' ? 'badge-safe' : g.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-                      ${g.cleaned ? '✅ 已清理' : g.tier === 'safe' ? '安全可再生' : g.tier === 'review' ? '需确认' : '🔒 硬件保护'}
+                      ${g.cleaned ? '已清理' : g.tier === 'safe' ? '安全可再生' : g.tier === 'review' ? '需确认' : '硬件保护'}
                     </span>
                     <span class="size-cell">${g.sizeGb.toFixed(2)} GB</span>
                   </div>
@@ -2399,7 +2067,7 @@ function renderModule() {
               ${selGroup.subpaths.map((sp, spIdx) => `
                 <div class="subpath-item">
                   <div class="subpath-left">
-                    ${selGroup.tier === 'protected' ? '<span>🔒</span>' : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
+                    ${selGroup.tier === 'protected' ? `<span class="lock-glyph">${get_skeuo_svg('history', 'lk3')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
                     <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
                   </div>
                   <div class="subpath-right">
@@ -2447,7 +2115,7 @@ function renderModule() {
               <div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}" onclick="selectMoonRow(${idx})">
                 <div class="row-left">
                   ${b.tier === 'protected'
-                    ? `<span style="width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;" title="核心资产永久保护，无勾选框">🔒</span>`
+                    ? `<span class="lock-glyph" title="核心资产永久保护，无勾选框">${get_skeuo_svg('history', 'lk2')}</span>`
                     : `<input type="checkbox" ${b.checked ? 'checked' : ''} onclick="toggleMoonCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
                   }
                   <div style="min-width:0;">
@@ -2457,7 +2125,7 @@ function renderModule() {
                 </div>
                 <div class="row-right">
                   <span class="badge ${b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-                    ${b.cleaned ? '✅ 已清理' : b.tier === 'safe' ? '默认安全' : b.tier === 'review' ? '按期清理' : '🔒 永久保护'}
+                    ${b.cleaned ? '已清理' : b.tier === 'safe' ? '默认安全' : b.tier === 'review' ? '按期清理' : '永久保护'}
                   </span>
                   <span class="size-cell">${b.sizeGb.toFixed(2)} GB</span>
                 </div>
@@ -2549,8 +2217,16 @@ function renderModule() {
         return;
       }
 
-      const defaultIconBg = 'linear-gradient(145deg, #f59e0b 0%, #b45309 100%)';
-      const defaultIconSvg = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" fill="#fff"/></svg>';
+      // Every row resolves through the shared glyph system: a spec'd mark for a
+      // known app, a deterministic plate plus monogram for anything else.
+      const iconFor = (name, bundleId, index) => {
+        const kind = appGlyphFor(name, bundleId);
+        return {
+          bg: appPlateFor(name),
+          svg: get_skeuo_svg(kind, 'orph' + index),
+          mark: String(name || '?').trim().charAt(0).toUpperCase()
+        };
+      };
 
       stage.innerHTML = dualModeSwitchHtml + `
         <div class="master-detail-grid" style="min-height:0;flex:1;">
@@ -2564,8 +2240,8 @@ function renderModule() {
                 <div class="list-row ${idx === STATE.selectedOrphanIdx ? 'selected' : ''}" onclick="selectOrphanRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${item.checked ? 'checked' : ''} onclick="toggleOrphanCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
-                    <div class="app-squircle-icon" style="background:${item.iconBg || defaultIconBg};">
-                      ${item.iconSvg || defaultIconSvg}
+                    <div class="app-squircle-icon" style="background:${iconFor(item.name, item.bundleId, idx).bg};">
+                      ${iconFor(item.name, item.bundleId, idx).svg}
                     </div>
                     <div style="min-width:0;">
                       <div class="row-title" style="display:flex;align-items:center;gap:6px;">
@@ -2591,8 +2267,8 @@ function renderModule() {
             </div>
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${selOrphan.iconBg || defaultIconBg};">
-                  ${selOrphan.iconSvg || defaultIconSvg}
+                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selOrphan.name, selOrphan.bundleId, 0).bg};">
+                  ${iconFor(selOrphan.name, selOrphan.bundleId, 0).svg}
                 </div>
                 <div style="min-width:0;flex:1;">
                   <div style="font-size:14.5px;font-weight:800;">${selOrphan.name} <span style="font-size:11px;font-weight:600;color:var(--accent-amber);">· ${selOrphan.statusText}</span></div>
@@ -2672,8 +2348,14 @@ function renderModule() {
         return;
       }
 
-      const defaultIconBg = 'linear-gradient(145deg, #f43f5e 0%, #9f1239 100%)';
-      const defaultIconSvg = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" fill="#fff" fill-opacity="0.9"/></svg>';
+      const iconFor = (name, bundleId, index) => {
+        const kind = appGlyphFor(name, bundleId);
+        return {
+          bg: appPlateFor(name),
+          svg: get_skeuo_svg(kind, 'app' + index),
+          mark: String(name || '?').trim().charAt(0).toUpperCase()
+        };
+      };
 
       stage.innerHTML = dualModeSwitchHtml + `
         <div class="master-detail-grid" style="min-height:0;flex:1;">
@@ -2693,8 +2375,8 @@ function renderModule() {
                 <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
-                    <div class="app-squircle-icon" style="background:${app.iconBg || defaultIconBg};">
-                      ${app.iconSvg || defaultIconSvg}
+                    <div class="app-squircle-icon" style="background:${iconFor(app.name, app.bundleId, idx).bg};">
+                      ${iconFor(app.name, app.bundleId, idx).svg}
                     </div>
                     <div style="min-width:0;">
                       <div class="row-title" style="display:flex;align-items:center;gap:6px;">
@@ -2723,8 +2405,8 @@ function renderModule() {
             </div>
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${selApp.iconBg || defaultIconBg};">
-                  ${selApp.iconSvg || defaultIconSvg}
+                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
+                  ${iconFor(selApp.name, selApp.bundleId, 0).svg}
                 </div>
                 <div style="min-width:0;flex:1;">
                   <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
@@ -2876,7 +2558,7 @@ function renderModule() {
           ${STATE.largeFiles.length === 0 ? `<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;">当前扫描目录下无符合条件的大文件，或已全部移入废纸篓</div>` : STATE.largeFiles.map((lf, idx) => `
             <div class="list-row" style="padding:7.5px 14px;">
               <div class="row-left">
-                <span>📦</span>
+                <span class="row-glyph">${get_skeuo_svg('purge', 'lf' + idx)}</span>
                 <div style="min-width:0;">
                   <div class="row-title">${lf.name}</div>
                   <div class="row-sub" style="cursor:pointer;" onclick="revealInFinder('${lf.path}')">${lf.path}</div>
@@ -3205,14 +2887,14 @@ function toggleTempUnit() { STATE.tempUnit = STATE.tempUnit === 'C' ? 'F' : 'C';
 
 // Editable & Live-Filtered ⌘K Command Palette
 const CMD_PALETTE_ITEMS = [
-  { icon: '✨', title: '智能深度清理：查看本机扫描到的缓存与日志', sub: '气闸舱 · 仅显示真实存在的目录', kbd: '⌘1', run: () => { switchModule('clean'); } },
-  { icon: '🤖', title: 'AI 专项清理：查看本机 AI 工具缓存', sub: '智核舱 · 扫描 Claude / Cursor / Codex 目录', kbd: '⌘2', run: () => { switchModule('ai_moon'); } },
-  { icon: '🗑️', title: '应用彻底卸载：扫描本机 /Applications 应用与 Library 残留', sub: '/Applications & ~/Library/Application Support', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
-  { icon: '📦', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/Downloads', kbd: '⌘7', run: () => { switchModule('purge'); } },
-  { icon: '📊', title: '星图仪：用 mo analyze 查看磁盘占用', sub: 'mo analyze --json · 可下钻目录', kbd: '⌘5', run: () => { switchModule('analyze'); } },
-  { icon: '📈', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 实时同步进程表与风扇控制', kbd: '⌘6', run: () => { switchModule('status'); } },
-  { icon: '🩺', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
-  { icon: '↩️', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '管理受保护的核心白名单路径', kbd: '⌘8', run: () => { switchModule('history'); } }
+  { icon: 'clean', title: '智能深度清理：查看本机扫描到的缓存与日志', sub: '气闸舱 · 仅显示真实存在的目录', kbd: '⌘1', run: () => { switchModule('clean'); } },
+  { icon: 'ai_moon', title: 'AI 专项清理：查看本机 AI 工具缓存', sub: '智核舱 · 扫描 Claude / Cursor / Codex 目录', kbd: '⌘2', run: () => { switchModule('ai_moon'); } },
+  { icon: 'software', title: '应用彻底卸载：扫描本机 /Applications 应用与 Library 残留', sub: '/Applications & ~/Library/Application Support', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
+  { icon: 'purge', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/Downloads', kbd: '⌘7', run: () => { switchModule('purge'); } },
+  { icon: 'analyze', title: '星图仪：用 mo analyze 查看磁盘占用', sub: 'mo analyze --json · 可下钻目录', kbd: '⌘5', run: () => { switchModule('analyze'); } },
+  { icon: 'status', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 实时同步进程表与风扇控制', kbd: '⌘6', run: () => { switchModule('status'); } },
+  { icon: 'brand', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
+  { icon: 'history', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '管理受保护的核心白名单路径', kbd: '⌘8', run: () => { switchModule('history'); } }
 ];
 
 window.renderCommandPaletteList = function(queryStr) {
@@ -3224,7 +2906,9 @@ window.renderCommandPaletteList = function(queryStr) {
     ${matches.map((item, idx) => `
       <div class="list-row ${idx === 0 ? 'selected' : ''}" onclick="closeCommandPalette(); CMD_PALETTE_ITEMS[${CMD_PALETTE_ITEMS.indexOf(item)}].run();">
         <div class="row-left">
-          <span>${item.icon}</span>
+          <span class="palette-glyph" style="background:${MODULE_PLATE[item.icon] || MODULE_PLATE.brand};">
+            ${get_skeuo_svg(item.icon, 'pal' + item.title.length)}
+          </span>
           <div>
             <div class="row-title">${item.title}</div>
             <div class="row-sub">${item.sub}</div>
@@ -3552,7 +3236,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 updateSidebarBadges();
-renderHeroIcon();
+hydrateGlyphs();
+renderHeroGlyph();
 renderModule();
 renderMenuBarTrayContent();
 if (window.isNativeMacApp) {

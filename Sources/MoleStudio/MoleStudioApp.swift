@@ -228,19 +228,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
+            // The menu-bar mark carries the same three elements as the app icon —
+            // sphere, tilted orbit, companion — reduced to a monochrome template so
+            // AppKit can tint it for light and dark menu bars. It is drawn from the
+            // brand's 64-unit grid rather than hand-placed, so its proportions stay
+            // identical to the Dock icon and the sidebar SVG.
+            //
+            // A template image is one flat colour, so the orbit cannot be separated
+            // from the sphere by value the way it is in the app icon. The separation
+            // is cut instead: a clear stroke around the sphere removes the ring
+            // where it meets the silhouette, which is what makes the mark read as a
+            // planet inside an orbit rather than a solid blob at 18pt.
             let orbitImage = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+                let unit = 18.0 / 64.0
+                func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
+                    NSPoint(x: x * unit, y: 18 - y * unit)
+                }
                 NSColor.black.setStroke()
                 NSColor.black.setFill()
-                NSBezierPath(ovalIn: NSRect(x: 7.2, y: 7.2, width: 3.6, height: 3.6)).fill()
+
+                let sphereRadius = 13.5 * unit
+                let centre = point(32, 32)
+                let ringWidth = 4.2 * unit
+
+                // Orbit: rx 26 / ry 10.5, tilted -26° in the SVG's y-down space,
+                // which is +26° once this flipped:false view maps it y-up.
                 let transform = NSAffineTransform()
-                transform.translateX(by: 9, yBy: 9)
-                transform.rotate(byDegrees: 28)
-                transform.translateX(by: -9, yBy: -9)
-                let ring = NSBezierPath(ovalIn: NSRect(x: 1.5, y: 5.4, width: 15, height: 7.2))
-                ring.lineWidth = 1.6
+                transform.translateX(by: centre.x, yBy: centre.y)
+                transform.rotate(byDegrees: 26)
+                transform.translateX(by: -centre.x, yBy: -centre.y)
+                let ring = NSBezierPath(ovalIn: NSRect(x: centre.x - 26 * unit,
+                                                       y: centre.y - 10.5 * unit,
+                                                       width: 52 * unit, height: 21 * unit))
+                ring.lineWidth = ringWidth
                 ring.transform(using: transform as AffineTransform)
+
                 ring.stroke()
-                NSBezierPath(ovalIn: NSRect(x: 13.8, y: 11.2, width: 2.6, height: 2.6)).fill()
+
+                // Cut the seam around the sphere, then fill the sphere so only the
+                // outer half of the gap survives as a visible separation.
+                if let context = NSGraphicsContext.current {
+                    context.saveGraphicsState()
+                    context.compositingOperation = .clear
+                    let gap = NSBezierPath(ovalIn: NSRect(x: centre.x - sphereRadius,
+                                                          y: centre.y - sphereRadius,
+                                                          width: sphereRadius * 2,
+                                                          height: sphereRadius * 2))
+                    gap.lineWidth = ringWidth * 1.15
+                    gap.stroke()
+                    context.restoreGraphicsState()
+                }
+                NSBezierPath(ovalIn: NSRect(x: centre.x - sphereRadius, y: centre.y - sphereRadius,
+                                            width: sphereRadius * 2,
+                                            height: sphereRadius * 2)).fill()
+
+                // Companion: r 4.4 at (50, 21), filled so it survives the tint.
+                let companionRadius = 4.4 * unit
+                let companion = point(50, 21)
+                NSBezierPath(ovalIn: NSRect(x: companion.x - companionRadius,
+                                            y: companion.y - companionRadius,
+                                            width: companionRadius * 2,
+                                            height: companionRadius * 2)).fill()
                 return true
             }
             orbitImage.isTemplate = true
