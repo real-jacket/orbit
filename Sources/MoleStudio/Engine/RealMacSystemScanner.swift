@@ -1,21 +1,11 @@
 import Cocoa
 import Darwin
 
-private struct OrphanSignature {
-    let id: String
-    let name: String
-    let category: String
-    let bundleId: String
-    let appKeywords: [String]
-    let fixedPaths: [(path: String, kind: String)]
-    let wildcardParents: [(parent: String, prefix: String, kind: String)]
-    let impact: String
-}
-
 /// Samples installed apps, leftover directories, large files, and telemetry for the WebKit UI.
 final class RealMacSystemScanner {
     static let shared = RealMacSystemScanner()
-    private let fm = FileManager.default
+    /// Shared by the extensions in this folder (orphan scanning, telemetry).
+    let fm = FileManager.default
 
     func fastDirectorySize(path: String, maxFiles: Int = 2500) -> (bytes: Int64, count: Int) {
         let expanded = (path as NSString).expandingTildeInPath
@@ -241,8 +231,9 @@ final class RealMacSystemScanner {
             .map { (expanded as NSString).appendingPathComponent($0) }
     }
 
-    func scanOrphanedLeftovers() -> [[String: Any]] {
-        let home = NSHomeDirectory()
+    /// Names and bundle identifiers of every app currently in /Applications, used
+    /// to decide whether a leftover directory still has an owner.
+    func installedAppIndex(home: String) -> (names: Set<String>, bundleIds: Set<String>) {
         let appDirs = ["/Applications", (home as NSString).appendingPathComponent("Applications")]
         var installedNames = Set<String>()
         var installedBundleIds = Set<String>()
@@ -252,118 +243,19 @@ final class RealMacSystemScanner {
             for item in items where item.hasSuffix(".app") {
                 let fullPath = (dir as NSString).appendingPathComponent(item)
                 installedNames.insert((item as NSString).deletingPathExtension.lowercased())
-                if let bundle = Bundle(path: fullPath) {
-                    if let bid = bundle.bundleIdentifier?.lowercased() {
-                        installedBundleIds.insert(bid)
-                    }
-                    if let display = (bundle.infoDictionary?["CFBundleDisplayName"] as? String)?.lowercased() {
-                        installedNames.insert(display)
-                    }
-                    if let bundleName = (bundle.infoDictionary?["CFBundleName"] as? String)?.lowercased() {
-                        installedNames.insert(bundleName)
-                    }
+                guard let bundle = Bundle(path: fullPath) else { continue }
+                if let bid = bundle.bundleIdentifier?.lowercased() {
+                    installedBundleIds.insert(bid)
+                }
+                if let display = (bundle.infoDictionary?["CFBundleDisplayName"] as? String)?.lowercased() {
+                    installedNames.insert(display)
+                }
+                if let bundleName = (bundle.infoDictionary?["CFBundleName"] as? String)?.lowercased() {
+                    installedNames.insert(bundleName)
                 }
             }
         }
-
-        var orphans: [[String: Any]] = []
-        var claimedPaths = Set<String>()
-        let signatures = orphanSignatures(home: home)
-
-        for signature in signatures {
-            var subpaths: [[String: Any]] = []
-            var totalBytes: Int64 = 0
-            var candidates = signature.fixedPaths
-            for wildcard in signature.wildcardParents {
-                for matched in matchingWildcardPaths(in: wildcard.parent, prefix: wildcard.prefix) {
-                    candidates.append((matched, wildcard.kind))
-                }
-            }
-
-            for candidate in candidates {
-                if claimedPaths.contains(where: { candidate.path.hasPrefix($0 + "/") || $0.hasPrefix(candidate.path + "/") }) {
-                    continue
-                }
-                guard fm.fileExists(atPath: candidate.path) else { continue }
-                let (bytes, _) = fastDirectorySize(path: candidate.path, maxFiles: 3500)
-                guard bytes > 0 else { continue }
-                claimedPaths.insert(candidate.path)
-                totalBytes += bytes
-                subpaths.append([
-                    "path": candidate.path.replacingOccurrences(of: home, with: "~"),
-                    "kind": candidate.kind,
-                    "size": formatBytes(bytes),
-                    "checked": true
-                ])
-            }
-
-            if !subpaths.isEmpty {
-                let stillInstalled = signature.appKeywords.contains { keyword in
-                    installedNames.contains { $0.contains(keyword) }
-                } || installedBundleIds.contains(signature.bundleId)
-                orphans.append([
-                    "id": signature.id,
-                    "name": signature.name,
-                    "category": signature.category,
-                    "bundleId": signature.bundleId,
-                    "statusText": stillInstalled ? "深层容器与 SDK 残留" : "主程序已卸载 · 孤立残留",
-                    "leftoverSizeGb": max(0.01, (Double(totalBytes) / 1_000_000_000.0 * 100).rounded() / 100.0),
-                    "checked": !stillInstalled,
-                    "impact": signature.impact,
-                    "subpaths": subpaths
-                ])
-            }
-        }
-
-        let scanTargets = [
-            ("\(home)/Library/Containers", "cache", "孤立沙盒容器残留"),
-            ("\(home)/Library/Group Containers", "cache", "孤立沙盒容器残留"),
-            ("\(home)/Library/Application Support", "config", "已卸载应用支持残留"),
-            ("\(home)/Library/Caches", "cache", "已卸载应用支持残留")
-        ]
-        let ignoredPrefixes = [
-            "com.apple.", "group.com.apple.", "apple", "cloudkit", "knowledge", "caches",
-            "crashreporter", "geoservices", "addressbook", "facetime", "homekit", "safari",
-            "spotlight", "google", "jetbrains", "mozilla", "microsoft"
-        ]
-
-        for target in scanTargets {
-            guard let items = try? fm.contentsOfDirectory(atPath: target.0) else { continue }
-            for item in items where !item.hasPrefix(".") {
-                let lower = item.lowercased()
-                if ignoredPrefixes.contains(where: { lower == $0 || lower.hasPrefix($0) }) { continue }
-                let fullPath = (target.0 as NSString).appendingPathComponent(item)
-                if claimedPaths.contains(fullPath) { continue }
-                let matchesInstalled = installedBundleIds.contains(lower)
-                    || installedBundleIds.contains { lower.contains($0) || $0.contains(lower) }
-                    || installedNames.contains { $0.count >= 3 && (lower.contains($0) || $0.contains(lower)) }
-                if matchesInstalled { continue }
-
-                let (bytes, _) = fastDirectorySize(path: fullPath, maxFiles: 1200)
-                guard bytes >= 15_000_000 else { continue }
-                claimedPaths.insert(fullPath)
-                orphans.append([
-                    "id": "orphan_\(item)",
-                    "name": item,
-                    "category": target.2,
-                    "bundleId": item,
-                    "statusText": "主程序已卸载 · 孤立残留",
-                    "leftoverSizeGb": max(0.02, (Double(bytes) / 1_000_000_000.0 * 100).rounded() / 100.0),
-                    "checked": true,
-                    "impact": "经与 /Applications 已安装列表比对，该目录对应的主程序已不存在，属于卸载后遗留的无主残留目录。",
-                    "subpaths": [[
-                        "path": fullPath.replacingOccurrences(of: home, with: "~"),
-                        "kind": target.1,
-                        "size": formatBytes(bytes),
-                        "checked": true
-                    ]]
-                ])
-                if orphans.count >= 18 { break }
-            }
-        }
-
-        orphans.sort { ($0["leftoverSizeGb"] as? Double ?? 0) > ($1["leftoverSizeGb"] as? Double ?? 0) }
-        return orphans
+        return (installedNames, installedBundleIds)
     }
 
     func scanLargeFiles() -> [[String: Any]] {
@@ -433,138 +325,6 @@ final class RealMacSystemScanner {
         ]
     }
 
-    func scanCleanGroups() -> [[String: Any]] {
-        let home = NSHomeDirectory()
-        let groups: [(id: String, category: String, name: String, roots: [String], tier: String, impact: String, rebuild: String)] = [
-            ("user_caches", "应用缓存与日志", "用户缓存与诊断日志",
-             ["\(home)/Library/Caches", "\(home)/Library/Logs"],
-             "safe", "只统计本机实际存在的缓存和日志目录。", "应用下次启动时按需重建"),
-            ("browser_caches", "浏览器缓存", "Safari / Chrome / Firefox 缓存",
-             ["\(home)/Library/Caches/com.apple.Safari", "\(home)/Library/Caches/Google"],
-             "safe", "浏览器缓存可以重建，不影响书签和登录状态。", "下次打开网页时重新生成"),
-            ("xcode_derived", "开发缓存", "Xcode DerivedData 与模拟器缓存",
-             ["\(home)/Library/Developer/Xcode/DerivedData", "\(home)/Library/Developer/CoreSimulator/Caches"],
-             "safe", "编译中间产物可以删除，下次编译会重新生成。", "下次编译重新生成"),
-            ("package_caches", "包管理器缓存", "npm / pip / Homebrew 下载缓存",
-             ["\(home)/.npm/_cacache", "\(home)/Library/Caches/pip", "\(home)/Library/Caches/Homebrew"],
-             "review", "包管理器缓存可以重新下载。", "下次安装时重新下载")
-        ]
-        return groups.compactMap { group in
-            catalog(id: group.id, category: group.category, name: group.name, roots: group.roots,
-                    tier: group.tier, impact: group.impact, rebuild: group.rebuild)
-        }
-    }
-
-    func scanAICaches() -> [[String: Any]] {
-        let home = NSHomeDirectory()
-        let bands: [(id: String, band: String, name: String, roots: [String], tier: String, impact: String)] = [
-            ("ai_versions", "可重建程序包", "Claude / Cursor 旧版本与扩展缓存",
-             ["\(home)/.local/share/claude/versions", "\(home)/.cursor/extensions"],
-             "safe", "旧版本程序包和扩展缓存可以重新下载。"),
-            ("ai_runtime_cache", "运行缓存", "Cursor / Claude 运行缓存与日志",
-             ["\(home)/Library/Caches/Cursor", "\(home)/Library/Logs/Claude"],
-             "safe", "运行缓存和日志不影响对话记录。"),
-            ("ai_worktrees", "临时工作树", "Codex 临时工作树与模型下载缓存",
-             ["\(home)/.codex/worktrees", "\(home)/.cache/huggingface"],
-             "review", "删除前确认没有未提交的工作树。")
-        ]
-        return bands.compactMap { band in
-            guard var item = catalog(id: band.id, category: band.band, name: band.name, roots: band.roots,
-                                     tier: band.tier, impact: band.impact, rebuild: "可重新下载或重新生成") else { return nil }
-            item["band"] = band.band
-            item["filesCount"] = "\(item["items"] as? Int ?? 0) 个目录"
-            item["lastMod"] = "本机扫描"
-            return item
-        }
-    }
-
-    func scanInstallerPackages() -> [[String: Any]] {
-        let home = NSHomeDirectory()
-        let roots = ["\(home)/Downloads", "\(home)/Library/Caches/Homebrew/downloads"]
-        let extensions = ["dmg", "pkg", "xip", "iso", "zip"]
-        var found: [(name: String, path: String, bytes: Int64, age: String)] = []
-        for root in roots {
-            guard fm.fileExists(atPath: root),
-                  let enumerator = fm.enumerator(
-                    at: URL(fileURLWithPath: root),
-                    includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey, .contentModificationDateKey],
-                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
-                  ) else { continue }
-            var scanned = 0
-            for case let url as URL in enumerator {
-                scanned += 1
-                if scanned > 2500 { break }
-                guard extensions.contains(url.pathExtension.lowercased()),
-                      let vals = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .contentModificationDateKey]),
-                      vals.isRegularFile == true,
-                      let size = vals.fileSize, size > 20_000_000 else { continue }
-                found.append((
-                    url.lastPathComponent,
-                    url.path.replacingOccurrences(of: home, with: "~"),
-                    Int64(size),
-                    ageText(vals.contentModificationDate)
-                ))
-            }
-        }
-        found.sort { $0.bytes > $1.bytes }
-        return found.prefix(20).enumerated().map { idx, item in
-            [
-                "id": "installer_\(idx)",
-                "name": item.name,
-                "location": (item.path as NSString).deletingLastPathComponent,
-                "path": item.path,
-                "sizeGb": gb(item.bytes),
-                "age": item.age,
-                "checked": true
-            ]
-        }
-    }
-
-    func scanBuildArtifacts() -> [[String: Any]] {
-        let home = NSHomeDirectory()
-        let roots = ["\(home)/Projects", "\(home)/GitHub", "\(home)/Developer", "\(home)/code", "\(home)/src"]
-        let names = ["node_modules": "前端依赖目录", "target": "Rust / Java 构建产物",
-                     "DerivedData": "Xcode 构建缓存", ".venv": "Python 虚拟环境",
-                     "venv": "Python 虚拟环境", "dist": "前端构建产物", "build": "构建产物"]
-        var found: [(name: String, path: String, bytes: Int64, age: String)] = []
-        for root in roots where fm.fileExists(atPath: root) {
-            guard let enumerator = fm.enumerator(
-                at: URL(fileURLWithPath: root),
-                includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
-                options: [.skipsHiddenFiles]
-            ) else { continue }
-            var scanned = 0
-            for case let url as URL in enumerator {
-                scanned += 1
-                if scanned > 4000 { break }
-                let name = url.lastPathComponent
-                guard names[name] != nil else { continue }
-                enumerator.skipDescendants()
-                let (bytes, _) = fastDirectorySize(path: url.path, maxFiles: 1500)
-                guard bytes >= 20_000_000 else { continue }
-                let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-                found.append((name, url.path.replacingOccurrences(of: home, with: "~"), bytes, ageText(modified)))
-            }
-        }
-        found.sort { $0.bytes > $1.bytes }
-        return found.prefix(20).enumerated().map { idx, item in
-            let project = (item.path as NSString).deletingLastPathComponent
-            return [
-                "id": "artifact_\(idx)",
-                "project": project,
-                "artifact": item.name,
-                "path": item.path,
-                "kind": names[item.name] ?? "构建产物",
-                "sizeGb": gb(item.bytes),
-                "origSizeGb": gb(item.bytes),
-                "age": item.age,
-                "rebuildNote": "删除后可重新安装或重新编译",
-                "gitClean": "本机扫描",
-                "checked": true
-            ]
-        }
-    }
-
     func scanHomeTreemap() -> [[String: Any]] {
         let home = NSHomeDirectory()
         let names = ["Library", "Downloads", "Documents", "Desktop", "Movies", "Pictures", "Music", "Projects", "Developer"]
@@ -603,9 +363,22 @@ final class RealMacSystemScanner {
         return text.split(whereSeparator: \.isNewline).map(String.init).filter { !$0.isEmpty && !$0.hasPrefix("#") }
     }
 
-    private func catalog(id: String, category: String, name: String, roots: [String],
-                         tier: String, impact: String, rebuild: String) -> [String: Any]? {
+    /// One catalogue entry's identity and copy. Grouping these keeps `catalog`
+    /// under the parameter limit without turning the call sites into noise.
+    struct CatalogSpec {
+        let id: String
+        let category: String
+        let name: String
+        let roots: [String]
+        let tier: String
+        let impact: String
+        let rebuild: String
+    }
+
+    func catalog(_ spec: CatalogSpec) -> [String: Any]? {
         let home = NSHomeDirectory()
+        let (id, category, name, roots) = (spec.id, spec.category, spec.name, spec.roots)
+        let (tier, impact, rebuild) = (spec.tier, spec.impact, spec.rebuild)
         var subpaths: [[String: Any]] = []
         var total: Int64 = 0
         for root in roots where fm.fileExists(atPath: root) {
@@ -640,87 +413,15 @@ final class RealMacSystemScanner {
         ]
     }
 
-    private func gb(_ bytes: Int64) -> Double {
+    func gb(_ bytes: Int64) -> Double {
         max(0.01, (Double(bytes) / 1_000_000_000.0 * 100).rounded() / 100.0)
     }
 
-    private func ageText(_ date: Date?) -> String {
+    func ageText(_ date: Date?) -> String {
         guard let date else { return "修改时间未知" }
         let days = Int(Date().timeIntervalSince(date) / 86_400)
         if days <= 0 { return "今天修改" }
         return "\(days) 天未修改"
-    }
-
-    private func orphanSignatures(home: String) -> [OrphanSignature] {
-        [
-            OrphanSignature(
-                id: "orphan_docker",
-                name: "Docker Desktop",
-                category: "虚拟化与容器残留",
-                bundleId: "com.docker.docker",
-                appKeywords: ["docker"],
-                fixedPaths: [
-                    ("\(home)/Library/Containers/com.docker.docker", "cache"),
-                    ("\(home)/Library/Containers/com.docker.helper", "cache"),
-                    ("\(home)/Library/Group Containers/group.com.docker", "cache"),
-                    ("\(home)/.docker", "config"),
-                    ("\(home)/Library/Application Support/Docker Desktop", "config"),
-                    ("\(home)/Library/Caches/com.docker.docker", "cache"),
-                    ("\(home)/Library/Logs/Docker Desktop", "cache"),
-                    ("\(home)/Library/Preferences/com.docker.docker.plist", "config")
-                ],
-                wildcardParents: [],
-                impact: "检测到 Docker.app 主程序已卸载，或仍留有容器虚拟磁盘、共享守护进程目录与 ~/.docker 配置。"
-            ),
-            OrphanSignature(
-                id: "orphan_android_studio",
-                name: "Android Studio & Android SDK",
-                category: "移动开发与模拟器残留",
-                bundleId: "com.google.android.studio",
-                appKeywords: ["android studio"],
-                fixedPaths: [
-                    ("\(home)/Library/Android/sdk", "cache"),
-                    ("\(home)/.android/avd", "cache"),
-                    ("\(home)/.android", "config"),
-                    ("\(home)/.gradle/caches", "cache"),
-                    ("\(home)/Library/Preferences/com.google.android.studio.plist", "config")
-                ],
-                wildcardParents: [
-                    ("\(home)/Library/Application Support/Google", "AndroidStudio", "config"),
-                    ("\(home)/Library/Caches/Google", "AndroidStudio", "cache"),
-                    ("\(home)/Library/Logs/Google", "AndroidStudio", "cache")
-                ],
-                impact: "检测到 Android Studio 遗留的 SDK、AVD 模拟器镜像、Gradle 缓存与 AndroidStudio 历史目录。"
-            ),
-            OrphanSignature(
-                id: "orphan_jetbrains",
-                name: "JetBrains IDEs",
-                category: "IDE 索引与插件残留",
-                bundleId: "com.jetbrains.intellij",
-                appKeywords: ["intellij", "pycharm", "webstorm", "goland", "clion"],
-                fixedPaths: [],
-                wildcardParents: [
-                    ("\(home)/Library/Caches/JetBrains", "", "cache"),
-                    ("\(home)/Library/Application Support/JetBrains", "", "config"),
-                    ("\(home)/Library/Logs/JetBrains", "", "cache")
-                ],
-                impact: "检测到 JetBrains IDE 卸载后遗留的索引缓存与历史版本插件目录。"
-            ),
-            OrphanSignature(
-                id: "orphan_parallels",
-                name: "Parallels Desktop",
-                category: "虚拟机与驱动残留",
-                bundleId: "com.parallels.desktop.console",
-                appKeywords: ["parallels"],
-                fixedPaths: [
-                    ("\(home)/Library/Caches/com.parallels.desktop.console", "cache"),
-                    ("\(home)/Library/Application Support/Parallels", "config"),
-                    ("\(home)/Library/Preferences/com.parallels.desktop.console.plist", "config")
-                ],
-                wildcardParents: [],
-                impact: "检测到 Parallels Desktop 卸载后遗留的缓存与应用支持目录。"
-            )
-        ]
     }
 
     func movePathsToTrash(_ rawPaths: [String]) -> Int {
