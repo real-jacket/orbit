@@ -5,77 +5,158 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>orbit</title>
 <style>
+  /* =========================================================================
+     orbit design tokens
+     One source for colour, type, spacing, radius, elevation and motion.
+     Every component below reads from these; nothing hard-codes a value
+     that a token already names.
+     ========================================================================= */
   :root {
-    --bg-window: #111110;
-    --bg-sidebar: #171715;
-    --bg-surface: #1b1a18;
-    --bg-card: #21201d;
-    --bg-card-hover: #282723;
-    --bg-card-selected: rgba(217, 119, 87, 0.13);
-    --bg-elevated: #252420;
-    --bg-input: #141412;
+    color-scheme: dark;
+
+    /* Surfaces: warm, low-glare graphite. Four steps, each one a little lighter. */
+    --bg-window: #121211;
+    --bg-sidebar: #171716;
+    --bg-surface: rgba(255, 250, 240, 0.025);
+    --bg-card: #1b1b19;
+    --bg-card-hover: rgba(255, 250, 240, 0.04);
+    --bg-card-selected: rgba(232, 112, 64, 0.11);
+    --bg-elevated: #20201e;
+    --bg-input: rgba(255, 250, 240, 0.05);
+    --bg-fill: rgba(255, 250, 240, 0.035);
+    --bg-fill-strong: rgba(255, 250, 240, 0.07);
+
+    /* Hairlines: 0.5px on Retina, 1px elsewhere. */
+    --hairline-w: 1px;
     --border-subtle: rgba(255, 250, 240, 0.075);
-    --border-strong: rgba(255, 250, 240, 0.15);
-    --border-selected: rgba(217, 119, 87, 0.52);
-    --text-primary: #f4f2ed;
-    --text-secondary: #a39f96;
-    --text-muted: #6e6a61;
-    --accent-primary: #d97757;
-    --accent-primary-hover: #c56344;
-    --accent-soft: rgba(217, 119, 87, 0.15);
-    --accent-emerald: #2e9e6b;
-    --accent-emerald-soft: rgba(46, 158, 107, 0.14);
-    --accent-amber: #d99b26;
-    --accent-amber-soft: rgba(217, 155, 38, 0.14);
-    --accent-rose: #e05263;
-    --accent-rose-soft: rgba(224, 82, 99, 0.14);
-    --accent-blue: #4b83f0;
-    --accent-purple: #9b6ef3;
-    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.28);
-    --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.72);
-    --radius-lg: 11px;
-    --radius-md: 8px;
+    --border-strong: rgba(255, 250, 240, 0.13);
+    --border-selected: rgba(232, 112, 64, 0.5);
+
+    /* Text: three levels, all >= 4.5:1 on --bg-card except muted (>= 3.6:1, meta only). */
+    --text-primary: #f2f0eb;
+    --text-secondary: #a9a59c;
+    --text-muted: #77736b;
+    --text-on-accent: #ffffff;
+
+    /* Brand: terracotta primary, ice-blue for data. */
+    --accent-primary: #e0693a;
+    --accent-primary-hover: #ea7a4c;
+    --accent-soft: rgba(232, 112, 64, 0.14);
+    --accent-ice: #38bdf8;
+    --accent-ice-soft: rgba(56, 189, 248, 0.14);
+
+    /* Semantic status. Used for small marks (badges, dots, bars), never for large fills. */
+    --accent-emerald: #3fb67f;
+    --accent-emerald-soft: rgba(63, 182, 127, 0.13);
+    --accent-amber: #e2a53c;
+    --accent-amber-soft: rgba(226, 165, 60, 0.13);
+    --accent-rose: #f0646a;
+    --accent-rose-soft: rgba(240, 100, 106, 0.12);
+    --accent-blue: var(--accent-ice);
+    --accent-purple: #a78bfa;
+    --accent-purple-soft: rgba(167, 139, 250, 0.13);
+
+    /* Elevation: cards sit on hairlines; only overlays cast shadows. */
+    --shadow-card: none;
+    --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 250, 240, 0.06);
+    --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 250, 240, 0.08);
+    --focus-ring: 0 0 0 3px rgba(232, 112, 64, 0.35);
+
+    /* Radius scale */
+    --radius-xs: 4px;
     --radius-sm: 6px;
-    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
-    --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-pill: 999px;
+
+    /* Spacing scale (4pt grid) */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+
+    /* Type scale: five sizes, three weights. */
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    --text-xs: 11px;
+    --text-sm: 12px;
+    --text-md: 13px;
+    --text-lg: 15px;
+    --text-xl: 22px;
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+
+    /* Motion */
+    --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --dur-fast: 120ms;
+    --dur-base: 180ms;
+
+    --control-h: 28px;
+  }
+
+  @media (-webkit-min-device-pixel-ratio: 2) {
+    :root { --hairline-w: 0.5px; }
   }
 
   html[data-theme="light"] {
-    --bg-window: #faf8f5;
-    --bg-sidebar: #f2efe9;
-    --bg-surface: #f5f2ec;
+    color-scheme: light;
+    --bg-window: #f7f5f1;
+    --bg-sidebar: #efece6;
+    --bg-surface: rgba(28, 25, 23, 0.025);
     --bg-card: #ffffff;
-    --bg-card-hover: #fcfaf7;
-    --bg-card-selected: rgba(198, 97, 63, 0.09);
+    --bg-card-hover: rgba(28, 25, 23, 0.035);
+    --bg-card-selected: rgba(205, 90, 45, 0.09);
     --bg-elevated: #ffffff;
-    --bg-input: #ebe7df;
-    --border-subtle: rgba(28, 25, 23, 0.08);
+    --bg-input: rgba(28, 25, 23, 0.05);
+    --bg-fill: rgba(28, 25, 23, 0.035);
+    --bg-fill-strong: rgba(28, 25, 23, 0.07);
+    --border-subtle: rgba(28, 25, 23, 0.09);
     --border-strong: rgba(28, 25, 23, 0.16);
-    --border-selected: rgba(198, 97, 63, 0.48);
+    --border-selected: rgba(205, 90, 45, 0.45);
     --text-primary: #1c1917;
     --text-secondary: #57534e;
     --text-muted: #8a847c;
-    --accent-primary: #c6613f;
-    --accent-primary-hover: #b05131;
-    --accent-soft: rgba(198, 97, 63, 0.12);
-    --accent-emerald: #1f8254;
-    --accent-emerald-soft: rgba(31, 130, 84, 0.11);
-    --accent-amber: #b87b14;
-    --accent-amber-soft: rgba(184, 123, 20, 0.12);
+    --accent-primary: #cd5a2d;
+    --accent-primary-hover: #b94d23;
+    --accent-soft: rgba(205, 90, 45, 0.1);
+    --accent-ice: #0284c7;
+    --accent-ice-soft: rgba(2, 132, 199, 0.1);
+    --accent-emerald: #1f8a57;
+    --accent-emerald-soft: rgba(31, 138, 87, 0.1);
+    --accent-amber: #b27512;
+    --accent-amber-soft: rgba(178, 117, 18, 0.11);
     --accent-rose: #c93b4b;
-    --accent-rose-soft: rgba(201, 59, 75, 0.11);
-    --shadow-card: 0 1px 4px rgba(28, 25, 23, 0.05);
-    --shadow-modal: 0 20px 50px rgba(28, 25, 23, 0.18);
+    --accent-rose-soft: rgba(201, 59, 75, 0.09);
+    --accent-purple: #7c5cd6;
+    --accent-purple-soft: rgba(124, 92, 214, 0.1);
+    --shadow-raised: 0 1px 2px rgba(28, 25, 23, 0.08);
+    --shadow-popover: 0 8px 24px rgba(28, 25, 23, 0.12), 0 0 0 1px rgba(28, 25, 23, 0.06);
+    --shadow-modal: 0 24px 60px rgba(28, 25, 23, 0.18), 0 0 0 1px rgba(28, 25, 23, 0.08);
+    --focus-ring: 0 0 0 3px rgba(205, 90, 45, 0.28);
   }
 
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  /* ---------- Base ---------- */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(140, 135, 125, 0.25); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(140, 135, 125, 0.28); border-radius: var(--radius-pill);
+    border: 3px solid transparent; background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgba(140, 135, 125, 0.45); }
+  ::-webkit-scrollbar-corner { background: transparent; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+  ::selection { background: var(--accent-soft); }
 
   body {
     font-family: var(--font-sans);
+    font-size: var(--text-md);
+    line-height: 1.4;
     background: var(--bg-window);
     color: var(--text-primary);
     height: 100vh;
@@ -85,12 +166,39 @@
     flex-direction: column;
     -webkit-font-smoothing: antialiased;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.003em;
   }
 
-  /* =========================================================================
-     Dedicated macOS System Top Menu Bar Popover Mode (`window.isMenuBarPopover`)
-     Matches the Warm Obsidian / Alabaster design system 100%!
-     ========================================================================= */
+  input, button { font-family: inherit; }
+  :focus { outline: none; }
+  :focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  input[type="checkbox"] {
+    -webkit-appearance: none; appearance: none;
+    width: 14px !important; height: 14px !important; flex: none;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-input);
+    display: inline-grid; place-content: center;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  }
+  input[type="checkbox"]::after {
+    content: ""; width: 8px; height: 8px;
+    transform: scale(0); transition: transform var(--dur-fast) var(--ease-out);
+    background: var(--text-on-accent);
+    -webkit-clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 22%, 84% 6%, 38% 66%);
+    clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 22%, 84% 6%, 38% 66%);
+  }
+  input[type="checkbox"]:checked { background: var(--accent-primary); border-color: var(--accent-primary); }
+  input[type="checkbox"]:checked::after { transform: scale(1); }
+  input[type="checkbox"]:hover { border-color: var(--text-muted); }
+  input[type="checkbox"]:checked:hover { border-color: var(--accent-primary-hover); background: var(--accent-primary-hover); }
+
+  input[type="text"] { caret-color: var(--accent-primary); }
+  input::placeholder { color: var(--text-muted); }
+
+  /* ---------- Menu bar tray (NSPopover mode) ---------- */
   body.menubar-mode .app-shell,
   body.menubar-mode .macos-sys-menubar {
     display: none !important;
@@ -100,477 +208,582 @@
     width: 100vw;
     height: 100vh;
     background: var(--bg-sidebar);
-    padding: 13px;
+    padding: var(--space-3);
     flex-direction: column;
-    gap: 10px;
+    gap: var(--space-2);
     overflow: hidden;
   }
-  body.menubar-mode .menubar-tray-shell {
-    display: flex !important;
-  }
+  body.menubar-mode .menubar-tray-shell { display: flex !important; }
+  .menubar-tray-shell .bento-cell,
+  .sys-menubar-popover .bento-cell { background: var(--bg-card); }
 
-  /* Optional macOS Top Menu Bar Preview Overlay (for visual verification in full window) */
   .macos-sys-menubar {
-    height: 28px;
-    background: rgba(20, 20, 18, 0.96);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    height: 26px;
+    background: rgba(20, 20, 18, 0.92);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: var(--hairline-w) solid rgba(255,255,255,0.08);
     display: none;
     align-items: center;
     justify-content: space-between;
-    padding: 0 14px;
-    font-size: 12px;
-    color: #f4f2ed;
+    padding: 0 var(--space-3);
+    font-size: var(--text-sm);
+    color: #f2f0eb;
     flex-shrink: 0;
     z-index: 200;
   }
   .macos-sys-menubar.visible { display: flex; }
   .sys-menubar-popover {
     position: fixed;
-    top: 34px;
+    top: 32px;
     right: 128px;
     width: 356px;
     background: var(--bg-sidebar);
-    border: 1px solid var(--border-strong);
-    border-radius: 13px;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.75);
-    padding: 13px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-modal);
+    padding: var(--space-3);
     display: none;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--space-2);
     z-index: 210;
   }
   .sys-menubar-popover.visible { display: flex; }
 
   .app-shell { display: flex; width: 100%; flex: 1; min-height: 0; overflow: hidden; }
 
-  /* Left Navigation Sidebar */
+  /* ---------- Sidebar (source list) ---------- */
   .sidebar {
-    width: 236px;
+    width: 232px;
     background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-subtle);
+    border-right: var(--hairline-w) solid var(--border-subtle);
     display: flex;
     flex-direction: column;
-    padding: 13px 12px;
+    padding: var(--space-3) var(--space-2) var(--space-2);
     flex-shrink: 0;
-    transition: width 0.18s ease;
+    transition: width var(--dur-base) var(--ease-out);
   }
 
   .window-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 4px 11px 4px;
-    cursor: grab;
+    height: 28px;
+    padding: 0 var(--space-2) 0 var(--space-2);
+    margin-bottom: var(--space-3);
+    cursor: default;
   }
-  .window-bar:active { cursor: grabbing; }
   .traffic-lights { display: flex; gap: 8px; }
-  .traffic-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15); }
-  .traffic-dot.close { background: #ff5f56; }
-  .traffic-dot.min { background: #ffbd2e; }
-  .traffic-dot.max { background: #27c93f; }
-  .version-tag { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+  .traffic-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.2); }
+  .traffic-dot.close { background: #ff5f57; }
+  .traffic-dot.min { background: #febc2e; }
+  .traffic-dot.max { background: #28c840; }
+  .version-tag { font-size: 10px; color: var(--text-muted); letter-spacing: 0.01em; }
 
   .doctor-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8.5px 10px;
-    margin-bottom: 11px;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    margin: 0 0 var(--space-3);
     border-radius: var(--radius-md);
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    box-shadow: var(--shadow-card);
+    background: var(--bg-fill);
+    border: var(--hairline-w) solid var(--border-subtle);
     cursor: pointer;
-    transition: border-color 0.15s ease;
+    transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   }
-  .doctor-card:hover { border-color: var(--border-strong); }
-  .doctor-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .doctor-card:hover { background: var(--bg-fill-strong); border-color: var(--border-strong); }
+  .doctor-left { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+  .doctor-left > div:last-child { min-width: 0; overflow: hidden; }
+  .app-health-sub { overflow: hidden; text-overflow: ellipsis; }
   .btn-glyph {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  flex: none;
-  margin-right: 5px;
-  line-height: 0;
-  vertical-align: -2px;
-}
-.btn-glyph svg { width: 100%; height: 100%; display: block; }
-.lock-glyph {
-  display: inline-flex;
-  width: 14px;
-  height: 14px;
-  flex: none;
-  vertical-align: -2px;
-}
-.palette-glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  padding: 2px;
-  flex: none;
-}
-.row-glyph {
-  display: inline-flex;
-  width: 20px;
-  height: 20px;
-  flex: none;
-  opacity: 0.85;
-}
-.glyph {
-  display: block;
-  width: 100%;
-  height: 100%;
-  line-height: 0;
-}
-.glyph svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.app-icon-box {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent-primary) 0%, #b45334 100%);
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    flex: none;
+    line-height: 0;
+    vertical-align: -2px;
+  }
+  .btn-glyph svg { width: 100%; height: 100%; display: block; }
+  .lock-glyph {
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    flex: none;
+    vertical-align: -2px;
+  }
+  .palette-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    padding: 2px;
+    flex: none;
+    box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.18);
+  }
+  .row-glyph {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    flex: none;
+    opacity: 0.9;
+  }
+  .glyph { display: block; width: 100%; height: 100%; line-height: 0; }
+  .glyph svg { width: 100%; height: 100%; display: block; }
+  .app-icon-box {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #9a3d1c 100%);
     display: flex; align-items: center; justify-content: center;
     color: #fff; flex-shrink: 0;
   }
-  .app-name { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
-  .app-health-sub { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .app-name { font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: -0.01em; white-space: nowrap; line-height: 1.25; }
+  .app-health-sub { font-size: var(--text-xs); color: var(--text-secondary); white-space: nowrap; }
   .health-pill {
-    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+    font-size: 10.5px; font-weight: var(--weight-semibold); padding: 2px 7px; border-radius: var(--radius-pill);
     background: var(--accent-emerald-soft); color: var(--accent-emerald);
     white-space: nowrap; flex-shrink: 0;
   }
 
   .nav-section-title {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
-    text-transform: uppercase; color: var(--text-muted); padding: 6px 8px 4px;
+    font-size: 10.5px; font-weight: var(--weight-semibold); letter-spacing: 0.02em;
+    color: var(--text-muted); padding: var(--space-3) var(--space-2) var(--space-1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .sidebar > .nav-section-title { padding-top: 0; }
 
   .nav-list {
-    display: flex; flex-direction: column; gap: 2px;
+    display: flex; flex-direction: column; gap: 1px;
     flex: 1; overflow-y: auto; overflow-x: hidden;
   }
 
   .nav-item {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 7.5px 10px; border-radius: var(--radius-sm);
-    font-size: 12.5px; font-weight: 500; color: var(--text-secondary);
-    cursor: pointer; border: 1px solid transparent; transition: all 0.12s ease; gap: 6px;
+    height: 34px; padding: 0 var(--space-2); border-radius: var(--radius-sm);
+    font-size: var(--text-md); font-weight: var(--weight-regular); color: var(--text-primary);
+    cursor: pointer; transition: background var(--dur-fast) var(--ease-out); gap: var(--space-2);
   }
-  .nav-item:hover { color: var(--text-primary); background: rgba(128,128,128,0.06); }
-  .nav-item.active {
-    color: var(--text-primary); background: var(--bg-card);
-    border-color: var(--border-subtle); box-shadow: var(--shadow-card); font-weight: 600;
-  }
-  .nav-item-left { display: flex; align-items: center; gap: 8.5px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-item:hover { background: var(--bg-fill); }
+  .nav-item.active { background: var(--bg-fill-strong); font-weight: var(--weight-medium); }
+  .nav-item-left { display: flex; align-items: center; gap: var(--space-2); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-item-left > span:last-child { overflow: hidden; text-overflow: ellipsis; }
   .brand-plate {
-  background: linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%);
-  box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, 0.48),
-              inset 0 -2px 3px rgba(0, 0, 0, 0.35),
-              0 3px 8px rgba(0, 0, 0, 0.45);
-}
-.nav-svg-icon {
-    width: 28px; height: 28px; border-radius: 7.5px; flex-shrink: 0;
+    background: linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%);
+    box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.28), 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+  .nav-svg-icon {
+    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: inset 0 1px 0.5px rgba(255,255,255,0.45), inset 0 -1px 1.5px rgba(0,0,0,0.3), 0 2px 5px rgba(0,0,0,0.32);
+    box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.3), 0 0.5px 1px rgba(0,0,0,0.25);
     position: relative; overflow: hidden;
   }
   .app-squircle-icon {
-    width: 38px; height: 38px; border-radius: 9.5px; flex-shrink: 0;
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: inset 0 1px 1px rgba(255,255,255,0.48), inset 0 -1.5px 2px rgba(0,0,0,0.32), 0 3px 8px rgba(0,0,0,0.35);
+    box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.3), 0 1px 2px rgba(0,0,0,0.25);
     position: relative; overflow: hidden;
   }
-  .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
-  .nav-item.active .nav-meta { color: var(--accent-primary); font-weight: 600; }
+  .nav-meta { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+  .nav-item.active .nav-meta { color: var(--text-secondary); }
 
   .sidebar-footer {
-    padding-top: 9px; border-top: 1px solid var(--border-subtle);
-    display: flex; flex-direction: column; gap: 7px;
+    padding-top: var(--space-2); border-top: var(--hairline-w) solid var(--border-subtle);
+    display: flex; flex-direction: column; gap: var(--space-2);
   }
   .disk-mini-bar {
-    background: var(--bg-card); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm); padding: 7.5px 10px;
-    display: flex; flex-direction: column; gap: 5px;
+    padding: var(--space-1) var(--space-2) 0;
+    display: flex; flex-direction: column; gap: 6px;
   }
+  .disk-mini-bar > div:first-child { font-size: var(--text-xs) !important; }
   .disk-mini-track {
-    width: 100%; height: 5px; border-radius: 99px;
-    background: var(--bg-input); overflow: hidden; display: flex;
+    width: 100%; height: 4px; border-radius: var(--radius-pill);
+    background: var(--bg-fill-strong); overflow: hidden; display: flex; gap: 1px;
   }
-  .pref-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .pref-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+    padding: 2px; border-radius: var(--radius-sm); background: var(--bg-fill);
+  }
   .pref-btn {
-    padding: 5px 4px; font-size: 11px; font-weight: 600; text-align: center;
-    border-radius: var(--radius-sm); background: var(--bg-card);
-    border: 1px solid var(--border-subtle); color: var(--text-secondary); cursor: pointer;
+    height: 22px; display: flex; align-items: center; justify-content: center;
+    font-size: var(--text-xs); font-weight: var(--weight-medium);
+    border-radius: var(--radius-xs); color: var(--text-secondary); cursor: pointer;
+    white-space: nowrap; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
-  .pref-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
+  .pref-btn:hover { color: var(--text-primary); background: var(--bg-fill-strong); }
 
-  /* Main Workspace */
+  /* ---------- Main workspace ---------- */
   .main-workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-window); min-width: 0; }
 
-  /* Draggable Native macOS Toolbar */
   .top-header {
-    min-height: 52px; padding: 6px 18px; border-bottom: 1px solid var(--border-subtle);
-    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0;
-    cursor: grab; flex-wrap: nowrap;
+    height: 52px; padding: 0 var(--space-5); border-bottom: var(--hairline-w) solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-shrink: 0;
+    cursor: default; flex-wrap: nowrap;
   }
-  .top-header:active { cursor: grabbing; }
-  .header-title-group { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .header-title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+  .header-title-group { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; }
+  .header-title {
+    font-family: var(--font-display); font-size: var(--text-lg); font-weight: var(--weight-semibold);
+    letter-spacing: -0.012em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; flex: 0 0 auto;
+  }
   .live-status-pill {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 10.5px; color: var(--accent-emerald); background: var(--accent-emerald-soft);
-    padding: 2.5px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 auto;
+    font-size: var(--text-xs); color: var(--text-secondary);
+    padding: 0 var(--space-1); font-weight: var(--weight-regular); white-space: nowrap; overflow: hidden;
   }
+  .live-status-pill > span:last-child { overflow: hidden; text-overflow: ellipsis; }
   .pulse-dot {
-    width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald);
-    animation: pulseAnim 1.6s infinite ease-in-out;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald); flex: none;
+    box-shadow: 0 0 0 3px var(--accent-emerald-soft);
+    animation: pulseAnim 2.4s infinite var(--ease-out);
   }
   @keyframes pulseAnim {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.85); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
   }
 
-  .header-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; cursor: default; }
+  .header-controls { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; cursor: default; }
   .search-box {
     display: flex; align-items: center; justify-content: space-between; gap: 6px;
-    background: var(--bg-input); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm); padding: 4.5px 9px; width: clamp(145px, 18vw, 220px); cursor: text;
+    height: var(--control-h);
+    background: var(--bg-input); border: var(--hairline-w) solid transparent;
+    border-radius: var(--radius-sm); padding: 0 6px 0 var(--space-2); width: clamp(150px, 17vw, 220px); cursor: text;
+    transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
   }
+  .search-box:focus-within { border-color: var(--border-selected); box-shadow: var(--focus-ring); }
   .search-box input {
-    background: transparent; border: none; outline: none;
-    color: var(--text-primary); font-size: 11.5px; width: 100%;
+    background: transparent; border: none; outline: none; box-shadow: none;
+    color: var(--text-primary); font-size: var(--text-sm); width: 100%; min-width: 0;
   }
   .kbd-tag {
-    font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted);
-    background: var(--bg-card); padding: 1px 5px; border-radius: 4px;
-    border: 1px solid var(--border-subtle); cursor: pointer; white-space: nowrap;
+    font-family: var(--font-sans); font-size: 10.5px; color: var(--text-muted);
+    background: var(--bg-fill); padding: 1px 5px; border-radius: var(--radius-xs);
+    border: var(--hairline-w) solid var(--border-subtle); cursor: pointer; white-space: nowrap; line-height: 1.4;
   }
 
+  /* Buttons: secondary (default), primary, danger. One height, one radius. */
   .btn {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 5.5px 12px; border-radius: var(--radius-sm);
-    font-size: 11.5px; font-weight: 600; cursor: pointer;
-    border: 1px solid var(--border-subtle); background: var(--bg-card);
-    color: var(--text-primary); white-space: nowrap; transition: all 0.12s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 24px; height: auto; padding: 5px 12px; border-radius: var(--radius-sm);
+    font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: 1.3; cursor: pointer;
+    border: var(--hairline-w) solid var(--border-subtle); background: var(--bg-fill-strong);
+    color: var(--text-primary); white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
-  .btn:hover { background: var(--bg-card-hover); border-color: var(--border-strong); }
-  .btn-primary { background: var(--accent-primary); color: #ffffff; border-color: rgba(255,255,255,0.14); }
-  .btn-primary:hover { background: var(--accent-primary-hover); }
-  .btn-danger { background: var(--accent-rose-soft); color: var(--accent-rose); border-color: rgba(224,82,99,0.3); }
+  .header-controls .btn { height: var(--control-h); padding-top: 0; padding-bottom: 0; }
+  .btn:hover { background: var(--bg-card-hover); border-color: var(--border-strong); background-color: rgba(255, 250, 240, 0.1); }
+  html[data-theme="light"] .btn:hover { background-color: rgba(28, 25, 23, 0.09); }
+  .btn:active { transform: translateY(0.5px); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .btn-primary {
+    background: var(--accent-primary); color: var(--text-on-accent); border-color: transparent;
+    font-weight: var(--weight-semibold);
+    box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.2), var(--shadow-raised);
+  }
+  .btn-primary:hover, html[data-theme="light"] .btn-primary:hover { background: var(--accent-primary-hover); background-color: var(--accent-primary-hover); border-color: transparent; }
+  .btn-danger { background: var(--accent-rose-soft); color: var(--accent-rose); border-color: transparent; }
+  .btn-danger:hover, html[data-theme="light"] .btn-danger:hover { background: var(--accent-rose); background-color: var(--accent-rose); color: #fff; border-color: transparent; }
 
   .workspace-body {
-    flex: 1; overflow-y: auto; padding: 14px 18px 18px;
-    display: flex; flex-direction: column; gap: 12px; min-height: 0;
+    flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-5) var(--space-5);
+    display: flex; flex-direction: column; gap: var(--space-3); min-height: 0;
   }
 
-  /* Semantic Hero Summary Banner */
+  /* ---------- Hero summary ---------- */
   .summary-banner {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 13px 18px; border-radius: var(--radius-lg);
-    background: var(--bg-card); border: 1px solid var(--border-subtle);
-    box-shadow: var(--shadow-card); flex-shrink: 0; gap: 16px; flex-wrap: wrap;
+    padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg);
+    background: var(--bg-card); border: var(--hairline-w) solid var(--border-subtle);
+    flex-shrink: 0; gap: var(--space-6); flex-wrap: wrap;
   }
-  .summary-left { display: flex; align-items: center; gap: 14px; min-width: 260px; flex: 1; }
+  .summary-left { display: flex; align-items: center; gap: var(--space-4); min-width: 260px; flex: 1; }
   .semantic-hero-icon {
-    width: 60px; height: 60px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.22); flex-shrink: 0;
+    width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; padding: 2px;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: inset 0 1.5px 1px rgba(255,255,255,0.48), inset 0 -2px 3px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.38);
+    box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.35), 0 2px 6px rgba(0,0,0,0.25);
   }
   .summary-eyebrow {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
-    font-size: 10.5px; color: var(--text-muted); flex-wrap: wrap;
+    display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
+    font-size: var(--text-xs); color: var(--text-muted); flex-wrap: wrap;
   }
-  .summary-headline { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; line-height: 1.25; }
-  .summary-desc { font-size: 11.5px; color: var(--text-secondary); line-height: 1.42; }
+  .summary-eyebrow > span:last-child { color: var(--text-muted) !important; }
+  .summary-headline {
+    font-family: var(--font-display); font-size: 17px; font-weight: var(--weight-semibold);
+    letter-spacing: -0.015em; margin-bottom: 4px; line-height: 1.3;
+  }
+  .summary-desc {
+    font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; max-width: 72ch;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
 
   .summary-right {
     display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-    min-width: 190px; flex-shrink: 0;
+    min-width: 180px; flex-shrink: 0; padding-left: var(--space-6);
+    border-left: var(--hairline-w) solid var(--border-subtle);
   }
-  .stat-block-label { font-size: 10.5px; color: var(--text-secondary); }
-  .stat-block-val { font-size: 23px; font-weight: 800; font-family: var(--font-mono); color: var(--accent-emerald); line-height: 1.1; }
+  .stat-block-label { font-size: var(--text-xs); color: var(--text-secondary); }
+  .stat-block-val {
+    font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-semibold);
+    color: var(--text-primary); line-height: 1.15; letter-spacing: -0.02em; white-space: nowrap;
+  }
   .stat-seg-bar {
-    width: 185px; height: 5px; border-radius: 99px; background: var(--bg-input);
-    overflow: hidden; display: flex; gap: 2px; margin-top: 2px;
+    width: 160px; height: 4px; border-radius: var(--radius-pill); background: var(--bg-fill-strong);
+    overflow: hidden; display: flex; gap: 1px; margin: 4px 0 2px;
   }
-  .stat-block-sub { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+  .stat-block-sub { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
 
-  /* Responsive Master-Detail Split Grid */
+  /* ---------- Master / detail ---------- */
   .master-detail-grid {
-    display: grid; grid-template-columns: minmax(0, 1.48fr) minmax(320px, 1fr);
-    gap: 12px; flex: 1; min-height: 360px;
+    display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+    gap: var(--space-3); flex: 1; min-height: 360px;
   }
 
   .panel-card {
-    background: var(--bg-card); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+    background: var(--bg-card); border: var(--hairline-w) solid var(--border-subtle);
+    border-radius: var(--radius-lg);
     display: flex; flex-direction: column; overflow: hidden; min-width: 0;
   }
   .panel-header {
-    padding: 9px 14px; border-bottom: 1px solid var(--border-subtle);
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    font-size: 12px; font-weight: 700; background: var(--bg-surface); flex-shrink: 0; flex-wrap: wrap;
+    min-height: 44px; padding: var(--space-2) var(--space-4); border-bottom: var(--hairline-w) solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+    font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-primary);
+    flex-shrink: 0; flex-wrap: wrap;
   }
+  .panel-header > span:first-child { min-width: 0; }
 
   .segmented-tabs {
     display: inline-flex; background: var(--bg-input); padding: 2px;
-    border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); gap: 2px; flex-wrap: wrap;
+    border-radius: var(--radius-sm); gap: 2px; flex-wrap: wrap;
   }
   .seg-tab {
-    padding: 3.5px 9px; font-size: 10.5px; font-weight: 600;
-    border-radius: 4px; cursor: pointer; color: var(--text-secondary); white-space: nowrap;
+    padding: 3px 10px; font-size: var(--text-xs); font-weight: var(--weight-medium);
+    border-radius: var(--radius-xs); cursor: pointer; color: var(--text-secondary); white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
   }
+  .seg-tab:hover { color: var(--text-primary); }
   .seg-tab.active {
-    background: var(--bg-card); color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    background: var(--bg-elevated); color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2), inset 0 0 0 0.5px var(--border-strong);
   }
 
   .list-body { flex: 1; overflow-y: auto; }
   .list-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 9.5px 14px; border-bottom: 1px solid var(--border-subtle);
-    cursor: pointer; transition: background 0.12s ease; gap: 10px;
+    min-height: 52px; padding: var(--space-2) var(--space-4);
+    border-bottom: var(--hairline-w) solid var(--border-subtle);
+    cursor: pointer; transition: background var(--dur-fast) var(--ease-out); gap: var(--space-3);
   }
   .list-row:last-child { border-bottom: none; }
   .list-row:hover { background: var(--bg-card-hover); }
   .list-row.selected {
     background: var(--bg-card-selected);
-    border-left: 3px solid var(--accent-primary);
-    padding-left: 11px;
+    box-shadow: inset 2px 0 0 var(--accent-primary);
   }
+  .list-row.selected:hover { background: var(--bg-card-selected); }
 
-  .row-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-  .row-title { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .row-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .row-left { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex: 1; }
+  .row-title { font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.35; }
+  .row-sub { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-right { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
 
-  .prop-bar-wrap { width: 58px; height: 5px; background: var(--bg-input); border-radius: 99px; overflow: hidden; }
-  .prop-bar-fill { height: 100%; border-radius: 99px; }
+  .prop-bar-wrap { width: 48px; height: 4px; background: var(--bg-fill-strong); border-radius: var(--radius-pill); overflow: hidden; }
+  .prop-bar-fill { height: 100%; border-radius: var(--radius-pill); opacity: 0.9; }
 
   .badge {
-    font-size: 10px; font-weight: 600; padding: 2px 7px;
-    border-radius: 999px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: var(--weight-medium); line-height: 1.5; padding: 0 7px;
+    border-radius: var(--radius-pill); white-space: nowrap;
   }
   .badge-safe { background: var(--accent-emerald-soft); color: var(--accent-emerald); }
   .badge-review { background: var(--accent-amber-soft); color: var(--accent-amber); }
-  .badge-protected { background: rgba(155, 110, 243, 0.14); color: var(--accent-purple); }
+  .badge-protected { background: var(--accent-purple-soft); color: var(--accent-purple); }
 
-  .size-cell { font-family: var(--font-mono); font-size: 12px; font-weight: 700; min-width: 62px; text-align: right; white-space: nowrap; }
+  .size-cell {
+    font-size: var(--text-md); font-weight: var(--weight-medium); min-width: 64px; text-align: right;
+    white-space: nowrap; color: var(--text-primary);
+  }
 
-  /* Right Inspector Panel with 4-Card Bento Metadata Grid */
+  /* Small helpers shared by the module templates */
+  .section-label { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-secondary); letter-spacing: 0.01em; }
+  .inspector-eyebrow { font-size: 10.5px; font-weight: var(--weight-semibold); color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
+  .inspector-title { font-family: var(--font-display); font-size: var(--text-lg); font-weight: var(--weight-semibold); margin-top: 2px; letter-spacing: -0.01em; }
+  .tag {
+    font-size: 10.5px; font-weight: var(--weight-medium); padding: 0 6px; line-height: 1.6;
+    border-radius: var(--radius-xs); background: var(--bg-fill-strong); color: var(--text-secondary); white-space: nowrap;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
+  .status-dot {
+    width: 16px; height: 16px; border-radius: 50%; flex: none; display: inline-grid; place-content: center;
+    background: var(--accent-emerald-soft);
+  }
+  .status-dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald); }
+  .status-dot.run { background: var(--accent-amber-soft); }
+  .status-dot.run::after { background: var(--accent-amber); animation: pulseAnim 1s infinite; }
+  .status-dot.pending { background: var(--bg-fill-strong); }
+  .status-dot.pending::after { background: var(--text-muted); }
+  .metric-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--text-secondary); font-weight: var(--weight-medium); }
+  .metric-head > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .metric-head > span:last-child { color: var(--text-muted); white-space: nowrap; }
+  .metric-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+  .metric-val { font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-semibold); letter-spacing: -0.02em; color: var(--text-primary); line-height: 1.2; white-space: nowrap; }
+  .metric-sub { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .empty-state { padding: var(--space-6) var(--space-4); text-align: center; color: var(--text-muted); font-size: var(--text-sm); }
+
+  /* ---------- Inspector ---------- */
   .inspector-content {
-    padding: 13px 14px; display: flex; flex-direction: column;
-    gap: 10px; flex: 1; overflow-y: auto;
+    padding: var(--space-4); display: flex; flex-direction: column;
+    gap: var(--space-3); flex: 1; overflow-y: auto;
   }
+  .inspector-content > * { flex-shrink: 0; }
   .bento-4 {
-    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+    background: var(--border-subtle); border-radius: var(--radius-md); overflow: hidden;
+    border: var(--hairline-w) solid var(--border-subtle);
   }
+  .bento-4 .bento-cell { border: none; border-radius: 0; background: var(--bg-card); }
   .bento-cell {
-    background: var(--bg-surface); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm); padding: 7px 9px; min-width: 0;
+    background: var(--bg-fill); border: var(--hairline-w) solid var(--border-subtle);
+    border-radius: var(--radius-md); padding: 10px var(--space-3); min-width: 0;
   }
-  .bento-label { font-size: 10px; color: var(--text-muted); }
-  .bento-val { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--text-primary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bento-label { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bento-val {
+    font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--text-primary);
+    margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 
   .inspector-box {
-    background: var(--bg-surface); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md); padding: 9.5px 11px; font-size: 11.5px; line-height: 1.45;
+    background: var(--bg-fill); border: none; border-left: 2px solid var(--accent-emerald);
+    border-radius: var(--radius-xs) var(--radius-md) var(--radius-md) var(--radius-xs);
+    padding: 10px var(--space-3); font-size: var(--text-sm); line-height: 1.5;
   }
   .subpath-item {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 7px 9px; border-radius: var(--radius-sm);
-    background: var(--bg-surface); border: 1px solid var(--border-subtle);
-    font-family: var(--font-mono); font-size: 10.5px; white-space: nowrap;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+    min-height: 32px; padding: 6px var(--space-3); border-radius: var(--radius-sm);
+    background: var(--bg-fill); border: var(--hairline-w) solid transparent;
+    font-family: var(--font-mono); font-size: var(--text-xs); white-space: nowrap; color: var(--text-secondary);
+    transition: background var(--dur-fast) var(--ease-out);
   }
-  .subpath-left { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; display: flex; align-items: center; gap: 6px; }
-  .subpath-right { font-weight: 700; color: var(--text-primary); white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+  .subpath-item:hover { background: var(--bg-fill-strong); }
+  .subpath-left { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; display: flex; align-items: center; gap: var(--space-2); }
+  .subpath-left > span { overflow: hidden; text-overflow: ellipsis; }
+  .subpath-left > .badge { flex: none; overflow: visible; }
+  span.subpath-left { display: block; }
+  .subpath-right { font-family: var(--font-sans); font-weight: var(--weight-medium); color: var(--text-primary); white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
 
-  /* Analyze 2D Treemap & Breadcrumb Bar */
+  /* ---------- Analyze ---------- */
   .breadcrumb-bar {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 7px 14px; background: var(--bg-card); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md); font-size: 11.5px; flex-shrink: 0; flex-wrap: wrap;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+    min-height: 40px; padding: var(--space-1) var(--space-3); background: var(--bg-card); border: var(--hairline-w) solid var(--border-subtle);
+    border-radius: var(--radius-md); font-size: var(--text-sm); flex-shrink: 0; flex-wrap: wrap;
   }
+  .breadcrumb-bar > div:last-child > span { color: var(--text-muted) !important; font-weight: var(--weight-regular) !important; }
   .crumb-item {
-    padding: 2px 7px; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-weight: 500;
+    padding: 2px 8px; border-radius: var(--radius-xs); cursor: pointer; color: var(--text-secondary); font-weight: var(--weight-medium);
+    transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
   }
-  .crumb-item:hover { color: var(--text-primary); }
-  .crumb-item.active { background: var(--accent-soft); color: var(--accent-primary); font-weight: 700; }
+  .crumb-item:hover { color: var(--text-primary); background: var(--bg-fill); }
+  .crumb-item.active { background: var(--bg-fill-strong); color: var(--text-primary); font-weight: var(--weight-semibold); }
 
-  .treemap-split { display: grid; grid-template-columns: 276px minmax(0, 1fr); gap: 12px; height: 304px; flex-shrink: 0; }
+  .treemap-split { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: var(--space-3); height: 304px; flex-shrink: 0; }
   .treemap-stage {
     position: relative; width: 100%; height: 304px; border-radius: var(--radius-lg);
-    overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); padding: 4px;
+    overflow: hidden; background: var(--bg-card); border: var(--hairline-w) solid var(--border-subtle); padding: 4px;
   }
   .treemap-tile {
-    position: absolute; border: 3px solid var(--bg-surface); border-radius: 10px;
-    padding: 9px 11px; display: flex; flex-direction: column; justify-content: space-between;
-    cursor: pointer; overflow: hidden; transition: all 0.16s ease;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
+    position: absolute; border: 2px solid var(--bg-card); border-radius: 10px;
+    padding: 10px var(--space-3); display: flex; flex-direction: column; justify-content: space-between;
+    cursor: pointer; overflow: hidden; transition: filter var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+    box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.18);
+    filter: saturate(0.82);
   }
-  .treemap-tile:hover { filter: brightness(1.08); transform: scale(0.996); }
+  .treemap-tile:hover { filter: saturate(0.95) brightness(1.06); }
   .treemap-tile.active-tile {
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.92), 0 8px 20px rgba(0,0,0,0.38);
+    filter: saturate(1);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85);
     z-index: 5;
   }
+  .treemap-tile > div:first-child > div:first-child > div:first-child { font-weight: var(--weight-semibold) !important; font-size: var(--text-md) !important; }
+  .treemap-tile > div:last-child > span:first-child { font-weight: var(--weight-semibold) !important; font-family: var(--font-sans) !important; }
   .drill-pill {
-    font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 99px;
-    background: rgba(0,0,0,0.28); color: rgba(255,255,255,0.92); backdrop-filter: blur(4px);
+    font-size: 10px; font-weight: var(--weight-medium); padding: 1px 7px; border-radius: var(--radius-pill);
+    background: rgba(0,0,0,0.22); color: rgba(255,255,255,0.9);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     white-space: nowrap;
   }
 
-  /* Telemetry & Process Table */
-  .telemetry-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; flex-shrink: 0; }
+  /* ---------- Telemetry ---------- */
+  .telemetry-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); flex-shrink: 0; }
   .telemetry-card {
-    background: var(--bg-card); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md); padding: 11px 13px;
-    display: flex; flex-direction: column; gap: 5px; box-shadow: var(--shadow-card); min-width: 0;
+    background: var(--bg-card); border: var(--hairline-w) solid var(--border-subtle);
+    border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4);
+    display: flex; flex-direction: column; gap: 6px; min-width: 0;
   }
-  .proc-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .proc-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
   .proc-table th {
-    text-align: left; padding: 7px 14px; font-size: 10.5px; color: var(--text-secondary);
-    border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); cursor: pointer; white-space: nowrap;
+    text-align: left; padding: var(--space-2) var(--space-4); font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--text-muted);
+    border-bottom: var(--hairline-w) solid var(--border-subtle); cursor: pointer; white-space: nowrap;
   }
   .proc-table th:hover { color: var(--text-primary); }
-  .proc-table td { padding: 7px 14px; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); white-space: nowrap; }
+  .proc-table td { padding: 9px var(--space-4); border-bottom: var(--hairline-w) solid var(--border-subtle); white-space: nowrap; color: var(--text-secondary); }
+  .proc-table tbody tr { transition: background var(--dur-fast) var(--ease-out); }
+  .proc-table tbody tr:hover { background: var(--bg-card-hover); }
+  .proc-table tbody tr:last-child td { border-bottom: none; }
 
-  /* Modals & Command Palette */
+  /* ---------- Overlays ---------- */
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.56);
-    backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 100;
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.42);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; z-index: 100;
   }
-  html[data-theme="light"] .modal-backdrop { background: rgba(28, 25, 23, 0.28); }
-  .modal-backdrop.open { display: flex; }
+  html[data-theme="light"] .modal-backdrop { background: rgba(28, 25, 23, 0.22); }
+  .modal-backdrop.open { display: flex; animation: fadeIn var(--dur-base) var(--ease-out); }
+  .modal-backdrop.open .modal-sheet { animation: sheetIn 220ms var(--ease-out); }
   .modal-sheet {
-    width: 640px; max-width: 92vw; background: var(--bg-elevated);
-    border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+    width: 640px; max-width: 92vw; max-height: 86vh; display: flex; flex-direction: column;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-modal); overflow: hidden;
   }
+  .modal-sheet > .panel-header { min-height: 52px; font-size: var(--text-md); }
+  .modal-sheet .panel-card { background: var(--bg-fill); }
+  .modal-sheet strong { font-weight: var(--weight-semibold); color: var(--text-primary); }
+  .modal-sheet code { font-family: var(--font-mono); font-size: 0.92em; padding: 0 4px; border-radius: var(--radius-xs); background: var(--bg-fill-strong); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes sheetIn { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: none; } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
   .toast {
-    position: fixed; bottom: 18px; right: 22px; padding: 8px 15px;
-    border-radius: var(--radius-sm); background: var(--accent-emerald);
-    color: #fff; font-size: 12px; font-weight: 600; box-shadow: var(--shadow-modal);
-    display: none; z-index: 150;
+    position: fixed; bottom: var(--space-5); right: var(--space-5); max-width: 420px;
+    padding: var(--space-2) var(--space-4) var(--space-2) 30px;
+    border-radius: var(--radius-md); background: var(--bg-elevated);
+    color: var(--text-primary); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: 1.45;
+    box-shadow: var(--shadow-popover);
+    display: none; z-index: 150; animation: toastIn var(--dur-base) var(--ease-out);
+  }
+  .toast::before {
+    content: ""; position: absolute; left: 13px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px;
+    border-radius: 50%; background: var(--accent-emerald);
   }
 
-  /* Responsive Breakpoints */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+
+  /* ---------- Responsive ---------- */
   @media (max-width: 1160px) {
     .telemetry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .sidebar { width: 206px; }
+    .sidebar { width: 216px; }
+    .nav-item { font-size: var(--text-sm); }
+    .live-status-pill { display: none; }
     .prop-bar-wrap { display: none; }
     .master-detail-grid { grid-template-columns: minmax(0, 1.22fr) minmax(280px, 1fr); }
-    .treemap-split { grid-template-columns: 225px minmax(0, 1fr); }
+    .treemap-split { grid-template-columns: 224px minmax(0, 1fr); }
+    .summary-right { padding-left: var(--space-4); }
   }
   @media (max-width: 960px) {
-    .sidebar { width: 188px; padding: 10px 8px; }
+    .sidebar { width: 188px; padding: var(--space-3) 6px var(--space-2); }
     .master-detail-grid { grid-template-columns: 1fr; overflow-y: auto; }
     .treemap-split { grid-template-columns: 1fr; height: auto; }
-    .summary-right { align-items: flex-start; width: 100%; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
+    .summary-right { align-items: flex-start; width: 100%; border-left: none; padding-left: 0; border-top: var(--hairline-w) solid var(--border-subtle); padding-top: var(--space-2); }
   }
 </style>
 </head>
@@ -588,7 +801,7 @@
 <div class="macos-sys-menubar" id="macSysMenuBar">
   <div style="display:flex;align-items:center;gap:16px;font-weight:600;">
     <span></span>
-    <span style="font-weight:700;">orbit</span>
+    <span style="font-weight:600;">orbit</span>
     <span style="color:#a39f96;font-weight:500;">文件</span>
     <span style="color:#a39f96;font-weight:500;">编辑</span>
     <span style="color:#a39f96;font-weight:500;">视图</span>
@@ -750,7 +963,7 @@
 
       <div class="header-controls" onmousedown="event.stopPropagation()">
         <div class="search-box">
-          <span style="color:var(--text-muted);font-size:12px;">⌕</span>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="flex:none;color:var(--text-muted);"><circle cx="7" cy="7" r="4.8" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6l3.4 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           <input type="text" id="searchInput" placeholder="搜索目录、应用或进程..." oninput="handleSearch(this.value)" />
           <span class="kbd-tag" onclick="openCommandPalette()">⌘K</span>
         </div>
@@ -774,9 +987,9 @@
           <div class="semantic-hero-icon" id="heroSemanticIcon" style="background:linear-gradient(135deg, #4b83f0 0%, #2563eb 100%);"></div>
           <div style="min-width:0;flex:1;">
             <div class="summary-eyebrow" id="heroEyebrow">
-              <span id="scanSourceBadge">⚡ 本机真实文件系统直连 · 零模拟数据残留</span>
+              <span id="scanSourceBadge">本机文件系统直连</span>
               <span>·</span>
-              <span style="color:var(--accent-emerald);">● 关键系统配置与 AI 会话记忆已在后台白名单隔离保护</span>
+              <span>核心配置与 AI 会话记忆已隔离保护</span>
             </div>
             <div class="summary-headline" id="heroHeadline">正在扫描本机目录</div>
             <div class="summary-desc" id="heroDesc">
@@ -803,32 +1016,31 @@
 <!-- Keyboard-First ⌘K Quick Action & Path Search Palette -->
 <div class="modal-backdrop" id="cmdPaletteModal" onclick="if(event.target===this)closeCommandPalette()">
   <div class="modal-sheet" style="width:580px;">
-    <div style="padding:13px 16px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;background:var(--bg-surface);">
-      <span style="font-family:var(--font-mono);color:var(--accent-primary);font-weight:700;">⌘K</span>
-      <input type="text" id="cmdPaletteInput" value="" placeholder="输入模块名称或搜索缓存路径 (如 xcode / 卸载 / 体检)..." oninput="renderCommandPaletteList(this.value)" style="background:transparent;border:none;outline:none;color:var(--text-primary);font-size:13.5px;flex:1;" />
+    <div style="padding:14px 16px;border-bottom:var(--hairline-w) solid var(--border-subtle);display:flex;align-items:center;gap:10px;">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="flex:none;color:var(--text-muted);"><circle cx="7" cy="7" r="4.8" stroke="currentColor" stroke-width="1.5"/><path d="M10.6 10.6l3.4 3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input type="text" id="cmdPaletteInput" value="" placeholder="输入模块名称或搜索缓存路径 (如 xcode / 卸载 / 体检)..." oninput="renderCommandPaletteList(this.value)" style="background:transparent;border:none;outline:none;box-shadow:none;color:var(--text-primary);font-size:15px;flex:1;" />
       <span class="kbd-tag" onclick="closeCommandPalette()">ESC 关闭</span>
     </div>
-    <div style="padding:6px 0;" id="cmdPaletteList"></div>
+    <div style="padding:6px;max-height:60vh;overflow-y:auto;" id="cmdPaletteList"></div>
   </div>
 </div>
 
 <!-- Secondary Confirmation Modal (二次确认弹窗 — Pure Cleanable Items Only, Zero Protected Items!) -->
 <div class="modal-backdrop" id="confirmModal" onclick="if(event.target===this)closeConfirmSheet()">
   <div class="modal-sheet">
-    <div class="panel-header" style="padding:12px 18px;">
+    <div class="panel-header" style="padding:10px 20px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span>🛡️</span>
         <span id="confirmModalTitle">操作二次确认 — 即将移入 macOS 废纸篓</span>
       </div>
       <span class="badge badge-safe">真实移入 ~/.Trash · 支持原路还原</span>
     </div>
-    <div style="padding:14px 18px;display:flex;flex-direction:column;gap:11px;">
-      <div style="font-size:12px;color:var(--text-secondary);line-height:1.48;" id="confirmModalSummary"></div>
+    <div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px;min-height:0;">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.55;" id="confirmModalSummary"></div>
       <div class="panel-card" id="confirmModalItemsList" style="max-height:280px;overflow-y:auto;"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:4px;">
-        <span style="font-size:11px;color:var(--text-secondary);">💡 确认后将调用 macOS 原生文件接口移入废纸篓，并持久化更新本地状态</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:4px;">
+        <span style="font-size:11px;color:var(--text-muted);">确认后将调用 macOS 原生文件接口移入废纸篓，并持久化更新本地状态</span>
         <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="closeConfirmSheet()">取消操作</button>
+          <button class="btn" onclick="closeConfirmSheet()">取消</button>
           <button class="btn btn-primary" onclick="executeConfirmedClean()">确认清理并移入废纸篓</button>
         </div>
       </div>
@@ -839,29 +1051,27 @@
 <!-- Mole Doctor 7-Point Diagnostic Modal with Live Re-Diagnosis (复诊 / 重新体检) -->
 <div class="modal-backdrop" id="doctorModal" onclick="if(event.target===this)closeDoctorModal()">
   <div class="modal-sheet">
-    <div class="panel-header" style="padding:12px 18px;">
+    <div class="panel-header" style="padding:10px 20px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span class="palette-glyph" style="background:${'linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%)'};width:20px;height:20px;border-radius:5px;">
-          ${get_skeuo_svg('brand', 'doc')}
-        </span>
-        <span id="doctorModalHeaderTitle">轨道发射前联检中心 · Pre-flight Check (7 项系统实时联检)</span>
+        <span class="palette-glyph brand-plate" style="width:22px;height:22px;border-radius:6px;"><span class="glyph" data-icon="brand" data-prefix="doc"></span></span>
+        <span id="doctorModalHeaderTitle">发射前联检 · 7 项系统检查</span>
       </div>
       <div style="display:flex;gap:6px;">
-        <button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" onclick="startDoctorReDiagnosis()" id="btnDoctorReRun">立即重新联检 (Pre-flight)</button>
-        <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="closeDoctorModal()">关闭</button>
+        <button class="btn btn-primary" onclick="startDoctorReDiagnosis()" id="btnDoctorReRun">重新联检</button>
+        <button class="btn" onclick="closeDoctorModal()">关闭</button>
       </div>
     </div>
-    <div id="doctorProgressBanner" style="display:none;padding:10px 18px;background:var(--bg-surface);border-bottom:1px solid var(--border-subtle);">
+    <div id="doctorProgressBanner" style="display:none;padding:12px 20px;border-bottom:var(--hairline-w) solid var(--border-subtle);">
       <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;margin-bottom:5px;">
         <span id="doctorProgressText">正在重新检测系统各项指标...</span>
         <span id="doctorProgressPct" style="font-family:var(--font-mono);color:var(--accent-primary);">0%</span>
       </div>
-      <div style="width:100%;height:5px;background:var(--bg-input);border-radius:99px;overflow:hidden;">
+      <div style="width:100%;height:4px;background:var(--bg-fill-strong);border-radius:99px;overflow:hidden;">
         <div id="doctorProgressBar" style="width:0%;height:100%;background:var(--accent-emerald);transition:width 0.18s ease;"></div>
       </div>
     </div>
     <div id="doctorListContainer" style="padding:4px 0;"></div>
-    <div style="padding:11px 18px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;background:var(--bg-surface);">
+    <div style="padding:12px 20px;border-top:var(--hairline-w) solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;gap:12px;">
       <span style="font-size:11px;color:var(--text-secondary);" id="doctorFooterSummary">上次体检时间: 刚刚 · 综合健康分 96 / 100</span>
       <button class="btn" onclick="copyTextToClipboard('orbit 系统体检报告: 健康分 ' + STATE.healthScore + '/100 (7/7 项通过)')">导出体检报告</button>
     </div>
@@ -1161,6 +1371,7 @@ const DEFAULT_STATE = {
   analyzeSource: 'mo analyze --json',
   analyzeLoading: false,
   analyzePath: '',
+  optimizeTasks: [],
   historyLogs: [],
   whitelist: [],
     doctorChecks: [
@@ -1327,91 +1538,91 @@ function buildMenuBarTrayHTML() {
   const cleanableGb = STATE.cleanGroups.filter(g => g.checked && g.sizeGb > 0).reduce((s, g) => s + g.sizeGb, 0);
 
   return `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 10px;border-bottom:var(--hairline-w) solid var(--border-subtle);">
       <div style="display:flex;align-items:center;gap:9px;">
         <div class="app-icon-box brand-plate" style="width:28px;height:28px;border-radius:7px;">
           ${get_skeuo_svg('brand', 'tray')}
         </div>
         <div>
-          <div style="font-size:12.5px;font-weight:700;color:var(--text-primary);">orbit · 系统状态栏</div>
-          <div style="font-size:10px;color:var(--text-secondary);">macOS 顶部状态栏实时遥测与气闸清理</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary);">orbit</div>
+          <div style="font-size:11px;color:var(--text-muted);">系统状态</div>
         </div>
       </div>
       <span class="badge badge-safe">联检分 ${STATE.healthScore}</span>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div class="bento-cell" style="padding:8px 10px;">
+      <div class="bento-cell" style="padding:10px 12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span class="bento-label">处理器负载</span>
           <span style="font-size:10px;font-family:var(--font-mono);color:var(--text-secondary);">${formatTemp(STATE.cpuTempC)}</span>
         </div>
-        <div class="bento-val" style="font-size:15px;color:var(--accent-blue);margin:2px 0;">${curCpu}%</div>
-        ${svgSparkline(STATE.cpuSeries, '#4b83f0', 'rgba(75,131,240,0.18)', 22)}
+        <div class="bento-val" style="font-size:17px;font-weight:600;margin:2px 0;">${curCpu}%</div>
+        ${svgSparkline(STATE.cpuSeries, '#38bdf8', 'rgba(56,189,248,0.10)', 22)}
       </div>
 
-      <div class="bento-cell" style="padding:8px 10px;">
+      <div class="bento-cell" style="padding:10px 12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span class="bento-label">统一内存</span>
           <span style="font-size:10px;color:var(--accent-emerald);">压力正常</span>
         </div>
-        <div class="bento-val" style="font-size:15px;color:var(--accent-emerald);margin:2px 0;">${STATE.memUsedGb.toFixed(1)} / ${STATE.memTotalGb.toFixed(0)}G</div>
-        <div style="width:100%;height:5px;background:var(--bg-input);border-radius:99px;overflow:hidden;margin-top:6px;">
+        <div class="bento-val" style="font-size:17px;font-weight:600;margin:2px 0;">${STATE.memUsedGb.toFixed(1)} / ${STATE.memTotalGb.toFixed(0)}G</div>
+        <div style="width:100%;height:4px;background:var(--bg-fill-strong);border-radius:99px;overflow:hidden;margin-top:8px;">
           <div style="width:${Math.min(100, memPct)}%;height:100%;background:var(--accent-emerald);"></div>
         </div>
       </div>
 
-      <div class="bento-cell" style="padding:8px 10px;">
+      <div class="bento-cell" style="padding:10px 12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span class="bento-label">磁盘剩余可用</span>
           <span style="font-size:10px;color:var(--text-muted);">Macintosh HD</span>
         </div>
-        <div class="bento-val" style="font-size:14px;color:var(--accent-primary);margin-top:2px;">${STATE.freeDiskGb.toFixed(1)} GB</div>
+        <div class="bento-val" style="font-size:17px;font-weight:600;margin-top:2px;">${STATE.freeDiskGb.toFixed(1)} GB</div>
       </div>
 
-      <div class="bento-cell" style="padding:8px 10px;">
+      <div class="bento-cell" style="padding:10px 12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span class="bento-label">可释放安全缓存</span>
           <span style="font-size:10px;color:var(--accent-emerald);">实时计算</span>
         </div>
-        <div class="bento-val" style="font-size:14px;color:var(--accent-emerald);margin-top:2px;">${cleanableGb.toFixed(2)} GB</div>
+        <div class="bento-val" style="font-size:17px;font-weight:600;margin-top:2px;">${cleanableGb.toFixed(2)} GB</div>
       </div>
     </div>
 
-    <div class="panel-card" style="background:var(--bg-surface);">
-      <div style="padding:6px 10px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:var(--text-secondary);">
-        <span>高占用实时进程 (Top 3)</span>
+    <div class="panel-card">
+      <div style="padding:8px 12px;border-bottom:var(--hairline-w) solid var(--border-subtle);display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text-muted);">
+        <span>高占用进程</span>
         <span>CPU / 内存</span>
       </div>
       ${top3Procs.map(p => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:5.5px 10px;border-bottom:1px solid var(--border-subtle);font-size:11px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:var(--hairline-w) solid var(--border-subtle);font-size:12px;">
           <div style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;">
-            ${p.name} <span style="font-size:9.5px;color:var(--text-muted);font-family:var(--font-mono);">(${p.pid})</span>
+            ${p.name} <span style="font-size:11px;color:var(--text-muted);font-weight:400;">${p.pid}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:10.5px;">
-            <span style="color:var(--accent-primary);font-weight:700;">${p.cpu.toFixed(1)}%</span>
+            <span style="color:var(--text-primary);font-weight:500;">${p.cpu.toFixed(1)}%</span>
             <span style="color:var(--text-secondary);">${p.memory_mb}M</span>
-            <button class="btn btn-danger" style="padding:1px 6px;font-size:9.5px;" onclick="killProcessByPid(${p.pid})">结束</button>
+            <button class="btn btn-danger" style="min-height:20px;padding:1px 8px;font-size:10.5px;" onclick="killProcessByPid(${p.pid})">结束</button>
           </div>
         </div>
       `).join('')}
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto;">
-      <button class="btn btn-primary" style="grid-column:span 2;justify-content:center;padding:7px;" onclick="sendNativeBridge({action:'menubarOpenClean'}); switchModule('clean'); openConfirmSheet();">
+      <button class="btn btn-primary" style="grid-column:span 2;justify-content:center;height:32px;" onclick="sendNativeBridge({action:'menubarOpenClean'}); switchModule('clean'); openConfirmSheet();">
         一键清理安全缓存 (${cleanableGb.toFixed(2)} GB)
       </button>
       <button class="btn" style="justify-content:center;" onclick="sendNativeBridge({action:'menubarOpenDoctor'}); openDoctorModal(true);">
         立即系统联检
       </button>
       <button class="btn" style="justify-content:center;" onclick="toggleCaffeinateState()">
-        ☕ 防休眠: ${STATE.caffeinateActive ? '已开启' : '关闭'}
+        防休眠: ${STATE.caffeinateActive ? '已开启' : '关闭'}
       </button>
       <button class="btn" style="justify-content:center;" onclick="sendNativeBridge({action:'menubarShowMain'}); toggleSystemMenuBarDemo(false);">
-        🖥 打开主窗口
+        打开主窗口
       </button>
       <button class="btn btn-danger" style="justify-content:center;" onclick="sendNativeBridge({action:'menubarQuit'});">
-        ⏻ 退出应用
+        退出应用
       </button>
     </div>
   `;
@@ -1529,9 +1740,9 @@ function svgSparkline(points, strokeColor, fillColor, heightPx) {
   });
   const linePath = `M ${coords.join(' L ')}`;
   const areaPath = `${linePath} L ${w},${h} L 0,${h} Z`;
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px;overflow:visible;">
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;overflow:visible;display:block;">
     <path d="${areaPath}" fill="${fillColor}" />
-    <path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" />
+    <path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
   </svg>`;
 }
 
@@ -1655,7 +1866,7 @@ function setSoftwarePanelMode(panelMode) {
   STATE.softwarePanelMode = panelMode;
   updateSidebarBadges();
   renderModule();
-  showToast(panelMode === 'leftovers' ? '已切换至：🧹 清理已卸载残留（扫描 Docker 容器、Android Studio 等孤立残留）' : '已切换至：📦 管理应用卸载（管理 /Applications 已安装应用）');
+  showToast(panelMode === 'leftovers' ? '已切换至：清理已卸载残留（扫描 Docker 容器、Android Studio 等孤立残留）' : '已切换至：管理应用卸载（管理 /Applications 已安装应用）');
 }
 
 function selectOrphanRow(idx) {
@@ -1696,9 +1907,9 @@ function setUninstallMode(mode) {
   persistState();
   updateSidebarBadges();
   renderModule();
-  const modeLabel = mode === 'standard' ? '📦 标准卸载 App (移除 .app 主程序与缓存，保留个人配置)'
-    : mode === 'complete' ? '🔥 彻底粉碎卸载 (移除 .app 主程序 + 清除全部 Library 残留与配置)'
-    : '🧹 仅清理缓存 (保留 Mac 应用不卸载，仅释放膨胀缓存)';
+  const modeLabel = mode === 'standard' ? '标准卸载 App (移除 .app 主程序与缓存，保留个人配置)'
+    : mode === 'complete' ? '彻底粉碎卸载 (移除 .app 主程序 + 清除全部 Library 残留与配置)'
+    : '仅清理缓存 (保留 Mac 应用不卸载，仅释放膨胀缓存)';
   showToast('已切换模式: ' + modeLabel);
 }
 
@@ -1724,7 +1935,7 @@ function toggleAppKeepPersonal(idx, ev) {
   persistState();
   updateSidebarBadges();
   renderModule();
-  showToast(app.name + (app.keepPersonal ? ': 已切换为「📦 标准卸载 App (保留配置)」' : ': 已切换为「🔥 彻底粉碎卸载 (含全部残留)」'));
+  showToast(app.name + (app.keepPersonal ? ': 已切换为「标准卸载 App (保留配置)」' : ': 已切换为「彻底粉碎卸载 (含全部残留)」'));
 }
 
 // Interactive Handlers for Analyze (Real file deletion + persistent state)
@@ -1977,12 +2188,12 @@ function renderModule() {
   if (mod === 'clean') {
     const selectedGb = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.sizeGb, 0);
     const selectedItems = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.items, 0);
-    topTitle.textContent = STATE.lang === 'zh' ? '气闸舱 · 智能深度清理 (Airlock)' : 'Airlock · Smart Deep Clean';
+    topTitle.textContent = STATE.lang === 'zh' ? '气闸舱 · 智能深度清理' : 'Airlock · Smart Deep Clean';
     primaryBtnText.textContent = selectedGb > 0 ? `一键清理所选 (${selectedGb.toFixed(2)} GB)` : '全部所选项已清理完毕';
     heroHeadline.textContent = selectedGb > 0
       ? `发现 ${selectedGb.toFixed(2)} GB 可安全释放的系统与应用缓存`
       : '当前勾选的系统与应用缓存已全部清理完毕';
-    heroDesc.textContent = '按重建成本分为「安全可再生」「需确认项」与「🔒 硬件保护项」（硬件保护项无勾选框，且绝不进入清理确认弹窗）。点击任意分类可在右侧检视具体子目录并执行二次确认清理。';
+    heroDesc.textContent = '按重建成本分为「安全可再生」「需确认项」与「硬件保护项」（硬件保护项无勾选框，且绝不进入清理确认弹窗）。点击任意分类可在右侧检视具体子目录并执行二次确认清理。';
     heroStatLabel.textContent = '当前已勾选待清理';
     heroStatValue.textContent = `${selectedGb.toFixed(2)} GB`;
     heroStatSub.textContent = selectedGb > 0 ? `共 ${selectedItems} 项 · 二次确认后真实移入废纸篓` : '可在「恢复记录与白名单」中随时还原';
@@ -2000,7 +2211,7 @@ function renderModule() {
       <div class="master-detail-grid">
         <div class="panel-card">
           <div class="panel-header">
-            <span>可清理缓存与日志分类清单（点击行查看右侧目录详情）</span>
+            <span>缓存与日志</span>
             <div class="segmented-tabs">
               <div class="seg-tab ${STATE.cleanFilter === 'all' ? 'active' : ''}" onclick="setCleanFilter('all')">全部 (${STATE.cleanGroups.length})</div>
               <div class="seg-tab ${STATE.cleanFilter === 'safe' ? 'active' : ''}" onclick="setCleanFilter('safe')">安全可再生 (${STATE.cleanGroups.filter(x=>x.tier==='safe').length})</div>
@@ -2040,35 +2251,35 @@ function renderModule() {
 
         <div class="panel-card">
           <div class="panel-header">
-            <span>目录结构与安全评估</span>
-            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selGroup ? selGroup.sizeGb.toFixed(2) : '0.00'} GB</span>
+            <span>详情</span>
+            <span style="color:var(--text-secondary);font-weight:500;">${selGroup ? selGroup.sizeGb.toFixed(2) : '0.00'} GB</span>
           </div>
           ${selGroup ? `
           <div class="inspector-content">
             <div>
-              <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">${selGroup.category}</div>
-              <div style="font-size:14px;font-weight:700;margin-top:2px;">${selGroup.name}</div>
+              <div class="inspector-eyebrow">${selGroup.category}</div>
+              <div class="inspector-title">${selGroup.name}</div>
             </div>
 
             <div class="bento-4">
-              <div class="bento-cell"><div class="bento-label">占扫描总量比例</div><div class="bento-val" style="color:var(--accent-primary);">${sharePct}</div></div>
+              <div class="bento-cell"><div class="bento-label">占扫描总量比例</div><div class="bento-val">${sharePct}</div></div>
               <div class="bento-cell"><div class="bento-label">包含文件总数</div><div class="bento-val">${selGroup.filesCount}</div></div>
               <div class="bento-cell"><div class="bento-label">最近修改时间</div><div class="bento-val">${selGroup.lastMod}</div></div>
               <div class="bento-cell"><div class="bento-label">预计重建耗时</div><div class="bento-val" style="color:var(--accent-emerald);">${selGroup.rebuildTime}</div></div>
             </div>
 
-            <div class="inspector-box" style="border-left:3px solid var(--accent-emerald);">
-              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">🛡️ 清理影响与安全评估说明</div>
-              <div style="color:var(--text-secondary);font-size:11px;">${selGroup.impact}</div>
+            <div class="inspector-box" >
+              <div class="section-label" style="margin-bottom:4px;color:var(--text-primary);">清理影响与安全评估说明</div>
+              <div style="color:var(--text-secondary);font-size:12px;">${selGroup.impact}</div>
             </div>
 
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">包含子目录明细 (${selGroup.subpaths.length} 个主要路径 · 支持单独勾选)</div>
+            <div class="section-label" style="margin-top:4px;">包含子目录明细 (${selGroup.subpaths.length} 个主要路径 · 支持单独勾选)</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
               ${selGroup.subpaths.map((sp, spIdx) => `
                 <div class="subpath-item">
                   <div class="subpath-left">
                     ${selGroup.tier === 'protected' ? `<span class="lock-glyph">${get_skeuo_svg('history', 'lk3')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
-                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
                   </div>
                   <div class="subpath-right">
                     <span>${selGroup.cleaned ? '0 MB' : sp.size}</span>
@@ -2088,12 +2299,12 @@ function renderModule() {
     `;
   } else if (mod === 'ai_moon') {
     const selectedGb = STATE.aiMoonBands.filter(b => b.checked).reduce((s, b) => s + b.sizeGb, 0);
-    topTitle.textContent = '智核舱 · AI 专项清理 (Cortex)';
+    topTitle.textContent = '智核舱 · AI 专项清理';
     primaryBtnText.textContent = selectedGb > 0 ? `清理所选 AI 冗余 (${selectedGb.toFixed(2)} GB)` : 'AI 冗余已清理完毕';
     heroHeadline.textContent = selectedGb > 0
       ? `发现 ${selectedGb.toFixed(2)} GB AI 开发工具旧版本包与过期缓存`
       : '当前所选 AI 开发工具冗余缓存已全部清理完毕';
-    heroDesc.textContent = '自动识别旧版本更新包、渲染缓存与过期工作树；您的 AI 历史对话记录、长期记忆 (Memories) 与自定义技能以 🔒 锁定保护（无勾选框，且绝不进入清理确认弹窗）。';
+    heroDesc.textContent = '自动识别旧版本更新包、渲染缓存与过期工作树；您的 AI 历史对话记录、长期记忆 (Memories) 与自定义技能以 锁定保护（无勾选框，且绝不进入清理确认弹窗）。';
     heroStatLabel.textContent = 'AI 专项可释放';
     heroStatValue.textContent = `${selectedGb.toFixed(2)} GB`;
     heroStatSub.textContent = `保留窗口: ${STATE.aiRetention} · 核心对话记忆已后台隔离`;
@@ -2103,7 +2314,7 @@ function renderModule() {
       <div class="master-detail-grid">
         <div class="panel-card">
           <div class="panel-header">
-            <span>AI 工具三级安全清理带（核心记忆已锁定保护 · 无勾选框）</span>
+            <span>AI 工具缓存</span>
             <div class="segmented-tabs">
               <div class="seg-tab ${STATE.aiRetention === '15d' ? 'active' : ''}" onclick="setAiRetention('15d')">保留 15 天</div>
               <div class="seg-tab ${STATE.aiRetention === '30d' ? 'active' : ''}" onclick="setAiRetention('30d')">保留 30 天</div>
@@ -2136,30 +2347,30 @@ function renderModule() {
 
         <div class="panel-card">
           <div class="panel-header">
-            <span>AI 路径安全审查明细</span>
-            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selBand ? selBand.sizeGb.toFixed(2) : '0.00'} GB</span>
+            <span>详情</span>
+            <span style="color:var(--text-secondary);font-weight:500;">${selBand ? selBand.sizeGb.toFixed(2) : '0.00'} GB</span>
           </div>
           ${selBand ? `
           <div class="inspector-content">
             <div>
-              <div style="font-size:10px;font-weight:700;color:var(--text-muted);">${selBand.band}</div>
-              <div style="font-size:14px;font-weight:700;margin-top:2px;">${selBand.name}</div>
+              <div class="inspector-eyebrow">${selBand.band}</div>
+              <div class="inspector-title">${selBand.name}</div>
             </div>
             <div class="bento-4">
-              <div class="bento-cell"><div class="bento-label">可释放空间</div><div class="bento-val" style="color:var(--accent-primary);">${selBand.sizeGb.toFixed(2)} GB</div></div>
+              <div class="bento-cell"><div class="bento-label">可释放空间</div><div class="bento-val">${selBand.sizeGb.toFixed(2)} GB</div></div>
               <div class="bento-cell"><div class="bento-label">涉及对象数量</div><div class="bento-val">${selBand.filesCount}</div></div>
               <div class="bento-cell"><div class="bento-label">文件时间跨度</div><div class="bento-val">${selBand.lastMod}</div></div>
               <div class="bento-cell"><div class="bento-label">重建与影响</div><div class="bento-val" style="color:var(--accent-emerald);">${selBand.rebuildTime}</div></div>
             </div>
-            <div class="inspector-box" style="border-left:3px solid var(--accent-primary);">
-              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">🛡️ AI 数据安全边界说明</div>
-              <div style="color:var(--text-secondary);font-size:11px;">${selBand.impact}</div>
+            <div class="inspector-box" style="border-left-color:var(--accent-primary);">
+              <div class="section-label" style="margin-bottom:4px;color:var(--text-primary);">AI 数据安全边界说明</div>
+              <div style="color:var(--text-secondary);font-size:12px;">${selBand.impact}</div>
             </div>
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">关联本地路径明细</div>
+            <div class="section-label" style="margin-top:4px;">关联本地路径明细</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
               ${selBand.subpaths.map(sp => `
                 <div class="subpath-item">
-                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
+                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
                   <span class="subpath-right">${selBand.cleaned ? '0 MB' : sp.size}</span>
                 </div>
               `).join('')}
@@ -2179,19 +2390,19 @@ function renderModule() {
     const totalAppsAllGb = STATE.appsList.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
 
     const dualModeSwitchHtml = `
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;padding:7px 12px;margin-bottom:2px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button class="btn ${panelMode === 'leftovers' ? 'btn-primary' : ''}" style="padding:5px 14px;font-size:12px;font-weight:700;" onclick="setSoftwarePanelMode('leftovers')">
-            🧹 清理已卸载残留 (${orphans.length} 项 · ${totalOrphanAllGb.toFixed(2)} GB)
-          </button>
-          <button class="btn ${panelMode === 'apps' ? 'btn-primary' : ''}" style="padding:5px 14px;font-size:12px;font-weight:700;" onclick="setSoftwarePanelMode('apps')">
-            📦 管理应用卸载 (${STATE.appsList.length} 款 · ${totalAppsAllGb.toFixed(2)} GB)
-          </button>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;">
+        <div class="segmented-tabs" style="flex-wrap:nowrap;">
+          <div class="seg-tab ${panelMode === 'leftovers' ? 'active' : ''}" style="padding:4px 12px;font-size:12px;" onclick="setSoftwarePanelMode('leftovers')">
+            已卸载残留 <span style="color:var(--text-muted);margin-left:4px;">${orphans.length} · ${totalOrphanAllGb.toFixed(2)} GB</span>
+          </div>
+          <div class="seg-tab ${panelMode === 'apps' ? 'active' : ''}" style="padding:4px 12px;font-size:12px;" onclick="setSoftwarePanelMode('apps')">
+            应用卸载 <span style="color:var(--text-muted);margin-left:4px;">${STATE.appsList.length} · ${totalAppsAllGb.toFixed(2)} GB</span>
+          </div>
         </div>
-        <div style="font-size:11px;color:var(--text-secondary);">
+        <div style="font-size:11px;color:var(--text-muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
           ${panelMode === 'leftovers'
-            ? '🔍 深度检索已从 /Applications 移除但仍滞留在 Containers、Android SDK、~/.docker 与 ~/.gradle 的无主残留'
-            : '💻 扫描本机 /Applications 已安装应用，支持「标准卸载 (保留配置)」「彻底粉碎卸载」与「仅清缓存」'}
+            ? '深度检索已从 /Applications 移除但仍滞留在 Containers、Android SDK、~/.docker 与 ~/.gradle 的无主残留'
+            : '扫描本机 /Applications 已安装应用，支持「标准卸载 (保留配置)」「彻底粉碎卸载」与「仅清缓存」'}
         </div>
       </div>
     `;
@@ -2202,7 +2413,7 @@ function renderModule() {
       const activeOrphans = checkedOrphans.length > 0 ? checkedOrphans : [selOrphan].filter(Boolean);
       const totalSelectedOrphanGb = activeOrphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
 
-      topTitle.textContent = '分离器 · 已卸载应用残留清理 (Jettison · Leftovers)';
+      topTitle.textContent = '分离器 · 已卸载应用残留清理';
       primaryBtnText.textContent = `一键清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)`;
       heroHeadline.textContent = selOrphan
         ? `发现 ${orphans.length} 组已卸载应用的孤立残留（含 Docker 容器与 Android Studio 残留）`
@@ -2213,7 +2424,7 @@ function renderModule() {
       heroStatSub.textContent = `共 ${activeOrphans.length} 组无主残留 · 移入废纸篓安全可还原`;
 
       if (!selOrphan) {
-        stage.innerHTML = dualModeSwitchHtml + `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前本机没有已卸载应用的孤立残留，点击上方「📦 管理应用卸载」可管理已安装的 Mac 应用。</div>`;
+        stage.innerHTML = dualModeSwitchHtml + `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">当前本机没有已卸载应用的孤立残留，点击上方「应用卸载」可管理已安装的 Mac 应用。</div>`;
         return;
       }
 
@@ -2232,8 +2443,8 @@ function renderModule() {
         <div class="master-detail-grid" style="min-height:0;flex:1;">
           <div class="panel-card">
             <div class="panel-header">
-              <span>检测到的已卸载应用孤立残留 (共 ${orphans.length} 组 · 主程序均已不在 /Applications)</span>
-              <span class="badge badge-safe">100% 无主残留 · 安全可清</span>
+              <span>已卸载应用残留 <span style="color:var(--text-muted);font-weight:400;margin-left:4px;">${orphans.length}</span></span>
+              <span class="badge badge-safe">安全可清</span>
             </div>
             <div class="list-body">
               ${orphans.map((item, idx) => `
@@ -2246,14 +2457,14 @@ function renderModule() {
                     <div style="min-width:0;">
                       <div class="row-title" style="display:flex;align-items:center;gap:6px;">
                         <span>${item.name}</span>
-                        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${item.category}</span>
+                        <span class="tag">${item.category}</span>
                       </div>
-                      <div class="row-sub">👻 ${item.statusText} · 关联 ${item.subpaths.length} 处遗留目录 (${item.bundleId})</div>
+                      <div class="row-sub">${item.statusText} · 关联 ${item.subpaths.length} 处遗留目录 (${item.bundleId})</div>
                     </div>
                   </div>
                   <div class="row-right">
-                    <span class="badge badge-review">👻 已卸载残留</span>
-                    <span class="size-cell" style="color:var(--accent-amber);">${item.leftoverSizeGb.toFixed(2)} GB</span>
+                    <span class="badge badge-review">已卸载残留</span>
+                    <span class="size-cell">${item.leftoverSizeGb.toFixed(2)} GB</span>
                   </div>
                 </div>
               `).join('')}
@@ -2262,39 +2473,39 @@ function renderModule() {
 
           <div class="panel-card">
             <div class="panel-header">
-              <span>孤立残留目录明细与核验 (${selOrphan.name})</span>
-              <span style="font-family:var(--font-mono);color:var(--accent-amber);">${selOrphan.leftoverSizeGb.toFixed(2)} GB</span>
+              <span>残留明细</span>
+              <span style="color:var(--text-secondary);font-weight:500;">${selOrphan.leftoverSizeGb.toFixed(2)} GB</span>
             </div>
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selOrphan.name, selOrphan.bundleId, 0).bg};">
+                <div class="app-squircle-icon" style="width:44px;height:44px;border-radius:10px;background:${iconFor(selOrphan.name, selOrphan.bundleId, 0).bg};">
                   ${iconFor(selOrphan.name, selOrphan.bundleId, 0).svg}
                 </div>
                 <div style="min-width:0;flex:1;">
-                  <div style="font-size:14.5px;font-weight:800;">${selOrphan.name} <span style="font-size:11px;font-weight:600;color:var(--accent-amber);">· ${selOrphan.statusText}</span></div>
-                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">Bundle ID: ${selOrphan.bundleId} · /Applications 下已无此应用</div>
+                  <div class="inspector-title" style="margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${selOrphan.name} <span style="font-size:11px;font-weight:600;color:var(--accent-amber);">· ${selOrphan.statusText}</span></div>
+                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">Bundle ID: ${selOrphan.bundleId} · /Applications 下已无此应用</div>
                 </div>
               </div>
 
               <div class="bento-4">
-                <div class="bento-cell"><div class="bento-label">📦 主程序状态</div><div class="bento-val" style="color:var(--accent-amber);">已卸载 (无 .app)</div></div>
-                <div class="bento-cell"><div class="bento-label">🗂️ 扫描到遗留目录</div><div class="bento-val">${selOrphan.subpaths.length} 处孤立路径</div></div>
-                <div class="bento-cell"><div class="bento-label">💾 占用磁盘体积</div><div class="bento-val" style="color:var(--accent-rose);">${selOrphan.leftoverSizeGb.toFixed(2)} GB</div></div>
-                <div class="bento-cell"><div class="bento-label">🛡️ 清理安全性</div><div class="bento-val" style="color:var(--accent-emerald);">完全安全 (无主残留)</div></div>
+                <div class="bento-cell"><div class="bento-label">主程序状态</div><div class="bento-val" style="color:var(--accent-amber);">已卸载 (无 .app)</div></div>
+                <div class="bento-cell"><div class="bento-label">扫描到遗留目录</div><div class="bento-val">${selOrphan.subpaths.length} 处孤立路径</div></div>
+                <div class="bento-cell"><div class="bento-label">占用磁盘体积</div><div class="bento-val">${selOrphan.leftoverSizeGb.toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">清理安全性</div><div class="bento-val" style="color:var(--accent-emerald);">完全安全 (无主残留)</div></div>
               </div>
 
-              <div style="font-size:11px;color:var(--text-secondary);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:7px;padding:6px 10px;line-height:1.4;">
-                🧹 ${selOrphan.impact}
+              <div class="inspector-box" style="border-left-color:var(--accent-amber);color:var(--text-secondary);">
+                ${selOrphan.impact}
               </div>
 
-              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">包含遗留子目录明细（支持单独勾选或点击在访达中检视）</div>
+              <div class="section-label" style="margin-top:4px;">包含遗留子目录明细（支持单独勾选或点击在访达中检视）</div>
               <div style="display:flex;flex-direction:column;gap:5px;">
                 ${selOrphan.subpaths.map((sp, spIdx) => `
                   <div class="subpath-item">
                     <div class="subpath-left">
                       <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleOrphanSubpathCheck(${STATE.selectedOrphanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
-                      <span class="badge ${sp.kind === 'cache' ? 'badge-safe' : 'badge-review'}" style="font-size:9px;padding:1px 5px;">
-                        ${sp.kind === 'cache' ? '🗂️ 容器/SDK缓存' : '⚙️ 遗留配置'}
+                      <span class="badge ${sp.kind === 'cache' ? 'badge-safe' : 'badge-review'}" style="font-size:10px;padding:0 6px;">
+                        ${sp.kind === 'cache' ? '容器/SDK缓存' : '遗留配置'}
                       </span>
                       <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
                     </div>
@@ -2308,7 +2519,7 @@ function renderModule() {
                   在访达 (Finder) 中查看
                 </button>
                 <button class="btn btn-primary" style="justify-content:center;" onclick="openConfirmSheet();">
-                  🧹 立即清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)
+                  立即清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)
                 </button>
               </div>
             </div>
@@ -2328,7 +2539,7 @@ function renderModule() {
       const activeApps = checkedApps.length > 0 ? checkedApps : [selApp].filter(Boolean);
       const totalSelectedAppGb = activeApps.reduce((s, a) => s + calcAppGb(a), 0);
 
-      topTitle.textContent = '分离器 · 管理本机应用卸载 (Jettison · App Uninstaller)';
+      topTitle.textContent = '分离器 · 管理本机应用卸载';
       primaryBtnText.textContent = mode === 'cache_only'
         ? `仅清理所选应用缓存 (${totalSelectedAppGb.toFixed(2)} GB)`
         : mode === 'standard'
@@ -2338,7 +2549,7 @@ function renderModule() {
       heroHeadline.textContent = selApp
         ? `${selApp.name}.app v${selApp.version} · ${mode === 'standard' ? '标准卸载 App（移除主程序 · 保留个人配置）' : mode === 'complete' ? '彻底粉碎卸载（移除主程序 + 全部 Library 残留）' : '应用瘦身（保留应用 · 仅清理膨胀缓存）'}`
         : '所有勾选的 Mac 应用已处理完毕';
-      heroDesc.textContent = '管理本机 /Applications 已安装应用：①「📦 标准卸载 App」卸载主程序与缓存并保留配置；②「🔥 彻底粉碎卸载」连同 Library 数据全部清除；③「🧹 仅清理缓存」保留应用。';
+      heroDesc.textContent = '管理本机 /Applications 已安装应用：①「标准卸载 App」卸载主程序与缓存并保留配置；②「彻底粉碎卸载」连同 Library 数据全部清除；③「仅清理缓存」保留应用。';
       heroStatLabel.textContent = mode === 'cache_only' ? '可释放应用缓存' : '当前所选卸载体积';
       heroStatValue.textContent = `${totalSelectedAppGb.toFixed(2)} GB`;
       heroStatSub.textContent = mode === 'standard' ? '移除 .app 主程序 · 保留个人配置' : mode === 'complete' ? '移除 .app 主程序 + 全部 Library 残留' : '保留 .app 主程序 · 仅清理缓存';
@@ -2361,11 +2572,11 @@ function renderModule() {
         <div class="master-detail-grid" style="min-height:0;flex:1;">
           <div class="panel-card">
             <div class="panel-header">
-              <span>本机已安装 Mac 应用程序 (/Applications · 共 ${STATE.appsList.length} 款)</span>
+              <span>已安装应用 <span style="color:var(--text-muted);font-weight:400;margin-left:4px;">${STATE.appsList.length}</span></span>
               <div class="segmented-tabs">
-                <div class="seg-tab ${mode === 'standard' ? 'active' : ''}" onclick="setUninstallMode('standard')" title="卸载 /Applications/*.app 主程序与缓存，保留您的个人账号配置">📦 标准卸载 App</div>
-                <div class="seg-tab ${mode === 'complete' ? 'active' : ''}" onclick="setUninstallMode('complete')" title="卸载 .app 主程序并彻底清除所有 Library 偏好设置与沙盒残留">🔥 彻底粉碎卸载</div>
-                <div class="seg-tab ${mode === 'cache_only' ? 'active' : ''}" onclick="setUninstallMode('cache_only')" title="保留 Mac 应用不卸载，仅清理其产生的膨胀缓存">🧹 仅清理缓存</div>
+                <div class="seg-tab ${mode === 'standard' ? 'active' : ''}" onclick="setUninstallMode('standard')" title="卸载 /Applications/*.app 主程序与缓存，保留您的个人账号配置">标准卸载 App</div>
+                <div class="seg-tab ${mode === 'complete' ? 'active' : ''}" onclick="setUninstallMode('complete')" title="卸载 .app 主程序并彻底清除所有 Library 偏好设置与沙盒残留">彻底粉碎卸载</div>
+                <div class="seg-tab ${mode === 'cache_only' ? 'active' : ''}" onclick="setUninstallMode('cache_only')" title="保留 Mac 应用不卸载，仅清理其产生的膨胀缓存">仅清理缓存</div>
               </div>
             </div>
             <div class="list-body">
@@ -2381,17 +2592,17 @@ function renderModule() {
                     <div style="min-width:0;">
                       <div class="row-title" style="display:flex;align-items:center;gap:6px;">
                         <span>${app.name}</span>
-                        <span style="font-size:10.5px;color:var(--text-secondary);font-weight:500;">v${app.version}</span>
-                        <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${app.category || 'Mac 应用'}</span>
+                        <span style="font-size:11px;color:var(--text-muted);font-weight:400;">v${app.version}</span>
+                        <span class="tag">${app.category || 'Mac 应用'}</span>
                       </div>
-                      <div class="row-sub">📦 主程序: ${app.appSizeGb.toFixed(2)} GB · 🗂️ 缓存与关联数据: ${app.leftoverSizeGb.toFixed(2)} GB</div>
+                      <div class="row-sub">主程序: ${app.appSizeGb.toFixed(2)} GB · 缓存与关联数据: ${app.leftoverSizeGb.toFixed(2)} GB</div>
                     </div>
                   </div>
                   <div class="row-right">
                     <span class="badge ${mode === 'cache_only' ? 'badge-safe' : app.keepPersonal ? 'badge-safe' : 'badge-review'}" onclick="toggleAppKeepPersonal(${idx}, event)" title="点击切换标准卸载 / 彻底卸载">
-                      ${mode === 'cache_only' ? '🧹 仅清缓存' : app.keepPersonal ? '📦 标准卸载 App' : '🔥 彻底粉碎卸载'}
+                      ${mode === 'cache_only' ? '仅清缓存' : app.keepPersonal ? '标准卸载 App' : '彻底粉碎卸载'}
                     </span>
-                    <span class="size-cell" style="color:${mode === 'cache_only' ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${rowGb.toFixed(2)} GB</span>
+                    <span class="size-cell">${rowGb.toFixed(2)} GB</span>
                   </div>
                 </div>
               `}).join('')}
@@ -2400,35 +2611,35 @@ function renderModule() {
 
           <div class="panel-card">
             <div class="panel-header">
-              <span>Mac 应用包与关联数据透视 (${selApp.name}.app)</span>
-              <span style="font-family:var(--font-mono);color:var(--accent-rose);">${calcAppGb(selApp).toFixed(2)} GB</span>
+              <span>应用详情</span>
+              <span style="color:var(--text-secondary);font-weight:500;">${calcAppGb(selApp).toFixed(2)} GB</span>
             </div>
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
+                <div class="app-squircle-icon" style="width:44px;height:44px;border-radius:10px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
                   ${iconFor(selApp.name, selApp.bundleId, 0).svg}
                 </div>
                 <div style="min-width:0;flex:1;">
-                  <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
-                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">${selApp.appPath} · ${selApp.bundleId}</div>
+                  <div class="inspector-title" style="margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
+                  <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${selApp.appPath} · ${selApp.bundleId}</div>
                 </div>
               </div>
 
               <div class="bento-4">
-                <div class="bento-cell"><div class="bento-label">📦 应用主程序 (.app)</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
-                <div class="bento-cell"><div class="bento-label">🗂️ 运行与容器缓存</div><div class="bento-val" style="color:var(--accent-amber);">${(selApp.cacheSizeGb || selApp.leftoverSizeGb).toFixed(2)} GB</div></div>
-                <div class="bento-cell"><div class="bento-label">⚙️ 个人账号与偏好配置</div><div class="bento-val" style="color:var(--accent-emerald);">${(selApp.configSizeGb || 0.25).toFixed(2)} GB (${selApp.keepPersonal ? '保留' : '清除'})</div></div>
-                <div class="bento-cell"><div class="bento-label">当前操作模式</div><div class="bento-val" style="color:var(--accent-primary);">${mode === 'cache_only' ? '仅清缓存 (保留App)' : selApp.keepPersonal ? '标准卸载 App' : '彻底粉碎卸载'}</div></div>
+                <div class="bento-cell"><div class="bento-label">应用主程序 (.app)</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">运行与容器缓存</div><div class="bento-val" style="color:var(--accent-amber);">${(selApp.cacheSizeGb || selApp.leftoverSizeGb).toFixed(2)} GB</div></div>
+                <div class="bento-cell"><div class="bento-label">个人账号与偏好配置</div><div class="bento-val" style="color:var(--accent-emerald);">${(selApp.configSizeGb || 0.25).toFixed(2)} GB (${selApp.keepPersonal ? '保留' : '清除'})</div></div>
+                <div class="bento-cell"><div class="bento-label">当前操作模式</div><div class="bento-val">${mode === 'cache_only' ? '仅清缓存 (保留App)' : selApp.keepPersonal ? '标准卸载 App' : '彻底粉碎卸载'}</div></div>
               </div>
 
-              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">勾选要移除的组件（支持单独勾选「📦 主程序」「🗂️ 缓存」或「⚙️ 个人配置」）</div>
+              <div class="section-label" style="margin-top:4px;">勾选要移除的组件（支持单独勾选「主程序」「缓存」或「个人配置」）</div>
               <div style="display:flex;flex-direction:column;gap:5px;">
                 ${selApp.subpaths.map((sp, spIdx) => `
                   <div class="subpath-item">
                     <div class="subpath-left">
                       <input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
-                      <span class="badge ${sp.kind === 'app' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
-                        ${sp.kind === 'app' ? '📦 主程序' : sp.kind === 'cache' ? '🗂️ 缓存' : '⚙️ 个人配置'}
+                      <span class="badge ${sp.kind === 'app' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:10px;padding:0 6px;">
+                        ${sp.kind === 'app' ? '主程序' : sp.kind === 'cache' ? '缓存' : '个人配置'}
                       </span>
                       <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${sp.path}</span>
                     </div>
@@ -2439,10 +2650,10 @@ function renderModule() {
 
               <div style="margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:7px;padding-top:4px;">
                 <button class="btn" style="justify-content:center;" onclick="setUninstallMode('standard'); openConfirmSheet();">
-                  📦 标准卸载 App (保留配置)
+                  标准卸载 App (保留配置)
                 </button>
                 <button class="btn btn-danger" style="justify-content:center;" onclick="setUninstallMode('complete'); openConfirmSheet();">
-                  🔥 彻底卸载 (含全部残留)
+                  彻底卸载 (含全部残留)
                 </button>
               </div>
             </div>
@@ -2459,7 +2670,7 @@ function renderModule() {
     const curSelectedTile = activeTiles[activeIdx] || activeTiles[0] || { name: '暂无目录', path: '~', sizeGb: 0 };
     const totalLfGb = STATE.largeFiles.reduce((s, f) => s + f.sizeGb, 0);
 
-    topTitle.textContent = '星图仪 · 磁盘空间分析 (Astrolabe)';
+    topTitle.textContent = '星图仪 · 磁盘空间分析';
     primaryBtnText.textContent = STATE.analyzeLoading ? 'mo analyze 扫描中' : '用 mo analyze 重新扫描';
     heroHeadline.textContent = STATE.analyzeLoading
       ? '正在调用 mo analyze --json'
@@ -2476,21 +2687,21 @@ function renderModule() {
     stage.innerHTML = `
       <div class="breadcrumb-bar">
         <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
-          ${isDrilled ? `<button class="btn" style="padding:2px 8px;font-size:11px;background:var(--accent-soft);color:var(--accent-primary);border-color:var(--border-selected);" onclick="exitTreemapDrillDown()">⬅ 返回个人主目录 (~)</button>` : ''}
+          ${isDrilled ? `<button class="btn" style="padding:2px 10px;font-size:11px;" onclick="exitTreemapDrillDown()">‹ 返回</button>` : ''}
           <span class="crumb-item" onclick="exitTreemapDrillDown()">mo analyze</span>
-          <span style="color:var(--text-muted);">▸</span>
+          <span style="color:var(--text-muted);">›</span>
           <span class="crumb-item ${!isDrilled ? 'active' : ''}" onclick="exitTreemapDrillDown()">全机概览</span>
           ${isDrilled ? `
-            <span style="color:var(--text-muted);">▸</span>
-            <span class="crumb-item active">📂 ${parentDir.name} (${parentDir.sizeGb.toFixed(1)} GB)</span>
-            <span style="color:var(--text-muted);">▸</span>
+            <span style="color:var(--text-muted);">›</span>
+            <span class="crumb-item active">${parentDir.name} (${parentDir.sizeGb.toFixed(1)} GB)</span>
+            <span style="color:var(--text-muted);">›</span>
             <span style="font-size:11px;color:var(--text-secondary);font-family:var(--font-mono);">${curSelectedTile.name.split(' ')[0]} (${curSelectedTile.sizeGb.toFixed(1)} GB)</span>
           ` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-secondary);">
           ${isDrilled
-            ? `<button class="btn" style="padding:2px 9px;font-size:10.5px;" onclick="revealInFinder('${curSelectedTile.path}')">📂 在访达中打开 ${curSelectedTile.path}</button>`
-            : `<span style="color:var(--accent-primary);font-weight:600;">💡 提示：点击任意色块可下钻查看内部子目录结构</span>`
+            ? `<button class="btn" style="padding:2px 9px;font-size:10.5px;" onclick="revealInFinder('${curSelectedTile.path}')">在访达中打开 ${curSelectedTile.path}</button>`
+            : `<span>点击色块可下钻查看子目录</span>`
           }
         </div>
       </div>
@@ -2499,15 +2710,15 @@ function renderModule() {
         <div class="panel-card">
           <div class="panel-header">
             <span>${isDrilled ? parentDir.name.split(' ')[0] + ' 子目录排行' : '主目录容量实时排行'}</span>
-            <span style="font-size:11px;color:var(--text-secondary);">${activeTiles.length} 个${isDrilled ? '子目录块' : '顶层目录'}</span>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:400;">${activeTiles.length} 个${isDrilled ? '子目录' : '顶层目录'}</span>
           </div>
           <div class="list-body">
             ${activeTiles.map((d, idx) => `
-              <div class="list-row ${idx === activeIdx ? 'selected' : ''}" style="padding:5px 14px;" onclick="${isDrilled ? `selectSubTile(${idx})` : `selectTreemapDir(${idx})`}">
+              <div class="list-row ${idx === activeIdx ? 'selected' : ''}" style="min-height:44px;padding:6px 16px;" onclick="${isDrilled ? `selectSubTile(${idx})` : `selectTreemapDir(${idx})`}">
                 <div class="row-left">
                   <span style="background:${d.color};width:8px;height:8px;border-radius:50%;flex-shrink:0;"></span>
                   <div style="min-width:0;">
-                    <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.name}</div>
+                    <div class="row-title">${d.name}</div>
                     <div class="row-sub">${d.scanStatus || 'complete'} · 占比 ${d.pct}%${d.cleanable ? ' · cleanable' : ''}</div>
                   </div>
                 </div>
@@ -2516,11 +2727,11 @@ function renderModule() {
             `).join('')}
           </div>
           ${!isDrilled && STATE.analyzeInsights.length ? `
-            <div style="padding:8px 14px;border-top:1px solid var(--border-subtle);">
-              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">mo analyze insights · 不计入面积图</div>
+            <div style="padding:10px 16px 12px;border-top:var(--hairline-w) solid var(--border-subtle);">
+              <div class="section-label" style="margin-bottom:8px;">mo analyze insights · 不计入面积图</div>
               ${STATE.analyzeInsights.map(item => `
                 <div class="subpath-item">
-                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${item.path}')">${item.cleanable ? '🧹' : '🔎'} ${item.name}</span>
+                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${item.path}')">${item.cleanable ? '' : '🔎'} ${item.name}</span>
                   <span class="subpath-right">${item.sizeGb.toFixed(2)} GB</span>
                 </div>
               `).join('')}
@@ -2532,16 +2743,16 @@ function renderModule() {
             <div class="treemap-tile ${idx === activeIdx ? 'active-tile' : ''}" onclick="${isDrilled ? `selectSubTile(${idx})` : `selectTreemapDir(${idx})`}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${r.color};">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
                 <div style="min-width:0;">
-                  <div style="font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.name}</div>
+                  <div style="font-size:12.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.name}</div>
                   <div style="font-size:10px;color:rgba(255,255,255,0.84);margin-top:2px;font-family:var(--font-mono);">${r.path}${r.scanStatus === 'partial' ? ' · partial' : ''}</div>
                 </div>
-                <span class="drill-pill">${isDrilled ? (idx === activeIdx ? '● 当前检视' : '点击检视') : '下钻子目录 ▸'}</span>
+                <span class="drill-pill">${isDrilled ? (idx === activeIdx ? '当前' : '点击检视') : '下钻 ›'}</span>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;white-space:nowrap;gap:6px;">
-                <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:#fff;white-space:nowrap;">${r.sizeGb.toFixed(1)} GB (${r.pct}%)</span>
+                <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:#fff;white-space:nowrap;">${r.sizeGb.toFixed(1)} GB (${r.pct}%)</span>
                 <div style="display:flex;gap:5px;">
-                  ${r.cleanable ? `<span style="font-size:9.5px;background:rgba(46,158,107,0.85);padding:2px 6px;border-radius:4px;color:#fff;font-weight:600;" onclick="event.stopPropagation();switchModule('clean');">可清理缓存</span>` : ''}
-                  <span style="font-size:9.5px;background:rgba(0,0,0,0.38);padding:2px 6px;border-radius:4px;color:#fff;white-space:nowrap;" onclick="event.stopPropagation();revealInFinder('${r.path}')">访达 ↗</span>
+                  ${r.cleanable ? `<span style="font-size:10px;background:rgba(255,255,255,0.18);padding:1px 7px;border-radius:99px;color:#fff;font-weight:500;" onclick="event.stopPropagation();switchModule('clean');">可清理缓存</span>` : ''}
+                  <span style="font-size:10px;background:rgba(0,0,0,0.22);padding:1px 7px;border-radius:99px;color:#fff;white-space:nowrap;" onclick="event.stopPropagation();revealInFinder('${r.path}')">访达 ↗</span>
                 </div>
               </div>
             </div>
@@ -2551,12 +2762,12 @@ function renderModule() {
 
       <div class="panel-card">
         <div class="panel-header">
-          <span>本机大文件雷达 (扫描 ~/Downloads、~/Documents、~/Desktop 等真实大文件)</span>
-          <span style="font-size:11px;color:var(--text-secondary);">共 ${totalLfGb.toFixed(2)} GB · 点击将真实移入 ~/.Trash</span>
+          <span>大文件</span>
+          <span style="font-size:11px;color:var(--text-muted);font-weight:400;">共 ${totalLfGb.toFixed(2)} GB · 移除后进入废纸篓</span>
         </div>
         <div>
-          ${STATE.largeFiles.length === 0 ? `<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;">当前扫描目录下无符合条件的大文件，或已全部移入废纸篓</div>` : STATE.largeFiles.map((lf, idx) => `
-            <div class="list-row" style="padding:7.5px 14px;">
+          ${STATE.largeFiles.length === 0 ? `<div class="empty-state">当前扫描目录下无符合条件的大文件，或已全部移入废纸篓</div>` : STATE.largeFiles.map((lf, idx) => `
+            <div class="list-row" style="padding:8px 16px;min-height:48px;">
               <div class="row-left">
                 <span class="row-glyph">${get_skeuo_svg('purge', 'lf' + idx)}</span>
                 <div style="min-width:0;">
@@ -2567,7 +2778,7 @@ function renderModule() {
               <div class="row-right">
                 <span class="badge badge-review">${lf.kind}</span>
                 <span class="size-cell">${lf.sizeGb.toFixed(2)} GB</span>
-                <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="removeLargeFile(${idx})">移至废纸篓</button>
+                <button class="btn" style="padding:3px 10px;font-size:11px;" onclick="removeLargeFile(${idx})">移至废纸篓</button>
               </div>
             </div>
           `).join('')}
@@ -2581,7 +2792,7 @@ function renderModule() {
     const curDisk = STATE.diskSeries[STATE.diskSeries.length - 1];
     const memPct = +((STATE.memUsedGb / Math.max(1, STATE.memTotalGb)) * 100).toFixed(1);
 
-    topTitle.textContent = '遥测台 · 实时状态监控 (Telemetry)';
+    topTitle.textContent = '遥测台 · 实时状态监控';
     primaryBtnText.textContent = '立即采样刷新';
     heroHeadline.textContent = `系统健康评分 ● ${STATE.healthScore} · ${STATE.cpuModelName}`;
     heroDesc.textContent = '直接连接 macOS 内核进程表 (/bin/ps) 与 vm_stat / statfs 系统接口，每 1.5 秒实时更新真实活跃进程、CPU 占用与内存消耗，点击「结束进程」直接调用系统信号终止对应 PID。';
@@ -2597,70 +2808,70 @@ function renderModule() {
     stage.innerHTML = `
       <div class="telemetry-grid">
         <div class="telemetry-card">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
-            <span>⚙ 处理器 (${STATE.cpuModelName})</span><span>${formatTemp(STATE.cpuTempC)}</span>
+          <div class="metric-head">
+            <span>处理器 (${STATE.cpuModelName})</span><span>${formatTemp(STATE.cpuTempC)}</span>
           </div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-blue);">${curCpu}%</span>
-            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">内核实时采样</span>
+          <div class="metric-row">
+            <span class="metric-val">${curCpu}%</span>
+            <span class="metric-sub">内核实时采样</span>
           </div>
-          ${svgSparkline(STATE.cpuSeries, '#4b83f0', 'rgba(75,131,240,0.16)')}
+          ${svgSparkline(STATE.cpuSeries, '#38bdf8', 'rgba(56,189,248,0.10)')}
         </div>
 
         <div class="telemetry-card">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
-            <span>🎮 图形核心 (Metal 引擎)</span><span>${formatTemp(STATE.gpuTempC)}</span>
+          <div class="metric-head">
+            <span>图形核心 (Metal 引擎)</span><span>${formatTemp(STATE.gpuTempC)}</span>
           </div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-primary);">${curGpu}%</span>
-            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">ProMotion 渲染</span>
+          <div class="metric-row">
+            <span class="metric-val">${curGpu}%</span>
+            <span class="metric-sub">ProMotion 渲染</span>
           </div>
-          ${svgSparkline(STATE.gpuSeries, '#d97757', 'rgba(217,119,87,0.16)')}
+          ${svgSparkline(STATE.gpuSeries, '#e0693a', 'rgba(224,105,58,0.10)')}
         </div>
 
         <div class="telemetry-card">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
-            <span>▦ 统一内存 (${STATE.memTotalGb.toFixed(0)} GB)</span><span style="color:var(--accent-emerald);">压力正常</span>
+          <div class="metric-head">
+            <span>统一内存 (${STATE.memTotalGb.toFixed(0)} GB)</span><span style="color:var(--accent-emerald);">压力正常</span>
           </div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-emerald);">${memPct}%</span>
-            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">已用 ${STATE.memUsedGb.toFixed(1)} GB / ${STATE.memTotalGb.toFixed(0)} GB</span>
+          <div class="metric-row">
+            <span class="metric-val">${memPct}%</span>
+            <span class="metric-sub">已用 ${STATE.memUsedGb.toFixed(1)} GB / ${STATE.memTotalGb.toFixed(0)} GB</span>
           </div>
-          ${svgSparkline(STATE.memSeries, '#2e9e6b', 'rgba(46,158,107,0.16)')}
+          ${svgSparkline(STATE.memSeries, '#3fb67f', 'rgba(63,182,127,0.10)')}
         </div>
 
         <div class="telemetry-card">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
-            <span>▤ 磁盘空间 (Macintosh HD)</span><span>剩余 ${STATE.freeDiskGb.toFixed(1)}G</span>
+          <div class="metric-head">
+            <span>磁盘空间 (Macintosh HD)</span><span>剩余 ${STATE.freeDiskGb.toFixed(1)}G</span>
           </div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-amber);">${curDisk}%</span>
-            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">读 ${STATE.diskReadMbs} · 写 ${STATE.diskWriteMbs} MB/s</span>
+          <div class="metric-row">
+            <span class="metric-val">${curDisk}%</span>
+            <span class="metric-sub">读 ${STATE.diskReadMbs} · 写 ${STATE.diskWriteMbs} MB/s</span>
           </div>
-          ${svgSparkline(STATE.diskSeries, '#d99b26', 'rgba(217,155,38,0.16)')}
+          ${svgSparkline(STATE.diskSeries, '#e2a53c', 'rgba(226,165,60,0.10)')}
         </div>
 
         <div class="telemetry-card">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
-            <span>⇅ 网络吞吐 (Wi-Fi / en0)</span><span style="color:var(--accent-emerald);">实时速率</span>
+          <div class="metric-head">
+            <span>网络吞吐 (Wi-Fi / en0)</span><span style="color:var(--accent-emerald);">实时速率</span>
           </div>
-          <div style="display:flex;align-items:baseline;justify-content:space-between;">
-            <span style="font-size:20px;font-weight:800;font-family:var(--font-mono);color:var(--accent-blue);">${STATE.netDownMbs} MB/s</span>
-            <span style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-secondary);">↑ ${STATE.netUpMbs} MB/s</span>
+          <div class="metric-row">
+            <span class="metric-val">${STATE.netDownMbs} MB/s</span>
+            <span class="metric-sub">↑ ${STATE.netUpMbs} MB/s</span>
           </div>
-          ${svgSparkline(STATE.netSeries, '#4b83f0', 'rgba(75,131,240,0.16)')}
+          ${svgSparkline(STATE.netSeries, '#38bdf8', 'rgba(56,189,248,0.10)')}
         </div>
 
         <div class="telemetry-card">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);font-weight:600;">
-            <span>🌀 双风扇调速与电源管理</span><span>智能温控</span>
+          <div class="metric-head">
+            <span>双风扇调速与电源管理</span><span>智能温控</span>
           </div>
-          <div style="display:flex;gap:6px;margin:3px 0;">
+          <div class="segmented-tabs" style="display:flex;flex-wrap:nowrap;margin:4px 0 2px;">
             ${[['Auto', '自动'], ['Cool', '冷静'], ['Max', '全速']].map(([k, label]) => `
-              <button class="btn ${STATE.fanMode === k ? 'btn-primary' : ''}" style="flex:1;justify-content:center;padding:4.5px 0;" onclick="setFanMode('${k}')">${label}</button>
+              <div class="seg-tab ${STATE.fanMode === k ? 'active' : ''}" style="flex:1;text-align:center;padding:4px 0;" onclick="setFanMode('${k}')">${label}</div>
             `).join('')}
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text-secondary);">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);">
             <span>目标转速: ${rpmVal}</span><span>防休眠: ${STATE.caffeinateActive ? '开启' : '关闭'}</span>
           </div>
         </div>
@@ -2668,8 +2879,8 @@ function renderModule() {
 
       <div class="panel-card">
         <div class="panel-header">
-          <span>本机实时活跃进程监控（直连 /bin/ps 真实进程表 · 点击表头按 CPU / 内存 / 功耗排序 · 点击结束进程真实终止 PID）</span>
-          <span class="badge badge-safe">本机真实进程 · 1.5s 自动同步</span>
+          <span>活跃进程</span>
+          <span style="font-size:11px;color:var(--text-muted);font-weight:400;">/bin/ps · 每 1.5 秒同步 · 点击表头排序</span>
         </div>
         <div style="overflow-x:auto;">
           <table class="proc-table">
@@ -2682,20 +2893,20 @@ function renderModule() {
                 <th onclick="sortProcessesBy('memory_mb')">内存 ${STATE.procSortKey==='memory_mb'?'▾':''}</th>
                 <th onclick="sortProcessesBy('power')">预估功耗 ${STATE.procSortKey==='power'?'▾':''}</th>
                 <th>执行路径</th>
-                <th>操作</th>
+                <th style="text-align:right;">操作</th>
               </tr>
             </thead>
             <tbody>
               ${sortedProcs.slice(0, 8).map(p => `
                 <tr>
-                  <td style="color:#eab308;cursor:pointer;font-size:13px;" onclick="togglePinProcess(${p.pid})" title="点击切换置顶">${p.pinned ? '★' : '☆'}</td>
-                  <td style="font-weight:700;color:var(--text-primary);">${p.name}</td>
+                  <td style="color:${p.pinned ? 'var(--accent-amber)' : 'var(--text-muted)'};cursor:pointer;font-size:13px;font-family:var(--font-sans);" onclick="togglePinProcess(${p.pid})" title="点击切换置顶">${p.pinned ? '★' : '☆'}</td>
+                  <td style="font-weight:500;color:var(--text-primary);">${p.name}</td>
                   <td>${p.pid}</td>
-                  <td style="color:${p.cpu > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${Number(p.cpu || 0).toFixed(1)}%</td>
+                  <td style="color:${p.cpu > 15 ? 'var(--accent-primary)' : 'var(--text-primary)'};font-weight:500;">${Number(p.cpu || 0).toFixed(1)}%</td>
                   <td>${p.memory_mb} MB</td>
                   <td>${Number(p.power || 0).toFixed(1)} W</td>
-                  <td style="color:var(--text-muted);font-size:11px;cursor:pointer;max-width:290px;overflow:hidden;text-overflow:ellipsis;" onclick="revealInFinder('${p.path}')">${p.path}</td>
-                  <td><button class="btn btn-danger" style="padding:2px 8px;font-size:10.5px;" onclick="killProcessByPid(${p.pid})">结束进程</button></td>
+                  <td style="color:var(--text-muted);font-size:11px;font-family:var(--font-mono);cursor:pointer;max-width:290px;overflow:hidden;text-overflow:ellipsis;" onclick="revealInFinder('${p.path}')">${p.path}</td>
+                  <td style="text-align:right;"><button class="btn btn-danger" style="padding:2px 9px;font-size:11px;" onclick="killProcessByPid(${p.pid})">结束</button></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2709,7 +2920,7 @@ function renderModule() {
     const instGb = STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
     const totalDevGb = purgeGb + instGb;
 
-    topTitle.textContent = '载荷舱 · 构建产物与安装包 (Payload)';
+    topTitle.textContent = '载荷舱 · 构建产物与安装包';
     primaryBtnText.textContent = totalDevGb > 0 ? `清理所选构建与安装包 (${totalDevGb.toFixed(2)} GB)` : '已全部清理完毕';
     heroHeadline.textContent = totalDevGb > 0
       ? `发现 ${purgeGb.toFixed(2)} GB 项目构建产物 + ${instGb.toFixed(2)} GB 独立安装包`
@@ -2723,8 +2934,8 @@ function renderModule() {
       <div class="master-detail-grid">
         <div class="panel-card">
           <div class="panel-header">
-            <span>可清理项目构建依赖目录（点击行查看右侧详情）</span>
-            <span class="badge badge-safe">仅列出可安全清理构建目录</span>
+            <span>构建产物</span>
+            <span class="badge badge-safe">可安全重建</span>
           </div>
           <div class="list-body">
             ${STATE.purgeItems.map((item, idx) => `
@@ -2737,7 +2948,7 @@ function renderModule() {
                   </div>
                 </div>
                 <div class="row-right">
-                  <span class="badge badge-safe">${item.sizeGb === 0 ? '✅ 已清理' : '可安全重建'}</span>
+                  <span class="badge badge-safe">${item.sizeGb === 0 ? '已清理' : '可安全重建'}</span>
                   <span class="size-cell">${item.sizeGb.toFixed(2)} GB</span>
                 </div>
               </div>
@@ -2747,28 +2958,28 @@ function renderModule() {
 
         <div class="panel-card">
           <div class="panel-header">
-            <span>工程详情与遗留安装包归档</span>
-            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${instGb.toFixed(2)} GB 安装包</span>
+            <span>详情</span>
+            <span style="color:var(--text-secondary);font-weight:500;">${instGb.toFixed(2)} GB 安装包</span>
           </div>
           ${selPurge ? `
           <div class="inspector-content">
             <div>
-              <div style="font-size:10px;font-weight:700;color:var(--text-muted);">${selPurge.kind}</div>
-              <div style="font-size:14px;font-weight:700;margin-top:2px;">${selPurge.project}/${selPurge.artifact}</div>
+              <div class="inspector-eyebrow">${selPurge.kind}</div>
+              <div class="inspector-title">${selPurge.project}/${selPurge.artifact}</div>
             </div>
             <div class="bento-4">
-              <div class="bento-cell"><div class="bento-label">产物目录体积</div><div class="bento-val" style="color:var(--accent-primary);">${selPurge.sizeGb.toFixed(2)} GB</div></div>
+              <div class="bento-cell"><div class="bento-label">产物目录体积</div><div class="bento-val">${selPurge.sizeGb.toFixed(2)} GB</div></div>
               <div class="bento-cell"><div class="bento-label">未修改时长</div><div class="bento-val">${selPurge.age}</div></div>
               <div class="bento-cell"><div class="bento-label">版本库状态</div><div class="bento-val" style="color:var(--accent-emerald);">${selPurge.gitClean}</div></div>
               <div class="bento-cell"><div class="bento-label">重建方式说明</div><div class="bento-val">${selPurge.rebuildNote}</div></div>
             </div>
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-top:2px;">扫描到的独立大型安装包 (支持单独勾选清理)</div>
+            <div class="section-label" style="margin-top:4px;">扫描到的独立大型安装包 (支持单独勾选清理)</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
               ${STATE.installerFiles.map((inst, idx) => `
                 <div class="subpath-item">
                   <div class="subpath-left">
                     <input type="checkbox" ${inst.checked ? 'checked' : ''} onchange="toggleInstallerCheck(${idx})" style="width:13px;height:13px;cursor:pointer;" />
-                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${inst.path || inst.location + '/' + inst.name}')">💿 ${inst.location}/${inst.name}</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${inst.path || inst.location + '/' + inst.name}')">${inst.location}/${inst.name}</span>
                   </div>
                   <span class="subpath-right">${inst.sizeGb.toFixed(2)} GB</span>
                 </div>
@@ -2784,7 +2995,7 @@ function renderModule() {
     `;
   } else {
     const doneCount = STATE.optimizeTasks.filter(t => t.done).length;
-    topTitle.textContent = mod === 'optimize' ? '推进器 · 系统加速优化 (Thruster)' : '黑匣子 · 恢复记录与白名单 (Blackbox)';
+    topTitle.textContent = mod === 'optimize' ? '推进器 · 系统加速优化' : '黑匣子 · 恢复记录与白名单';
     primaryBtnText.textContent = mod === 'optimize' ? '一键执行全部优化' : '导出恢复记录';
     heroHeadline.textContent = doneCount > 0 ? `已完成 ${doneCount} 项系统加速维护` : '5 项系统缓存重建与数据库整理就绪';
     heroDesc.textContent = '一键修复输入法卡顿、重建访达缩略图、刷新本地 DNS 与无损整理系统数据库碎片；右侧集中管理所有受保护的核心资产白名单与废纸篓还原记录。';
@@ -2796,14 +3007,14 @@ function renderModule() {
       <div class="master-detail-grid">
         <div class="panel-card">
           <div class="panel-header">
-            <span>系统加速与维护任务清单（点击任意项可立即执行）</span>
-            <button class="btn btn-primary" style="padding:3px 10px;font-size:10.5px;" onclick="runAllOptimizeTasks()">一键执行全部优化</button>
+            <span>维护任务</span>
+            <button class="btn btn-primary" style="padding:3px 10px;font-size:11px;" onclick="runAllOptimizeTasks()">全部执行</button>
           </div>
           <div class="list-body">
-            ${STATE.optimizeTasks.map((t, idx) => `
+            ${STATE.optimizeTasks.length === 0 ? `<div class="empty-state">暂无待执行的维护任务</div>` : ''}${STATE.optimizeTasks.map((t, idx) => `
               <div class="list-row" onclick="STATE.optimizeTasks[${idx}].done=true;sendNativeBridge({action:'executeOptimize'});renderModule();showToast('已完成系统维护: ${t.name}');">
                 <div class="row-left">
-                  <span>${t.done ? '✅' : '🟢'}</span>
+                  <span class="status-dot ${t.done ? '' : 'pending'}"></span>
                   <div style="min-width:0;">
                     <div class="row-title">${t.name}</div>
                     <div class="row-sub" style="font-family:var(--font-sans);">${t.detail}</div>
@@ -2819,31 +3030,31 @@ function renderModule() {
 
         <div class="panel-card">
           <div class="panel-header">
-            <span>废纸篓恢复记录与系统核心保护白名单</span>
-            <span style="font-size:11px;color:var(--text-secondary);">${STATE.whitelist.length} 条受保护路径</span>
+            <span>恢复记录与白名单</span>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:400;">${STATE.whitelist.length} 条受保护路径</span>
           </div>
           <div class="inspector-content">
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">最近清理记录（点击「原路还原」立即从 ~/.Trash 恢复并同步空间数据）</div>
+            <div class="section-label" style="margin-top:4px;">最近清理记录（点击「还原」从 ~/.Trash 原路恢复）</div>
             ${STATE.historyLogs.map((h, idx) => `
               <div class="subpath-item" style="font-family:var(--font-sans);">
                 <div class="subpath-left" style="flex-direction:column;align-items:flex-start;gap:2px;">
-                  <div style="font-size:11.5px;font-weight:600;color:var(--text-primary);">${h.action}</div>
-                  <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);">${h.id} · ${h.time} · ${h.sizeGb.toFixed(2)} GB</div>
+                  <div style="font-size:12px;font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;max-width:100%;">${h.action}</div>
+                  <div style="font-size:11px;color:var(--text-muted);">${h.id} · ${h.time} · ${h.sizeGb.toFixed(2)} GB</div>
                 </div>
-                <button class="btn subpath-right" style="padding:3px 8px;font-size:10.5px;" onclick="restoreHistorySnapshot(${idx})">↩ 原路还原</button>
+                <button class="btn subpath-right" style="padding:2px 9px;font-size:11px;" onclick="restoreHistorySnapshot(${idx})">还原</button>
               </div>
             `).join('')}
 
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
-              <span style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">底层隔离保护白名单（永不出现在任何待清理列表中）</span>
+              <span class="section-label">受保护白名单</span>
               <div style="display:flex;gap:4px;">
-                <input type="text" id="customWhitelistInput" placeholder="添加受保护路径..." style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:10.5px;width:130px;" />
-                <button class="btn" style="padding:2px 7px;font-size:10px;" onclick="addCustomWhitelistInput()">+ 添加</button>
+                <input type="text" id="customWhitelistInput" placeholder="添加受保护路径…" style="background:var(--bg-input);border:none;border-radius:6px;height:24px;padding:0 8px;color:var(--text-primary);font-size:11px;width:150px;" />
+                <button class="btn" style="padding:2px 9px;font-size:11px;" onclick="addCustomWhitelistInput()">添加</button>
               </div>
             </div>
             ${STATE.whitelist.map((w, idx) => `
               <div class="subpath-item">
-                <span class="subpath-left">🛡️ ${w}</span>
+                <span class="subpath-left">${w}</span>
                 <span class="badge badge-protected subpath-right" style="cursor:pointer;" onclick="removeWhitelistIdx(${idx})" title="点击移除此白名单">已隔离保护</span>
               </div>
             `).join('')}
@@ -2902,9 +3113,9 @@ window.renderCommandPaletteList = function(queryStr) {
   const matches = CMD_PALETTE_ITEMS.filter(item => !q || item.title.toLowerCase().includes(q) || item.sub.toLowerCase().includes(q));
   const container = document.getElementById('cmdPaletteList');
   container.innerHTML = `
-    <div style="padding:5px 16px;font-size:10px;font-weight:700;color:var(--text-muted);">匹配到的功能与清理目标 (${matches.length} 项 · 点击立即跳转)</div>
+    <div class="section-label" style="padding:6px 10px 4px;color:var(--text-muted);">跳转到 · ${matches.length}</div>
     ${matches.map((item, idx) => `
-      <div class="list-row ${idx === 0 ? 'selected' : ''}" onclick="closeCommandPalette(); CMD_PALETTE_ITEMS[${CMD_PALETTE_ITEMS.indexOf(item)}].run();">
+      <div class="list-row ${idx === 0 ? 'selected' : ''}" style="border-bottom:none;border-radius:8px;min-height:44px;padding:6px 10px;" onclick="closeCommandPalette(); CMD_PALETTE_ITEMS[${CMD_PALETTE_ITEMS.indexOf(item)}].run();">
         <div class="row-left">
           <span class="palette-glyph" style="background:${MODULE_PLATE[item.icon] || MODULE_PLATE.brand};">
             ${get_skeuo_svg(item.icon, 'pal' + item.title.length)}
@@ -2946,8 +3157,8 @@ window.openConfirmSheet = function() {
     totalCount = sel.length;
     titleEl.textContent = `AI 专项清理二次确认 — 即将移入废纸篓`;
     rowsHtml = sel.map(b => `
-      <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>🟢</span><div><div style="font-size:12px;font-weight:600;">${b.name}</div><div class="row-sub">${b.path}</div></div></div>
+      <div class="list-row" style="padding:8px 16px;min-height:48px;">
+        <div class="row-left"><span class="dot" style="background:var(--accent-emerald);"></span><div><div style="font-size:12px;font-weight:600;">${b.name}</div><div class="row-sub">${b.path}</div></div></div>
         <span class="size-cell" style="color:var(--accent-emerald);">${b.sizeGb.toFixed(2)} GB</span>
       </div>
     `).join('');
@@ -2960,8 +3171,8 @@ window.openConfirmSheet = function() {
       totalCount = activeOrphans.length;
       titleEl.textContent = '已卸载应用孤立残留清理二次确认 — 即将移入废纸篓';
       rowsHtml = activeOrphans.map(o => `
-        <div class="list-row" style="padding:7.5px 14px;">
-          <div class="row-left"><span>👻</span><div><div style="font-size:12px;font-weight:600;">${o.name} (${o.statusText})</div><div class="row-sub">${o.subpaths.filter(sp => sp.checked !== false).map(sp => sp.path).join(' · ')}</div></div></div>
+        <div class="list-row" style="padding:8px 16px;min-height:48px;">
+          <div class="row-left"><span class="dot" style="background:var(--accent-amber);"></span><div><div style="font-size:12px;font-weight:600;">${o.name} (${o.statusText})</div><div class="row-sub">${o.subpaths.filter(sp => sp.checked !== false).map(sp => sp.path).join(' · ')}</div></div></div>
           <span class="size-cell" style="color:var(--accent-amber);">${o.leftoverSizeGb.toFixed(2)} GB</span>
         </div>
       `).join('');
@@ -2972,8 +3183,8 @@ window.openConfirmSheet = function() {
       totalCount = activeApps.length;
       titleEl.textContent = '管理应用卸载二次确认 — 即将移入废纸篓';
       rowsHtml = activeApps.map(a => `
-        <div class="list-row" style="padding:7.5px 14px;">
-          <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人配置' : '全量彻底清理'})</div></div></div>
+        <div class="list-row" style="padding:8px 16px;min-height:48px;">
+          <div class="row-left"><span class="dot" style="background:var(--accent-rose);"></span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人配置' : '全量彻底清理'})</div></div></div>
           <span class="size-cell" style="color:var(--accent-rose);">${(a.appSizeGb + a.leftoverSizeGb).toFixed(2)} GB</span>
         </div>
       `).join('');
@@ -2985,13 +3196,13 @@ window.openConfirmSheet = function() {
     totalCount = selP.length + selI.length;
     titleEl.textContent = '构建产物与安装包清理二次确认';
     rowsHtml = selP.map(p => `
-      <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>🟢</span><div><div style="font-size:12px;font-weight:600;">${p.project}/${p.artifact}</div><div class="row-sub">${p.kind} · ${p.rebuildNote}</div></div></div>
+      <div class="list-row" style="padding:8px 16px;min-height:48px;">
+        <div class="row-left"><span class="dot" style="background:var(--accent-emerald);"></span><div><div style="font-size:12px;font-weight:600;">${p.project}/${p.artifact}</div><div class="row-sub">${p.kind} · ${p.rebuildNote}</div></div></div>
         <span class="size-cell" style="color:var(--accent-emerald);">${p.sizeGb.toFixed(2)} GB</span>
       </div>
     `).join('') + selI.map(i => `
-      <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>💿</span><div><div style="font-size:12px;font-weight:600;">${i.name}</div><div class="row-sub">${i.location} · ${i.age}</div></div></div>
+      <div class="list-row" style="padding:8px 16px;min-height:48px;">
+        <div class="row-left"><span class="dot" style="background:var(--accent-amber);"></span><div><div style="font-size:12px;font-weight:600;">${i.name}</div><div class="row-sub">${i.location} · ${i.age}</div></div></div>
         <span class="size-cell" style="color:var(--accent-amber);">${i.sizeGb.toFixed(2)} GB</span>
       </div>
     `).join('');
@@ -3001,8 +3212,8 @@ window.openConfirmSheet = function() {
     totalCount = sel.reduce((s, g) => s + g.items, 0);
     titleEl.textContent = '智能深度清理二次确认 — 即将移入废纸篓';
     rowsHtml = sel.map(g => `
-      <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>${g.tier === 'safe' ? '🟢' : '🟡'}</span><div><div style="font-size:12px;font-weight:600;">${g.name}</div><div class="row-sub">${g.path} · ${g.items} 个子项 · 重建: ${g.rebuildTime}</div></div></div>
+      <div class="list-row" style="padding:8px 16px;min-height:48px;">
+        <div class="row-left"><span class="dot" style="background:${g.tier === 'safe' ? 'var(--accent-emerald)' : 'var(--accent-amber)'};"></span><div><div style="font-size:12px;font-weight:600;">${g.name}</div><div class="row-sub">${g.path} · ${g.items} 个子项 · 重建: ${g.rebuildTime}</div></div></div>
         <span class="size-cell" style="color:${g.tier === 'safe' ? 'var(--accent-emerald)' : 'var(--accent-amber)'};">${g.sizeGb.toFixed(2)} GB</span>
       </div>
     `).join('');
@@ -3142,16 +3353,16 @@ function renderDoctorChecksList(activeIdx) {
     const isScanning = typeof activeIdx === 'number' && idx === activeIdx;
     const isPending = typeof activeIdx === 'number' && idx > activeIdx;
     return `
-      <div class="list-row" style="padding:8.5px 18px;opacity:${isPending ? '0.45' : '1'};">
+      <div class="list-row" style="padding:8px 20px;cursor:default;opacity:${isPending ? '0.45' : '1'};">
         <div class="row-left">
-          <span style="font-size:15px;">${isScanning ? '⏳' : isPending ? '⚪' : '✅'}</span>
+          <span class="status-dot ${isScanning ? 'run' : isPending ? 'pending' : ''}"></span>
           <div>
-            <div style="font-size:12px;font-weight:700;">${c.title}</div>
+            <div style="font-size:12px;font-weight:600;">${c.title}</div>
             <div class="row-sub" style="font-family:var(--font-sans);">${isScanning ? '正在实时校验系统内核与权限状态...' : c.detail}</div>
           </div>
         </div>
         <div class="row-right">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">${isPending ? '--' : c.latency}</span>
+          <span style="font-size:11px;color:var(--text-muted);">${isPending ? '--' : c.latency}</span>
           <span class="badge ${isScanning ? 'badge-review' : 'badge-safe'}">${isScanning ? '检测中...' : isPending ? '待检测' : '正常通过'}</span>
         </div>
       </div>
@@ -3179,7 +3390,7 @@ window.startDoctorReDiagnosis = function() {
 
   banner.style.display = 'block';
   btn.disabled = true;
-  btn.textContent = '⏳ 正在复诊检测...';
+  btn.textContent = '正在联检…';
   sendNativeBridge({ action: 'runDoctorReCheck' });
 
   let step = 0;
@@ -3204,9 +3415,9 @@ window.startDoctorReDiagnosis = function() {
       STATE.healthScore = Math.min(99, 96 + STATE.recheckCount);
       const nowStr = new Date().toTimeString().slice(0, 8);
       STATE.lastCheckTime = `刚刚 (${nowStr})`;
-      txt.textContent = `✅ 复诊完成！全部 7 项核心指标检测通过 (耗时 142ms)`;
+      txt.textContent = `复诊完成！全部 7 项核心指标检测通过 (耗时 142ms)`;
       btn.disabled = false;
-      btn.textContent = '🔄 立即重新联检 (Pre-flight)';
+      btn.textContent = '重新联检';
       renderDoctorChecksList(null);
       document.getElementById('doctorFooterSummary').textContent = `复诊完成时间: ${STATE.lastCheckTime} · 综合联检分 ${STATE.healthScore} / 100 (第 ${STATE.recheckCount} 次复诊)`;
       persistState();
