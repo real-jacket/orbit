@@ -572,6 +572,75 @@
     .treemap-split { grid-template-columns: 1fr; height: auto; }
     .summary-right { align-items: flex-start; width: 100%; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
   }
+
+  /* =========================================================================
+     UX pass: keyboard access, focus, readability, destructive affordance
+     ========================================================================= */
+  :root { --text-muted: #8f8b81; }
+  html[data-theme="light"] { --text-muted: #6b665e; }
+
+  .ui-ico { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em; flex: none; }
+  .search-ico { display: inline-flex; width: 13px; height: 13px; color: var(--text-muted); flex: none; }
+  .search-ico .ui-ico { width: 100%; height: 100%; }
+  .summary-eyebrow .ui-ico { color: var(--accent-primary); }
+
+  :focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+  .list-row:focus-visible, .nav-item:focus-visible, .treemap-tile:focus-visible { outline-offset: -2px; }
+  .search-box input:focus-visible, .modal-sheet input:focus-visible { outline: none; }
+  .search-box:focus-within { border-color: var(--border-selected); box-shadow: 0 0 0 3px var(--accent-soft); }
+  [role="button"], [role="tab"], th[tabindex] { cursor: pointer; }
+
+  .inspector-box, .bento-val, .summary-desc, .proc-table td { user-select: text; -webkit-user-select: text; }
+
+  .nav-item { position: relative; }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--accent-primary);
+  }
+
+  .nav-item-left > span:last-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .header-title-group { flex: 1 1 auto; }
+  .header-title { flex-shrink: 0; }
+  .live-status-pill { min-width: 0; max-width: 100%; }
+  #livePillText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .btn:active { transform: translateY(0.5px); }
+  .btn-primary:active { filter: brightness(0.94); }
+  .btn-danger-solid { background: var(--accent-rose); color: #fff; border-color: rgba(255,255,255,0.14); }
+  .btn-danger-solid:hover { background: var(--accent-rose); filter: brightness(0.92); }
+
+  .nav-section-title, .badge, .bento-label, .row-sub { font-size: 10.5px; }
+  .nav-meta, .seg-tab, .summary-eyebrow, .stat-block-label { font-size: 11px; }
+
+  .modal-backdrop.open .modal-sheet { animation: sheetIn 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  @keyframes sheetIn { from { opacity: 0; transform: translateY(6px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+  @media (max-width: 1160px) {
+    .header-controls > .btn:not(.btn-primary) > span:not(.btn-glyph) { display: none; }
+    .header-controls > .btn:not(.btn-primary) .btn-glyph { margin-right: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  .badge-preview { background: var(--accent-amber-soft); color: var(--accent-amber); flex-shrink: 0; }
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 36px 20px; text-align: center; color: var(--text-secondary); min-height: 220px; height: 100%;
+  }
+  .empty-state .ui-ico { width: 28px; height: 28px; color: var(--text-muted); }
+  .empty-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .empty-desc { font-size: 11.5px; line-height: 1.5; max-width: 300px; }
+  .empty-state .btn { margin-top: 6px; }
+  .skel-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+  .skel {
+    display: block; border-radius: 5px; background-size: 200% 100%; animation: skel 1.4s linear infinite;
+    background-image: linear-gradient(90deg, var(--bg-input) 25%, var(--bg-card-hover) 50%, var(--bg-input) 75%);
+  }
+  .skel-dot { width: 15px; height: 15px; flex: none; }
+  .skel-line { height: 10px; margin: 4px 0; }
+  .skel-size { width: 56px; height: 12px; margin-left: auto; flex: none; }
+  @keyframes skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 </style>
 </head>
 <body>
@@ -631,86 +700,86 @@
       <span class="health-pill" id="sidebarHealthPill">联检</span>
     </div>
 
-    <div class="nav-section-title" id="navGroupCore">核心轨道舱段 · ORBIT CORE</div>
+    <div class="nav-section-title" id="navGroupCore">核心功能</div>
     <div class="nav-list">
-      <div class="nav-item active" data-mod="clean" onclick="switchModule('clean')">
+      <div class="nav-item active" data-mod="clean" data-code="Airlock · 气闸舱" onclick="switchModule('clean')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%);padding:1.5px;">
             <span class="glyph" data-icon="clean"></span>
           </span>
-          <span id="navLabelClean">气闸舱 · 深度清理</span>
+          <span id="navLabelClean">深度清理</span>
         </div>
         <span class="nav-meta" id="navMetaClean">12.5 GB</span>
       </div>
 
-      <div class="nav-item" data-mod="ai_moon" onclick="switchModule('ai_moon')">
+      <div class="nav-item" data-mod="ai_moon" data-code="Cortex · 智核舱" onclick="switchModule('ai_moon')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%);padding:1.5px;">
             <span class="glyph" data-icon="ai_moon"></span>
           </span>
-          <span id="navLabelMoon">智核舱 · AI 清理</span>
+          <span id="navLabelMoon">AI 清理</span>
         </div>
         <span class="nav-meta" id="navMetaMoon">12.2 GB</span>
       </div>
 
-      <div class="nav-item" data-mod="software" onclick="switchModule('software')">
+      <div class="nav-item" data-mod="software" data-code="Jettison · 分离器" onclick="switchModule('software')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%);padding:1.5px;">
             <span class="glyph" data-icon="software"></span>
           </span>
-          <span id="navLabelSoftware">分离器 · 应用卸载</span>
+          <span id="navLabelSoftware">应用卸载</span>
         </div>
         <span class="nav-meta" id="navMetaSoftware">5 应用</span>
       </div>
 
-      <div class="nav-item" data-mod="optimize" onclick="switchModule('optimize')">
+      <div class="nav-item" data-mod="optimize" data-code="Thruster · 推进器" onclick="switchModule('optimize')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #a855f7 0%, #6d28d9 55%, #3b0764 100%);padding:1.5px;">
             <span class="glyph" data-icon="optimize"></span>
           </span>
-          <span id="navLabelOptimize">推进器 · 系统加速</span>
+          <span id="navLabelOptimize">系统加速</span>
         </div>
         <span class="nav-meta" id="navMetaOptimize">5 项</span>
       </div>
 
-      <div class="nav-item" data-mod="analyze" onclick="switchModule('analyze')">
+      <div class="nav-item" data-mod="analyze" data-code="Astrolabe · 星图仪" onclick="switchModule('analyze')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%);padding:1.5px;">
             <span class="glyph" data-icon="analyze"></span>
           </span>
-          <span id="navLabelAnalyze">星图仪 · 空间分析</span>
+          <span id="navLabelAnalyze">空间分析</span>
         </div>
         <span class="nav-meta" id="navMetaAnalyze">多级钻取</span>
       </div>
 
-      <div class="nav-item" data-mod="status" onclick="switchModule('status')">
+      <div class="nav-item" data-mod="status" data-code="Telemetry · 遥测台" onclick="switchModule('status')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%);padding:1.5px;">
             <span class="glyph" data-icon="status"></span>
           </span>
-          <span id="navLabelStatus">遥测台 · 状态监控</span>
+          <span id="navLabelStatus">状态监控</span>
         </div>
         <span class="nav-meta" id="navMetaStatus">实时遥测</span>
       </div>
 
-      <div class="nav-section-title" id="navGroupTools">载荷与安全舱 · PAYLOAD & VAULT</div>
+      <div class="nav-section-title" id="navGroupTools">工具与安全</div>
 
-      <div class="nav-item" data-mod="purge" onclick="switchModule('purge')">
+      <div class="nav-item" data-mod="purge" data-code="Payload · 载荷舱" onclick="switchModule('purge')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%);padding:1.5px;">
             <span class="glyph" data-icon="purge"></span>
           </span>
-          <span id="navLabelPurge">载荷舱 · 构建清理</span>
+          <span id="navLabelPurge">构建清理</span>
         </div>
         <span class="nav-meta" id="navMetaPurge">24.9 GB</span>
       </div>
 
-      <div class="nav-item" data-mod="history" onclick="switchModule('history')">
+      <div class="nav-item" data-mod="history" data-code="Blackbox · 黑匣子" onclick="switchModule('history')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%);padding:1.5px;">
             <span class="glyph" data-icon="history"></span>
           </span>
-          <span id="navLabelHistory">黑匣子 · 恢复白名单</span>
+          <span id="navLabelHistory">历史与白名单</span>
         </div>
         <span class="nav-meta" id="navMetaHistory">3 快照</span>
       </div>
@@ -750,16 +819,16 @@
 
       <div class="header-controls" onmousedown="event.stopPropagation()">
         <div class="search-box">
-          <span style="color:var(--text-muted);font-size:12px;">⌕</span>
-          <input type="text" id="searchInput" placeholder="搜索目录、应用或进程..." oninput="handleSearch(this.value)" />
+          <span class="search-ico"><svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></span>
+          <input type="text" id="searchInput" aria-label="搜索目录、应用或进程" placeholder="搜索目录、应用或进程..." oninput="handleSearch(this.value)" />
           <span class="kbd-tag" onclick="openCommandPalette()">⌘K</span>
         </div>
         <button class="btn" onclick="triggerNativeRescan()" title="立即重新扫描本机真实缓存、应用与大文件">
-          <span class="btn-glyph" data-icon="brand" data-prefix="rescan"></span>
+          <span class="btn-glyph"><svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/></svg></span>
           <span id="btnRescanText">刷新扫描</span>
         </button>
         <button class="btn" onclick="openDoctorModal(true)" title="立即重新扫描检测 7 项系统健康指标">
-          <span class="btn-glyph" data-icon="status" data-prefix="recheck"></span>
+          <span class="btn-glyph"><svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span>
           <span id="btnRecheckText">重新联检</span>
         </button>
         <button class="btn btn-primary" onclick="handlePrimaryAction()">
@@ -774,7 +843,7 @@
           <div class="semantic-hero-icon" id="heroSemanticIcon" style="background:linear-gradient(135deg, #4b83f0 0%, #2563eb 100%);"></div>
           <div style="min-width:0;flex:1;">
             <div class="summary-eyebrow" id="heroEyebrow">
-              <span id="scanSourceBadge">⚡ 本机真实文件系统直连 · 零模拟数据残留</span>
+              <span id="scanSourceBadge"><svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg> 本机真实文件系统直连 · 零模拟数据残留</span>
               <span>·</span>
               <span style="color:var(--accent-emerald);">● 关键系统配置与 AI 会话记忆已在后台白名单隔离保护</span>
             </div>
@@ -817,7 +886,7 @@
   <div class="modal-sheet">
     <div class="panel-header" style="padding:12px 18px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span>🛡️</span>
+        <span style="display:inline-flex;color:var(--accent-emerald);"><svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
         <span id="confirmModalTitle">操作二次确认 — 即将移入 macOS 废纸篓</span>
       </div>
       <span class="badge badge-safe">真实移入 ~/.Trash · 支持原路还原</span>
@@ -826,10 +895,10 @@
       <div style="font-size:12px;color:var(--text-secondary);line-height:1.48;" id="confirmModalSummary"></div>
       <div class="panel-card" id="confirmModalItemsList" style="max-height:280px;overflow-y:auto;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding-top:4px;">
-        <span style="font-size:11px;color:var(--text-secondary);">💡 确认后将调用 macOS 原生文件接口移入废纸篓，并持久化更新本地状态</span>
+        <span style="font-size:11px;color:var(--text-secondary);"><svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg> 确认后将调用 macOS 原生文件接口移入废纸篓，并持久化更新本地状态</span>
         <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="closeConfirmSheet()">取消操作</button>
-          <button class="btn btn-primary" onclick="executeConfirmedClean()">确认清理并移入废纸篓</button>
+          <button class="btn" data-autofocus onclick="closeConfirmSheet()">取消操作</button>
+          <button class="btn btn-danger-solid" onclick="executeConfirmedClean()">确认清理并移入废纸篓</button>
         </div>
       </div>
     </div>
@@ -868,7 +937,7 @@
   </div>
 </div>
 
-<div class="toast" id="toastBanner">操作已完成</div>
+<div class="toast" id="toastBanner" role="status" aria-live="polite">操作已完成</div>
 
 <script>
 // ---------------------------------------------------------------------------
@@ -887,6 +956,11 @@
 // rivets into every glyph; at 28px that resolved to noise. The test applied
 // here is: if an element cannot be named at 28px, it is not drawn.
 // ---------------------------------------------------------------------------
+
+const UI_ICON_PATHS = {"shield": "<path d=\"M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z\"/><path d=\"M9 12l2 2 4-4\"/>", "info": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5M12 8h.01\"/>", "bolt": "<path d=\"M13 3L5 14h6l-1 7 8-11h-6z\"/>", "search": "<circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"M16 16l4.5 4.5\"/>", "refresh": "<path d=\"M20 11a8 8 0 0 0-14.5-4.5L4 8\"/><path d=\"M4 4v4h4\"/><path d=\"M4 13a8 8 0 0 0 14.5 4.5L20 16\"/><path d=\"M20 20v-4h-4\"/>", "activity": "<path d=\"M3 12h4l3-8 4 16 3-8h4\"/>"};
+function UI_ICON(name) {
+  return '<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (UI_ICON_PATHS[name] || '') + '</svg>';
+}
 
 const MODULE_PLATE = {
   clean:    'linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%)',
@@ -1566,10 +1640,10 @@ function updateSidebarBadges() {
   const appGb = STATE.softwarePanelMode === 'leftovers' ? orphanGb : installedGb;
   const purgeGb = STATE.purgeItems.filter(p => p.checked).reduce((s, p) => s + p.sizeGb, 0) + STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
 
-  document.getElementById('navMetaClean').textContent = cleanGb > 0 ? cleanGb.toFixed(1) + ' GB' : '已清理';
-  document.getElementById('navMetaMoon').textContent = moonGb > 0 ? moonGb.toFixed(1) + ' GB' : '已清理';
+  document.getElementById('navMetaClean').textContent = cleanGb > 0 ? cleanGb.toFixed(1) + ' GB' : !STATE.cleanGroups.length ? '待扫描' : STATE.cleanGroups.some(g => g.cleaned) ? '已清理' : '未勾选';
+  document.getElementById('navMetaMoon').textContent = moonGb > 0 ? moonGb.toFixed(1) + ' GB' : !STATE.aiMoonBands.length ? '待扫描' : '已清理';
   document.getElementById('navMetaSoftware').textContent = appGb > 0 ? appGb.toFixed(1) + ' GB' : STATE.appsList.length + ' 应用';
-  document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : '已清理';
+  document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : !(STATE.purgeItems.length + STATE.installerFiles.length) ? '待扫描' : '已清理';
   document.getElementById('navMetaHistory').textContent = STATE.historyLogs.length + (STATE.lang === 'zh' ? ' 快照' : ' Snaps');
   document.getElementById('sidebarFreeDisk').textContent = (STATE.lang === 'zh' ? '剩余 ' : 'Free ') + STATE.freeDiskGb.toFixed(1) + ' GB';
   document.getElementById('sidebarHealthSub').textContent = `联检分 ${STATE.healthScore} · 7/7 正常`;
@@ -1977,15 +2051,15 @@ function renderModule() {
   if (mod === 'clean') {
     const selectedGb = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.sizeGb, 0);
     const selectedItems = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + g.items, 0);
-    topTitle.textContent = STATE.lang === 'zh' ? '气闸舱 · 智能深度清理 (Airlock)' : 'Airlock · Smart Deep Clean';
-    primaryBtnText.textContent = selectedGb > 0 ? `一键清理所选 (${selectedGb.toFixed(2)} GB)` : '全部所选项已清理完毕';
+    topTitle.textContent = STATE.lang === 'zh' ? '智能深度清理 · 气闸舱' : 'Smart Deep Clean · Airlock';
+    primaryBtnText.textContent = selectedGb > 0 ? `一键清理所选 (${selectedGb.toFixed(2)} GB)` : !STATE.cleanGroups.length ? '开始扫描' : !STATE.cleanGroups.some(g => g.cleaned) ? '请先勾选要清理的项目' : '全部所选项已清理完毕';
     heroHeadline.textContent = selectedGb > 0
       ? `发现 ${selectedGb.toFixed(2)} GB 可安全释放的系统与应用缓存`
-      : '当前勾选的系统与应用缓存已全部清理完毕';
+      : !STATE.cleanGroups.length ? '还没有扫描结果' : !STATE.cleanGroups.some(g => g.cleaned) ? '勾选项目后即可清理' : '当前勾选的系统与应用缓存已全部清理完毕';
     heroDesc.textContent = '按重建成本分为「安全可再生」「需确认项」与「🔒 硬件保护项」（硬件保护项无勾选框，且绝不进入清理确认弹窗）。点击任意分类可在右侧检视具体子目录并执行二次确认清理。';
     heroStatLabel.textContent = '当前已勾选待清理';
     heroStatValue.textContent = `${selectedGb.toFixed(2)} GB`;
-    heroStatSub.textContent = selectedGb > 0 ? `共 ${selectedItems} 项 · 二次确认后真实移入废纸篓` : '可在「恢复记录与白名单」中随时还原';
+    heroStatSub.textContent = selectedGb > 0 ? `共 ${selectedItems} 项 · 二次确认后真实移入废纸篓` : !STATE.cleanGroups.length ? '扫描只读取，不会删除任何内容' : !STATE.cleanGroups.some(g => g.cleaned) ? '勾选后将显示可释放空间' : '可在「恢复记录与白名单」中随时还原';
 
     const filtered = STATE.cleanGroups.filter(g => {
       const matchTier = STATE.cleanFilter === 'all' || g.tier === STATE.cleanFilter;
@@ -2058,7 +2132,7 @@ function renderModule() {
             </div>
 
             <div class="inspector-box" style="border-left:3px solid var(--accent-emerald);">
-              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">🛡️ 清理影响与安全评估说明</div>
+              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">${UI_ICON('shield')} 清理影响与安全评估说明</div>
               <div style="color:var(--text-secondary);font-size:11px;">${selGroup.impact}</div>
             </div>
 
@@ -2088,11 +2162,11 @@ function renderModule() {
     `;
   } else if (mod === 'ai_moon') {
     const selectedGb = STATE.aiMoonBands.filter(b => b.checked).reduce((s, b) => s + b.sizeGb, 0);
-    topTitle.textContent = '智核舱 · AI 专项清理 (Cortex)';
-    primaryBtnText.textContent = selectedGb > 0 ? `清理所选 AI 冗余 (${selectedGb.toFixed(2)} GB)` : 'AI 冗余已清理完毕';
+    topTitle.textContent = 'AI 专项清理 · 智核舱';
+    primaryBtnText.textContent = selectedGb > 0 ? `清理所选 AI 冗余 (${selectedGb.toFixed(2)} GB)` : !STATE.aiMoonBands.length ? '开始扫描' : 'AI 冗余已清理完毕';
     heroHeadline.textContent = selectedGb > 0
       ? `发现 ${selectedGb.toFixed(2)} GB AI 开发工具旧版本包与过期缓存`
-      : '当前所选 AI 开发工具冗余缓存已全部清理完毕';
+      : !STATE.aiMoonBands.length ? '还没有扫描结果' : '当前所选 AI 开发工具冗余缓存已全部清理完毕';
     heroDesc.textContent = '自动识别旧版本更新包、渲染缓存与过期工作树；您的 AI 历史对话记录、长期记忆 (Memories) 与自定义技能以 🔒 锁定保护（无勾选框，且绝不进入清理确认弹窗）。';
     heroStatLabel.textContent = 'AI 专项可释放';
     heroStatValue.textContent = `${selectedGb.toFixed(2)} GB`;
@@ -2152,7 +2226,7 @@ function renderModule() {
               <div class="bento-cell"><div class="bento-label">重建与影响</div><div class="bento-val" style="color:var(--accent-emerald);">${selBand.rebuildTime}</div></div>
             </div>
             <div class="inspector-box" style="border-left:3px solid var(--accent-primary);">
-              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">🛡️ AI 数据安全边界说明</div>
+              <div style="font-weight:700;margin-bottom:3px;font-size:11px;">${UI_ICON('shield')} AI 数据安全边界说明</div>
               <div style="color:var(--text-secondary);font-size:11px;">${selBand.impact}</div>
             </div>
             <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">关联本地路径明细</div>
@@ -2202,7 +2276,7 @@ function renderModule() {
       const activeOrphans = checkedOrphans.length > 0 ? checkedOrphans : [selOrphan].filter(Boolean);
       const totalSelectedOrphanGb = activeOrphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
 
-      topTitle.textContent = '分离器 · 已卸载应用残留清理 (Jettison · Leftovers)';
+      topTitle.textContent = '已卸载应用残留清理 · 分离器';
       primaryBtnText.textContent = `一键清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)`;
       heroHeadline.textContent = selOrphan
         ? `发现 ${orphans.length} 组已卸载应用的孤立残留（含 Docker 容器与 Android Studio 残留）`
@@ -2280,7 +2354,7 @@ function renderModule() {
                 <div class="bento-cell"><div class="bento-label">📦 主程序状态</div><div class="bento-val" style="color:var(--accent-amber);">已卸载 (无 .app)</div></div>
                 <div class="bento-cell"><div class="bento-label">🗂️ 扫描到遗留目录</div><div class="bento-val">${selOrphan.subpaths.length} 处孤立路径</div></div>
                 <div class="bento-cell"><div class="bento-label">💾 占用磁盘体积</div><div class="bento-val" style="color:var(--accent-rose);">${selOrphan.leftoverSizeGb.toFixed(2)} GB</div></div>
-                <div class="bento-cell"><div class="bento-label">🛡️ 清理安全性</div><div class="bento-val" style="color:var(--accent-emerald);">完全安全 (无主残留)</div></div>
+                <div class="bento-cell"><div class="bento-label">${UI_ICON('shield')} 清理安全性</div><div class="bento-val" style="color:var(--accent-emerald);">完全安全 (无主残留)</div></div>
               </div>
 
               <div style="font-size:11px;color:var(--text-secondary);background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:7px;padding:6px 10px;line-height:1.4;">
@@ -2328,7 +2402,7 @@ function renderModule() {
       const activeApps = checkedApps.length > 0 ? checkedApps : [selApp].filter(Boolean);
       const totalSelectedAppGb = activeApps.reduce((s, a) => s + calcAppGb(a), 0);
 
-      topTitle.textContent = '分离器 · 管理本机应用卸载 (Jettison · App Uninstaller)';
+      topTitle.textContent = '应用卸载管理 · 分离器';
       primaryBtnText.textContent = mode === 'cache_only'
         ? `仅清理所选应用缓存 (${totalSelectedAppGb.toFixed(2)} GB)`
         : mode === 'standard'
@@ -2459,7 +2533,7 @@ function renderModule() {
     const curSelectedTile = activeTiles[activeIdx] || activeTiles[0] || { name: '暂无目录', path: '~', sizeGb: 0 };
     const totalLfGb = STATE.largeFiles.reduce((s, f) => s + f.sizeGb, 0);
 
-    topTitle.textContent = '星图仪 · 磁盘空间分析 (Astrolabe)';
+    topTitle.textContent = '磁盘空间分析 · 星图仪';
     primaryBtnText.textContent = STATE.analyzeLoading ? 'mo analyze 扫描中' : '用 mo analyze 重新扫描';
     heroHeadline.textContent = STATE.analyzeLoading
       ? '正在调用 mo analyze --json'
@@ -2490,7 +2564,7 @@ function renderModule() {
         <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-secondary);">
           ${isDrilled
             ? `<button class="btn" style="padding:2px 9px;font-size:10.5px;" onclick="revealInFinder('${curSelectedTile.path}')">📂 在访达中打开 ${curSelectedTile.path}</button>`
-            : `<span style="color:var(--accent-primary);font-weight:600;">💡 提示：点击任意色块可下钻查看内部子目录结构</span>`
+            : `<span style="color:var(--accent-primary);font-weight:600;">${UI_ICON('info')} 提示：点击任意色块可下钻查看内部子目录结构</span>`
           }
         </div>
       </div>
@@ -2581,7 +2655,7 @@ function renderModule() {
     const curDisk = STATE.diskSeries[STATE.diskSeries.length - 1];
     const memPct = +((STATE.memUsedGb / Math.max(1, STATE.memTotalGb)) * 100).toFixed(1);
 
-    topTitle.textContent = '遥测台 · 实时状态监控 (Telemetry)';
+    topTitle.textContent = '实时状态监控 · 遥测台';
     primaryBtnText.textContent = '立即采样刷新';
     heroHeadline.textContent = `系统健康评分 ● ${STATE.healthScore} · ${STATE.cpuModelName}`;
     heroDesc.textContent = '直接连接 macOS 内核进程表 (/bin/ps) 与 vm_stat / statfs 系统接口，每 1.5 秒实时更新真实活跃进程、CPU 占用与内存消耗，点击「结束进程」直接调用系统信号终止对应 PID。';
@@ -2709,11 +2783,11 @@ function renderModule() {
     const instGb = STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
     const totalDevGb = purgeGb + instGb;
 
-    topTitle.textContent = '载荷舱 · 构建产物与安装包 (Payload)';
-    primaryBtnText.textContent = totalDevGb > 0 ? `清理所选构建与安装包 (${totalDevGb.toFixed(2)} GB)` : '已全部清理完毕';
+    topTitle.textContent = '构建产物与安装包 · 载荷舱';
+    primaryBtnText.textContent = totalDevGb > 0 ? `清理所选构建与安装包 (${totalDevGb.toFixed(2)} GB)` : !(STATE.purgeItems.length + STATE.installerFiles.length) ? '开始扫描' : '已全部清理完毕';
     heroHeadline.textContent = totalDevGb > 0
       ? `发现 ${purgeGb.toFixed(2)} GB 项目构建产物 + ${instGb.toFixed(2)} GB 独立安装包`
-      : '所有勾选的项目构建产物与独立安装包已清理完毕';
+      : !(STATE.purgeItems.length + STATE.installerFiles.length) ? '还没有扫描结果' : '所有勾选的项目构建产物与独立安装包已清理完毕';
     heroDesc.textContent = '扫描本地工作区下的 node_modules、Rust target、DerivedData 与虚拟环境，并汇总 ~/Downloads 中的大型安装包归档（.dmg / .pkg / .xip）。';
     heroStatLabel.textContent = '开发者空间可释放';
     heroStatValue.textContent = `${totalDevGb.toFixed(2)} GB`;
@@ -2784,7 +2858,7 @@ function renderModule() {
     `;
   } else {
     const doneCount = STATE.optimizeTasks.filter(t => t.done).length;
-    topTitle.textContent = mod === 'optimize' ? '推进器 · 系统加速优化 (Thruster)' : '黑匣子 · 恢复记录与白名单 (Blackbox)';
+    topTitle.textContent = mod === 'optimize' ? '系统加速优化 · 推进器' : '恢复记录与白名单 · 黑匣子';
     primaryBtnText.textContent = mod === 'optimize' ? '一键执行全部优化' : '导出恢复记录';
     heroHeadline.textContent = doneCount > 0 ? `已完成 ${doneCount} 项系统加速维护` : '5 项系统缓存重建与数据库整理就绪';
     heroDesc.textContent = '一键修复输入法卡顿、重建访达缩略图、刷新本地 DNS 与无损整理系统数据库碎片；右侧集中管理所有受保护的核心资产白名单与废纸篓还原记录。';
@@ -2843,7 +2917,7 @@ function renderModule() {
             </div>
             ${STATE.whitelist.map((w, idx) => `
               <div class="subpath-item">
-                <span class="subpath-left">🛡️ ${w}</span>
+                <span class="subpath-left">${UI_ICON('shield')} ${w}</span>
                 <span class="badge badge-protected subpath-right" style="cursor:pointer;" onclick="removeWhitelistIdx(${idx})" title="点击移除此白名单">已隔离保护</span>
               </div>
             `).join('')}
@@ -2868,16 +2942,16 @@ window.toggleTheme = function() {
 function toggleLanguage() {
   STATE.lang = STATE.lang === 'zh' ? 'en' : 'zh';
   const isZH = STATE.lang === 'zh';
-  document.getElementById('navGroupCore').textContent = isZH ? '核心轨道舱段 · ORBIT CORE' : 'ORBITAL CORE MODULES';
-  document.getElementById('navGroupTools').textContent = isZH ? '载荷与安全舱 · PAYLOAD & VAULT' : 'PAYLOAD & BLACKBOX';
-  document.getElementById('navLabelClean').textContent = isZH ? '气闸舱 · 深度清理' : 'Airlock · Deep Clean';
-  document.getElementById('navLabelMoon').textContent = isZH ? '智核舱 · AI 清理' : 'Cortex · AI Care';
-  document.getElementById('navLabelSoftware').textContent = isZH ? '分离器 · 应用卸载' : 'Jettison · Uninstaller';
-  document.getElementById('navLabelOptimize').textContent = isZH ? '推进器 · 系统加速' : 'Thruster · Optimize';
-  document.getElementById('navLabelAnalyze').textContent = isZH ? '星图仪 · 空间分析' : 'Astrolabe · Disk Radar';
-  document.getElementById('navLabelStatus').textContent = isZH ? '遥测台 · 状态监控' : 'Telemetry · Monitor';
-  document.getElementById('navLabelPurge').textContent = isZH ? '载荷舱 · 构建清理' : 'Payload · Build & Pkg';
-  document.getElementById('navLabelHistory').textContent = isZH ? '黑匣子 · 恢复白名单' : 'Blackbox · Vault';
+  document.getElementById('navGroupCore').textContent = isZH ? '核心功能' : 'Core';
+  document.getElementById('navGroupTools').textContent = isZH ? '工具与安全' : 'Tools & Safety';
+  document.getElementById('navLabelClean').textContent = isZH ? '深度清理' : 'Deep Clean';
+  document.getElementById('navLabelMoon').textContent = isZH ? 'AI 清理' : 'AI Care';
+  document.getElementById('navLabelSoftware').textContent = isZH ? '应用卸载' : 'Uninstaller';
+  document.getElementById('navLabelOptimize').textContent = isZH ? '系统加速' : 'Optimize';
+  document.getElementById('navLabelAnalyze').textContent = isZH ? '空间分析' : 'Disk Analyzer';
+  document.getElementById('navLabelStatus').textContent = isZH ? '状态监控' : 'Live Status';
+  document.getElementById('navLabelPurge').textContent = isZH ? '构建清理' : 'Build Cleanup';
+  document.getElementById('navLabelHistory').textContent = isZH ? '历史与白名单' : 'History & Whitelist';
   document.getElementById('btnRecheckText').textContent = isZH ? '重新联检' : 'Pre-flight';
   updateSidebarBadges();
   renderModule();
@@ -3234,6 +3308,256 @@ document.addEventListener('keydown', (e) => {
     closeDoctorModal();
   }
 });
+
+// ---------------------------------------------------------------------------
+// UX layer: semantics for click-only <div>s, keyboard navigation, and
+// focus/scroll preservation across the full re-render that renderModule() does.
+// ---------------------------------------------------------------------------
+(function () {
+  const NATIVE = 'BUTTON,INPUT,A,SELECT,TEXTAREA';
+  const stageEl = () => document.getElementById('moduleStage');
+
+  function enhance() {
+    document.querySelectorAll('[onclick]').forEach(el => {
+      if (el.matches(NATIVE) || el.classList.contains('modal-backdrop')) return;
+      if (/^\s*event\.stopPropagation\(\);?\s*$/.test(el.getAttribute('onclick') || '')) return;
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      if (el.tagName !== 'TH' && !el.hasAttribute('role')) {
+        el.setAttribute('role', el.classList.contains('seg-tab') ? 'tab' : 'button');
+      }
+    });
+    document.querySelectorAll('.segmented-tabs').forEach(el => el.setAttribute('role', 'tablist'));
+    document.querySelectorAll('.seg-tab').forEach(el => el.setAttribute('aria-selected', el.classList.contains('active')));
+    document.querySelectorAll('.nav-item').forEach((el, i) => {
+      if (el.classList.contains('active')) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+      if (i < 8) el.title = (el.dataset.code ? el.dataset.code + ' · ' : '') + '⌘' + (i + 1);
+    });
+    document.querySelectorAll('.list-row').forEach(el => {
+      if (el.classList.contains('selected')) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('.modal-sheet').forEach(el => { el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); });
+    const pal = document.querySelector('#cmdPaletteModal .modal-sheet');
+    if (pal) pal.setAttribute('aria-label', '命令面板');
+  }
+
+  // renderModule() replaces #moduleStage.innerHTML on every click and every
+  // 1.5 s telemetry tick, which dropped keyboard focus and reset list scroll.
+  // Wrap it: remember both, re-apply them when the module itself did not change.
+  const focusables = () => Array.from(stageEl().querySelectorAll('[tabindex="0"], button, input'));
+  let lastMod = null;
+  const originalRender = renderModule;
+  renderModule = function () {
+    const s = stageEl();
+    const sameModule = lastMod === STATE.module;
+    let idx = -1;
+    let scrolls = [];
+    if (s && sameModule) {
+      if (s.contains(document.activeElement)) idx = focusables().indexOf(document.activeElement);
+      scrolls = Array.from(s.querySelectorAll('.list-body')).map(n => n.scrollTop);
+    }
+    originalRender.apply(this, arguments);
+    lastMod = STATE.module;
+    enhance();
+    if (s && sameModule) {
+      Array.from(s.querySelectorAll('.list-body')).forEach((n, i) => { if (scrolls[i]) n.scrollTop = scrolls[i]; });
+      if (idx >= 0) {
+        const list = focusables();
+        const t = list[Math.min(idx, list.length - 1)];
+        if (t) t.focus({ preventScroll: true });
+      }
+    }
+  };
+
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; enhance(); });
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+
+  // Modals: move focus in, restore it on close.
+  const opener = new WeakMap();
+  const modalObserver = new MutationObserver(muts => muts.forEach(m => {
+    const el = m.target;
+    const open = el.classList.contains('open');
+    if (open && !opener.has(el)) {
+      opener.set(el, document.activeElement);
+      setTimeout(() => {
+        const t = el.querySelector('[data-autofocus]') || el.querySelector('input,button');
+        if (t && !el.contains(document.activeElement)) t.focus();
+      }, 30);
+    } else if (!open && opener.has(el)) {
+      const prev = opener.get(el);
+      opener.delete(el);
+      if (prev && document.contains(prev) && prev.focus) prev.focus();
+    }
+  }));
+  document.querySelectorAll('.modal-backdrop').forEach(el => modalObserver.observe(el, { attributes: true, attributeFilter: ['class'] }));
+
+  document.addEventListener('keydown', e => {
+    const t = e.target;
+    // ⌘1–⌘8 jump to a module, in sidebar order.
+    if ((e.metaKey || e.ctrlKey) && /^[1-8]$/.test(e.key)) {
+      const it = document.querySelectorAll('.nav-item[data-mod]')[Number(e.key) - 1];
+      if (it) { e.preventDefault(); it.click(); }
+      return;
+    }
+    // Keep Tab inside an open dialog.
+    if (e.key === 'Tab') {
+      const m = document.querySelector('.modal-backdrop.open');
+      if (m) {
+        const f = Array.from(m.querySelectorAll('button,input,[tabindex="0"]')).filter(x => !x.disabled && x.offsetParent !== null);
+        if (f.length) {
+          const first = f[0], last = f[f.length - 1], inside = m.contains(document.activeElement);
+          if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }
+      return;
+    }
+    if (!t.matches || t.matches('input,textarea,select')) return;
+    // Enter / Space activate click-only controls.
+    if ((e.key === 'Enter' || e.key === ' ') && t.matches('[role="button"],[role="tab"],th[tabindex]')) {
+      e.preventDefault();
+      t.click();
+      return;
+    }
+    // Arrow keys move through rows (↑↓) and tabs (←→).
+    const isRow = t.classList.contains('list-row');
+    const isTab = t.classList.contains('seg-tab');
+    if (!isRow && !isTab) return;
+    const vertical = e.key === 'ArrowDown' || e.key === 'ArrowUp';
+    const horizontal = e.key === 'ArrowRight' || e.key === 'ArrowLeft';
+    if ((isRow && !vertical) || (isTab && !horizontal)) return;
+    const fwd = e.key === 'ArrowDown' || e.key === 'ArrowRight';
+    const cls = isRow ? 'list-row' : 'seg-tab';
+    let n = fwd ? t.nextElementSibling : t.previousElementSibling;
+    while (n && !n.classList.contains(cls)) n = fwd ? n.nextElementSibling : n.previousElementSibling;
+    if (n) { e.preventDefault(); n.focus(); n.scrollIntoView({ block: 'nearest' }); }
+  });
+
+  enhance();
+})();
+
+// ---------------------------------------------------------------------------
+// States and preferences: loading / empty lists, Preview tag, system theme.
+// ---------------------------------------------------------------------------
+(function () {
+  const T = (zh, en) => (STATE.lang === 'en' ? en : zh);
+  const hasBridge = () => !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.moleNative);
+  let scanning = false, scanTimer = null;
+  const endScan = () => { scanning = false; clearTimeout(scanTimer); };
+
+  function listPlaceholder() {
+    if (scanning) {
+      const row = '<div class="skel-row"><span class="skel skel-dot"></span><div style="flex:1;min-width:0;"><span class="skel skel-line" style="width:46%"></span><span class="skel skel-line" style="width:68%;height:8px"></span></div><span class="skel skel-size"></span></div>';
+      return '<div role="status" aria-label="' + T('正在扫描', 'Scanning') + '">' + row.repeat(6) + '</div>';
+    }
+    let icon = 'search', title, desc, label, act;
+    if (STATE.searchQuery) {
+      title = T('没有匹配的项目', 'No matches');
+      desc = T('换个关键词试试，或清除搜索。', 'Try another keyword, or clear the search.');
+      label = T('清除搜索', 'Clear search');
+      act = "var i=document.getElementById('searchInput');i.value='';handleSearch('')";
+    } else if (STATE.module === 'clean' && STATE.cleanFilter && STATE.cleanFilter !== 'all' && STATE.cleanGroups.length) {
+      title = T('这个分类下没有项目', 'Nothing in this filter');
+      desc = T('当前筛选条件下没有可清理的目录。', 'No cleanable folders match the current filter.');
+      label = T('显示全部', 'Show all');
+      act = "setCleanFilter('all')";
+    } else {
+      icon = 'refresh';
+      title = T('还没有扫描结果', 'No scan results yet');
+      desc = T('扫描会读取本机的缓存、应用和大文件，不会删除任何内容。', 'A scan reads caches, apps and large files on this Mac. Nothing is deleted.');
+      label = T('开始扫描', 'Start scan');
+      act = 'triggerNativeRescan()';
+    }
+    return '<div class="empty-state">' + UI_ICON(icon) + '<div class="empty-title">' + title + '</div><div class="empty-desc">' + desc +
+      '</div><button class="btn btn-primary" onclick="' + act + '">' + label + '</button></div>';
+  }
+
+  function decorate() {
+    const stage = document.getElementById('moduleStage');
+    if (!stage) return;
+    stage.querySelectorAll('.list-body').forEach(n => {
+      if (n.textContent.trim() === '' && !n.querySelector('svg,img,input')) n.innerHTML = listPlaceholder();
+    });
+    // AI Care drives mo flags that the current mo release does not have (README, "Project status").
+    let tag = document.getElementById('previewTag');
+    if (STATE.module === 'ai_moon') {
+      if (!tag) {
+        tag = document.createElement('span');
+        tag.id = 'previewTag';
+        tag.className = 'badge badge-preview';
+        document.getElementById('topTitle').after(tag);
+      }
+      tag.textContent = T('预览', 'Preview');
+      tag.title = T('界面为设计预览：相关 mo 命令（如 --ai-care）在当前 mo 版本中尚不存在。',
+                    'Design preview: the related mo commands (such as --ai-care) do not exist in the current mo release.');
+    } else if (tag) {
+      tag.remove();
+    }
+  }
+
+  // With nothing scanned yet the primary button scans instead of opening an empty confirm sheet.
+  const prevPrimary = handlePrimaryAction;
+  handlePrimaryAction = function () {
+    const lists = { clean: STATE.cleanGroups, ai_moon: STATE.aiMoonBands, purge: [].concat(STATE.purgeItems, STATE.installerFiles) };
+    const l = lists[STATE.module];
+    if (l && l.length === 0) { triggerNativeRescan(); return; }
+    return prevPrimary.apply(this, arguments);
+  };
+
+  const prevRender = renderModule;
+  renderModule = function () { prevRender.apply(this, arguments); decorate(); };
+
+  const prevScan = triggerNativeRescan;
+  triggerNativeRescan = function () {
+    if (hasBridge()) {
+      scanning = true;
+      clearTimeout(scanTimer);
+      scanTimer = setTimeout(() => { endScan(); renderModule(); }, 20000);
+    }
+    prevScan.apply(this, arguments);
+    renderModule();
+  };
+  const prevDone = window.onNativeRealScanComplete;
+  window.onNativeRealScanComplete = function (payload) {
+    endScan();
+    const r = prevDone.apply(this, arguments);
+    if (!payload) renderModule();
+    return r;
+  };
+
+  // Theme: follow the system until the user picks one, then remember the choice.
+  const KEY = 'orbit_theme';
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function applyTheme(t) {
+    STATE.theme = t;
+    document.documentElement.setAttribute('data-theme', t);
+    const b = document.getElementById('btnTheme');
+    if (b) b.textContent = t === 'dark' ? '浅色模式' : '深色模式';
+  }
+  // Tell AppKit, so window colour and system controls match. Not from the menu-bar popover.
+  const postTheme = t => {
+    if (window.isMenuBarPopover) return;
+    try { window.webkit.messageHandlers.moleNative.postMessage({ action: 'setTheme', theme: t }); } catch (e) {}
+  };
+  if (saved === 'dark' || saved === 'light') applyTheme(saved);
+  else if (mq) applyTheme(mq.matches ? 'dark' : 'light');
+  postTheme(saved === 'dark' || saved === 'light' ? saved : 'system');
+  if (mq && mq.addEventListener) mq.addEventListener('change', e => {
+    if (!saved) { applyTheme(e.matches ? 'dark' : 'light'); postTheme('system'); renderModule(); }
+  });
+  const prevToggle = window.toggleTheme;
+  window.toggleTheme = function () {
+    prevToggle.apply(this, arguments);
+    saved = STATE.theme;
+    try { localStorage.setItem(KEY, saved); } catch (e) {}
+    postTheme(saved);
+  };
+})();
 
 updateSidebarBadges();
 hydrateGlyphs();
