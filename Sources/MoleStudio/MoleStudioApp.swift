@@ -14,7 +14,7 @@ final class StatusPopoverViewController: NSViewController {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func loadView() {
-        let rect = NSRect(x: 0, y: 0, width: 356, height: 436)
+        let rect = NSRect(x: 0, y: 0, width: 356, height: 480)
         let config = WKWebViewConfiguration()
         let controller = WKUserContentController()
         controller.add(bridge, name: "moleNative")
@@ -239,7 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         configureStatusItem()
 
-        popover.contentSize = NSSize(width: 356, height: 436)
+        popover.contentSize = NSSize(width: 356, height: 480)
         popover.behavior = .transient
         popover.contentViewController = popoverVC
 
@@ -334,12 +334,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             let disk = RealMacSystemScanner.shared.queryDiskSpace()
             let mem = RealMacSystemScanner.shared.queryMemoryUsage()
             let procSnap = RealMacSystemScanner.shared.sampleRealProcesses()
+            let power = PowerStatus.snapshot()
             let payload: [String: Any] = [
                 "cpu": procSnap.cpuTotal,
                 "freeDiskGb": disk.freeGb,
                 "memUsedGb": mem.usedGb,
                 "memTotalGb": mem.totalGb,
-                "processes": procSnap.processes
+                "processes": procSnap.processes,
+                "power": power
             ]
             guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
                   let json = String(data: jsonData, encoding: .utf8) else { return }
