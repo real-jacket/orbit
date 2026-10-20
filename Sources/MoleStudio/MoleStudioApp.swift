@@ -14,7 +14,7 @@ final class StatusPopoverViewController: NSViewController {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func loadView() {
-        let rect = NSRect(x: 0, y: 0, width: 356, height: 436)
+        let rect = NSRect(x: 0, y: 0, width: 356, height: 480)
         let config = WKWebViewConfiguration()
         let controller = WKUserContentController()
         controller.add(bridge, name: "moleNative")
@@ -113,6 +113,11 @@ final class NativeBridgeController: NSObject, WKScriptMessageHandler {
             showMainWindow(nil)
         case "menubarQuit":
             NSApp.terminate(nil)
+        case "setTheme":
+            // "dark" / "light" are an explicit choice in the web UI; "system" means follow macOS.
+            if let theme = dict["theme"] as? String, ["dark", "light", "system"].contains(theme) {
+                appDelegate?.applyTheme(theme, remember: true)
+            }
         default:
             break
         }
@@ -197,12 +202,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             defer: false
         )
         window.title = "orbit"
+        // The delegate owns the window strongly; without this, closing it (red button, ⌘W)
+        // releases it a second time and reopening from the menu-bar item crashes.
+        window.isReleasedWhenClosed = false
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.minSize = NSSize(width: 880, height: 620)
-        window.backgroundColor = NSColor(calibratedRed: 0.067, green: 0.067, blue: 0.063, alpha: 1.0)
-        window.center()
+        window.backgroundColor = AppDelegate.darkBackground
+        if !window.setFrameUsingName("orbit.main") { window.center() }
+        window.setFrameAutosaveName("orbit.main")
 
         let config = WKWebViewConfiguration()
         let ucc = WKUserContentController()
@@ -223,9 +232,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         }
 
         window.contentView = webView
+        applyTheme(UserDefaults.standard.string(forKey: AppDelegate.themeKey) ?? "system", remember: false)
+        buildMainMenu()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
+        configureStatusItem()
+
+        popover.contentSize = NSSize(width: 356, height: 480)
+        popover.behavior = .transient
+        popover.contentViewController = popoverVC
+
+        telemetryTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            self?.pushRealTelemetryNow()
+        }
+    }
+
+    /// Menu-bar item: a monochrome template mark, so AppKit tints it for light and dark menu bars.
+    private func configureStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
             // The menu-bar mark carries the same three elements as the app icon —
@@ -292,18 +316,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                 return true
             }
             orbitImage.isTemplate = true
+            orbitImage.accessibilityDescription = "orbit"
             button.image = orbitImage
             button.toolTip = "orbit · 点击展开系统状态栏"
             button.target = self
             button.action = #selector(toggleStatusPopover(_:))
-        }
-
-        popover.contentSize = NSSize(width: 356, height: 436)
-        popover.behavior = .transient
-        popover.contentViewController = popoverVC
-
-        telemetryTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            self?.pushRealTelemetryNow()
         }
     }
 
@@ -317,12 +334,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             let disk = RealMacSystemScanner.shared.queryDiskSpace()
             let mem = RealMacSystemScanner.shared.queryMemoryUsage()
             let procSnap = RealMacSystemScanner.shared.sampleRealProcesses()
+            let power = PowerStatus.snapshot()
             let payload: [String: Any] = [
                 "cpu": procSnap.cpuTotal,
                 "freeDiskGb": disk.freeGb,
                 "memUsedGb": mem.usedGb,
                 "memTotalGb": mem.totalGb,
-                "processes": procSnap.processes
+                "processes": procSnap.processes,
+                "power": power
             ]
             guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
                   let json = String(data: jsonData, encoding: .utf8) else { return }
@@ -384,6 +403,84 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
+    }
+
+    /// Clicking the Dock icon after the window was closed brings it back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { window.makeKeyAndOrderFront(nil) }
+        return true
+    }
+
+    // MARK: - Appearance
+
+    static let themeKey = "orbit.theme"
+    // Same values as --bg-window in index.html (dark and light).
+    static let darkBackground = NSColor(calibratedRed: 0.067, green: 0.067, blue: 0.063, alpha: 1.0)
+    static let lightBackground = NSColor(calibratedRed: 0.980, green: 0.973, blue: 0.961, alpha: 1.0)
+
+    /// Keeps native chrome (window background, overscroll colour, system controls) in step with the
+    /// web UI. "system" clears the override so macOS drives both.
+    func applyTheme(_ theme: String, remember: Bool) {
+        switch theme {
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        default: NSApp.appearance = nil
+        }
+        if remember {
+            if theme == "system" {
+                UserDefaults.standard.removeObject(forKey: AppDelegate.themeKey)
+            } else {
+                UserDefaults.standard.set(theme, forKey: AppDelegate.themeKey)
+            }
+        }
+        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        window.backgroundColor = isDark ? AppDelegate.darkBackground : AppDelegate.lightBackground
+        webView.underPageBackgroundColor = window.backgroundColor ?? .black
+    }
+
+    // MARK: - Main menu
+    // Without a main menu, ⌘C / ⌘V / ⌘A do nothing in the web view's search and command-palette
+    // fields, and ⌘Q, ⌘W, ⌘M and ⌘H are dead.
+
+    private func buildMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appItem = NSMenuItem()
+        mainMenu.addItem(appItem)
+        let appMenu = NSMenu()
+        appItem.submenu = appMenu
+        appMenu.addItem(withTitle: "关于 orbit", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "隐藏 orbit", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = appMenu.addItem(withTitle: "隐藏其他", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(withTitle: "全部显示", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "退出 orbit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        let editItem = NSMenuItem()
+        mainMenu.addItem(editItem)
+        let editMenu = NSMenu(title: "编辑")
+        editItem.submenu = editMenu
+        editMenu.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        let windowItem = NSMenuItem()
+        mainMenu.addItem(windowItem)
+        let windowMenu = NSMenu(title: "窗口")
+        windowItem.submenu = windowMenu
+        windowMenu.addItem(withTitle: "最小化", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "缩放", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: "关闭", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+
+        NSApp.mainMenu = mainMenu
+        NSApp.windowsMenu = windowMenu
     }
 }
 
