@@ -178,7 +178,19 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: path, Error: "路径不存在"})
 			continue
 		}
-		trashed, err := moveToTrash(path)
+		trashed, err, timedOut := moveWithWatchdog(path)
+		if timedOut {
+			// A blocked rename is what an impossible-to-answer TCC prompt looks
+			// like: the syscall never returns, so without this the page waits for
+			// a receipt that never comes and the user sees "nothing happened".
+			outcome.Failed = append(outcome.Failed, TrashFailure{
+				Path: path,
+				Error: "系统没有返回结果：macOS 很可能正在等一个授权弹窗。" +
+					"请在「系统设置 › 隐私与安全性」里给 MoleStudio 打开「文件与文件夹」或「完全磁盘访问权限」后重试。",
+				Pane: "filesAndFolders",
+			})
+			continue
+		}
 		if err != nil {
 			outcome.Failed = append(outcome.Failed, trashFailure(path, err))
 			continue
@@ -186,6 +198,7 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 		outcome.Moved = append(outcome.Moved, TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix()})
 		entries = append(entries, outcome.Moved[len(outcome.Moved)-1])
 	}
+	defer logTrashOutcome("trash", outcome)
 	if len(entries) > 0 {
 		if err := recordTrash(entries); err != nil {
 			// The files are already gone; recording the receipt is best effort,
@@ -232,7 +245,76 @@ func (s *Scanner) RestoreTrash(originals []string) RestoreOutcome {
 	if len(restored) > 0 {
 		_ = forgetTrash(restored)
 	}
+	logTrashOutcome("restore", TrashOutcome{Requested: outcome.Requested, Failed: outcome.Failed})
 	return outcome
+}
+
+// moveWatchdog bounds how long the app waits for one move. A TCC prompt that
+// can never be answered turns rename(2) into a blocking call; without a bound
+// the receipt is never produced and the UI looks frozen rather than refused.
+const moveWatchdog = 8 * time.Second
+
+// moveWithWatchdog moves one path to the Trash and reports whether the kernel
+// left the call hanging instead of refusing it outright.
+func moveWithWatchdog(path string) (string, error, bool) {
+	type result struct {
+		trashed string
+		err     error
+	}
+	done := make(chan result, 1)
+	go func() {
+		trashed, err := moveToTrash(path)
+		done <- result{trashed: trashed, err: err}
+	}()
+	select {
+	case out := <-done:
+		return out.trashed, out.err, false
+	case <-time.After(moveWatchdog):
+		// The move may still finish later; keep the receipt so restore works.
+		go func() {
+			out := <-done
+			if out.err != nil {
+				return
+			}
+			_ = recordTrash([]TrashEntry{{Original: path, Trashed: out.trashed, At: time.Now().Unix()}})
+			logTrashOutcome("trash-late", TrashOutcome{
+				Requested: 1,
+				Moved:     []TrashEntry{{Original: path, Trashed: out.trashed, At: time.Now().Unix()}},
+			})
+		}()
+		return "", nil, true
+	}
+}
+
+// logTrashOutcome appends one JSON line to <state>/trash.log so a refusal can be
+// diagnosed later without reproducing it in a debugger. It is best effort and
+// caps the file so it cannot grow without bound.
+func logTrashOutcome(action string, outcome TrashOutcome) {
+	record := map[string]any{
+		"at":        time.Now().Format(time.RFC3339),
+		"action":    action,
+		"requested": outcome.Requested,
+		"moved":     len(outcome.Moved),
+		"skipped":   outcome.Skipped,
+		"failed":    outcome.Failed,
+	}
+	line, err := json.Marshal(record)
+	if err != nil {
+		return
+	}
+	path := filepath.Join(StateDir(), "trash.log")
+	if info, err := os.Stat(path); err == nil && info.Size() > 256*1024 {
+		_ = os.Remove(path)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	_, _ = file.Write(append(line, '\n'))
 }
 
 // moveBack returns one trashed item to its original path, renaming it if

@@ -2760,8 +2760,10 @@ function removeLargeFile(idx) {
       const at = STATE.largeFiles.findIndex(f => f.path === lf.path);
       if (at >= 0) STATE.largeFiles.splice(at, 1);
       if (!STATE.deletedPathsRegistry.includes(lf.path)) STATE.deletedPathsRegistry.push(lf.path);
+      lf.failed = false;
+      lf.failedReason = '';
     },
-    onFail: () => { lf.failed = true; }
+    onFail: (failed) => { lf.failed = true; lf.failedReason = (failed && failed[0] && failed[0].error) || '未能移入废纸篓'; }
   };
   submitTrash([entry], {
     title: '大文件清理',
@@ -3603,12 +3605,13 @@ function renderModule() {
                 <div style="min-width:0;">
                   <div class="row-title">${escHtml(lf.name)}</div>
                   <div class="row-sub" style="cursor:pointer;" onclick="revealInFinder('${jsq(lf.path)}')">${escHtml(lf.path)}</div>
+                  ${lf.failed ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;line-height:1.5;margin-top:2px;">${escHtml(lf.failedReason || '未能移入废纸篓')}${finderFallbackLink(lf.path)}</div>` : ''}
                 </div>
               </div>
               <div class="row-right">
-                <span class="badge badge-review">${escHtml(lf.kind || '文件')}</span>
+                ${lf.failed ? `<span class="badge" style="background:rgba(244,63,94,.14);color:var(--accent-rose);border:1px solid rgba(244,63,94,.35);">删除失败</span>` : `<span class="badge badge-review">${escHtml(lf.kind || '文件')}</span>`}
                 <span class="size-cell">${(Number(lf.sizeGb) || 0).toFixed(2)} GB</span>
-                <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="removeLargeFile(${idx})">移至废纸篓</button>
+                <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="removeLargeFile(${idx})">${lf.failed ? '重试' : '移至废纸篓'}</button>
               </div>
             </div>
           `).join('')}
