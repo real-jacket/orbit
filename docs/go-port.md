@@ -248,16 +248,39 @@ ok  github.com/mymoles/mole-studio/internal/trayicon
 
 `make check` 就是这两条串起来，CI 该跑的就是它。
 
-### 4.2 本地可执行文件
+### 4.2 开发热重载
+
+```bash
+make dev     # 需要 mygo CLI，见上文 go install
+```
+
+它把前端和 Go 代码打进一个临时 bundle `.mygo/dev/darwin-arm64/MoleStudio Dev.app` 并启动，然后监听整棵树：保存 `Resources/src-ui/index.html`（或任意 `.go` 文件）会在约 5 秒内重建并重启应用，日志里是
+
+```
+○ Rebuilding MoleStudio Dev (resources/src-ui/index.html changed)
+✓ Rebuilt MoleStudio Dev (resources/src-ui/index.html changed)  5.3s
+```
+
+这条路径**不需要** `MYGO_FRONTEND_DIST`：`mygo dev` 自己生成内嵌前端，`.mygo/` 已在 `.gitignore` 里。
+
+### 4.3 本地可执行文件
+
+```bash
+make run     # go run .，等价于 MYGO_FRONTEND_DIST=Resources/src-ui go run .
+```
+
+`make run` 会开一个 1380×860 主窗口、一个菜单栏托盘和 356×480 的 flyout，页面通过 preload 的 shim 拿到原生数据。
+
+**为什么需要 `MYGO_FRONTEND_DIST`。** 前端正常是 `mygo build` 时生成 `mygo_frontend_gen.go` 再 `mygo.SetFrontend` 内嵌进二进制的，而这个生成文件是 gitignore 的，所以纯 `go run` / `go build` 里没有任何前端资源，`mygo://localhost/` 会返回 MyGo 自带的 `No frontend` 页面。MyGo 留了 dev 回退：`IsDev()`（默认成立，除非 `MYGO_ENV=production` 或 `MYGO_PRODUCTION=1`）且没有内嵌 FS 时，用 `MYGO_FRONTEND_DIST` 指向的目录当 `os.DirFS`。Makefile 的 `run` 目标已经带上了这个变量。
 
 ```bash
 make build   # go build -v -o mole-studio .
-./mole-studio
+MYGO_FRONTEND_DIST=Resources/src-ui ./mole-studio   # 不带变量就只能看到 No frontend 页
 ```
 
-预期产出仓库根目录下的 `mole-studio`（约 14 MB）。它会开一个 1380×860 主窗口、一个菜单栏托盘和 356×480 的 flyout，页面通过 preload 的 shim 拿到原生数据。
+产物是仓库根目录下的 `mole-studio`（约 14 MB）。
 
-### 4.3 打包
+### 4.4 打包
 
 ```bash
 make doctor      # 工具链自检，预期 go / bun / 平台三项 ✓；codesign、makensis、osslsign 找不到是正常的
@@ -281,7 +304,7 @@ build/darwin-arm64/MoleStudio 0.1.0 arm64.dmg   # 仅 make app
    正解是删掉整个 `resources` 数组；前端已由 `frontendDist` 内嵌，图标已由 `icon` 生成。
 2. `make app` 的 dmg 步骤依赖 `hdiutil`，受限环境会失败，见 §3.7。
 
-### 4.4 生成物
+### 4.5 生成物
 
 ```bash
 make generate    # 重新生成 mygo.ts（绑定变更后跑；mygo build 也会顺手跑一次）

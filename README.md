@@ -97,7 +97,10 @@ make help        # list every target
 **Which one should I run?** `make run` for day-to-day work: it compiles the Go
 binary and points MyGo at `Resources/src-ui/` on disk, so edits to that file show
 up on the next launch with no packaging step. `make dev` additionally gives you a
-live-reload dev server, but needs the CLI installed. `make app-nodmg` then
+live-reload dev server, but needs the CLI installed. `make dev` builds a throwaway
+`MoleStudio Dev` bundle under `.mygo/dev/`, runs it, and then watches the tree:
+saving `Resources/src-ui/index.html` (or any Go file) rebuilds and relaunches it in
+about five seconds. `make app-nodmg` then
 `open build/darwin-arm64/MoleStudio.app` is what users get: the same frontend,
 embedded into the binary instead of read from disk.
 
