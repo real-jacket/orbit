@@ -13,6 +13,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # The MyGo CLI is not vendored; every job installs the version the build uses.
+  MYGO_VERSION: v0.6.4
+
 jobs:
   build:
     name: Build & package
@@ -20,47 +24,87 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Show toolchain
         run: |
-          swift --version
-          xcodebuild -version
+          go version
+          sw_vers
 
-      - name: Build (debug)
-        run: swift build
-
-      - name: Build (release)
-        run: swift build -c release
+      - name: Vet
+        run: go vet ./...
 
       - name: Test
-        run: swift test
+        run: go test ./... -count=1
 
-      - name: Package .app bundle
-        run: make app
+      - name: Build
+        run: go build -v ./...
 
+      - name: Install the MyGo CLI
+        run: |
+          go install github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Package the .app bundle
+        run: mygo build --skip-dmg
+
+      # MyGo writes into a per-platform subdirectory: build/<goos>-<goarch>/.
       - name: Verify bundle layout
         run: |
           set -euo pipefail
-          test -x dist/MoleStudio.app/Contents/MacOS/MoleStudio
-          test -f dist/MoleStudio.app/Contents/Resources/src-ui/index.html
-          test -f dist/MoleStudio.app/Contents/Info.plist
-          plutil -lint dist/MoleStudio.app/Contents/Info.plist
+          bundle="build/$(go env GOOS)-$(go env GOARCH)/MoleStudio.app"
+          test -d "$bundle"
+          test -x "$bundle/Contents/MacOS/MoleStudio"
+          test -f "$bundle/Contents/Info.plist"
+          plutil -lint "$bundle/Contents/Info.plist"
 
-          # The icon must ship inside the bundle and be wired up via CFBundleIconFile.
-          test -f dist/MoleStudio.app/Contents/Resources/AppIcon.icns
-          test "$(plutil -extract CFBundleIconFile raw dist/MoleStudio.app/Contents/Info.plist)" = "AppIcon"
+          # The page is embedded in the binary rather than copied next to it,
+          # so look for a marker only the frontend contains.
+          grep -aq "MOLE_STUDIO_STATE_V8" "$bundle/Contents/MacOS/MoleStudio"
 
-          # An .icns is a container: confirm all ten expected representations survived.
-          iconutil -c iconset dist/MoleStudio.app/Contents/Resources/AppIcon.icns -o /tmp/verify.iconset
-          test "$(ls /tmp/verify.iconset | wc -l | tr -d ' ')" = "10"
+          # The icon must ship and be wired up via CFBundleIconFile.
+          test -f "$bundle/Contents/Resources/AppIcon.icns"
+          test "$(plutil -extract CFBundleIconFile raw "$bundle/Contents/Info.plist")" = "AppIcon"
+
+          # An .icns is a container. MyGo renders it from assets/icon.png and
+          # deliberately emits eight representations — it skips the 16 and
+          # 32 pixel entries because IconServices reads their payloads as the
+          # old ARGB format. Check the sizes that must be there instead of a
+          # count, so adding a representation later does not break CI.
+          iconutil -c iconset "$bundle/Contents/Resources/AppIcon.icns" -o /tmp/verify.iconset
+          for rep in icon_16x16@2x.png icon_128x128.png icon_256x256.png \
+                     icon_256x256@2x.png icon_512x512.png icon_512x512@2x.png; do
+            test -f "/tmp/verify.iconset/$rep"
+          done
 
   lint:
-    name: SwiftLint
+    name: Lint
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install SwiftLint
-        run: brew install swiftlint
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
-      - name: Lint
-        run: swiftlint lint --strict --reporter github-actions-logging
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: vet
+        run: go vet ./...
+
+      - name: The generated TypeScript client is current
+        run: |
+          go install github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}
+          "$(go env GOPATH)/bin/mygo" generate
+          git diff --exit-code -- mygo.ts
