@@ -297,6 +297,13 @@ func humanizeTrashError(path string, err error) (string, string) {
 		if needsFolderAccess(path) {
 			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 MoleStudio 访问。", "filesAndFolders"
 		}
+		if needsAppDataAccess(path) {
+			// An uninstalled app's container belongs to another app. macOS keeps
+			// those under its App Data policy even after the owning app is gone,
+			// so a "permission denied" here is not a broken file: it is a switch.
+			return "这是其它应用留下的数据容器，macOS 需要「完全磁盘访问权限」（部分系统版本在「App 管理」）才能移动。" +
+				"授权后重试即可，已经移入废纸篓的条目不受影响。", "fullDiskAccess"
+		}
 		if needsFullDiskAccess(path) {
 			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 MoleStudio。", "fullDiskAccess"
 		}
@@ -329,6 +336,18 @@ func needsFolderAccess(path string) bool {
 		}
 	}
 	return false
+}
+
+// needsAppDataAccess reports whether path is another app's data container. macOS
+// keeps ~/Library/Containers and ~/Library/Group Containers under the App Data
+// policy, and that policy outlives the app that owned the directory, so leftover
+// cleanup from the uninstall module always runs into it.
+func needsAppDataAccess(path string) bool {
+	cleaned := filepath.Clean(path)
+	return strings.Contains(cleaned, "/Library/Containers/") ||
+		strings.Contains(cleaned, "/Library/Group Containers/") ||
+		strings.HasSuffix(cleaned, "/Library/Containers") ||
+		strings.HasSuffix(cleaned, "/Library/Group Containers")
 }
 
 // needsFullDiskAccess reports whether reading path is gated by Full Disk Access:
