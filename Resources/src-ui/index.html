@@ -2703,6 +2703,13 @@ function findTileByPath(tiles, path) {
   }
   return null;
 }
+// The Finder is not sandboxed by TCC the way an ad-hoc signed app is: when a
+// container move is refused, revealing it there is the one action that still
+// lets the user finish the job without granting anything.
+function finderFallbackLink(rawPath) {
+  if (!rawPath) return '';
+  return ` · <span style="cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation();revealInFinder('${jsq(rawPath)}')">在访达中显示</span>`;
+}
 function jsq(text) { return String(text).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function copyPath(path) { copyTextToClipboard(path); showToast('已复制路径'); }
 function currentTiles() {
@@ -2974,13 +2981,14 @@ function renderModule() {
                     <div style="min-width:0;">
                       <div class="row-title">${g.name}</div>
                       <div class="row-sub">${g.path} · ${g.items} 个子项 (${g.filesCount})</div>
+                      ${g.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;line-height:1.5;margin-top:2px;">${escHtml(g.failedReason)}</div>` : ''}
                     </div>
                   </div>
                   <div class="row-right">
                     <div class="prop-bar-wrap"><div class="prop-bar-fill" style="width:${pct}%;background:${g.tier === 'protected' ? 'var(--accent-purple)' : barColor};"></div></div>
-                    <span class="badge ${g.cleaned ? 'badge-safe' : g.tier === 'safe' ? 'badge-safe' : g.tier === 'review' ? 'badge-review' : 'badge-protected'}">
+                    ${g.failed ? `<span class="badge" style="background:rgba(244,63,94,.14);color:var(--accent-rose);border:1px solid rgba(244,63,94,.35);">删除失败</span>` : `<span class="badge ${g.cleaned ? 'badge-safe' : g.tier === 'safe' ? 'badge-safe' : g.tier === 'review' ? 'badge-review' : 'badge-protected'}">
                       ${g.cleaned ? '已清理' : g.tier === 'safe' ? '安全可再生' : g.tier === 'review' ? '需确认' : '硬件保护'}
-                    </span>
+                    </span>`}
                     <span class="size-cell">${g.sizeGb.toFixed(2)} GB</span>
                   </div>
                 </div>
@@ -3200,10 +3208,11 @@ function renderModule() {
                         <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border-subtle);">${item.category}</span>
                       </div>
                       <div class="row-sub">${item.subpaths.length} 处残留 · ${item.bundleId}</div>
+                      ${item.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;line-height:1.5;margin-top:2px;">${escHtml(item.failedReason)}${finderFallbackLink((item.subpaths && item.subpaths[0] && item.subpaths[0].path) || '')}</div>` : ''}
                     </div>
                   </div>
                   <div class="row-right">
-                    <span class="badge badge-review">已卸载</span>
+                    ${item.failed ? `<span class="badge" style="background:rgba(244,63,94,.14);color:var(--accent-rose);border:1px solid rgba(244,63,94,.35);">删除失败</span>` : `<span class="badge badge-review">已卸载</span>`}
                     <span class="size-cell" style="color:var(--accent-amber);">${item.leftoverSizeGb.toFixed(2)} GB</span>
                   </div>
                 </div>
@@ -4025,7 +4034,7 @@ window.executeConfirmedClean = function() {
         entity: g, label: g.name, sizeGb: Number(g.sizeGb) || 0, paths,
         regKeys: [g.id, g.path],
         commit: () => { g.sizeGb = 0; g.checked = false; g.cleaned = true; g.failed = false; (g.subpaths || []).forEach(sp => { sp.checked = false; }); },
-        onFail: () => { g.failed = true; }
+        onFail: (failed) => { g.failed = true; g.failedReason = (failed && failed[0] && failed[0].error) || '未能移入废纸篓'; }
       });
     });
   } else if (module === 'ai_moon') {
@@ -4052,7 +4061,7 @@ window.executeConfirmedClean = function() {
           entity: o, label: o.name, sizeGb: Number(o.leftoverSizeGb) || 0, paths,
           regKeys: [o.id],
           commit: () => { STATE.orphanLeftoversList = (STATE.orphanLeftoversList || []).filter(x => x.id !== o.id); STATE.selectedOrphanIdx = 0; },
-          onFail: () => { o.failed = true; }
+          onFail: (failed) => { o.failed = true; o.failedReason = (failed && failed[0] && failed[0].error) || '未能移入废纸篓'; }
         });
       });
     } else {
