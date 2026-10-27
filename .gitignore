@@ -29,3 +29,6 @@ mygo_frontend/
 # Local overrides
 .env
 .env.local
+
+# local audit scratch space
+.review/

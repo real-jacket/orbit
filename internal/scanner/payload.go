@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/mymoles/mole-studio/internal/power"
+	"github.com/mymoles/mole-studio/internal/telemetry"
 )
 
 // FullScanPayload is what the frontend's onNativeRealScanComplete receives: the
@@ -62,6 +63,14 @@ type Telemetry struct {
 	MemTotalGb float64          `json:"memTotalGb"`
 	Processes  []map[string]any `json:"processes"`
 	Power      PowerPayload     `json:"power"`
+
+	// Hardware counters beyond CPU/memory/disk. Each is omitted when this Mac
+	// does not expose it, so the page can say "no sensor" instead of zero.
+	Net      *telemetry.Net    `json:"net,omitempty"`
+	DiskIO   *telemetry.DiskIO `json:"diskIo,omitempty"`
+	GPUPct   *float64          `json:"gpuPct,omitempty"`
+	CPUTempC *float64          `json:"cpuTempC,omitempty"`
+	Fans     []int             `json:"fans,omitempty"`
 }
 
 // PowerPayload is the power part of the telemetry: thermal, memory pressure,
@@ -114,6 +123,7 @@ func (s *Scanner) BuildTelemetry() Telemetry {
 	if snapshot.Battery != nil {
 		payload.Battery = batteryPayload(snapshot.Battery)
 	}
+	hardware := telemetry.Shared.Snapshot()
 	return Telemetry{
 		CPU:        round1(cpu),
 		FreeDiskGb: round2(freeGB),
@@ -121,6 +131,11 @@ func (s *Scanner) BuildTelemetry() Telemetry {
 		MemTotalGb: round2(totalGB),
 		Processes:  processes,
 		Power:      payload,
+		Net:        hardware.Net,
+		DiskIO:     hardware.DiskIO,
+		GPUPct:     roundPtr(hardware.GPUPct, 0),
+		CPUTempC:   roundPtr(hardware.CPUTempC, 1),
+		Fans:       hardware.Fans,
 	}
 }
 

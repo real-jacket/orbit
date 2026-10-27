@@ -213,6 +213,10 @@ hdiutil: create failed - 操作不被允许
 
 这是环境限制而非仓库问题（同一台机器上手工 `hdiutil create` 也失败）。`make app-nodmg` 可以绕开它。
 
+### 3.8 硬件遥测比 Swift 版多（有意差异）
+
+Swift 版把 CPU 温度、风扇转速、网络速率、磁盘 I/O、GPU 占用都画成假数据或「本机不提供」；Go 版补上了真实采样（见 §7）。这是**只增不减**的改动：原有字段的口径、单位、刷新频率都没变，只是新增了 `net` / `diskIo` / `gpuPct` / `cpuTempC` / `fans` 与电池的 `tempC`、`healthPct`。要退回旧表现，删掉前端那几张卡片即可，Go 侧不产生副作用。
+
 ## 4. 验证步骤
 
 所有命令都要先给 Go 一个可写的 module/build cache（默认的 `$HOME/go/pkg/mod` 在沙箱里通常只读）：
@@ -398,3 +402,114 @@ swift rusage.swift <pid> [样本数] [间隔ms]
 
 - 空间分析在 `mo analyze` 返回前一直显示「正在扫描」骨架屏，本机约 30 秒。Swift 版走同一个 `mo` 调用，等待时间一样长。
 - 构建产物页在扫描结果为 0 项时，右侧面板仍会画出占位骨架行，读起来像还在加载。这是前端原有的空态画法，迁移没有改动。
+
+## 7. 真实硬件采样：SMC 与 IORegistry
+
+这一节记录 `internal/smc` 与 `internal/telemetry` 两个包：它们是「网络/磁盘 I/O/GPU/CPU 温度/风扇/电池健康度」从假数据变成真数据的地方。设计原则和迁移一致——不引入新的第三方依赖，只用系统直接提供的东西（IOKit 私有 selector、`sysctl`、`ioreg`）。
+
+### 7.1 为什么自己读 SMC
+
+社区库读不到 Apple Silicon 的 CPU 温度：`native-power` 走 `powermetrics`（要 root、输出解析脆弱），`gopsutil` 的传感器实现是 Linux 的。而 AppleSMC 的接口本身很小，稳定了十几年：
+
+| 偏移 | 字段 | 说明 |
+| --- | --- | --- |
+| 0 | `key` (uint32) | 四字符码**大端**打包：`TC0P` = `0x54433050` |
+| 4 | `vers` (6 字节) | 读时填 0 |
+| 12 | `pLimit` (16 字节) | 读时填 0 |
+| 28 | `keyInfo` | `dataSize`(28) `dataType`(32) `attributes`(36)；`dataType` 也是大端存放，要按字节取 |
+| 40 | `result` (uint8) | `0` = 成功，`132` = key 不存在，`137` = 忘了先查 `keyInfo` |
+| 42 | `data8` (uint8) | 风扇数量等单字节值 |
+| 44 | `data32` (uint32) | `#KEY` 的 key 总数 |
+| 48 | `bytes` (32 字节) | 实际数据 |
+
+结构体必须正好 **80 字节**（`smc.StructSize()` 有断言测试守着）。走 `IOConnectCallStructMethod(conn, 2 /*KERNEL_INDEX_SMC*/, in, 80, out, &80)`，四个 selector：`READ_BYTES=5`、`READ_INDEX=8`、`READ_KEYINFO=9`、`READ_KEYINFO` 之前不能先 `READ_BYTES`（否则 `result=137`）。
+
+连接方式：`purego.Dlopen` 打开 IOKit → `IOServiceMatching("AppleSMC")` → `IOServiceOpen(mach_task_self(), 0)`。`mach_task_self` 用**函数调用**而不是全局变量 `mach_task_self_`：后者在不同 SDK 上导出名不一致，而且全局指针会触发 `go vet` 的 `unsafeptr` 检查。
+
+### 7.2 数值解码：同一台机器上字节序会变
+
+Apple Silicon 的 `flt ` 是**小端** float32（`F0Mn` = 1200 RPM 的原始字节是 `00 00 96 44`），Intel 的 `flt ` 是大端。解码时两种都试，只接受「有限且落在合理区间」的那个；两种都离谱就返回 `ok=false`，宁可显示「无法读取」也不显示天文数字。其余类型：`sp78` = 有符号定点（整数 + 小数/256），`fpe2` = uint16/4，`ui8` / `ui16` / `ui32` 直接读。
+
+不枚举全部 key（这台机器 `#KEY` = 2251 个）：CPU 温度直接读候选列表（Intel `TC0P` `TC0D` `TC0E` `TC0F` `TC0H` `TC0J`，Apple Silicon `Tp00`–`Tp23`），取 `0 < v < 125` 里的最大值——SMC 里混着电源管理、充电器、电池的「温度」，取最大才有意义。
+
+### 7.3 网络：sysctl 而不是 netstat
+
+`netstat -ib` 是 fork + 文本解析（本机 11 ms），而且会循环遍历所有接口族。改用 `sysctl` 的 `NET_RT_IFLIST2`：一次 `syscall.Sysctl` 拿到全部 `rt_msghdr2` 记录，就地解析。`syscall.SYS_SYSCTL` 在这个 Go 版本上**不存在**，要用 `syscall.SYS___SYSCTL`。
+
+这里有一个必须写下来的坑：本机（macOS 27.2）内核把 `if_msghdr2` 的累计字节字段**截断成了 32 位**。用一段 C 程序核对过：`ifi_ibytes`（偏移 96）里读出来的值确实等于内核导出的截断值，而 `netstat -ib` 的 64 位列是另一条路径算出来的。后果是 4 GB 累计流量以上计数器会回绕，所以：
+
+- 采样间隔不短于 3 秒（1.5 秒内回绕的概率足够低）；
+- 计数器变小（回绕）时这一段贡献 0，绝不显示负速率；
+- 新出现的接口（刚连上的 VPN、刚插的网卡）第一次不计入差分；
+- 排除 `lo*`（回环是本地流量）、`awdl*` / `llw*`（AirDrop 的点对点链路不是「网络」）。
+
+### 7.4 磁盘 I/O、GPU 与电池
+
+- **磁盘 I/O**：`ioreg -r -d 1 -w 0 -c IOBlockStorageDriver`，把每个驱动的 `Statistics` 里 `Bytes (Read)` / `Bytes (Write)` 求和（真实机器上两块：内置 NVMe 与一个虚拟卷）。解析要能跨行——属性行和 `Statistics` 字典在不同行。
+- **GPU**：`ioreg -r -d 1 -w 0 -c IOAccelerator`，取 `PerformanceStatistics` 的 `Device Utilization %`；大于 100 的值当作不可信丢弃（曾见过 421 这种脏数据）。
+- **两条 `ioreg` 并行跑**：每条 22–26 ms，串行会吃掉 1.5 秒一跳的三分之一，所以 `Sampler.prefetchIOReg` 用 `WaitGroup` 同时发起。
+- **电池**：`ioreg -rn AppleSmartBattery` 的 `BatteryData` 里才有 `DesignCapacity` / `NominalChargeCapacity` / `AppleRawMaxCapacity`（顶层同名 key 在 Apple Silicon 上不存在），健康度 = `NominalChargeCapacity / DesignCapacity`（本机 4942/6075 ≈ 81%）。`ioreg` **没有** `Temperature` 这个 key，温度和 `TB0T` 一起从 SMC 读（本机 35 °C）。循环次数 `CycleCount`，充电器瓦数在 `AdapterDetails` 的 `Watts`（本机 65 W）。
+
+### 7.5 采样节奏与成本
+
+| 源 | 单次成本 | 缓存 |
+| --- | --- | --- |
+| `sysctl` 网络计数 | 0.3 ms | 每跳 |
+| `ioreg` 磁盘 / GPU | 22 / 26 ms | 3 s（两者并行） |
+| SMC CPU 温度（20 个候选 key） | 3.3 ms | 5 s |
+| SMC 风扇 | 0.7 ms | 5 s |
+| 电池 `ioreg` | ~10 ms | 30 s（`power.batteryTTL`） |
+
+实测每跳均摊约 10 ms（冷启动第一跳 38 ms，之后每第三跳 28 ms、其余 0.3 ms），约 0.7% 单核，和原版 32 ms/跳 的遥测开销同量级。
+
+### 7.6 载荷字段与「缺失」的语义
+
+`onNativeRealTelemetry` 新增字段全部 `omitempty`：
+
+```json
+{
+  "net": {"rxBytesPerSec": 4896.0, "txBytesPerSec": 4080.0},
+  "diskIo": {"readBytesPerSec": 17331.0, "writeBytesPerSec": 155016.0},
+  "gpuPct": 73,
+  "cpuTempC": 95,
+  "fans": [4695, 5317],
+  "power": {"battery": {"percent": 100, "cycles": 266, "healthPct": 81, "tempC": 35, "adapterWatts": 65, "plugged": true, "charging": false, "full": true}}
+}
+```
+
+**字段缺失 = 本机没有这个传感器**，前端显示「本机不提供」，绝不当成 0。速率单位是字节/秒（前端按 1024 进位格式化成 KB/MB/GB），温度是摄氏度，风扇是 RPM 数组。
+
+### 7.7 真机实测（Apple M1 Max / MacBookPro18,4）
+
+| 指标 | 实测值 |
+| --- | --- |
+| CPU 温度 | 92.8 → 95 °C（空载 60 °C 上下，跑测试时升温） |
+| 风扇 | 4695 / 5317 RPM（`F0Mn` 下限 1200） |
+| GPU 占用 | 69 → 74 % |
+| 磁盘 I/O | 读 17.3 KB/s、写 155 KB/s（累计读 683 GB / 写 498 GB） |
+| 网络 | ↓ 4.9 KB/s、↑ 4.1 KB/s（空载） |
+| 电池 | 健康度 81%、循环 266 次、温度 35 °C、适配器 65 W |
+
+### 7.8 验证
+
+```bash
+go test ./internal/smc/ ./internal/telemetry/ -count=1        # 20 项单元测试
+MOLE_TELEMETRY_E2E=1 go test ./internal/telemetry/ -run TestLive -count=1 -v   # 读本机 IORegistry
+```
+
+`smc` 侧有 8 项：结构体大小 80、四字符码大端打包、`flt ` 小端与大端、`sp78` 有符号定点、`fpe2`/`ui8`/`ui16`/`ui32`、拒绝不可读类型、以及一个「本机能真的读出温度」的连通性测试（无 SMC 的 CI 机器自动 skip）。`telemetry` 侧覆盖计数器差分、回绕、接口过滤、`if_msghdr2` 接口名解析、两个 `ioreg` 解析器（fixture 为真实输出）、以及一个默认 skip 的真机 E2E。
+
+### 7.9 应用内实测
+
+用 `MYGO_DEV_URL` 把应用指向一个探针页面（页面本身是 `Resources/src-ui/index.html` 的副本，只在末尾注入一段读 DOM 的脚本），切到状态页后逐秒采样，得到的是**应用内真实渲染出来的文字**：
+
+| 卡片 | 应用内渲染结果 |
+| --- | --- |
+| 网络速率 · en0 | `↓ 2.0 KB/s ↑ 1.0 KB/s`（负载时出现过 `↓ 588.8 KB/s`） |
+| 磁盘 I/O · 读写 | `读 53.8 MB/s 写 1.4 MB/s` |
+| GPU 利用率 | `74.0%`（带 sparkline） |
+| CPU 温度 · 风扇 | `100.8 °C · 风扇 5699 / 6117 RPM` |
+| 菜单栏 | `🛜 ↓2.1 KB/s ↑1.4 KB/s`、`🔋 100%` |
+| livePill | `实时监控中 · 剩余 100.4G · 100.8 °C` |
+
+连续 14 秒每秒采样一次：7 张卡片（CPU/内存/磁盘/网络/磁盘 I/O/GPU/温度风扇）**始终存在**且数字随负载变化，`window.onerror` 与 console 错误均为 0。注意 `telemetryCard()` 以前丢掉了调用方传入的第 8 个 `id` 参数，`patchStatusLive()` 的 `replaceWith` 因此一直匹配不到卡片——这次一并修好，卡片才会随 1.5 秒推送局部刷新而不是整页重建。

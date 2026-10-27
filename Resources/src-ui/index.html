@@ -731,8 +731,8 @@
   </div>
   <div style="display:flex;align-items:center;gap:14px;font-family:var(--font-mono);font-size:11px;">
     <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px;" onclick="toggleSystemMenuBarDemo()" data-icon-slot="bar"></span>
-    <span title="本机不提供网络状态">🛜 —</span>
-    <span title="本机不提供电量">🔋 —</span>
+    <span id="menuBarNet" title="网络速率 · Go 侧 1.5s 采样">🛜 —</span>
+    <span id="menuBarBatt" title="电量 · IOPS 电池数据">🔋 —</span>
     <span id="menuBarClock" title="本机时间">--:--</span>
   </div>
 </div>
@@ -1290,10 +1290,12 @@ const DEFAULT_STATE = {
   memUsedGb: 0,
   memTotalGb: 0,
   // 只保留有真实数据源的采样序列：CPU 占用来自 telemetry.cpu，内存/磁盘使用率由真实值换算。
-  // 温度、GPU、磁盘 I/O、网络上下行、风扇转速没有任何采集源，一律不在此伪造。
+  // 温度/GPU/磁盘 I/O/网络/风扇由 Go internal/telemetry + internal/smc 采样后写入 STATE.hw（不持久化）；缺失时显示「本机不提供」。
   cpuSeries: [],
   memSeries: [],
   diskSeries: [],
+  // 真实硬件采样（Go internal/telemetry + internal/smc）：不持久化；字段缺失=本机无对应传感器。
+  hw: null,
   deletedPathsRegistry: [],
   cleanGroups: [],
   aiMoonBands: [],
@@ -1356,7 +1358,7 @@ try {
 // 旧版本把自己的伪造值（联检分、假采样序列、写死的"全部通过"体检项）写进过 localStorage，
 // 这里强制回到"未知"，等真实 payload 到达后再计算，避免历史伪造值继续冒充真数据。
 STATE.healthScore = null;
-STATE.cpuSeries = []; STATE.memSeries = []; STATE.diskSeries = [];
+STATE.cpuSeries = []; STATE.memSeries = []; STATE.diskSeries = []; STATE.hw = null;
 STATE.doctorChecks = [];
 STATE.fanMode = undefined;
 
@@ -1669,9 +1671,9 @@ window.onNativeRealScanComplete = function(payload) {
   renderMenuBarTrayContent();
 };
 
-// Called by the Go backend every 1.5s with REAL `/bin/ps` processes, CPU, memory and free disk space.
-// 只接受有真实来源的字段；温度 / GPU / 磁盘 I/O / 网络速率 / 风扇转速本项目没有采集源，
-// 因此这里既不计算也不猜测（页面统一显示「本机不提供」）。
+// Called by the Go backend every 1.5s with REAL `/bin/ps` processes, CPU, memory, free disk space,
+// and hardware sensors from internal/telemetry + internal/smc（net / diskIo / gpuPct / cpuTempC / fans）。
+// 只接受有真实来源的字段；载荷里缺哪个字段就说明本机没有该传感器，页面显示「本机不提供」，不补 0、不猜算。
 window.onNativeRealTelemetry = function(data) {
   if (!data) return;
   if (hasNum(data.freeDiskGb)) STATE.freeDiskGb = +data.freeDiskGb.toFixed(2);
@@ -1700,11 +1702,33 @@ window.onNativeRealTelemetry = function(data) {
   }
 
   if (data.power) STATE.power = data.power;
+
+  // 真实硬件采样：net / diskIo / gpuPct / cpuTempC / fans（omitempty，缺失=本机无该传感器）
+  const hw = STATE.hw && typeof STATE.hw === 'object' ? STATE.hw : {};
+  if (data.net && typeof data.net === 'object') {
+    hw.net = { rx: numOrNull(data.net.rxBytesPerSec), tx: numOrNull(data.net.txBytesPerSec) };
+  }
+  if (data.diskIo && typeof data.diskIo === 'object') {
+    hw.diskIo = { read: numOrNull(data.diskIo.readBytesPerSec), write: numOrNull(data.diskIo.writeBytesPerSec) };
+  }
+  const gpuIn = numOrNull(data.gpuPct);
+  if (gpuIn !== null) {
+    hw.gpuPct = gpuIn;
+    hw.gpuSeries = (hw.gpuSeries || []).concat(+Math.max(0, Math.min(100, hw.gpuPct)).toFixed(1)).slice(-40);
+  }
+  const tempIn = numOrNull(data.cpuTempC);
+  if (tempIn !== null) {
+    hw.cpuTempC = tempIn;
+    hw.tempSeries = (hw.tempSeries || []).concat(+hw.cpuTempC.toFixed(1)).slice(-40);
+  }
+  if (Array.isArray(data.fans)) hw.fans = data.fans.map(numOrNull).filter(n => n !== null);
+  STATE.hw = hw;
   STATE.healthScore = healthScoreNow();
   const pill = document.getElementById('livePillText');
   if (pill) {
     const cpuTxt = hasNum(stateCpuPct()) ? fmtNum(stateCpuPct(), 1) + '%' : '未知';
-    pill.textContent = `实时监控中 · CPU ${cpuTxt} · 剩余 ${fmtNum(STATE.freeDiskGb, 1, '未知')}G`;
+    const t = fmtTempC((STATE.hw || {}).cpuTempC);
+    pill.textContent = `实时监控中 · CPU ${cpuTxt} · 剩余 ${fmtNum(STATE.freeDiskGb, 1, '未知')}G` + (t ? ` · ${t}` : '');
   }
   updateSidebarBadges();
   renderMenuBarTrayContent();
@@ -1722,7 +1746,7 @@ function buildMenuBarTrayHTML() {
     `<div class="bento-val" style="font-size:16px;color:${color};">${value}</div>${extra || ''}</div>`;
   const batLow = bat && bat.percent != null && bat.percent <= 20 && !bat.plugged;
   const cells = [
-    cell('处理器', `<span style="color:${th[1]}">${th[0]}</span>`, `${cpu}%`, 'var(--accent-blue)', svgSparkline(STATE.cpuSeries, '#4b83f0', 'rgba(75,131,240,0.18)', 20)),
+    cell('处理器', `<span style="color:${th[1]}">${th[0]}</span>`, hasNum(cpu) ? fmtNum(cpu, 1) + '%' : '—', 'var(--accent-blue)', `<div class="tray-sub">${fmtTempC((STATE.hw || {}).cpuTempC) || '温度本机不提供'}</div>` + svgSparkline(STATE.cpuSeries, '#4b83f0', 'rgba(75,131,240,0.18)', 20)),
     cell('内存', `<span style="color:${pr[1]}">${pr[0].replace('内存', '')}</span>`, `${memPct}%`, 'var(--accent-emerald)', `<div class="tray-sub">已用 ${STATE.memUsedGb.toFixed(1)} / ${STATE.memTotalGb.toFixed(0)} GB</div>`),
     bat ? cell('电池', batteryState(bat), `${bat.percent != null ? bat.percent : '--'}%`, batLow ? 'var(--accent-rose)' : 'var(--accent-emerald)',
         `<div class="tray-sub">最大容量 ${bat.healthPct != null ? bat.healthPct + '%' : '--'} · 循环 ${bat.cycles != null ? bat.cycles : '--'} 次</div>`)
@@ -1757,6 +1781,7 @@ function buildMenuBarTrayHTML() {
 }
 
 function renderMenuBarTrayContent() {
+  updateMenuBarHw();
   const html = buildMenuBarTrayHTML();
   const tray1 = document.getElementById('menubarTrayShell');
   if (tray1) tray1.innerHTML = html;
@@ -1920,7 +1945,9 @@ Object.assign(UI_ICON_PATHS, {
   disk: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/>',
   network: '<path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0"/><path d="M12 19h.01"/>',
   battery: '<rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4M10 10v4"/>',
-  plug: '<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>'
+  plug: '<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>',
+  gpu: '<rect x="3" y="6" width="14" height="12" rx="2"/><path d="M17 10h4v4h-4M7 10h6v4H7M7 18v3"/>',
+  fan: '<circle cx="12" cy="12" r="2"/><path d="M12 10c0-3 1-6 3-6s2 4-1 6M14 12c3 0 6 1 6 3s-4 2-6-1M12 14c0 3-1 6-3 6s-2-4 1-6M10 12c-3 0-6-1-6-3s4-2 6 1"/>'
 });
 function powerInfo() { return STATE.power || {}; }
 // 诚实展示层：没有数据源就显示「未知 / 本机不提供」，绝不编造数值。
@@ -1943,6 +1970,43 @@ function healthScoreText() {
 function hasNum(v) { return typeof v === 'number' && isFinite(v); }
 function fmtNum(v, digits, fallback) { return hasNum(v) ? Number(v).toFixed(digits == null ? 1 : digits) : (fallback == null ? '—' : fallback); }
 function fmtPct(v, digits) { return hasNum(v) ? Number(v).toFixed(digits == null ? 1 : digits) + '%' : '未知'; }
+function numOrNull(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return hasNum(n) ? n : null;
+}
+function fmtBytesPerSec(v) {
+  const b = numOrNull(v);
+  if (b === null || b < 0) return null;
+  if (b < 1024) return b.toFixed(b < 10 ? 1 : 0) + ' B/s';
+  const units = ['KB/s', 'MB/s', 'GB/s'];
+  let x = b / 1024, i = 0;
+  while (x >= 1024 && i < units.length - 1) { x /= 1024; i++; }
+  return x.toFixed(1) + ' ' + units[i];
+}
+function fmtFansRpm(fans) {
+  if (!Array.isArray(fans)) return null;
+  const v = fans.map(Number).filter(n => hasNum(n) && n > 0).map(n => Math.round(n));
+  return v.length ? v.join(' / ') + ' RPM' : null;
+}
+function fmtTempC(v) { const n = numOrNull(v); return n === null ? null : n.toFixed(1) + ' °C'; }
+function updateMenuBarHw() {
+  const hw = STATE.hw || {};
+  const netEl = document.getElementById('menuBarNet');
+  if (netEl) {
+    const rx = hw.net ? fmtBytesPerSec(hw.net.rx) : null;
+    const tx = hw.net ? fmtBytesPerSec(hw.net.tx) : null;
+    netEl.textContent = (rx || tx) ? `🛜 ↓${rx || '—'} ↑${tx || '—'}` : '🛜 —';
+    netEl.title = (rx || tx) ? '网络速率 · Go 侧 1.5s 采样（en0/utun）' : '本机不提供网络速率采样';
+  }
+  const batEl = document.getElementById('menuBarBatt');
+  const bat = powerInfo().battery;
+  if (batEl) {
+    const hasBat = bat && hasNum(bat.percent);
+    batEl.textContent = hasBat ? `🔋 ${bat.percent}%` : '🔋 —';
+    batEl.title = hasBat ? (bat.plugged ? '已接通电源' : '电池供电') : '本机不提供电量';
+  }
+}
 function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
 function thermalInfo() { const k = powerInfo().thermal; return THERMAL_TEXT[k] || ['热压力未知', 'var(--text-muted)']; }
 function pressureInfo() { const k = powerInfo().memPressure; return PRESSURE_TEXT[k] || ['内存压力未知', 'var(--text-muted)']; }
@@ -1969,8 +2033,8 @@ function armKill(pid) {
   renderModule();
   renderMenuBarTrayContent();
 }
-function telemetryCard(icon, title, aside, big, color, sub, extra) {
-  return `<div class="telemetry-card"><div class="tc-head"><span class="tc-title">${UI_ICON(icon)} ${title}</span><span class="tc-aside">${aside}</span></div>` +
+function telemetryCard(icon, title, aside, big, color, sub, extra, id) {
+  return `<div class="telemetry-card"${id ? ` id="${id}"` : ''}><div class="tc-head"><span class="tc-title">${UI_ICON(icon)} ${title}</span><span class="tc-aside">${aside}</span></div>` +
     `<div class="tc-main"><span class="tc-big" style="color:${color}">${big}</span><span class="tc-sub">${sub}</span></div>${extra || ''}</div>`;
 }
 function batteryCard(b) {
@@ -2015,8 +2079,29 @@ function buildStatusCards() {
   ];
   if (pw.battery) cards.push(batteryCard(pw.battery));
   cards.push(telemetryCard('disk', '磁盘 · Macintosh HD', `可用 ${fmtNum(STATE.freeDiskGb, 1, '未知')} GB`, diskUsed != null ? fmtPct(diskUsed) : '未知', 'var(--accent-amber)', (diskUsed != null ? `共 ${fmtNum(STATE.totalDiskGb, 0)} GB · 已用 ${fmtNum(STATE.totalDiskGb - STATE.freeDiskGb, 1)} GB` : '总容量未知'), svgSparkline(STATE.diskSeries, '#d99b26', 'rgba(217,155,38,0.16)'), 'statusCardDisk'));
-  // 磁盘 I/O、网络上下行、GPU、SMC 温度、风扇转速：本项目没有采集源（见 docs/go-port.md §不做），如实标注而不是编造速率。
-  cards.push(telemetryCard('network', '磁盘 I/O · 网络速率', UNSUPPORTED, '—', 'var(--text-muted)', '未接入 iostat / netstat 采样', '', 'statusCardIo'));
+  // 网络 / 磁盘 I/O / GPU / CPU 温度 + 风扇：来自 Go internal/telemetry + internal/smc（omitempty）。
+  // 字段缺失说明本机没有对应传感器，显示「本机不提供」，不显示 0。
+  const hw = STATE.hw || {};
+  const rx = hw.net ? fmtBytesPerSec(hw.net.rx) : null;
+  const tx = hw.net ? fmtBytesPerSec(hw.net.tx) : null;
+  const dioR = hw.diskIo ? fmtBytesPerSec(hw.diskIo.read) : null;
+  const dioW = hw.diskIo ? fmtBytesPerSec(hw.diskIo.write) : null;
+  const gpuTxt = hasNum(hw.gpuPct) ? fmtNum(hw.gpuPct, 1) + '%' : null;
+  const tempTxt = fmtTempC(hw.cpuTempC);
+  const fanTxt = fmtFansRpm(hw.fans);
+  cards.push(telemetryCard('network', '网络速率 · en0', (rx || tx) ? 'Go 侧采样' : UNSUPPORTED,
+    (rx || tx) ? `↓ ${rx || UNSUPPORTED}` : UNSUPPORTED, (rx || tx) ? 'var(--accent-blue)' : 'var(--text-muted)',
+    (rx || tx) ? `↑ ${tx || UNSUPPORTED}` : '本机不提供网络速率采样', '', 'statusCardNet'));
+  cards.push(telemetryCard('disk', '磁盘 I/O · 读写', (dioR || dioW) ? 'IOBlockStorage' : UNSUPPORTED,
+    (dioR || dioW) ? `读 ${dioR || UNSUPPORTED}` : UNSUPPORTED, (dioR || dioW) ? 'var(--accent-amber)' : 'var(--text-muted)',
+    (dioR || dioW) ? `写 ${dioW || UNSUPPORTED}` : '本机不提供磁盘 I/O 采样', '', 'statusCardDiskIo'));
+  cards.push(telemetryCard('gpu', 'GPU 利用率', gpuTxt ? 'IOAccelerator' : UNSUPPORTED,
+    gpuTxt || UNSUPPORTED, gpuTxt ? 'var(--accent-purple)' : 'var(--text-muted)',
+    gpuTxt ? 'Go 侧 1.5s 采样' : '本机不提供 GPU 采样', svgSparkline(hw.gpuSeries || [], '#8b5cf6', 'rgba(139,92,246,0.16)'), 'statusCardGpu'));
+  cards.push(telemetryCard('fan', 'CPU 温度 · 风扇', tempTxt ? 'SMC Tp*' : UNSUPPORTED,
+    tempTxt || UNSUPPORTED, tempTxt ? 'var(--accent-rose)' : 'var(--text-muted)',
+    fanTxt ? `风扇 ${fanTxt}` : (tempTxt ? '本机不提供风扇转速' : '本机不提供温度与风扇采样'),
+    svgSparkline(hw.tempSeries || [], '#e11d48', 'rgba(225,29,72,0.16)'), 'statusCardThermal'));
   cards.push(powerCard(pw));
   return cards.join('');
 }
@@ -2045,7 +2130,7 @@ function patchStatusLive() {
   try {
     const tmp = document.createElement('div');
     tmp.innerHTML = buildStatusCards();
-    ['statusCardCpu', 'statusCardMem', 'statusCardDisk', 'statusCardIo'].forEach(id => {
+    ['statusCardCpu', 'statusCardMem', 'statusCardDisk', 'statusCardNet', 'statusCardDiskIo', 'statusCardGpu', 'statusCardThermal'].forEach(id => {
       const next = tmp.querySelector('#' + id), cur = document.getElementById(id);
       if (next && cur) cur.replaceWith(next);
     });
@@ -3308,7 +3393,7 @@ function renderModule() {
     topTitle.textContent = '实时状态监控 · 遥测台';
     primaryBtnText.textContent = '立即采样刷新';
     heroHeadline.textContent = `系统联检分 ${healthScoreText()} · ${STATE.cpuModelName}`;
-    heroDesc.textContent = '每 1.5 秒由 Go 侧推送进程、内存与磁盘剩余；温度、GPU、磁盘 I/O、网络速率、风扇转速本机不提供（未接入采样源）。结束进程需要二次确认，系统关键进程已受保护。';
+    heroDesc.textContent = '每 1.5 秒由 Go 侧推送进程、内存、磁盘、网络速率、磁盘 I/O、GPU 利用率、CPU 温度与风扇转速（internal/telemetry + internal/smc）；本机无对应传感器时显示「本机不提供」。结束进程需要二次确认，系统关键进程已受保护。';
     const bat = powerInfo().battery;
     heroStatLabel.textContent = bat ? '电池电量' : 'CPU 占用';
     heroStatValue.textContent = bat ? (hasNum(bat.percent) ? bat.percent + '%' : '未知') : (curCpu != null ? fmtNum(curCpu, 1) + '%' : '未知');
@@ -3546,7 +3631,7 @@ const CMD_PALETTE_ITEMS = [
   { icon: 'software', title: '应用彻底卸载：扫描本机 /Applications 应用与 Library 残留', sub: '/Applications & ~/Library/Application Support', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
   { icon: 'purge', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/Downloads', kbd: '⌘7', run: () => { switchModule('purge'); } },
   { icon: 'analyze', title: '星图仪：用 mo analyze 查看磁盘占用', sub: 'mo analyze --json · 可下钻目录', kbd: '⌘5', run: () => { switchModule('analyze'); } },
-  { icon: 'status', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 实时同步进程表与风扇控制', kbd: '⌘6', run: () => { switchModule('status'); } },
+  { icon: 'status', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 同步进程表 / 网络 / 磁盘 I/O / GPU / 温度与风扇转速', kbd: '⌘6', run: () => { switchModule('status'); } },
   { icon: 'brand', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
   { icon: 'history', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '管理受保护的核心白名单路径', kbd: '⌘8', run: () => { switchModule('history'); } }
 ];
