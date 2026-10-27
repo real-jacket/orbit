@@ -7,31 +7,18 @@ Icon?
 .Spotlight-V100
 .Trashes
 
-# SwiftPM
-.build/
-.swiftpm/
+# Go — `make build` binary, `mygo build` output, `mygo dev` scratch bundle
+/mole-studio
+/build/
+/.mygo/
 
-# Packaged app bundles
-dist/
+# MyGo / dev scratch
+mygo-dev.log
+mygo_frontend_gen.go
+mygo_frontend/
 
-# Xcode
-DerivedData/
-build/
-*.xcuserstate
-xcuserdata/
-*.moved-aside
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-
-# SwiftLint
-.swiftlint.report
-swiftlint-report.*
+# Scanning scratch written by the app's own dev runs
+.disk-scan/
 
 # Editors
 .idea/
