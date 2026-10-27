@@ -70,6 +70,21 @@ func round1(v float64) float64 {
 	return float64(int64(v*10-0.5)) / 10
 }
 
+// roundPtr rounds a pointer'd value and keeps nil meaning "this machine does
+// not report it", so the frontend can tell that apart from zero.
+func roundPtr(v *float64, places int) *float64 {
+	if v == nil {
+		return nil
+	}
+	var rounded float64
+	if places == 1 {
+		rounded = round1(*v)
+	} else {
+		rounded = round2(*v)
+	}
+	return &rounded
+}
+
 // gb converts bytes to gigabytes, rounding to two decimals and never
 // reporting less than 0.01 GB.
 func gb(bytes int64) float64 {
