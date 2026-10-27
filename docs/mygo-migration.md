@@ -1,6 +1,14 @@
 # MyGo 架构迁移方案
 
+> **状态**：本文是迁移**开工前**的框架分析与实施计划。迁移已经完成，`Sources/` 下的 Swift 实现已删除。
+> 实际落地的文件级对照、与 Swift 版的差异和验证方式在 [`go-port.md`](go-port.md)；
+> 下文 §1 描述的是迁移**前**的项目、§4 的阶段划分与代码片段是当时的计划。
+> 计划与最终实现的出入集中在 **§4 末尾的「计划 vs 实际」对照表**，读 §3.3 时请以该表为准。
+
 ## 1. 当前项目架构概览
+
+> 本节记录的是迁移前的 Swift 实现，仅作对照用。
+
 
 ### 1.1 技术栈
 - **语言**: Swift 5.10+
@@ -226,6 +234,9 @@ func (b *NativeBridge) SetTheme(theme string, remember bool) error
 - `context.Context` 第一参数用于页面关闭时 cancel long-running calls
 
 #### 3.3.4 **事件推送** (Go→frontend)
+
+> 计划：用 `mygo.NewEvent[T]` + `EmitPage`。**实际没用**，改成 `Page.Eval`，原因见 §4 末尾对照表。
+
 ```go
 var TelemetryEvent = mygo.NewEvent[TelemetryPayload]("telemetry")
 var ScanCompleteEvent = mygo.NewEvent[ScanPayload]("scan-complete")
@@ -246,10 +257,14 @@ go func() {
 #### 3.3.5 **电源状态端口策略**
 - **Battery**: 通过 `exec.Command("ioreg", "-rn", "AppleSmartBattery")` 解析 XML-like output (verified working)
 - **Memory pressure**: `syscall.Sysctl("kern.memorystatus_vm_pressure_level")` → integer 4=critical,2=warn,else normal
-- **Thermal**: `ProcessInfo.thermalState` 无直接 Go binding; accept "nominal" default (pmset on this machine also returns empty)
+- **Thermal**: Go 没有 `ProcessInfo.thermalState`，但可以用 purego 调 `objc_msgSend` 问 Foundation 要同一个值（纯 Go 二进制要先 `Dlopen` Foundation）；`sysctl kern.thermal_pressure_level` 只作兜底
 - **CPU model**: `sysctlbyname("machdep.cpu.brand_string")` + cores count
 
 #### 3.3.6 **托盘图标生成**
+
+> 两个方案都没用：既没有 resize `AppIcon-256.png`，也不是「简化版」，而是**按 Swift 的几何算式**在纯 Go 里
+> 重绘（`internal/trayicon`），见 §4 末尾对照表。
+
 - 当前 Swift 是程序化 draw (64-unit grid sphere+orbit ring)
 - MyGo 需要 `Icon []byte PNG` (16x16/32x32 ideal)
 - 方案 A: 提取 `Resources/AppIcon-256.png` resize down to 32x32, 使用 existing asset
@@ -258,25 +273,29 @@ go func() {
 
 ---
 
-## 4. 实现路径
+## 4. 实现路径（计划）
+
+下面 9 个 Phase 是开工时的排序计划，实际执行顺序基本如此，但有若干处做法改了。逐条对照见本节末尾的
+**「计划 vs 实际」**表 —— 以那张表为准，本节的勾选项只代表「计划里已经想清楚了」。
 
 ### Phase 1: 脚手架 (Day 1)
 - ✅ `go mod init github.com/mymoles/mole-studio`
 - ✅ `mygo.json`: name="MoleStudio", slug="mole-studio", identifier="com.mymoles.mole-studio", version="0.1.0", macos.minimumSystemVersion="13.0"
-- ✅ Embed `Resources/src-ui/index.html` → `mygo.SetFrontend(embed.FS())`
+- ⚠️ 前端嵌入：实际没有手写 `mygo.SetFrontend`，MyGo 按 `frontendDist` 生成 `mygo_frontend_gen.go` 并自动调用
 - ✅ Basic main: `App.Run()`, `NewWindow({URL:"/", Title:"orbit"}), OnWindowAllClosed(empty fn)`
 - ✅ Verify dev mode works from disk (`MYGO_FRONTEND_DIST=Resources/src-ui`)
 
 ### Phase 2: Bridge shim (Day 1-2)
-- Write `internal/bridge/preload.js` → inject `window.webkit.messageHandlers.moleNative`
-- Implement `NativeBridge` service with all 14 actions
+- preload 脚本注入 `window.webkit.messageHandlers.moleNative`（实际是根目录 `preload.go` 里返回 JS 字符串，
+  没有单独的 `internal/bridge/preload.js`）
+- 实现 `NativeBridge` 服务（实际是**一个** `Dispatch(payload)`，不是 14 个方法）
 - Connect outbound (frontend→Go) via bindings
-- Test: frontend can trigger `NativeBridge.SetTheme("dark", true)` and observe app appearance change
+- Test: 页面发一条 `{action:"setTheme", theme:"dark"}`，观察 app 外观变化
 
 ### Phase 3: Telemetry push (Day 2)
 - Port `PowerStatus.snapshot()` → `internal/power/status.go`
 - Port `queryDiskSpace/queryMemoryUsage/sampleRealProcesses` → real system stats
-- Setup `Ticker(1.5s)` pushing `TelemetryEvent.EmitPage(...)`
+- `Ticker(1.5s)` 推送（实际是 goroutine 里调 `pushRealTelemetryNow()`，走 `Page.Eval`）
 - Verify frontend receives `onNativeRealTelemetry(payload)`
 
 ### Phase 4: Scanner engine (Day 3-5)
@@ -301,25 +320,40 @@ go func() {
 ### Phase 6: Flyout & menus (Day 7)
 - Add `NewTray({...Icon:PNG...})` in `WhenReady`
 - Build native menu: "关于","隐藏","退出"; edit; window
-- `NewFlyout({Tray:tray, Placement:BottomStart, Width:356, Height:480, URL:?"?mode=menubar"})`
+- 实际：`NewFlyout({Tray:tray, Placement:PlacementBottom, Width:356, Height:480, Popover:true, Hidden:true, CornerRadius:12, URL:"/?mode=menubar"})`
+  —— `Popover:true` 才是原生 NSPopover（材料、圆角、箭头、失焦自动关），`Hidden:true` 避免首帧尺寸闪动
 - Verify popover shows same module view as Swift
 
 ### Phase 7: Theme sync (Day 8)
 - Connect `Theme.OnUpdated(fn)` to frontend theme update
-- Persist preference to `PathUserData/theme` (or UserDefaults alternative: store in mygo userData dir)
+- `mygo.Theme` **不做持久化**，所以自己存：`PathUserData/preferences.json` 的 `theme` 字段
 - Verify dark/light/system modes propagate correctly
 
 ### Phase 8: Tests (Day 9)
-- Port `SafetyModelTests.swift` → `model_test.go`: SafetyTier labels, MoleModule badges unique non-empty
-- Port `ScannerRefactorTests.swift` → `scanner_test.go`: OrphanSignature IDs unique, payloads retain keys
-- Port `TreemapLayoutTests.swift` → `layout_test.go`: invariants (unit box, sum~100%, minRatio clamps)
+- Port `SafetyModelTests.swift` → `internal/model/model_test.go`（9 条逐条对应）
+- Port `ScannerRefactorTests.swift` → `internal/scanner/scanner_refactor_test.go`（3 条）
+- `TreemapLayoutTests.swift` → **没有对应**：布局算法换成了 `internal/analyze` 的顺序排布，见 go-port.md §3.4
+- 实际还多出：`internal/scanner/system_test.go`（13 条，`ps`/`vm_stat`/`sysctl` 解析）、`internal/trayicon/trayicon_test.go`（12 条，几何与反锯齿）、`internal/analyze/bridge_test.go`（7 条）、`internal/power/status_test.go`（6 条）
 
 ### Phase 9: Polish & bundle (Day 10)
 - `go vet ./...` → fix warnings
 - `mygo generate` → generate TS client
-- `mygo build -o dist/MoleStudio.app` → signed app
+- `mygo build --skip-dmg` → 产物在 `build/<goos>-<goarch>/MoleStudio.app`（不是 `-o dist/`）
 - Optional notarization (if account available)
 - Update README: "Install Go 1.27+, `mygo dev` to run, `mygo build` to package"
+
+### 计划 vs 实际
+
+| 项目 | 计划里写的 | 实际做法 | 为什么改 |
+| --- | --- | --- | --- |
+| Go→前端推送 | `mygo.NewEvent[T]` + `EmitPage` | `Page.Eval("window.onNativeRealTelemetry(...)")` | 页面本来就有 `window.onNative*` 全局函数，用 `Eval` 不需要页面加载 MyGo 的 TS runtime，`mygo.ts` 可以只留一个 `Dispatch` |
+| 窗口拖动 | 桥里调 `performDrag` | CSS `--app-region: drag` + preload 注入 | MyGo 自带的 bridge.js 监听 `--app-region` 并调原生 `StartDrag()`，比每次 mousedown 过一次 IPC 更省 |
+| Bridge 服务 | 14 个独立方法（`SetTheme`/`TrashPaths`…） | 单个 `Dispatch(payload map[string]any)` | 页面用的是 `{action: "xxx"}` 单一通道，服务侧保持同构，改一个 switch 就对上，不用维护方法名映射 |
+| 托盘图标 | resize `AppIcon-256.png`（方案 A） | `internal/trayicon` 按 64 格几何在纯 Go 里栅格化 | 两者图形不同：app 图标是满版圆角方形，菜单栏是「星球+环」细线标记；resize app 图标会丢形状，且 MyGo 会把 PNG 缩到 18pt |
+| 主题持久化 | `PathUserData/theme` | `PathUserData/preferences.json` 里的 `theme` 字段 | 后面还要存别的东西，单开一个文件更省事 |
+| 前端嵌入 | 手写 `mygo.SetFrontend(embed.FS())` | 交给 `mygo build` 生成的 `mygo_frontend_gen.go` | MyGo 自己会按 `frontendDist` 生成并调用，手写反而会覆盖它 |
+| 事件/推送落点 | `EmitPage(mainPage)` | 主窗口 + （可见时的）popover 两处都要 | Swift 的 `evaluate` 就是两个 webView 都发，popover 打开着必须同步 |
+| Swift 代码 | 未提 | 整个 `Sources/`、`Tests/`、`Package.swift` 删除 | 迁移完成后没有第二份实现要维护；历史留在 git（`adea952`） |
 
 ---
 
@@ -327,13 +361,23 @@ go func() {
 
 | 风险 | 影响 | 缓解策略 |
 |------|------|---------|
-| Thermal state not accessible | PowerStatus 缺失 thermal 字段 | Default "nominal" (consistent with pmset empty on many machines) |
+| Thermal state not accessible | PowerStatus 缺失 thermal 字段 | `NSProcessInfo.thermalState`（purego/objc），再退 `sysctl`，最后 `nominal` |
 | Battery ioreg output format changes | Parsing brittle | Use regex parsing with fallback; monitor Apple doc changes |
 | Preload injection order issues | bridge shim breaks | Inject after `window.mygo` per docs; debug via `__MYGO_CONFIG__` presence |
 | Icon template tint mismatch | Visual drift | Test `IconIsTemplate=true` vs false; use PNG without alpha if needed |
 | Menu bar icon position persistence | User preferences lost | Use stable `Tray.ID="orbit"` across launches |
 | Go binary size blowup | >10MB unusual | Profile: pure Go + no stdlib bloat expected; ~5-8MB target |
 | DMG signing failure (notarization) | App Store rejection optional | Ad hoc sign with `-` acceptable for personal use; notarize if required |
+
+**实际结果**（迁移完成后回填）：
+- Thermal：已按 Swift 原路径修好——`internal/power/thermal_darwin.go` 用 purego 调 `-[NSProcessInfo thermalState]`（先 `Dlopen` Foundation），`sysctl kern.thermal_pressure_level` 只作兜底（本机是 unknown oid）；见 go-port.md §3.2。memory pressure 正常（`kern.memorystatus_vm_pressure_level` = 1 → `normal`）。
+- Battery：`ioreg -rn AppleSmartBattery` 扁平键解析够用（有 fixture 测试）；`AdapterDetails` 里的 `Watts` 是嵌套字典， disconnected 写成一行，所以额外切一层把它取出来（本机 65 W）。
+- Preload 注入顺序：不是问题。`window.webkit` 不可重定义（会抛 `configurable attribute of unconfigurable property`），
+  但可以往 `messageHandlers` 上加属性，所以 shim 直接挂在 preload 里即可，页面 3830 行一行没改。
+- 托盘图标：`IconIsTemplate=true` 正确，模板图全黑 + alpha 即可，不需要去 alpha。
+- 托盘位置：`Tray.ID="orbit"` 稳定，重启后位置由系统记忆。
+- 体积：Go 二进制 14.1 MB（未 strip）、`.app` 10.4 MB —— 比计划的 5–8 MB 大，主要是 WebKit/purego 的 objc 绑定与 `image`/`png`。
+- 签名：ad-hoc `-` 正常，`mygo build` 自带 codesign。
 
 ---
 
@@ -360,7 +404,8 @@ go func() {
 - Simpler toolchain (no Xcode, no Swiftlint)
 - Better integration with Go ecosystem if future needs (e.g., cloud services)
 
-**下一步**: 启动 Phase 1 脚手架，验证 `mygo dev` + frontend embedding works before proceeding to bridge implementation.
+**下一步**：迁移已完成（分支 `feat/mygo-port`）。现在的入口是 `make dev` 看效果、`make check` 过门禁、
+`make app-nodmg` 出包；实现细节与差异清单在 [`go-port.md`](go-port.md)。
 
 ---
 

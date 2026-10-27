@@ -43,7 +43,7 @@ MyGo 要求入口在模块根目录，所以外壳是根下几个文件，而不
 | --- | --- | --- |
 | `Tests/MoleStudioTests/SafetyModelTests.swift` (9) | `internal/model/model_test.go` (9) | 逐条对应，含 `TestProtectedCleanItemsAreNotSelectable`、`TestDryRunIsOnByDefault` |
 | `Tests/MoleStudioTests/ScannerRefactorTests.swift` (3) | `internal/scanner/scanner_refactor_test.go` (3) | 签名表非空且唯一、payload 键不变、残留行字段对齐 UI |
-| `Tests/MoleStudioTests/TreemapLayoutTests.swift` (8) | 未迁移 | 布局算法换了，见 §3.4 |
+| `Tests/MoleStudioTests/TreemapLayoutTests.swift` (8) | 未迁移 | 测的是死代码 `computeTreemapRects`，实际在跑的布局另有测试覆盖，见 §3.5 |
 | — | `internal/analyze/bridge_test.go` (7)、`internal/power/status_test.go` (6)、`internal/scanner/scanner_numeric_test.go` (10)、`internal/trayicon/trayicon_test.go` (12) | 新增：Swift 版没有覆盖解析器、数值助手和托盘图 |
 
 Go 侧共 48 个测试：`analyze` 7、`model` 9、`power` 6、`scanner` 14、`trayicon` 12。
@@ -102,7 +102,7 @@ Swift 用 `IOServiceGetMatchingService` + `IORegistryEntryCreateCFProperties` �
 | `percent` | `CurrentCapacity` / `MaxCapacity`（>100 截到 100） |
 | `healthPct` | `NominalChargeCapacity`（缺失时退 `AppleRawMaxCapacity`）/ `DesignCapacity` |
 | `minutes` | `TimeRemaining`（`<= 0` 或 `>= 6000` 视为"还在算"，省略） |
-| `adapterWatts` | `Watts` |
+| `adapterWatts` | `AdapterDetails` 里的 `Watts`（嵌套字典，从 ioreg 文本里切出来；少数机型有扁平 `Watts`，先试扁平） |
 | `charging` / `plugged` / `full` | `IsCharging` / `ExternalConnected` / `FullyCharged`（`"Yes"` 判定） |
 
 没有电池的机器返回 `Battery == nil`，JSON 里 `battery` 整个键消失（`omitempty`），与 Swift 的 `result["battery"] = nil` 等价。
@@ -131,20 +131,34 @@ Swift 在 `MoleStudioApp.swift:252` 用 CoreGraphics 现画一枚 18pt 单色 te
 
 `mygo.json` 里 `macos.minimumSystemVersion` 和 `infoPlist.LSMinimumSystemVersion` 都写 `13.0`，`Package.swift` 的 `.macOS(.v13)` 语义保留。
 
-### 3.2 thermal 状态换了数据源，且在本机拿不到值
+### 3.2 thermal 走 Foundation 的 `NSProcessInfo.thermalState`，和 Swift 同源
 
-Swift 用 `ProcessInfo.processInfo.thermalState`（`.fair`/`.serious`/`.critical`/default → `nominal`）。Go 没有等价 API，改读 `sysctl -n kern.thermal_pressure_level`，1/2/3 映射 fair/serious/critical、其余 nominal。
+Swift 用 `ProcessInfo.processInfo.thermalState`（`.fair`/`.serious`/`.critical`/default → `nominal`）。
+Go 标准库没有等价 API，但**不需要**退化成假数据：`internal/power/thermal_darwin.go` 用 purego 直接调
+Objective-C 运行时问 Foundation 要同一个值：
 
-**实测问题**：在 macOS 27.2 / MacBookPro18,4 上
+```go
+purego.Dlopen("/System/Library/Frameworks/Foundation.framework/Foundation", RTLD_GLOBAL|RTLD_NOW)
+info := objc.ID(objc.GetClass("NSProcessInfo")).Send(objc.RegisterName("processInfo"))
+state := int(objc.Send[uintptr](info, objc.RegisterName("thermalState")))  // 0 nominal / 1 fair / 2 serious / 3 critical
+```
+
+关键点：纯 Go 二进制不 link Foundation，`objc.GetClass("NSProcessInfo")` 会返回 0 —— 必须先 `Dlopen`
+把 framework 装进进程。这也是 MyGo 自己的 darwin 后端（`internal/darwin/objc.go`）做的事。
+
+取不到时按 `sysctl -n kern.thermal_pressure_level`（1/2/3 → fair/serious/critical）兜底，再取不到才
+`nominal`。**注意兜底那条在本机是无效的**：
 
 ```
 $ sysctl -n kern.thermal_pressure_level
 sysctl: unknown oid 'kern.thermal_pressure_level'
 ```
 
-`sysctl -a | grep -i thermal` 也搜不到这个 OID。命令失败时 `thermalLevel` 保持 0，`thermalLabel()` 恒返回 `"nominal"`——也就是说**在 Apple Silicon 上这会一直显示 nominal**，而 Swift 版能反映真实热压力。要修就得回到 IOKit（`IOHIDEventSystemClient`/私有 API，风险高）或解析 `pmset -g therm`（本机输出 "No thermal warning level has been recorded"，同样无值）。目前选择保留降级：宁可为 null 语义，不要假数据。
+`sysctl -a | grep -i thermal` 也搜不到这个 OID，`pmset -g therm` 返回 "No thermal warning level has been
+recorded"。也就是说在 macOS 27.2 / MacBookPro18,4 上真正生效的只有 NSProcessInfo 这一条，
+`TestAppKitThermalStateIsReachable`（`internal/power/thermal_darwin_test.go`）守着它不被悄悄降级。
 
-`kern.memorystatus_vm_pressure_level` 是正常的（本机返回 `1` → `normal`），内存压力这条没退化。
+`kern.memorystatus_vm_pressure_level` 正常（本机返回 `1` → `normal`），内存压力这条没退化。
 
 ### 3.3 进程 `path` 是可执行文件路径，不是 app bundle 路径
 
@@ -164,13 +178,23 @@ MyGo 没有 `NSRunningApplication` 等价物，Go 侧直接用 `/bin/ps -Aceo pi
 
 顺带一个 Swift 版就存在的悬空承诺：`MoleCLIRunner.swift:31` 定义了 `~/Library/Logs/mole/operations.log` 并建目录，但全仓库没有任何地方往里写。Go 版不再造这个文件，清理历史只认 `mo history`。
 
-### 3.5 树图布局算法不同
+### 3.5 树图布局：真正在跑的路径一模一样，差别全在死代码上
 
-Swift `computeTreemapRects`（`MoleCLIRunner.swift:144`）是**交替方向递归切分**：先按 `size` 降序，每次把首项切出来，`clampedRatio` 夹在 0.22–0.75，`verticalSplit` 逐层翻转，6 色调色板轮转，坐标是 0–1 归一化矩形。
+界面吃的 `treemap2D` 一直是 `MoleAnalyzeBridge.layout()` 产的**横条布局**，Go `analyze.layout`
+（`internal/analyze/bridge.go:151`）逐行照搬：过滤 `name`/`path` 为空和 `size <= 0` 的条目、`basis` 取
+`total_size`（≤0 时退化成累加）、`w = max(6, pct)` 后 `x` 累加、`y = 0`、`h = 100`、按
+`cleanable → isDir → 其它` 三档取同一串渐变色、路径把 home 换成 `~`、`pct` 四舍五入到 0.1。唯一可察觉的
+实现差异是路径处理：Swift 用 `replacingOccurrences(of: home, with: "~")`（任意位置替换），Go 用 `relativize`
+只替换前缀 —— 实际路径都以 home 开头，输出一致。
 
-Go `analyze.layout`（`internal/analyze/bridge.go`）是**从左到右的等比条带**：按 `mo` 返回的原序，`w = max(pct, 6)`，`x` 累加，`y = 0`，`h = 100`，颜色只按 cleanable/isDir 分三档渐变。
+没迁的是 `MoleCLIRunner.computeTreemapRects`（`MoleCLIRunner.swift:144`）那套**交替方向递归切分**（按 size
+降序、`clampedRatio` 夹在 0.22–0.75、`verticalSplit` 逐层翻转、6 色轮转、0–1 归一化矩形）。它是死代码：
+唯一调用方是 `TreemapLayoutTests`，`MoleCLIRunner.execute` 那条链路从来没人用。所以 `TreemapLayoutTests`
+的 8 条不变性断言（铺满、不重叠、最大项拿最大块、百分比求和≈100、零值不产生 NaN）没有对应物，Go 侧只留
+`TestLayoutAddsUpPositions`（断言每块从上一块结束处开始）覆盖实际在跑的那条路径。
 
-两者都能被 UI 吃下去（`index.html` 用 `left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%` 定位），但观感从"铺满方框的树图"变成了"一排横条"。`TreemapLayoutTests` 的 8 条不变性断言（铺满、不重叠、最大项拿最大块、百分比求和≈100、零值不产生 NaN）因此没有对应物；Go 侧只保留了 `TestLayoutAddsUpPositions`（断言每块从上一块结束处开始）。
+结论：**观感没有变化**。如果哪天想换成「铺满方框的树图」，`computeTreemapRects` 还在 git 历史里
+（`git show adea952:Sources/MoleStudio/Engine/MoleCLIRunner.swift`）。
 
 ### 3.6 二进制 plist 的 Info.plist 读不出内容
 

@@ -65,9 +65,14 @@ jobs:
           # so look for a marker only the frontend contains.
           grep -aq "MOLE_STUDIO_STATE_V8" "$bundle/Contents/MacOS/MoleStudio"
 
-          # The icon must ship and be wired up via CFBundleIconFile.
+          # The icon must ship and be wired up via CFBundleIconFile. MyGo writes
+          # the key as "AppIcon.icns"; the extension is optional to Launch
+          # Services, so accept either spelling rather than pin MyGo's.
           test -f "$bundle/Contents/Resources/AppIcon.icns"
-          test "$(plutil -extract CFBundleIconFile raw "$bundle/Contents/Info.plist")" = "AppIcon"
+          case "$(plutil -extract CFBundleIconFile raw "$bundle/Contents/Info.plist")" in
+            AppIcon|AppIcon.icns) ;;
+            *) echo "CFBundleIconFile does not point at AppIcon" >&2; exit 1 ;;
+          esac
 
           # An .icns is a container. MyGo renders it from assets/icon.png and
           # deliberately emits eight representations — it skips the 16 and
