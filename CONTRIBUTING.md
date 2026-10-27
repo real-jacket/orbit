@@ -8,7 +8,16 @@ Thanks for taking a look. This is a small project, so the process is deliberatel
 git clone https://github.com/real-jacket/orbit.git
 cd orbit
 make run     # build and launch
-make check   # lint + test
+make check   # vet + test
+```
+
+You need Go 1.27 or newer (the module declares `go 1.27.3`). The packaging targets also need the MyGo
+CLI, which is not vendored:
+
+```bash
+go install github.com/egoist/mygo/cmd/mygo@v0.6.4
+export PATH="$(go env GOPATH)/bin:$PATH"
+make doctor   # confirms the CLI and the rest of the toolchain are there
 ```
 
 You will also want the upstream CLI available, since the app shells out to it:
@@ -23,72 +32,104 @@ mo --version
 Run these and make sure they pass:
 
 ```bash
-swift build -c release
-make test
-make lint
-make app
+make check       # go vet ./... && go test ./... -count=1
+make build       # the executable compiles
+make app-nodmg   # the bundle packages
 ```
 
-CI runs the same steps on `macos-latest`, so a green local run means a green PR. `make check` bundles
-lint and test into one command.
+Then confirm the generated TypeScript client is current, because CI fails the PR if it is not:
+
+```bash
+make generate
+git diff --exit-code -- mygo.ts
+```
+
+CI runs the same steps on `macos-latest`, using the Go version from `go.mod`.
 
 ## Tests
 
-`Tests/MoleStudioTests/` covers the two things most likely to break silently:
+`make test` runs the Go suite. The tests live next to the code they cover:
 
-- **`TreemapLayoutTests`** — the squarified layout math. Asserts every entry gets a rect, the rects
-  tile the unit square exactly (total area `1.0`), and nothing escapes the bounds.
-- **`SafetyModelTests`** — the safety invariants. Asserts `protectedSystem` rows cannot be selected
-  even by calling the toggle directly, and that dry-run defaults to on.
+- **`internal/model`** — the safety invariants. Asserts `protected` rows cannot be selected even by
+  calling the toggle directly, and that dry-run defaults to on.
+- **`internal/scanner`** — the numeric helpers and the refactor invariants: the signature table is
+  non-empty and unique, the payload keys are unchanged, and leftover rows keep the fields the UI reads.
+- **`internal/analyze`** — payload shaping and tile layout: sizes add up to the total, colours follow
+  cleanability, and each tile starts where the previous one ended.
+- **`internal/power`** — the `ioreg` / `sysctl` text parsers, including the percentage caps and the
+  `AppleRawMaxCapacity` fallback.
+- **`internal/trayicon`** — the menu-bar mark: every pixel is pure black, the alpha carries the shape,
+  and the ring is cut where it passes behind the planet.
 
-If you change `SafetyTier`, `MoleModule`, or `computeTreemapRects`, extend these rather than adding a
-new file.
+If you change `Tier`, `Module`, or the layout math, extend the existing file rather than adding a new one.
 
 ## App icon
 
-`Resources/AppIcon.icns` is generated — do not edit it by hand, and do not replace it with a dropped-in
-bitmap. Change `scripts/generate-app-icon.swift` and run `make icon`, then commit both the script and the
-regenerated `AppIcon.icns` / `AppIcon-256.png`.
+`assets/AppIcon-256.png` and `assets/AppIcon.icns` are generated — do not edit them by hand, and do not
+replace them with a dropped-in bitmap. Change `scripts/generate-app-icon.swift` and re-render:
 
-`make icon-preview` renders every size on dark and light plates to `/tmp/icon-preview.png`; check the
-16px and 32px ends before you commit, since that is where marks usually fall apart.
+```bash
+swift scripts/generate-app-icon.swift icns   assets/AppIcon.icns
+swift scripts/generate-app-icon.swift single assets/AppIcon-256.png 256
+```
+
+`assets/icon.png` is the copy `mygo.json` reads to build the bundle icon, so refresh it too
+(`cp assets/AppIcon-256.png assets/icon.png`). Commit the script and all three outputs.
+
+The renderer can also draw a contact sheet, which is the fastest way to check the 16px and 32px ends
+before committing — that is where marks usually fall apart:
+
+```bash
+swift scripts/generate-app-icon.swift sheet /tmp/icon-preview.png
+```
+
+The **menu bar** icon is separate: `internal/trayicon` draws it at runtime as a template PNG and never
+reads the files above, so a change to the brand mark does not automatically follow it.
 
 ## Code style
 
-- **Swift** — 4-space indent. `.swiftlint.yml` is the source of truth; `make format` auto-corrects what
-  it can. Line length warnings start at 200 characters.
+- **Go** — `gofmt` is the source of truth; CI fails on any unformatted file. Tabs, which `gofmt` gives
+  you for free.
 - **HTML/CSS/JS** — 2-space indent. `Resources/src-ui/index.html` is intentionally a single file with no
   build step. Keep it that way unless there is a strong reason not to.
 - **Commits** — [Conventional Commits](https://www.conventionalcommits.org/) prefixes
   (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`). Imperative subject line, under ~72 chars.
 
-## Two things to know about the architecture
+## How the pieces fit
 
-1. **The UI is HTML, not SwiftUI.** `Resources/src-ui/index.html` is the shipping surface. The SwiftUI
-   files under `Sources/MoleStudio/Views/` and `Engine/MoleViewModel.swift` are a parallel native
-   implementation that is not yet wired in. If you are changing something the user sees, you probably
-   want the HTML.
+**The UI is HTML, not SwiftUI.** `Resources/src-ui/index.html` is the shipping surface and the port did
+not touch it. It talks to the shell through one object, `window.webkit.messageHandlers.moleNative`; MyGo
+has no `WKScriptMessageHandler`, so `preload.go` recreates that object in a `PreloadScript` and forwards
+each message to `NativeBridge.Dispatch` in `bridge.go`. That switch is the one entry point for everything
+the page asks the native side to do.
 
-2. **The JS bridge is a hand-written contract.** Swift posts to JS via
-   `webView.evaluateJavaScript(...)`; JS posts to Swift via `window.webkit.messageHandlers.moleNative`.
-   If you rename a function on one side, update the other. Current surface:
+The reverse direction has no equivalent to `evaluateJavaScript` on a channel the page listens to, so
+`push.go` serialises a payload and calls the page's global callbacks by name. If you rename one of those
+globals, change both sides:
 
-   | Direction | Names |
-   | --- | --- |
-   | JS → Swift | `startWindowDrag`, `toggleWindowZoom`, `revealInFinder`, `copyText`, `executeOptimize`, `killProcess` |
-   | Swift → JS | `switchModule`, `openConfirmSheet`, `openDoctorModal`, `stepLiveTelemetry` |
+| Direction | Names |
+| --- | --- |
+| JS → Go | `startWindowDrag`, `toggleWindowZoom`, `revealInFinder`, `copyText`, `killProcess`, `trashRealPaths`, `requestRealSystemScan`, `requestDiskAnalyze`, `requestRealTelemetry`, `executeOptimize`, `toggleCaffeinate`, `setTheme`, `menubar*` |
+| Go → JS | `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`, `switchModule`, `openConfirmSheet`, `openDoctorModal`, `stepLiveTelemetry` |
+
+Four actions the page can post — `addWhitelist`, `restoreTrashSnapshot`, `runDoctorReCheck`, `setFanMode`
+— hit the `default` branch on purpose: the page keeps that state itself, and the Swift app ignored them
+too.
+
+[`docs/go-port.md`](docs/go-port.md) maps every Swift file to its Go counterpart and lists the
+behavioural differences. Read it before porting anything back.
 
 ## Adding a module
 
-Modules are the `MoleModule` enum in `Sources/MoleStudio/Models/MoleModels.swift`. A new case needs
-`sidebarTitle`, `headerTitle`, `sidebarBadge`, `cliBadgeText`, `dotColor` and `hasPlanetaryRing`, plus a
-matching section in the HTML and, if it maps to a real subcommand, an entry in `MoleCLIRunner`.
+Modules are the `Module` type in `internal/model/model.go`. A new case needs its raw value (the string the
+HTML already uses for the sidebar), a `Label`, a sidebar entry and section in `index.html`, and — if it
+maps to a real subcommand — a call site in `internal/analyze` or `internal/scanner`.
 
 ## Safety changes need extra care
 
-Anything touching deletion, the whitelist, or `SafetyTier` gets a closer review. The invariants:
+Anything touching deletion, the whitelist, or `Tier` gets a closer review. The invariants:
 
-- `tier == .protectedSystem` items must never become selectable.
+- `tier == "protected"` items must never become selectable.
 - Destructive operations must remain previewable before execution.
 - Dry-run must stay the default.
 - The whitelist file format must stay compatible with upstream `mo` (`~/.config/mole/whitelist`,
