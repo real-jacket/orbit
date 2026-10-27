@@ -1,71 +1,94 @@
 # orbit — native macOS client for the `mo` CLI.
 #
-#   make            build the SwiftPM executable (debug)
+#   make            build the Go executable
 #   make run        build and launch straight from the checkout
 #   make test       run the unit test suite
-#   make app        package dist/MoleStudio.app
-#   make icon       regenerate the app icon from source
-#   make lint       run SwiftLint in strict mode
-#   make check      lint + test, the same gate CI runs
+#   make vet        run the Go static checker
+#   make dev        run the MyGo dev server (live reload, needs the `mygo` CLI)
+#   make app        package the .app bundle and a .dmg into build/
+#   make check      vet + test, the same gate CI runs
 #   make clean      remove build products
 #
-# Override the toolchain flags when needed, e.g. in a restricted sandbox:
-#   make build SWIFT_FLAGS=--disable-sandbox
+# Override the toolchain when needed, e.g. in a restricted sandbox:
+#   make build GO=/path/to/go MYGO=/path/to/mygo
+#
+## Go environment — sandbox / toolchain setup, explained at the top of this file
+#
+# A sandboxed shell often gets a read-only module cache and build cache, and
+# then `go build`/`go test` fail with "permission denied" on $HOME/go/pkg/mod.
+# Point all three at a writable directory before running anything:
+#
+#   export GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
+#
+# The targets that shell out to MyGo need the CLI on PATH. It is not vendored
+# by this repo, so install it from the version go.mod pins:
+#
+#   go install github.com/egoist/mygo/cmd/mygo@v0.6.4
+#   export PATH="$(go env GOPATH)/bin:$PATH"   # or: /tmp/gopath/bin
+#
+# `make doctor` reports whether the CLI and the rest of the toolchain are there.
+#
+# `make app` writes into $(OUT_DIR)/<goos>-<goarch>/ — on Apple silicon that is
+# build/darwin-arm64/MoleStudio.app plus a .dmg beside it. The per-platform
+# subdirectory comes from MyGo, so do not expect build/MoleStudio.app.
 
-APP_NAME    := MoleStudio
-CONFIG      ?= debug
-SWIFT_FLAGS ?=
-DIST_DIR    := dist
-APP_BUNDLE  := $(DIST_DIR)/$(APP_NAME).app
-BUILD_CACHE := .build/icon-tools
+APP_NAME := MoleStudio
+BIN      := mole-studio
+OUT_DIR  := build
+MYGO     ?= mygo
+GO       ?= go
 
-.PHONY: all build run test app icon icon-preview lint format check clean help
+.PHONY: all build run test vet dev app app-nodmg generate doctor check clean help
 
 all: build
 
-## Build the SwiftPM executable.
+## Build the Go executable at ./mole-studio. On its own it shows MyGo's
+## "No frontend" page, because nothing is embedded: run it as
+## MYGO_FRONTEND_DIST=Resources/src-ui ./mole-studio, or use `make run`.
 build:
-	swift build --configuration $(CONFIG) $(SWIFT_FLAGS)
+	$(GO) build -v -o $(BIN) .
 
-## Build and launch the app straight from the checkout.
+## Build and launch the app straight from the checkout. No `mygo` CLI needed:
+## a plain `go run` has no embedded frontend (mygo_frontend_gen.go is only
+## written by `mygo build`, and it is gitignored), so point MyGo's dev fallback
+## at the files on disk. Without this the window shows its "No frontend" page.
 run:
-	swift run $(SWIFT_FLAGS) $(APP_NAME)
+	MYGO_FRONTEND_DIST=Resources/src-ui $(GO) run .
 
 ## Run the unit test suite.
 test:
-	swift test $(SWIFT_FLAGS)
+	$(GO) test ./... -count=1
 
-## Package a distributable dist/MoleStudio.app bundle.
+## Run the Go static checker.
+vet:
+	$(GO) vet ./...
+
+## Run the MyGo dev server with live reload (requires the `mygo` CLI).
+dev:
+	$(MYGO) dev
+
+## Package the app bundle and a .dmg (build/darwin-arm64/MoleStudio.app).
 app:
-	bash scripts/build-macos-app.sh release
+	$(MYGO) build
 
-## Regenerate the app icon assets from scripts/generate-app-icon.swift.
-icon:
-	@mkdir -p $(BUILD_CACHE)
-	swiftc -O -module-cache-path $(BUILD_CACHE) -o $(BUILD_CACHE)/generate-app-icon scripts/generate-app-icon.swift
-	$(BUILD_CACHE)/generate-app-icon icns Resources/AppIcon.icns
-	$(BUILD_CACHE)/generate-app-icon single Resources/AppIcon-256.png 256
+## Package the app bundle only, no .dmg.
+app-nodmg:
+	$(MYGO) build --skip-dmg
 
-## Preview every icon size on a plate (writes /tmp/icon-preview.png).
-icon-preview:
-	@mkdir -p $(BUILD_CACHE)
-	swiftc -O -module-cache-path $(BUILD_CACHE) -o $(BUILD_CACHE)/generate-app-icon scripts/generate-app-icon.swift
-	$(BUILD_CACHE)/generate-app-icon sheet /tmp/icon-preview.png
+## Regenerate the typed TypeScript client (mygo.ts) from the bound services.
+generate:
+	$(MYGO) generate
 
-## Lint Swift sources (requires: brew install swiftlint).
-lint:
-	swiftlint lint --strict
+## Check the toolchain MyGo needs (Go, the CLI, packaging dependencies).
+doctor:
+	$(MYGO) doctor
 
-## Auto-correct lint violations where possible.
-format:
-	swiftlint lint --fix
-
-## Lint and test — the same gate CI enforces.
-check: lint test
+## Vet and test — the same gate CI enforces.
+check: vet test
 
 ## Remove build products.
 clean:
-	rm -rf .build $(DIST_DIR)
+	rm -rf $(BIN) $(OUT_DIR) .mygo
 
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  /'

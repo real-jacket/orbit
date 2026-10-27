@@ -1,0 +1,24 @@
+{
+  "name": "MoleStudio",
+  "slug": "mole-studio",
+  "identifier": "com.mymoles.mole-studio",
+  "version": "0.1.0",
+  "copyright": "Copyright © 2024 MoleStudio",
+  "publisher": "MoleStudio Team",
+  "icon": "assets/icon.png",
+  "main": ".",
+  "out": "build",
+  "frontendDist": "Resources/src-ui",
+  "macos": {
+    "minimumSystemVersion": "13.0",
+    "signingIdentity": "-",
+    "infoPlist": {
+      "CFBundleName": "MoleStudio",
+      "CFBundleDisplayName": "MoleStudio",
+      "CFBundleIdentifier": "com.mymoles.mole-studio",
+      "LSMinimumSystemVersion": "13.0",
+      "NSHighResolutionCapable": true,
+      "NSHumanReadableCopyright": "Copyright © 2024 MoleStudio"
+    }
+  }
+}
