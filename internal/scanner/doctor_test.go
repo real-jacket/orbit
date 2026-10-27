@@ -1,6 +1,9 @@
 package scanner
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDoctorChecksHaveTitlesAndTriStateResults(t *testing.T) {
 	checks := Shared.DoctorChecks()
@@ -104,3 +107,30 @@ func TestDoctorRowKeepsUnknownUnknown(t *testing.T) {
 }
 
 func intPtr(v int) *int { return &v }
+
+// The 体检 panel is where a user finds out which build is running; that row has
+// to exist, carry the version, and never claim a pass/fail verdict.
+func TestBuildCheckReportsTheRunningBuild(t *testing.T) {
+	oldVersion, oldCommit, oldTime := BuildVersion, BuildCommit, BuildTime
+	t.Cleanup(func() { BuildVersion, BuildCommit, BuildTime = oldVersion, oldCommit, oldTime })
+
+	BuildVersion, BuildCommit, BuildTime = "9.9.9", "abc1234", "2026-10-28 00:41"
+
+	row := buildCheck()
+	if title, _ := row["title"].(string); title != "应用构建" {
+		t.Fatalf("title = %q", title)
+	}
+	if verdict, ok := row["passed"]; !ok || verdict != nil {
+		t.Fatalf("build row must be informational (nil verdict), got %v", row["passed"])
+	}
+	detail, _ := row["detail"].(string)
+	for _, want := range []string{"9.9.9", "abc1234", "2026-10-28 00:41"} {
+		if !strings.Contains(detail, want) {
+			t.Fatalf("detail %q does not mention %q", detail, want)
+		}
+	}
+
+	if got := DescribeExecutable(); got == "" {
+		t.Fatal("executable timestamp is empty on this platform")
+	}
+}

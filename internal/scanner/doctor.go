@@ -15,7 +15,10 @@ import (
 // with passed=nil ("未知") instead of being counted as a pass, because a report
 // that always says "全部通过" is worth nothing.
 func (s *Scanner) DoctorChecks() []map[string]any {
-	checks := []map[string]any{}
+	checks := []map[string]any{
+		// 先说清楚「你在跑的是哪一版」：这一行让「是不是旧构建」不再靠猜。
+		buildCheck(),
+	}
 
 	// 完全磁盘访问权限: a TCC-protected folder is readable only when the app has
 	// been granted it. ~/Library/Mail exists on every account that has Mail set
