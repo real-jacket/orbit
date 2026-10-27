@@ -5,6 +5,7 @@ package main
 // applicationDidFinishLaunching, minus the parts that belong to the page.
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -22,6 +23,11 @@ var (
 // appName is what the app calls itself in the menu bar, the About panel and the
 // window title. It is the name the Swift app used.
 const appName = "orbit"
+
+// quitting is set while a quit is in progress. The window's close handler
+// normally hides the window instead of closing it, and without this flag that
+// hid the window out from under App.Quit, so 退出 never quit.
+var quitting atomic.Bool
 
 // run wires the app up and starts its event loop.
 func run() {
@@ -45,6 +51,8 @@ func run() {
 			w.Show()
 		}
 	})
+
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting.Store(true) })
 
 	mygo.App.WhenReady(buildUI)
 	if err := mygo.App.Run(); err != nil {
@@ -79,6 +87,9 @@ func buildUI() {
 	// back; destroying it would take the page's state with it, and the Swift
 	// app kept it alive for exactly that reason.
 	mainWindow.OnClose(func(e *mygo.CloseEvent) {
+		if quitting.Load() {
+			return
+		}
 		e.PreventDefault()
 		mainWindow.Hide()
 	})
@@ -161,6 +172,7 @@ func ensureFlyout() *mygo.Window {
 		Height:       480,
 		Placement:    mygo.PlacementBottom,
 		Popover:      true,
+		Focusable:    true,
 		Hidden:       true,
 		CornerRadius: 12,
 		Page: mygo.PageOptions{
@@ -187,12 +199,26 @@ func startTelemetryTimer() {
 		ticker := time.NewTicker(1500 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			if activeMainWindow() == nil {
+			// Sampling costs four subprocesses (ps, vm_stat, ioreg, sysctl) per
+			// tick, so it only runs while a window actually shows the numbers.
+			if !appVisible() {
 				continue
 			}
 			pushRealTelemetryNow()
 		}
 	}()
+}
+
+// appVisible reports whether something of the app is on screen and therefore
+// worth refreshing.
+func appVisible() bool {
+	if w := activeMainWindow(); w != nil && w.IsVisible() {
+		return true
+	}
+	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+		return true
+	}
+	return false
 }
 
 // buildApplicationMenu builds the menu bar the Swift app built by hand. Without

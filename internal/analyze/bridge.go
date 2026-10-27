@@ -4,13 +4,21 @@
 package analyze
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// analyzeTimeout bounds one `mo analyze` run, so a stuck mount cannot leave the
+// page spinning forever.
+const analyzeTimeout = 90 * time.Second
 
 // MoBinaryPath is the path of the `mo` CLI. It tries the places the CLI
 // installs itself, then falls back to the Homebrew path.
@@ -19,8 +27,14 @@ func MoBinaryPath() string {
 	candidates := []string{
 		"/opt/homebrew/bin/mo",
 		"/usr/local/bin/mo",
-		filepath.Join(home, ".local/bin/mo"),
-		filepath.Join(home, ".mole/mo"),
+	}
+	if home != "" {
+		// With an unset HOME filepath.Join would hand back a relative path, and
+		// a file of that name in the working directory would get executed.
+		candidates = append(candidates,
+			filepath.Join(home, ".local/bin/mo"),
+			filepath.Join(home, ".mole/mo"),
+		)
 	}
 	for _, path := range candidates {
 		if info, err := os.Stat(path); err == nil && info.Mode()&0o111 != 0 {
@@ -39,6 +53,9 @@ type Payload struct {
 	ScanStatus string  `json:"scanStatus,omitempty"`
 	TotalGb    float64 `json:"totalGb"`
 	Path       string  `json:"path,omitempty"`
+	// Error explains a failed run: "mo" missing, directory unreadable, timeout.
+	// Without it every failure looked like the same "unavailable" label.
+	Error string `json:"error,omitempty"`
 }
 
 // Tile is one rectangle of the treemap.
@@ -61,41 +78,62 @@ type Tile struct {
 
 // Overview analyzes the home directory.
 func Overview() Payload {
-	stdout, source := runAnalyze("")
+	stdout, source, failure := runAnalyze("")
 	payload := buildPayload(stdout, source)
 	payload.Overview = true
+	payload.Error = failure
 	return payload
 }
 
 // Children analyzes one directory.
 func Children(path string) Payload {
-	stdout, source := runAnalyze(path)
+	stdout, source, failure := runAnalyze(path)
 	payload := buildPayload(stdout, source)
-	payload.Path = path
+	payload.Path = absolutize(path)
+	payload.Error = failure
 	return payload
 }
 
 // runAnalyze runs `mo analyze --json` on path, or on the home directory when
 // path is empty, and returns its standard output and the command that stands
 // for it.
-func runAnalyze(path string) (stdout, source string) {
+func runAnalyze(path string) (stdout, source, failure string) {
 	binary := MoBinaryPath()
+	if _, err := os.Stat(binary); err != nil {
+		return "", "mo analyze unavailable", "没有找到 mo CLI，请先安装：brew install mole"
+	}
 	args := []string{binary, "analyze", "--json"}
 	source = "mo analyze --json"
 	if path != "" {
 		args = append(args, path)
 		source += " " + path
 	}
-	command := exec.Command("/usr/bin/env", args...)
+	// A full-home scan takes about 30s on a laptop; a network volume or a
+	// failing disk never finishes, and the page would sit in "扫描中…" forever.
+	ctx, cancel := context.WithTimeout(context.Background(), analyzeTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, "/usr/bin/env", args...)
 	command.Env = mergedEnv(os.Environ(),
 		"PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
 		"TERM=dumb",
 	)
+	var stderr strings.Builder
+	command.Stderr = &stderr
 	out, err := command.Output()
 	if err != nil {
-		return "", "mo analyze unavailable"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return "", "mo analyze unavailable", fmt.Sprintf("分析超时（%s），目录可能太大或不可读", analyzeTimeout)
+		}
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = err.Error()
+		}
+		// `mo` can print usable JSON and still exit non-zero on a partial scan.
+		if len(out) == 0 {
+			return "", "mo analyze unavailable", firstLine(message)
+		}
 	}
-	return string(out), source
+	return string(out), source, ""
 }
 
 // mergedEnv returns base with the keys of overrides replaced. The Swift app
@@ -189,11 +227,14 @@ func layout(entries []map[string]any, total int64) []Tile {
 			continue
 		}
 		bytes := toInt64(entry["size"])
-		if bytes <= 0 {
-			continue
-		}
 		isDir, _ := entry["is_dir"].(bool)
 		status, _ := entry["scan_status"].(string)
+		// A directory mo could not read reports size 0 with a scan_status that
+		// is not "complete". Dropping it hid the gap: the treemap simply did
+		// not add up and nothing said why.
+		if bytes <= 0 && (status == "" || status == "complete") {
+			continue
+		}
 		cleanable, _ := entry["cleanable"].(bool)
 		items = append(items, parsed{
 			name: name, path: path, bytes: bytes,
@@ -207,7 +248,7 @@ func layout(entries []map[string]any, total int64) []Tile {
 		}
 	}
 	if basis <= 0 {
-		return nil
+		return []Tile{}
 	}
 	tiles := make([]Tile, 0, len(items))
 	x := 0.0
@@ -251,6 +292,43 @@ func sumBytes(entries []map[string]any) int64 {
 		total += toInt64(entry["size"])
 	}
 	return total
+}
+
+// absolutize turns the app's "~"-relative paths into absolute ones, because
+// `mo analyze` does not expand them and the page has no home directory of its
+// own (it also could not expand them on its own before HomePath was sent).
+func absolutize(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || path == "~" {
+		home, _ := os.UserHomeDir()
+		return home
+	}
+	if path == "~/" || strings.HasPrefix(path, "~/") {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, strings.TrimPrefix(path, "~/"))
+	}
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, path)
+}
+
+// firstLine keeps the first meaningful line of `mo`'s stderr, which is what the
+// user needs to see (the rest is a shell trace or a wall of unrelated output).
+func firstLine(message string) string {
+	for _, line := range strings.Split(message, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "Trace/breakpoint trap") {
+			continue
+		}
+		const limit = 200
+		if runes := []rune(line); len(runes) > limit {
+			return string(runes[:limit]) + "…"
+		}
+		return line
+	}
+	return "分析失败"
 }
 
 // relativize replaces the home directory at the start of path with ~.

@@ -2,12 +2,9 @@ package scanner
 
 // This file exposes the pieces of the scanner the app layer calls. The scan
 // methods themselves stay unexported, as they were in the Swift original: the
-// app talks to the scanner through the two payload builders in payload.go and
-// through MovePathsToTrash.
+// app talks to the scanner through the payload builders in payload.go and
+// through the trash and whitelist entry points.
 
-// MovePathsToTrash moves paths into ~/.Trash and reports how many it moved.
-// Labels the frontend sends are truncated at the first space before the move,
-// exactly as the Swift app did.
-func (s *Scanner) MovePathsToTrash(rawPaths []string) int {
-	return s.movePathsToTrash(rawPaths)
-}
+// TrashPaths moves paths into ~/.Trash. It is defined in trash.go together with
+// the manifest that makes restoring possible; this file only keeps the exported
+// surface of the scanner in one place.

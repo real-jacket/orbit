@@ -731,9 +731,9 @@
   </div>
   <div style="display:flex;align-items:center;gap:14px;font-family:var(--font-mono);font-size:11px;">
     <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px;" onclick="toggleSystemMenuBarDemo()" data-icon-slot="bar"></span>
-    <span>🛜 Wi-Fi</span>
-    <span>🔋 98%</span>
-    <span>14:32</span>
+    <span title="本机不提供网络状态">🛜 —</span>
+    <span title="本机不提供电量">🔋 —</span>
+    <span id="menuBarClock" title="本机时间">--:--</span>
   </div>
 </div>
 
@@ -760,7 +760,7 @@
         </div>
         <div>
           <div class="app-name">orbit</div>
-          <div class="app-health-sub" id="sidebarHealthSub">联检分 96 · 7/7 就绪</div>
+          <div class="app-health-sub" id="sidebarHealthSub">联检分 — · 尚未体检</div>
         </div>
       </div>
       <span class="health-pill" id="sidebarHealthPill">联检</span>
@@ -964,7 +964,7 @@
         <span style="font-size:11px;color:var(--text-secondary);"><svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg> 确认后将调用 macOS 原生文件接口移入废纸篓，并持久化更新本地状态</span>
         <div style="display:flex;gap:8px;">
           <button class="btn" data-autofocus onclick="closeConfirmSheet()">取消操作</button>
-          <button class="btn btn-danger-solid" onclick="executeConfirmedClean()">确认清理并移入废纸篓</button>
+          <button class="btn btn-danger-solid" id="confirmModalConfirmBtn" onclick="executeConfirmedClean()">确认清理并移入废纸篓</button>
         </div>
       </div>
     </div>
@@ -997,8 +997,8 @@
     </div>
     <div id="doctorListContainer" style="padding:4px 0;"></div>
     <div style="padding:11px 18px;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;background:var(--bg-surface);">
-      <span style="font-size:11px;color:var(--text-secondary);" id="doctorFooterSummary">上次体检时间: 刚刚 · 综合健康分 96 / 100</span>
-      <button class="btn" onclick="copyTextToClipboard('orbit 系统体检报告: 健康分 ' + STATE.healthScore + '/100 (7/7 项通过)')">导出体检报告</button>
+      <span style="font-size:11px;color:var(--text-secondary);" id="doctorFooterSummary">上次体检时间: 尚未体检 · 联检分 未知</span>
+      <button class="btn" onclick="copyTextToClipboard('orbit 系统体检报告: 联检分 ' + healthScoreText() + ' · 体检项 ' + (STATE.doctorChecks && STATE.doctorChecks.length ? STATE.doctorChecks.length + ' 项' : '本机不提供'))">导出体检报告</button>
     </div>
   </div>
 </div>
@@ -1279,28 +1279,21 @@ const DEFAULT_STATE = {
   lang: 'zh',
   theme: 'dark',
   tempUnit: 'C',
-  fanMode: 'Auto',
   caffeinateActive: false,
-  healthScore: 0,
+  healthScore: null,
   recheckCount: 0,
-  lastCheckTime: '刚刚',
+  lastCheckTime: '尚未体检',
   cpuModelName: '正在读取本机处理器',
   freeDiskGb: 0,
   totalDiskGb: 0,
   totalAnalyzedGb: 0,
-  cpuTempC: 44.8,
-  gpuTempC: 42.5,
   memUsedGb: 0,
   memTotalGb: 0,
-  diskReadMbs: 14.2,
-  diskWriteMbs: 28.6,
-  netDownMbs: 4.82,
-  netUpMbs: 0.64,
-  cpuSeries: [22, 26, 25, 31, 29, 34, 30, 32, 27, 28.4],
-  gpuSeries: [12, 15, 14, 19, 16, 21, 18, 17, 16, 16.8],
-  memSeries: [54, 55, 55, 56, 56, 57, 56, 57, 57, 56.9],
-  diskSeries: [10, 18, 15, 28, 22, 19, 25, 21, 18, 20.4],
-  netSeries: [15, 24, 35, 28, 42, 38, 31, 39, 34, 36.0],
+  // 只保留有真实数据源的采样序列：CPU 占用来自 telemetry.cpu，内存/磁盘使用率由真实值换算。
+  // 温度、GPU、磁盘 I/O、网络上下行、风扇转速没有任何采集源，一律不在此伪造。
+  cpuSeries: [],
+  memSeries: [],
+  diskSeries: [],
   deletedPathsRegistry: [],
   cleanGroups: [],
   aiMoonBands: [],
@@ -1313,35 +1306,71 @@ const DEFAULT_STATE = {
   treemap2D: [],
   analyzeInsights: [],
   analyzeSource: 'mo analyze --json',
+  analyzeError: '',
   analyzeLoading: false,
   analyzePath: '',
   historyLogs: [],
   whitelist: [],
-    doctorChecks: [
-    { id: 'fda', title: '完全磁盘访问权限 (Full Disk Access)', detail: '已授权访问 ~/Library/Caches、~/Library/Logs 与应用沙盒容器', latency: '18ms', passed: true },
-    { id: 'mem', title: '系统统一内存压力评估', detail: '等待本机内存采样', latency: '24ms', passed: true },
-    { id: 'disk', title: '磁盘剩余空间与 SMART 硬件寿命状态', detail: '等待本机磁盘空间采样', latency: '31ms', passed: true },
-    { id: 'bat', title: '电池循环健康度与散热表现', detail: '最大容量 98% · 核心温度 44.8°C 散热良好', latency: '19ms', passed: true },
-    { id: 'up', title: '系统连续运行时间与更新锁检查', detail: '系统运行状态正常 · 无挂起的系统更新锁', latency: '15ms', passed: true },
-    { id: 'log', title: '废纸篓回收与还原快照完整性检查', detail: '所有历史清理快照均可正常关联 ~/.Trash 还原路径', latency: '22ms', passed: true },
-    { id: 'ane', title: '硬件与 AI 核心资产保护锁验证', detail: 'Apple 神经网络引擎缓存与 AI 历史对话目录已在后台白名单隔离保护', latency: '14ms', passed: true }
-  ]
+  whitelistWarnings: [],
+  // 由 onNativeRealScanComplete 的 payload.homePath 注入；页面不再自己猜家目录。
+  homePath: '',
+  registrySavedAt: 0,
+  // 体检项由 buildDoctorChecks() 在每次打开/复诊时根据真实 telemetry 生成，不再写死「全部通过」。
+  doctorChecks: []
 };
 
 // Load persisted state from localStorage so deleted/uninstalled items NEVER reappear across reloads!
 let STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
+// deletedPathsRegistry 是「本次清理后要从列表里隐藏的路径」黑名单：只允许 24h TTL，
+// 否则一次清理会在 localStorage 里永久屏蔽这些路径，用户下次打开也再也看不到（UI-P1-5）。
+const REGISTRY_TTL_MS = 24 * 60 * 60 * 1000;
+function sanitizeRegistry(list, savedAt) {
+  const arr = Array.isArray(list) ? list.filter(p => typeof p === 'string' && p.length > 0) : [];
+  const at = Number(savedAt) || 0;
+  if (!arr.length) return { list: [], savedAt: 0 };
+  if (!at || (Date.now() - at) > REGISTRY_TTL_MS) return { list: [], savedAt: 0 };
+  return { list: arr, savedAt: at };
+}
 try {
   const saved = localStorage.getItem('MOLE_STUDIO_STATE_V8');
   if (saved) {
     const parsed = JSON.parse(saved);
-    STATE = Object.assign({}, DEFAULT_STATE, parsed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      STATE = Object.assign({}, DEFAULT_STATE, parsed);
+      // schema 校验：localStorage 可能来自旧版本或被改坏，逐字段兜底成正确类型。
+      const reg = sanitizeRegistry(parsed.deletedPathsRegistry, parsed.deletedPathsRegistrySavedAt);
+      STATE.deletedPathsRegistry = reg.list;
+      STATE.registrySavedAt = reg.savedAt;
+      ['cleanGroups', 'aiMoonBands', 'appsList', 'orphanLeftoversList', 'largeFiles', 'purgeItems',
+       'installerFiles', 'treemap2D', 'historyLogs', 'whitelist', 'whitelistWarnings', 'collected']
+        .forEach(k => { if (!Array.isArray(STATE[k])) STATE[k] = []; });
+      STATE.whitelist = STATE.whitelist.filter(w => typeof w === 'string' && w.length > 0);
+      STATE.historyLogs = STATE.historyLogs.filter(h => h && typeof h === 'object');
+      if (!STATE.homePath || typeof STATE.homePath !== 'string') STATE.homePath = '';
+    }
   }
-} catch (e) {}
+} catch (e) {
+  STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  STATE.registrySavedAt = 0;
+}
+// 旧版本把自己的伪造值（联检分、假采样序列、写死的"全部通过"体检项）写进过 localStorage，
+// 这里强制回到"未知"，等真实 payload 到达后再计算，避免历史伪造值继续冒充真数据。
+STATE.healthScore = null;
+STATE.cpuSeries = []; STATE.memSeries = []; STATE.diskSeries = [];
+STATE.doctorChecks = [];
+STATE.fanMode = undefined;
 
 function persistState() {
   try {
+    // registry 非空时固定一个时间基准，24h 后读取端会整批丢弃（见 sanitizeRegistry）。
+    if (STATE.deletedPathsRegistry && STATE.deletedPathsRegistry.length) {
+      if (!STATE.registrySavedAt) STATE.registrySavedAt = Date.now();
+    } else {
+      STATE.registrySavedAt = 0;
+    }
     localStorage.setItem('MOLE_STUDIO_STATE_V8', JSON.stringify({
       deletedPathsRegistry: STATE.deletedPathsRegistry,
+      deletedPathsRegistrySavedAt: STATE.registrySavedAt || 0,
       cleanGroups: STATE.cleanGroups,
       aiMoonBands: STATE.aiMoonBands,
       appsList: STATE.appsList,
@@ -1372,9 +1401,212 @@ function triggerNativeRescan() {
   showToast('正在重新扫描本机真实目录、已安装应用与大文件...');
 }
 
+// ───────────────── 破坏性操作回执账本（Go 执行完才回推结果）─────────────────
+// 旧实现是「先改界面、再发命令、立刻报成功」，Go 侧失败时用户完全看不出来。
+// 现在：只登记请求 → 等 onNativeTrashResult / onNativeRestoreResult → 按 movedPaths/restoredPaths 结算。
+// requestId 自增，避免迟到的旧回执误结算到新的请求上。
+let bridgeRequestSeq = 0;
+const pendingTrashRequests = new Map();
+const pendingRestoreRequests = new Map();
+const NATIVE_RESULT_TIMEOUT_MS = 45000;
+
+function nextRequestId(kind) {
+  bridgeRequestSeq += 1;
+  return kind + '-' + Date.now().toString(36) + '-' + bridgeRequestSeq;
+}
+
+function firstFailureText(failedByPath, paths) {
+  for (const p of paths) {
+    const msg = failedByPath.get(String(p));
+    if (msg) return String(msg);
+  }
+  return '系统未返回具体原因';
+}
+
+// entries: [{ label, sizeGb, paths:[绝对路径], commit(okPaths), onFail(failed), regKey }]
+// opts: { title, onDone(movedEntries, failedEntries, res), emptyHint, mountFailedBasket }
+// 破坏性操作成功后的刷新：列表类模块走真实重扫，空间分析模块重拉 treemap（不再手改下标猜体积）。
+function refreshAfterDestructive() {
+  sendNativeBridge({ action: 'requestRealSystemScan' });
+  if (STATE.module === 'analyze') requestDiskAnalyze(STATE.analyzePath || '');
+}
+function submitTrash(entries, opts) {
+  const options = opts || {};
+  const live = (entries || []).filter(e => e && Array.isArray(e.paths) && e.paths.length);
+  const paths = [];
+  live.forEach(e => e.paths.forEach(p => { if (p) paths.push(String(p)); }));
+  if (!paths.length) {
+    showToast(options.emptyHint || '没有可执行的删除路径，操作已取消');
+    return false;
+  }
+  const requestId = nextRequestId('trash');
+  pendingTrashRequests.set(requestId, { entries: live, options, requested: paths.length });
+  window.setTimeout(() => resolveTrash({ requestId, timedOut: true, movedPaths: [], failed: [], skipped: [] }), NATIVE_RESULT_TIMEOUT_MS);
+  showToast('正在移入废纸篓（' + paths.length + ' 个路径），等待系统回执…');
+  sendNativeBridge({ action: 'trashRealPaths', paths, requestId });
+  return true;
+}
+
+// 比较路径时两边都展开 ~：Go 一律回绝对路径，而页面在 homePath 到手前可能还是 ~/…。
+function normalizeComparePath(path) {
+  const raw = String(path == null ? '' : path);
+  const trimmed = raw.replace(/\/+$/, '') || '/';
+  if (!trimmed.startsWith('~')) return trimmed;
+  const home = (STATE.homePath || '').replace(/\/+$/, '');
+  return home ? (home + trimmed.slice(1)).replace(/\/+$/, '') || '/' : trimmed;
+}
+
+function resolveTrash(res) {
+  if (!res || !res.requestId) return;
+  const key = String(res.requestId);
+  const pending = pendingTrashRequests.get(key);
+  if (!pending) return;                     // 已结算或重复回执
+  pendingTrashRequests.delete(key);
+  // Go 权威契约：moved:[{original, trashed}]（兼容早期的 movedPaths 字符串数组）。
+  const movedRaw = Array.isArray(res.moved)
+    ? res.moved.map(m => (m && typeof m === 'object') ? (m.original != null ? m.original : m.trashed) : m)
+    : [];
+  const movedSet = new Set(movedRaw.concat(Array.isArray(res.movedPaths) ? res.movedPaths : []).filter(Boolean).map(normalizeComparePath));
+  const failedByPath = new Map();
+  (Array.isArray(res.failed) ? res.failed : []).forEach(f => { if (f && f.path) failedByPath.set(String(f.path), String(f.error || '移入废纸篓失败')); });
+  (Array.isArray(res.skipped) ? res.skipped : []).forEach(s => { if (s && s.path) failedByPath.set(String(s.path), '已跳过：' + String(s.reason || '受保护')); });
+
+  const movedEntries = [], failedEntries = [], failedPaths = [];
+  pending.entries.forEach(entry => {
+    const okPaths = entry.paths.filter(p => movedSet.has(normalizeComparePath(p)));
+    if (okPaths.length === entry.paths.length) {
+      try { if (typeof entry.commit === 'function') entry.commit(okPaths); } catch (e) {}
+      movedEntries.push(entry);
+      return;
+    }
+    const missing = entry.paths.filter(p => !movedSet.has(normalizeComparePath(p)));
+    const failed = missing.map(p => ({ path: String(p), error: failedByPath.get(String(p)) || (res.timedOut ? '系统未在 45 秒内返回回执' : '未移入废纸篓') }));
+    entry.failedPaths = failed;
+    failedPaths.push(...failed);
+    try { if (typeof entry.onFail === 'function') entry.onFail(failed); } catch (e) {}
+    failedEntries.push(entry);
+  });
+
+  // 没成功的路径必须留在界面上（标红 + 写明原因），不能假装删掉了。
+  // 只有「待清理栏」来源的请求（basketOnFail）才回填到栏目里，其他模块的失败项留在各自列表上标红。
+  const basketOnFail = failedEntries.some(entry => entry.basketOnFail);
+  failedPaths.forEach(f => {
+    const shown = displayPath(f.path);
+    const hit = STATE.collected.find(c => c.path === shown);
+    if (hit) { hit.failed = true; hit.error = f.error; }
+    else if (basketOnFail) {
+      STATE.collected.push({ path: shown, name: shown.split('/').filter(Boolean).slice(-1)[0] || shown, sizeGb: 0, isDir: false, failed: true, error: f.error });
+    }
+  });
+
+  if (typeof pending.options.onDone === 'function') pending.options.onDone(movedEntries, failedEntries, res);
+
+  const total = pending.requested;
+  const okCount = (typeof res.movedCount === 'number') ? res.movedCount : (total - failedPaths.length);
+  const okMb = movedEntries.reduce((n, e) => n + (Number(e.sizeGb) || 0), 0);
+  if (!failedPaths.length) {
+    showToast((pending.options.title || '操作') + '完成：' + okCount + ' 个路径已移入废纸篓' + (okMb > 0 ? '（约 ' + okMb.toFixed(2) + ' GB）' : ''));
+  } else if (okCount > 0) {
+    showToast((pending.options.title || '操作') + '部分成功：' + okCount + ' 个已移入废纸篓，' + failedPaths.length + ' 个失败（' + failedPaths[0].error + '），失败项已保留在列表中');
+  } else {
+    showToast((pending.options.title || '操作') + '失败：' + failedPaths.length + ' 个路径都未能移入废纸篓（' + failedPaths[0].error + '）');
+  }
+  persistState();
+  updateSidebarBadges(); renderModule(); renderMenuBarTrayContent();
+  if (okCount > 0) refreshAfterDestructive();
+}
+
+// 从废纸篓按 manifest 还原一批原始路径（restoreTrashSnapshot）。
+function submitRestore(snap, paths) {
+  const clean = (paths || []).filter(p => typeof p === 'string' && p);
+  if (!clean.length) { showToast('这条记录没有可还原的原始路径，无法原路还原'); return false; }
+  const requestId = nextRequestId('restore');
+  pendingRestoreRequests.set(requestId, { snap, paths: clean });
+  window.setTimeout(() => resolveRestore({ requestId, timedOut: true, restoredPaths: [], failed: [] }), NATIVE_RESULT_TIMEOUT_MS);
+  showToast('正在从废纸篓还原 ' + clean.length + ' 个路径，等待系统回执…');
+  sendNativeBridge({ action: 'restoreTrashSnapshot', paths: clean, requestId });
+  return true;
+}
+
+function resolveRestore(res) {
+  if (!res || !res.requestId) return;
+  const key = String(res.requestId);
+  const pending = pendingRestoreRequests.get(key);
+  if (!pending) return;
+  pendingRestoreRequests.delete(key);
+  const snap = pending.snap || {};
+  // Go 权威契约：restored:[原始路径…]（兼容早期的 restoredPaths）。
+  const restoredSet = new Set((Array.isArray(res.restored) ? res.restored : (Array.isArray(res.restoredPaths) ? res.restoredPaths : [])).map(normalizeComparePath));
+  const failedByPath = new Map();
+  (Array.isArray(res.failed) ? res.failed : []).forEach(f => { if (f && f.path) failedByPath.set(String(f.path), String(f.error || '还原失败')); });
+  const restored = pending.paths.filter(p => restoredSet.has(normalizeComparePath(p)));
+  const stillGone = pending.paths.filter(p => !restoredSet.has(normalizeComparePath(p)));
+
+  // 只有确认回到原位的路径才撤销「已隐藏」标记，失败的原样保留。
+  if (restored.length) {
+    const restoredDisplay = new Set(restored.map(p => displayPath(p)));
+    STATE.deletedPathsRegistry = (STATE.deletedPathsRegistry || []).filter(p => !restoredDisplay.has(displayPath(p)) && !restoredDisplay.has(p));
+    if (!STATE.deletedPathsRegistry.length) STATE.registrySavedAt = 0;
+  }
+
+  if (!stillGone.length) {
+    STATE.historyLogs = (STATE.historyLogs || []).filter(h => h !== snap && h.id !== snap.id);
+    restoreSnapshotEntities(snap);
+    showToast('已从废纸篓还原 ' + restored.length + ' 个路径（' + (snap.action || '清理记录') + '）');
+  } else if (restored.length) {
+    snap.status = '部分还原 ' + restored.length + '/' + pending.paths.length;
+    snap.partialRestoreAt = Date.now();
+    showToast('部分还原：成功 ' + restored.length + ' 个，失败 ' + stillGone.length + ' 个（' + firstFailureText(failedByPath, stillGone) + '），记录已保留');
+  } else {
+    showToast('还原失败：' + firstFailureText(failedByPath, stillGone) + '，记录已保留');
+  }
+  persistState();
+  updateSidebarBadges(); renderModule(); renderMenuBarTrayContent();
+  if (restored.length) refreshAfterDestructive();
+}
+
+window.onNativeTrashResult = function(res) { resolveTrash(res); };
+window.onNativeRestoreResult = function(res) { resolveRestore(res); };
+
+// Go 侧白名单是唯一真相（~/.config/mole/whitelist）：页面只渲染它推过来的列表。
+window.onNativeWhitelistChanged = function(res) {
+  if (!res) return;
+  if (Array.isArray(res.whitelist)) STATE.whitelist = res.whitelist.filter(w => typeof w === 'string' && w.length > 0);
+  STATE.whitelistWarnings = Array.isArray(res.warnings) ? res.warnings.filter(w => typeof w === 'string') : [];
+  persistState();
+  updateSidebarBadges(); renderModule(); renderMenuBarTrayContent();
+  if (res.ok === false) {
+    showToast('白名单' + (res.action === 'removeWhitelist' ? '移除' : '添加') + '失败：' + (res.error || '未知原因'));
+  } else if (res.action === 'removeWhitelist') {
+    showToast('已从白名单移除 ' + displayPath(res.path || ''));
+  } else if (res.action === 'addWhitelist') {
+    showToast('已加入白名单 ' + displayPath(res.path || '') + '（' + STATE.whitelist.length + ' 条）');
+  } else {
+    showToast('白名单已更新（' + STATE.whitelist.length + ' 条）');
+  }
+  if (STATE.whitelistWarnings.length) console.warn('[whitelist]', STATE.whitelistWarnings.join('; '));
+  if (res.ok !== false) sendNativeBridge({ action: 'requestRealSystemScan' });
+};
+
+window.onNativeAnalyzeError = function(res) {
+  STATE.analyzeLoading = false;
+  const path = res && res.path ? displayPath(res.path) : '全机概览';
+  showToast('磁盘分析失败（' + path + '）：' + ((res && res.error) || '未知错误'));
+  renderModule();
+};
+
+
 // Called by Native Swift Backend (`MoleStudioHost.swift`) with 100% REAL macOS disk, app, cache, and large-file scan results!
 window.onNativeRealScanComplete = function(payload) {
   if (!payload) return;
+  // 家目录只有 Go 侧知道得准（NSHomeDirectory / os.UserHomeDir）：注入后 absolutePath('~/…') 才不再是 null。
+  const homeFromGo = (typeof payload.homePath === 'string' && payload.homePath) ? payload.homePath : (window.__HOME__ || '');
+  if (homeFromGo) STATE.homePath = String(homeFromGo).replace(/\/+$/, '');
+  // 白名单以 Go 侧文件（~/.config/mole/whitelist）为唯一真相，页面不再自己在前面加后缀。
+  if (Array.isArray(payload.whitelist)) {
+    STATE.whitelist = payload.whitelist.filter(w => typeof w === 'string' && w.length > 0);
+    STATE.whitelistWarnings = Array.isArray(payload.whitelistWarnings) ? payload.whitelistWarnings.filter(w => typeof w === 'string') : [];
+  }
   const delSet = new Set(STATE.deletedPathsRegistry || []);
 
   if (typeof payload.freeDiskGb === 'number') STATE.freeDiskGb = +payload.freeDiskGb.toFixed(2);
@@ -1437,41 +1669,46 @@ window.onNativeRealScanComplete = function(payload) {
   renderMenuBarTrayContent();
 };
 
-// Called by Native Swift Backend every 1.5s with 100% REAL `/bin/ps` processes, CPU, Memory, and Disk free space!
+// Called by the Go backend every 1.5s with REAL `/bin/ps` processes, CPU, memory and free disk space.
+// 只接受有真实来源的字段；温度 / GPU / 磁盘 I/O / 网络速率 / 风扇转速本项目没有采集源，
+// 因此这里既不计算也不猜测（页面统一显示「本机不提供」）。
 window.onNativeRealTelemetry = function(data) {
   if (!data) return;
-  if (typeof data.freeDiskGb === 'number') STATE.freeDiskGb = +data.freeDiskGb.toFixed(2);
-  if (typeof data.memUsedGb === 'number') STATE.memUsedGb = +data.memUsedGb.toFixed(1);
-  if (typeof data.memTotalGb === 'number') STATE.memTotalGb = +data.memTotalGb.toFixed(1);
-  if (typeof data.cpu === 'number') {
-    const c = +Math.max(1.0, Math.min(99.9, data.cpu)).toFixed(1);
+  if (hasNum(data.freeDiskGb)) STATE.freeDiskGb = +data.freeDiskGb.toFixed(2);
+  if (hasNum(data.memUsedGb)) STATE.memUsedGb = +data.memUsedGb.toFixed(1);
+  if (hasNum(data.memTotalGb)) STATE.memTotalGb = +data.memTotalGb.toFixed(1);
+  if (hasNum(data.cpu)) {
+    const c = +Math.max(0, Math.min(100, data.cpu)).toFixed(1);
     STATE.cpuSeries.push(c); STATE.cpuSeries.shift();
-    STATE.cpuTempC = +(41.5 + c * 0.18).toFixed(1);
   }
-  if (Array.isArray(data.processes) && data.processes.length > 0) {
+  const memPct = STATE.memTotalGb > 0 ? +((STATE.memUsedGb / STATE.memTotalGb) * 100).toFixed(1) : null;
+  if (memPct != null) { STATE.memSeries.push(memPct); STATE.memSeries.shift(); }
+  const diskUsedPct = diskUsedPercent();
+  if (diskUsedPct != null) { STATE.diskSeries.push(diskUsedPct); STATE.diskSeries.shift(); }
+  if (Array.isArray(data.processes)) {
     const pinnedSet = new Set(STATE.processes.filter(p => p.pinned).map(p => p.name));
-    STATE.processes = data.processes.map((p, idx) => ({
+    STATE.processes = data.processes.map(p => ({
       pid: p.pid,
       name: p.name,
       cpu: +Number(p.cpu || 0).toFixed(1),
-      memory_mb: Math.max(1, Math.round(Number(p.memory_mb || 10))),
-      power: +(Number(p.cpu || 0) * 0.28 + 0.2).toFixed(1),
-      pinned: pinnedSet.has(p.name) || idx < 2,
+      memory_mb: hasNum(Number(p.memory_mb)) ? Math.max(0, Math.round(Number(p.memory_mb))) : null,
+      // Go 侧 power 恒为 0（暂无功耗采集），这里保留原值以便诚实显示「不提供」。
+      power: hasNum(Number(p.power)) ? Number(p.power) : null,
+      pinned: pinnedSet.has(p.name),
       path: p.path || p.name
     }));
   }
 
   if (data.power) STATE.power = data.power;
-  const curCpu = STATE.cpuSeries[STATE.cpuSeries.length - 1];
+  STATE.healthScore = healthScoreNow();
   const pill = document.getElementById('livePillText');
   if (pill) {
-    pill.textContent = `实时监控中 · CPU ${curCpu}% · 剩余 ${STATE.freeDiskGb.toFixed(1)}G`;
+    const cpuTxt = hasNum(stateCpuPct()) ? fmtNum(stateCpuPct(), 1) + '%' : '未知';
+    pill.textContent = `实时监控中 · CPU ${cpuTxt} · 剩余 ${fmtNum(STATE.freeDiskGb, 1, '未知')}G`;
   }
   updateSidebarBadges();
   renderMenuBarTrayContent();
-  if (STATE.module === 'status') {
-    renderModule();
-  }
+  if (STATE.module === 'status') patchStatusLive();
 };
 
 // Renders the Unified Warm-Obsidian MenuBar Tray UI (used both inside NSPopover `?mode=menubar` and in `#macSysPopover`)
@@ -1489,14 +1726,14 @@ function buildMenuBarTrayHTML() {
     cell('内存', `<span style="color:${pr[1]}">${pr[0].replace('内存', '')}</span>`, `${memPct}%`, 'var(--accent-emerald)', `<div class="tray-sub">已用 ${STATE.memUsedGb.toFixed(1)} / ${STATE.memTotalGb.toFixed(0)} GB</div>`),
     bat ? cell('电池', batteryState(bat), `${bat.percent != null ? bat.percent : '--'}%`, batLow ? 'var(--accent-rose)' : 'var(--accent-emerald)',
         `<div class="tray-sub">最大容量 ${bat.healthPct != null ? bat.healthPct + '%' : '--'} · 循环 ${bat.cycles != null ? bat.cycles : '--'} 次</div>`)
-      : cell('可释放缓存', '已勾选', `${cleanableGb.toFixed(2)} GB`, 'var(--accent-emerald)', ''),
+      : cell('已勾选清理量', 'Go 侧判定', `${cleanableGb.toFixed(2)} GB`, 'var(--accent-emerald)', ''),
     cell('磁盘', 'Macintosh HD', `${STATE.freeDiskGb.toFixed(1)} GB`, 'var(--accent-primary)', '<div class="tray-sub">可用空间</div>')
   ];
   return `
     <div class="tray-head">
       <div class="app-icon-box brand-plate" style="width:26px;height:26px;border-radius:7px;">${get_skeuo_svg('brand', 'tray')}</div>
       <div class="tray-title">orbit</div>
-      <span class="badge badge-safe">联检分 ${STATE.healthScore}</span>
+      <span class="badge badge-safe">联检分 ${healthScoreText()}</span>
     </div>
     <div class="tray-grid">${cells.join('')}</div>
     <div class="panel-card" style="background:var(--bg-surface);">
@@ -1504,12 +1741,12 @@ function buildMenuBarTrayHTML() {
       ${top3.map(p => `
         <div class="tray-proc">
           <div class="tray-proc-name">${p.name}</div>
-          <div class="tray-proc-meta"><b>${p.cpu.toFixed(1)}%</b><span>${p.memory_mb}M</span>${killButton(p, true)}</div>
+          <div class="tray-proc-meta"><b>${fmtNum(p.cpu,1,'—')}%</b><span>${p.memory_mb == null ? '—' : p.memory_mb + 'M'}</span>${killButton(p, true)}</div>
         </div>`).join('')}
     </div>
     <div class="tray-actions">
       <button class="btn btn-primary" style="grid-column:span 3;justify-content:center;padding:7px;" ${cleanableGb > 0 ? '' : 'disabled'} onclick="sendNativeBridge({action:'menubarOpenClean'}); switchModule('clean'); openConfirmSheet();">
-        ${cleanableGb > 0 ? `清理安全缓存 · ${cleanableGb.toFixed(2)} GB` : '暂无可清理的缓存'}
+        ${cleanableGb > 0 ? `清理已勾选项目 · ${cleanableGb.toFixed(2)} GB` : '暂无勾选的清理项'}
       </button>
       <button class="btn" onclick="sendNativeBridge({action:'menubarOpenDoctor'}); openDoctorModal(true);">系统联检</button>
       <button class="btn ${STATE.caffeinateActive ? 'btn-primary' : ''}" onclick="toggleCaffeinateState()">防休眠 ${STATE.caffeinateActive ? '开' : '关'}</button>
@@ -1536,8 +1773,33 @@ function toggleCaffeinateState() {
   STATE.caffeinateActive = !STATE.caffeinateActive;
   sendNativeBridge({ action: 'toggleCaffeinate', active: STATE.caffeinateActive });
   renderMenuBarTrayContent();
-  showToast(STATE.caffeinateActive ? '已开启防止 Mac 休眠 (caffeinate)' : '已关闭防止休眠模式');
+  showToast(STATE.caffeinateActive ? '已请求开启防休眠（caffeinate）…' : '已请求关闭防休眠…');
 }
+
+// Go 侧是防休眠状态的唯一真相：caffeinate 自己到时退出或启动失败时，开关必须跟着真实状态走，
+// 否则界面会一直显示「开」而 Mac 其实已经睡了。
+window.onNativeDoctorReport = function(r) {
+  const checks = (r && Array.isArray(r.checks)) ? r.checks : [];
+  STATE.doctorChecks = checks;
+  try { renderDoctorChecksList(null); } catch (e) {}
+  const sub = document.getElementById('sidebarHealthSub');
+  if (sub) sub.textContent = `联检分 ${healthScoreText()} · ${checks.length ? checks.length + ' 项体检' : '体检项本机不提供'}`;
+  if (window._doctorWaitingForReport) {
+    // Go 已经回答了，回到 startDoctorReDiagnosis 走动画（此时列表非空）。
+    try { startDoctorReDiagnosis(); } catch (e) {}
+  }
+};
+
+window.onNativeCaffeinate = function(state) {
+  if (!state || typeof state.active !== 'boolean') return;
+  const changed = STATE.caffeinateActive !== state.active;
+  STATE.caffeinateActive = state.active;
+  renderMenuBarTrayContent();
+  if (changed) {
+    showToast(state.active ? '防休眠已开启：caffeinate 正在运行' : '防休眠已关闭：caffeinate 已退出');
+  }
+  renderModule();
+};
 
 function toggleSystemMenuBarDemo(show) {
   const bar = document.getElementById('macSysMenuBar');
@@ -1577,37 +1839,35 @@ function copyTextToClipboard(txt) {
 }
 
 function addPathToWhitelist(pathStr, groupIdx) {
-  const entry = pathStr + ' (用户白名单保护)';
-  if (!STATE.whitelist.some(w => w.includes(pathStr))) {
-    STATE.whitelist.unshift(entry);
-  }
+  const abs = absolutePath(pathStr);
+  if (!abs) { showToast('这条路径无法解析成绝对路径，白名单未添加'); return; }
+  // 不在前端编造「受保护」后缀标注，也不先本地插入：等 Go 写盘后推 onNativeWhitelistChanged。
+  sendNativeBridge({ action: 'addWhitelist', path: abs });
   if (typeof groupIdx === 'number' && STATE.cleanGroups[groupIdx]) {
     STATE.cleanGroups.splice(groupIdx, 1);
     STATE.selectedCleanIdx = 0;
   }
-  persistState();
-  sendNativeBridge({ action: 'addWhitelist', path: pathStr });
   updateSidebarBadges();
   renderModule();
-  showToast('已将 ' + pathStr + ' 移入白名单隔离保护，并从清理列表中移除');
+  showToast('正在把 ' + abs + ' 加入白名单，等待系统回执…');
 }
 
 function removeWhitelistIdx(idx) {
-  const removed = STATE.whitelist.splice(idx, 1);
-  persistState();
-  renderModule();
-  showToast('已从白名单移除 ' + (removed[0] || ''));
+  const pattern = (STATE.whitelist || [])[idx];
+  if (!pattern) return;
+  // 同样等 Go 回执（onNativeWhitelistChanged）再重绘，失败时白名单条目必须还在。
+  sendNativeBridge({ action: 'removeWhitelist', path: absolutePath(pattern) || pattern });
+  showToast('正在从白名单移除 ' + pattern + '，等待系统回执…');
 }
 
 function addCustomWhitelistInput() {
   const inp = document.getElementById('customWhitelistInput');
   if (!inp || !inp.value.trim()) return;
   const val = inp.value.trim();
-  STATE.whitelist.unshift(val + ' (自定义保护路径)');
+  if (!val.startsWith('/') && !val.startsWith('~')) { showToast('请输入绝对路径或以 ~ 开头的路径'); return; }
+  sendNativeBridge({ action: 'addWhitelist', path: absolutePath(val) || val });
   inp.value = '';
-  persistState();
-  renderModule();
-  showToast('已添加自定义白名单路径: ' + val);
+  showToast('正在把 ' + val + ' 加入白名单，等待系统回执…');
 }
 
 function renderHeroIcon() {
@@ -1622,6 +1882,8 @@ function renderHeroIcon() {
 function renderHeroGlyph() { renderHeroIcon(); }
 
 function svgSparkline(points, strokeColor, fillColor, heightPx) {
+  points = (Array.isArray(points) ? points : []).filter(hasNum);
+  if (points.length < 2) return '<div style="height:34px;display:flex;align-items:center;font-size:10.5px;color:var(--text-muted);">采样中…</div>';
   const max = Math.max(...points, 100);
   const w = 220, h = heightPx || 34;
   const coords = points.map((v, i) => {
@@ -1661,8 +1923,29 @@ Object.assign(UI_ICON_PATHS, {
   plug: '<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>'
 });
 function powerInfo() { return STATE.power || {}; }
-function thermalInfo() { return THERMAL_TEXT[powerInfo().thermal] || THERMAL_TEXT.nominal; }
-function pressureInfo() { return PRESSURE_TEXT[powerInfo().memPressure] || PRESSURE_TEXT.normal; }
+// 诚实展示层：没有数据源就显示「未知 / 本机不提供」，绝不编造数值。
+const UNSUPPORTED = '本机不提供';
+function healthScoreNow() {
+  const diskUsed = diskUsedPercent(), memPct = memPercent();
+  const th = thermalInfo(), pr = pressureInfo();
+  let score = 100, known = 0;
+  if (hasNum(diskUsed)) { known++; if (diskUsed > 92) score -= 25; else if (diskUsed > 85) score -= 12; else if (diskUsed > 75) score -= 5; }
+  if (hasNum(memPct)) { known++; if (memPct > 92) score -= 20; else if (memPct > 82) score -= 10; else if (memPct > 72) score -= 4; }
+  const thKey = String(powerInfo().thermal || '');
+  if (/critical|serious|临界/.test(thKey)) { known++; score -= /critical|临界/.test(thKey) ? 20 : 8; }
+  const prKey = String(powerInfo().memPressure || '');
+  if (/critical|warn|危|偏紧/.test(prKey)) { known++; score -= /critical|危/.test(prKey) ? 15 : 6; }
+  return known ? Math.max(0, Math.min(100, score)) : null;
+}
+function healthScoreText() {
+  return hasNum(STATE.healthScore) ? `${Math.round(STATE.healthScore)} / 100` : '未知';
+}
+function hasNum(v) { return typeof v === 'number' && isFinite(v); }
+function fmtNum(v, digits, fallback) { return hasNum(v) ? Number(v).toFixed(digits == null ? 1 : digits) : (fallback == null ? '—' : fallback); }
+function fmtPct(v, digits) { return hasNum(v) ? Number(v).toFixed(digits == null ? 1 : digits) + '%' : '未知'; }
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
+function thermalInfo() { const k = powerInfo().thermal; return THERMAL_TEXT[k] || ['热压力未知', 'var(--text-muted)']; }
+function pressureInfo() { const k = powerInfo().memPressure; return PRESSURE_TEXT[k] || ['内存压力未知', 'var(--text-muted)']; }
 function batteryState(b) { return b.charging ? '充电中' : b.full ? '已充满' : b.plugged ? '已接通电源' : '使用电池'; }
 function formatMinutes(m) { return m >= 60 ? `${Math.floor(m / 60)} 小时 ${m % 60} 分` : `${m} 分钟`; }
 function batteryAdvice(b) {
@@ -1691,16 +1974,17 @@ function telemetryCard(icon, title, aside, big, color, sub, extra) {
     `<div class="tc-main"><span class="tc-big" style="color:${color}">${big}</span><span class="tc-sub">${sub}</span></div>${extra || ''}</div>`;
 }
 function batteryCard(b) {
-  const pct = b.percent != null ? b.percent : 0;
+  const pct = hasNum(b.percent) ? b.percent : null;
   const health = b.healthPct;
   const hColor = health == null ? 'var(--text-primary)' : health >= 85 ? 'var(--accent-emerald)' : health >= 80 ? 'var(--accent-amber)' : 'var(--accent-rose)';
-  const low = pct <= 20 && !b.plugged;
+  const low = pct != null && pct <= 20 && !b.plugged;
   const stat = (label, value, color) => `<div class="batt-stat"><span>${label}</span><b style="color:${color || 'var(--text-primary)'}">${value}</b></div>`;
   const time = b.minutes ? (b.charging ? `约 ${formatMinutes(b.minutes)} 充满` : `约可用 ${formatMinutes(b.minutes)}`) : (b.full ? '电量已满' : (b.plugged && !b.charging ? '未在充电' : ''));
-  const extra = `<div class="batt-bar"><i style="width:${Math.min(100, pct)}%;background:${low ? 'var(--accent-rose)' : 'var(--accent-emerald)'}"></i></div>` +
-    `<div class="batt-stats">${stat('最大容量', health != null ? health + '%' : '--', hColor)}${stat('循环次数', b.cycles != null ? b.cycles : '--')}${stat('电池温度', b.tempC != null ? b.tempC.toFixed(1) + '°C' : '--')}</div>` +
+  // healthPct / tempC 可能为 null（无电池或读不到）：显示「本机不提供」，不再用 '--' 或编造数值。
+  const extra = `<div class="batt-bar"><i style="width:${pct == null ? 0 : Math.min(100, pct)}%;background:${low ? 'var(--accent-rose)' : 'var(--accent-emerald)'}"></i></div>` +
+    `<div class="batt-stats">${stat('最大容量', health != null ? health + '%' : UNSUPPORTED, hColor)}${stat('循环次数', b.cycles != null ? b.cycles : UNSUPPORTED)}${stat('电池温度', hasNum(b.tempC) ? b.tempC.toFixed(1) + '°C' : UNSUPPORTED)}</div>` +
     `<div class="batt-tip">${batteryAdvice(b)}</div>`;
-  return telemetryCard('battery', '电池', batteryState(b), `${pct}%`, low ? 'var(--accent-rose)' : 'var(--accent-emerald)', time, extra);
+  return telemetryCard('battery', '电池', batteryState(b), pct != null ? `${pct}%` : '未知', low ? 'var(--accent-rose)' : 'var(--accent-emerald)', time, extra);
 }
 function powerCard(pw) {
   const on = STATE.caffeinateActive;
@@ -1709,22 +1993,87 @@ function powerCard(pw) {
   return telemetryCard('plug', '电源与休眠', source, on ? '防休眠 开' : '防休眠 关', on ? 'var(--accent-primary)' : 'var(--text-primary)', '最长保持 2 小时',
     `<button class="btn ${on ? 'btn-primary' : ''}" style="justify-content:center;margin-top:4px;" onclick="toggleCaffeinateState()">${on ? '关闭防休眠' : '开启防休眠'}</button>`);
 }
+function stateCpuPct() {
+  const arr = Array.isArray(STATE.cpuSeries) ? STATE.cpuSeries : [];
+  return arr.length ? arr[arr.length - 1] : null;
+}
+function memPercent() {
+  return hasNum(STATE.memUsedGb) && hasNum(STATE.memTotalGb) && STATE.memTotalGb > 0
+    ? +Math.min(100, Math.max(0, (STATE.memUsedGb / STATE.memTotalGb) * 100)).toFixed(1) : null;
+}
+function diskUsedPercent() {
+  if (!hasNum(STATE.totalDiskGb) || STATE.totalDiskGb <= 0 || !hasNum(STATE.freeDiskGb)) return null;
+  return +Math.min(100, Math.max(0, ((STATE.totalDiskGb - STATE.freeDiskGb) / STATE.totalDiskGb) * 100)).toFixed(1);
+}
 function buildStatusCards() {
-  const cpu = STATE.cpuSeries[STATE.cpuSeries.length - 1];
-  const disk = STATE.diskSeries[STATE.diskSeries.length - 1];
-  const memPct = +((STATE.memUsedGb / Math.max(1, STATE.memTotalGb)) * 100).toFixed(1);
+  const cpu = stateCpuPct(), memPct = memPercent(), diskUsed = diskUsedPercent();
   const th = thermalInfo(), pr = pressureInfo(), pw = powerInfo();
   const tag = t => `<span style="color:${t[1]}">${t[0]}</span>`;
   const cards = [
-    telemetryCard('cpu', `处理器 · ${STATE.cpuModelName}`, tag(th), `${cpu}%`, 'var(--accent-blue)', '实时采样', svgSparkline(STATE.cpuSeries, '#4b83f0', 'rgba(75,131,240,0.16)')),
-    telemetryCard('memory', `统一内存 · ${STATE.memTotalGb.toFixed(0)} GB`, tag(pr), `${memPct}%`, 'var(--accent-emerald)', `已用 ${STATE.memUsedGb.toFixed(1)} GB`, svgSparkline(STATE.memSeries, '#2e9e6b', 'rgba(46,158,107,0.16)'))
+    telemetryCard('cpu', `处理器 · ${STATE.cpuModelName}`, tag(th), cpu != null ? fmtNum(cpu, 1) + '%' : '未知', 'var(--accent-blue)', 'Go 侧 1.5s 采样', svgSparkline(STATE.cpuSeries, '#4b83f0', 'rgba(75,131,240,0.16)'), 'statusCardCpu'),
+    telemetryCard('memory', `统一内存 · ${STATE.memTotalGb > 0 ? fmtNum(STATE.memTotalGb, 0) + ' GB' : '容量未知'}`, tag(pr), memPct != null ? fmtPct(memPct) : '未知', 'var(--accent-emerald)', `已用 ${fmtNum(STATE.memUsedGb, 1, '未知')} GB`, svgSparkline(STATE.memSeries, '#2e9e6b', 'rgba(46,158,107,0.16)'), 'statusCardMem')
   ];
   if (pw.battery) cards.push(batteryCard(pw.battery));
-  cards.push(telemetryCard('disk', '磁盘 · Macintosh HD', `剩余 ${STATE.freeDiskGb.toFixed(1)} GB`, `${disk}%`, 'var(--accent-amber)', `读 ${STATE.diskReadMbs} · 写 ${STATE.diskWriteMbs} MB/s`, svgSparkline(STATE.diskSeries, '#d99b26', 'rgba(217,155,38,0.16)')));
-  cards.push(telemetryCard('network', '网络', '实时速率', `${STATE.netDownMbs} MB/s`, 'var(--accent-blue)', `↑ ${STATE.netUpMbs} MB/s`, svgSparkline(STATE.netSeries, '#4b83f0', 'rgba(75,131,240,0.16)')));
+  cards.push(telemetryCard('disk', '磁盘 · Macintosh HD', `可用 ${fmtNum(STATE.freeDiskGb, 1, '未知')} GB`, diskUsed != null ? fmtPct(diskUsed) : '未知', 'var(--accent-amber)', (diskUsed != null ? `共 ${fmtNum(STATE.totalDiskGb, 0)} GB · 已用 ${fmtNum(STATE.totalDiskGb - STATE.freeDiskGb, 1)} GB` : '总容量未知'), svgSparkline(STATE.diskSeries, '#d99b26', 'rgba(217,155,38,0.16)'), 'statusCardDisk'));
+  // 磁盘 I/O、网络上下行、GPU、SMC 温度、风扇转速：本项目没有采集源（见 docs/go-port.md §不做），如实标注而不是编造速率。
+  cards.push(telemetryCard('network', '磁盘 I/O · 网络速率', UNSUPPORTED, '—', 'var(--text-muted)', '未接入 iostat / netstat 采样', '', 'statusCardIo'));
   cards.push(powerCard(pw));
   return cards.join('');
 }
+function sortedProcessesList() {
+  return [...STATE.processes].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return (Number(b[STATE.procSortKey]) || 0) - (Number(a[STATE.procSortKey]) || 0);
+  });
+}
+function statusProcRowsHTML(list) {
+  return list.slice(0, 8).map(p => `
+    <tr data-pid="${p.pid}">
+      <td style="color:#eab308;cursor:pointer;font-size:13px;" onclick="togglePinProcess(${p.pid})" title="点击切换置顶">${p.pinned ? '★' : '☆'}</td>
+      <td style="font-weight:700;color:var(--text-primary);">${escHtml(p.name)}</td>
+      <td>${p.pid}</td>
+      <td class="p-cpu" style="color:${Number(p.cpu) > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${fmtNum(p.cpu, 1, '未知')}%</td>
+      <td class="p-mem">${p.memory_mb == null ? UNSUPPORTED : p.memory_mb + ' MB'}</td>
+      <td style="color:var(--text-muted);font-size:11px;cursor:pointer;max-width:290px;overflow:hidden;text-overflow:ellipsis;" onclick="revealInFinder('${jsq(p.path)}')">${escHtml(p.path)}</td>
+      <td>${killButton(p, false)}</td>
+    </tr>
+  `).join('');
+}
+// 1.5s 遥测到达时不再整页重建：只替换 CPU/内存/磁盘/能力卡的数值与进程表的数字列，
+// 避免打断滚动、排序与「结束进程」的二次确认状态。
+function patchStatusLive() {
+  try {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = buildStatusCards();
+    ['statusCardCpu', 'statusCardMem', 'statusCardDisk', 'statusCardIo'].forEach(id => {
+      const next = tmp.querySelector('#' + id), cur = document.getElementById(id);
+      if (next && cur) cur.replaceWith(next);
+    });
+    const tbody = document.getElementById('procTbody');
+    const list = sortedProcessesList();
+    if (tbody) {
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const sameSet = rows.length === Math.min(8, list.length) && rows.every((tr, i) => String(list[i].pid) === tr.getAttribute('data-pid'));
+      if (!sameSet) {
+        tbody.innerHTML = statusProcRowsHTML(list);
+      } else {
+        rows.forEach((tr, i) => {
+          const p = list[i];
+          const cpuCell = tr.querySelector('.p-cpu'), memCell = tr.querySelector('.p-mem');
+          if (cpuCell) cpuCell.textContent = fmtNum(p.cpu, 1, '未知') + '%';
+          if (memCell) memCell.textContent = p.memory_mb == null ? UNSUPPORTED : p.memory_mb + ' MB';
+        });
+      }
+    }
+    const hv = document.getElementById('heroStatValue'), hs = document.getElementById('heroStatSub');
+    const bat = powerInfo().battery;
+    if (hv) hv.textContent = bat ? (hasNum(bat.percent) ? bat.percent + '%' : '未知') : (stateCpuPct() != null ? fmtNum(stateCpuPct(), 1) + '%' : '未知');
+    if (hs) hs.textContent = bat
+      ? `最大容量 ${bat.healthPct != null ? bat.healthPct + '%' : UNSUPPORTED} · 循环 ${bat.cycles != null ? bat.cycles : UNSUPPORTED} 次`
+      : `内存 ${memPercent() != null ? fmtPct(memPercent()) : '未知'} · 磁盘剩余 ${fmtNum(STATE.freeDiskGb, 1, '未知')} GB`;
+  } catch (e) { renderModule(); }
+}
+
 
 function layoutTreemap(tiles) {
   const stage = document.querySelector('.treemap-stage');
@@ -1771,7 +2120,8 @@ function recomputeDiskAnalyzeTotals() {
   STATE.treemap2D.forEach(d => {
     d.pct = +((d.sizeGb / Math.max(0.1, total)) * 100).toFixed(1);
   });
-  const usedPct = Math.max(18, Math.min(72, Math.round(((STATE.totalDiskGb - STATE.freeDiskGb) / Math.max(100, STATE.totalDiskGb)) * 70)));
+  const usedPct = (hasNum(STATE.totalDiskGb) && STATE.totalDiskGb > 0 && hasNum(STATE.freeDiskGb))
+    ? Math.max(0, Math.min(100, Math.round(((STATE.totalDiskGb - STATE.freeDiskGb) / STATE.totalDiskGb) * 100))) : 0;
   const barEl = document.getElementById('diskUsedBar');
   if (barEl) barEl.style.width = usedPct + '%';
 }
@@ -1790,11 +2140,17 @@ function updateSidebarBadges() {
   document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : !(STATE.purgeItems.length + STATE.installerFiles.length) ? '待扫描' : '已清理';
   document.getElementById('navMetaHistory').textContent = STATE.historyLogs.length + (STATE.lang === 'zh' ? ' 快照' : ' Snaps');
   document.getElementById('sidebarFreeDisk').textContent = (STATE.lang === 'zh' ? '剩余 ' : 'Free ') + STATE.freeDiskGb.toFixed(1) + ' GB';
-  document.getElementById('sidebarHealthSub').textContent = `联检分 ${STATE.healthScore} · 7/7 正常`;
+  document.getElementById('sidebarHealthSub').textContent = `联检分 ${healthScoreText()} · ${STATE.doctorChecks && STATE.doctorChecks.length ? STATE.doctorChecks.length + ' 项体检' : '体检项本机不提供'}`;
 }
 
 window.switchModule = function(mod) {
   STATE.module = mod;
+  // 搜索框只对「缓存清理」模块生效：切走时清空，避免看起来能搜但实际无结果
+  if (mod !== 'clean' && STATE.searchQuery) {
+    STATE.searchQuery = '';
+    const si = document.getElementById('searchInput');
+    if (si) si.value = '';
+  }
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.getAttribute('data-mod') === mod);
   });
@@ -1958,6 +2314,12 @@ window.onNativeDiskAnalyze = function(payload) {
   if (!payload) return;
   STATE.analyzeSource = payload.source || 'mo analyze --json';
   STATE.analyzeStatus = payload.scanStatus || '';
+  // Go 侧新增 error：mo 缺失 / 超时 / 目录不可读时把真实原因显示给用户，而不是只回一份空 treemap
+  STATE.analyzeError = (typeof payload.error === 'string' && payload.error) ? payload.error : '';
+  if (STATE.analyzeError) {
+    console.warn('[analyze]', payload.path || '~', STATE.analyzeError);
+    showToast(`磁盘分析未完成（${displayPath(payload.path || '~')}）：${STATE.analyzeError}`);
+  }
   if (typeof payload.totalGb === 'number' && !payload.path) STATE.totalAnalyzedGb = payload.totalGb;
   const tiles = Array.isArray(payload.treemap2D) ? payload.treemap2D : [];
   if (!payload.path) STATE.analyzeInsights = Array.isArray(payload.insights) ? payload.insights : [];
@@ -1988,7 +2350,14 @@ Object.assign(UI_ICON_PATHS, {
 const PROTECTED_PATHS = new Set(['/', '~', '/System', '/Library', '/Applications', '/Users', '/usr', '/bin', '/sbin', '/private', '/var', '/opt', '/Volumes',
   '~/Library', '~/Documents', '~/Desktop', '~/Downloads', '~/Pictures', '~/Movies', '~/Music', '~/Public']);
 function displayPath(path) { return STATE.homePath && String(path).startsWith(STATE.homePath) ? '~' + String(path).slice(STATE.homePath.length) : String(path); }
-function absolutePath(path) { return String(path).startsWith('~') ? (STATE.homePath ? STATE.homePath + String(path).slice(1) : null) : String(path); }
+function absolutePath(path) {
+  const p = String(path);
+  if (!p.startsWith('~')) return p;
+  const home = (STATE.homePath || window.__HOME__ || '').replace(/\/+$/, '');
+  if (home) return home + p.slice(1);
+  // 家目录未知时保留 ~/… 形式：Go 侧的 scanner.TrashPaths 会自己展开 ~，绝不能返回 null 让上层放弃操作。
+  return p;
+}
 function protectionReason(tile) {
   const path = displayPath(tile.path);
   if (PROTECTED_PATHS.has(path)) return '系统或用户核心目录，不能整体移除，请进入后选择其中的项目';
@@ -2018,7 +2387,7 @@ function clearCollected() { STATE.collected = []; cancelTrash(); renderModule();
 function removeCollected(path) { STATE.collected = STATE.collected.filter(c => c.path !== path); cancelTrash(); renderModule(); }
 function startTrash() {
   if (!STATE.collected.length) return;
-  if (STATE.collected.some(c => !absolutePath(c.path))) { showToast('无法确定家目录路径，已取消'); return; }
+  if (STATE.collected.some(c => !c.path || typeof c.path !== 'string')) { showToast('待清理项目缺少路径，已取消'); return; }
   STATE.trashAt = Date.now() + 5000;
   clearInterval(window._basketTick);
   window._basketTick = setInterval(() => {
@@ -2028,22 +2397,48 @@ function startTrash() {
 }
 function cancelTrash() { clearInterval(window._basketTick); if (STATE.trashAt) { STATE.trashAt = 0; renderBasket(); } }
 function executeTrash() {
-  const items = STATE.collected;
-  STATE.collected = [];
+  const items = STATE.collected.slice();
+  if (!items.length) return;
   STATE.trashAt = 0;
-  const total = items.reduce((n, c) => n + c.sizeGb, 0);
-  sendNativeBridge({ action: 'trashRealPaths', paths: items.map(c => absolutePath(c.path)) });
-  items.forEach(c => {
-    const at = c.siblings.indexOf(c.tile);
-    if (at >= 0) c.siblings.splice(at, 1);
-    c.chain.forEach(node => { node.sizeGb = Math.max(0, +(node.sizeGb - c.sizeGb).toFixed(2)); });
-    if (!STATE.deletedPathsRegistry.includes(c.path)) STATE.deletedPathsRegistry.push(c.path);
-  });
-  if (!window.isNativeMacApp) STATE.freeDiskGb = +(STATE.freeDiskGb + total).toFixed(2);
   STATE.analyzeSel = 0;
-  recomputeDiskAnalyzeTotals();
-  renderModule();
-  showToast(`已将 ${items.length} 项（${total.toFixed(2)} GB）移入废纸篓，可在访达的废纸篓中还原`);
+  // 只登记请求，不掉列表：等 onNativeTrashResult 按 movedPaths 结算，Go 失败时条目必须还在。
+  const entries = items.map(c => {
+    const abs = absolutePath(c.path);
+    return {
+      label: c.name,
+      sizeGb: Number(c.sizeGb) || 0,
+      paths: abs ? [abs] : [],
+      regKeys: [c.path],
+      entity: c,
+      basketOnFail: true,
+      commit: () => {
+        STATE.collected = STATE.collected.filter(x => x !== c);
+        if (!STATE.deletedPathsRegistry.includes(c.path)) STATE.deletedPathsRegistry.push(c.path);
+      }
+    };
+  });
+  submitTrash(entries, {
+    title: '空间分析清理',
+    emptyHint: '待清理项目缺少可解析的路径，已取消',
+    onDone: (moved) => {
+      if (!moved.length) return;
+      const movedGb = moved.reduce((n, e) => n + (Number(e.sizeGb) || 0), 0);
+      if (!window.isNativeMacApp) STATE.freeDiskGb = +(STATE.freeDiskGb + movedGb).toFixed(2);
+      STATE.historyLogs.unshift({
+        id: '#' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(Math.floor(1000 + Math.random() * 8999)),
+        time: '刚刚',
+        action: `空间分析清理 (${moved.length} 项)`,
+        sizeGb: +movedGb.toFixed(2),
+        items: moved.length,
+        status: '已移入废纸篓 · 可尝试原路还原',
+        restoreData: {
+          type: 'analyze',
+          paths: moved.map(e => (e.paths && e.paths[0]) || '').filter(Boolean),
+          items: moved.map(e => ({ path: e.entity.path, name: e.label, sizeGb: e.sizeGb }))
+        }
+      });
+    }
+  });
 }
 function renderBasket() {
   const bar = document.getElementById('basketBar');
@@ -2051,7 +2446,7 @@ function renderBasket() {
   const n = STATE.collected.length;
   if (!n) { bar.innerHTML = '<span class="basket-hint">勾选目录或文件（⌘⌫）加入待清理；确认后才会移入废纸篓，并有 5 秒可撤销。</span>'; return; }
   const secs = STATE.trashAt ? Math.max(0, Math.ceil((STATE.trashAt - Date.now()) / 1000)) : 0;
-  const list = STATE.collected.map(c => `<div class="basket-item"><span class="basket-name">${UI_ICON(c.isDir ? 'folder' : 'file')} ${c.name}</span><span class="basket-path">${c.path}</span><b>${c.sizeGb.toFixed(2)} GB</b><button class="btn" style="padding:0 6px;" title="移出待清理" onclick="removeCollected('${jsq(c.path)}')">×</button></div>`).join('');
+  const list = STATE.collected.map(c => `<div class="basket-item"${c.failed ? ' style="border-color:var(--accent-rose);"' : ''}><span class="basket-name">${UI_ICON(c.isDir ? 'folder' : 'file')} ${c.name}</span><span class="basket-path">${c.path}</span>${c.failed ? `<span style="color:var(--accent-rose);font-size:10px;white-space:nowrap;">删除失败：${escHtml(c.error || '未知原因')}</span>` : `<b>${(Number(c.sizeGb) || 0).toFixed(2)} GB</b>`}<button class="btn" style="padding:0 6px;" title="移出待清理" onclick="removeCollected('${jsq(c.path)}')">×</button></div>`).join('');
   bar.innerHTML = `<details class="basket-list" ${STATE.basketOpen ? 'open' : ''} ontoggle="STATE.basketOpen = this.open"><summary>待清理 ${n} 项 · ${collectedGb().toFixed(2)} GB</summary><div class="basket-items">${list}</div></details>` +
     `<div class="basket-actions">${STATE.trashAt
       ? `<span class="basket-count">${secs} 秒后移入废纸篓</span><button class="btn btn-primary" onclick="cancelTrash()">撤销</button>`
@@ -2128,43 +2523,41 @@ function selectSubTile(subIdx) { selectTile(subIdx); }
 function removeLargeFile(idx) {
   const lf = STATE.largeFiles[idx];
   if (!lf) return;
-  STATE.largeFiles.splice(idx, 1);
-  if (!STATE.deletedPathsRegistry.includes(lf.path)) {
-    STATE.deletedPathsRegistry.push(lf.path);
-  }
-  // Ask native Swift backend to genuinely move the file to ~/.Trash and re-query real statfs free disk space
-  sendNativeBridge({ action: 'trashRealPaths', paths: [lf.path] });
-  if (!window.isNativeMacApp) {
-    STATE.freeDiskGb = +(STATE.freeDiskGb + lf.sizeGb).toFixed(2);
-  }
-  if (lf.path.includes('Downloads') && STATE.treemap2D[3]) {
-    STATE.treemap2D[3].sizeGb = Math.max(0.1, +(STATE.treemap2D[3].sizeGb - lf.sizeGb).toFixed(2));
-  } else if (STATE.treemap2D[0]) {
-    STATE.treemap2D[0].sizeGb = Math.max(0.1, +(STATE.treemap2D[0].sizeGb - lf.sizeGb).toFixed(2));
-  }
-  recomputeDiskAnalyzeTotals();
-  STATE.historyLogs.unshift({
-    id: '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
-    time: '刚刚',
-    action: `大文件清理 (${lf.name})`,
-    sizeGb: lf.sizeGb,
-    items: 1,
-    status: '位于废纸篓 · 可还原',
-    restoreData: { type: 'largeFile', item: lf, regPath: lf.path }
+  const abs = absolutePath(lf.path);
+  // 不再先切换列表再发命令：成功回执到达后由 commit 移除并写注册表/历史。
+  const entry = {
+    label: lf.name,
+    sizeGb: Number(lf.sizeGb) || 0,
+    paths: abs ? [abs] : [],
+    regKeys: [lf.path],
+    entity: lf,
+    commit: () => {
+      const at = STATE.largeFiles.findIndex(f => f.path === lf.path);
+      if (at >= 0) STATE.largeFiles.splice(at, 1);
+      if (!STATE.deletedPathsRegistry.includes(lf.path)) STATE.deletedPathsRegistry.push(lf.path);
+    },
+    onFail: () => { lf.failed = true; }
+  };
+  submitTrash([entry], {
+    title: '大文件清理',
+    emptyHint: '这条大文件记录缺少可解析的路径，无法移入废纸篓',
+    onDone: (moved) => {
+      if (!moved.length) return;
+      if (!window.isNativeMacApp) STATE.freeDiskGb = +(STATE.freeDiskGb + (Number(lf.sizeGb) || 0)).toFixed(2);
+      STATE.historyLogs.unshift({
+        id: '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
+        time: '刚刚',
+        action: `大文件清理 (${lf.name})`,
+        sizeGb: Number(lf.sizeGb) || 0,
+        items: 1,
+        status: '已移入废纸篓 · 可尝试原路还原',
+        restoreData: { type: 'largeFile', item: lf, regPath: lf.path, paths: abs ? [abs] : [] }
+      });
+    }
   });
-  persistState();
-  updateSidebarBadges();
-  renderModule();
-  showToast(`已将 ${lf.name} 移入 macOS 废纸篓 (~/.Trash)`);
 }
 
 // Interactive Handlers for Status (Real process termination via Swift `kill` + `NSRunningApplication`)
-function setFanMode(m) {
-  STATE.fanMode = m;
-  sendNativeBridge({ action: 'setFanMode', mode: m });
-  renderModule();
-  showToast('已切换双风扇模式为: ' + (m === 'Auto' ? '自动智能温控 (1240 RPM)' : m === 'Cool' ? '静音冷静模式 (2850 RPM)' : '全速散热模式 (4900 RPM)'));
-}
 function togglePinProcess(pid) {
   const p = STATE.processes.find(x => x.pid === pid);
   if (p) p.pinned = !p.pinned;
@@ -2173,7 +2566,7 @@ function togglePinProcess(pid) {
 function sortProcessesBy(key) {
   STATE.procSortKey = key;
   renderModule();
-  showToast('已按 ' + (key === 'cpu' ? 'CPU 占用' : key === 'memory_mb' ? '内存占用' : '功耗') + ' 实时排序进程');
+  showToast('已按 ' + (key === 'memory_mb' ? '内存占用' : 'CPU 占用') + ' 实时排序进程');
 }
 function killProcessByPid(pid) {
   const idx = STATE.processes.findIndex(x => x.pid === pid);
@@ -2187,21 +2580,8 @@ function killProcessByPid(pid) {
 }
 
 window.stepLiveTelemetry = function(nativeData) {
-  if (nativeData) {
-    window.onNativeRealTelemetry(nativeData);
-    return;
-  }
-  // Fallback live jitter when running outside native macOS bridge
-  if (!window.isNativeMacApp) {
-    const curCpu = +(Math.max(12, Math.min(88, STATE.cpuSeries[STATE.cpuSeries.length - 1] + (Math.random() - 0.48) * 4.2))).toFixed(1);
-    const curGpu = +(Math.max(6, Math.min(65, STATE.gpuSeries[STATE.gpuSeries.length - 1] + (Math.random() - 0.48) * 3.2))).toFixed(1);
-    STATE.cpuSeries.push(curCpu); STATE.cpuSeries.shift();
-    STATE.gpuSeries.push(curGpu); STATE.gpuSeries.shift();
-    const pill = document.getElementById('livePillText');
-    if (pill) pill.textContent = `实时监控中 · CPU ${curCpu}% · 剩余 ${STATE.freeDiskGb.toFixed(1)}G`;
-    renderMenuBarTrayContent();
-    if (STATE.module === 'status') renderModule();
-  }
+  if (nativeData) window.onNativeRealTelemetry(nativeData);
+  // 非原生壳（浏览器直开）没有真实采集源：宁可不刷新，也不用随机抖动冒充实时数据。
 };
 
 // Interactive Handlers for Purge & Installer
@@ -2223,73 +2603,78 @@ function toggleInstallerCheck(idx) {
   renderModule();
 }
 
-function runAllOptimizeTasks() {
-  let count = 0;
-  STATE.optimizeTasks.forEach(t => {
-    if (t.status === 'applied') {
-      t.done = true;
-      count++;
-    }
-  });
-  STATE.healthScore = Math.min(100, STATE.healthScore + 2);
-  persistState();
+function executeOptimizeTask(idx) {
+  const t = STATE.optimizeTasks[idx];
+  if (!t) return;
   sendNativeBridge({ action: 'executeOptimize' });
-  updateSidebarBadges();
+  t.requested = true;
+  persistState();
   renderModule();
-  showToast(`已成功执行 ${count} 项系统加速与缓存重建维护，系统健康分提升至 ${STATE.healthScore}`);
+  showToast('已提交：' + t.name + '。Go 侧回执到达前不会标记为已完成，健康分也不会因此上涨。');
+}
+function runAllOptimizeTasks() {
+  const applied = STATE.optimizeTasks.filter(t => t.status === 'applied');
+  sendNativeBridge({ action: 'executeOptimize' });
+  STATE.optimizeTasks.forEach(t => { t.requested = true; });
+  persistState();
+  renderModule();
+  if (applied.length === 0) {
+    showToast('已提交维护请求；本机暂无可确认已完成的维护项，健康分不变。');
+  } else {
+    showToast(`Go 侧已确认完成 ${applied.length} 项维护。`);
+  }
+}
+
+// 还原成功后的实体回填：只在 Go 确认路径真的回到原位后调用，绝不提前改列表。
+function restoreSnapshotEntities(snap) {
+  const rd = snap && snap.restoreData;
+  if (!rd) return;
+  if (Array.isArray(rd.regPaths)) STATE.deletedPathsRegistry = STATE.deletedPathsRegistry.filter(p => !rd.regPaths.includes(p));
+  if (rd.regPath) STATE.deletedPathsRegistry = STATE.deletedPathsRegistry.filter(p => p !== rd.regPath);
+  if (rd.type === 'largeFile' && rd.item) {
+    if (!STATE.largeFiles.some(f => f.path === rd.item.path)) STATE.largeFiles.unshift(rd.item);
+    rd.item.failed = false;
+  } else if (rd.type === 'clean') {
+    (rd.ids || []).forEach(id => {
+      const g = STATE.cleanGroups.find(x => x.id === id);
+      if (!g) return;
+      g.sizeGb = (typeof g.origSizeGb === 'number') ? g.origSizeGb : g.sizeGb;
+      g.checked = true; g.cleaned = false; g.failed = false;
+      (g.subpaths || []).forEach(sp => { sp.checked = true; });
+    });
+  } else if (rd.type === 'ai_moon') {
+    (rd.ids || []).forEach(id => {
+      const b = STATE.aiMoonBands.find(x => x.id === id);
+      if (!b) return;
+      b.sizeGb = (typeof b.origSizeGb === 'number') ? b.origSizeGb : b.sizeGb;
+      b.checked = true; b.cleaned = false; b.failed = false;
+    });
+  } else if (rd.type === 'software') {
+    (rd.removedApps || []).forEach(a => { if (a && !STATE.appsList.some(x => x.id === a.id)) STATE.appsList.unshift(a); });
+    STATE.selectedAppIdx = 0;
+  } else if (rd.type === 'orphan_leftovers') {
+    (rd.removedOrphans || []).forEach(o => { if (o && !(STATE.orphanLeftoversList || []).some(x => x.id === o.id)) STATE.orphanLeftoversList.unshift(o); });
+  } else if (rd.type === 'purge') {
+    const want = new Set((rd.paths || []).map(p => displayPath(p)));
+    (STATE.purgeItems || []).forEach(p => { if (want.has(p.path)) { p.sizeGb = (typeof p.origSizeGb === 'number') ? p.origSizeGb : p.sizeGb; p.checked = true; p.cleaned = false; } });
+    (STATE.installerFiles || []).forEach(i => { if (want.has(i.path)) { i.checked = true; i.cleaned = false; } });
+  }
+  recomputeDiskAnalyzeTotals();
 }
 
 function restoreHistorySnapshot(idx) {
   const snap = STATE.historyLogs[idx];
   if (!snap) return;
-  STATE.historyLogs.splice(idx, 1);
-
-  if (snap.restoreData) {
-    const rd = snap.restoreData;
-    if (rd.regPaths && Array.isArray(rd.regPaths)) {
-      STATE.deletedPathsRegistry = STATE.deletedPathsRegistry.filter(p => !rd.regPaths.includes(p));
-    }
-    if (rd.regPath) {
-      STATE.deletedPathsRegistry = STATE.deletedPathsRegistry.filter(p => p !== rd.regPath);
-    }
-    if (rd.type === 'largeFile') {
-      STATE.largeFiles.unshift(rd.item);
-      if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = +(STATE.treemap2D[0].sizeGb + rd.item.sizeGb).toFixed(2);
-    } else if (rd.type === 'clean') {
-      rd.ids.forEach(id => {
-        const g = STATE.cleanGroups.find(x => x.id === id);
-        if (g) {
-          g.sizeGb = g.origSizeGb;
-          g.checked = true;
-          g.cleaned = false;
-          g.subpaths.forEach(sp => { sp.checked = true; });
-        }
-      });
-      if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = +(STATE.treemap2D[0].sizeGb + snap.sizeGb).toFixed(2);
-    } else if (rd.type === 'ai_moon') {
-      rd.ids.forEach(id => {
-        const b = STATE.aiMoonBands.find(x => x.id === id);
-        if (b) { b.sizeGb = b.origSizeGb; b.checked = true; b.cleaned = false; }
-      });
-      if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = +(STATE.treemap2D[0].sizeGb + snap.sizeGb).toFixed(2);
-    } else if (rd.type === 'software' && rd.removedApps) {
-      STATE.appsList.unshift(...rd.removedApps);
-      STATE.selectedAppIdx = 0;
-      if (STATE.treemap2D[2]) STATE.treemap2D[2].sizeGb = +(STATE.treemap2D[2].sizeGb + snap.sizeGb).toFixed(2);
-    } else if (rd.type === 'purge') {
-      STATE.purgeItems.forEach(p => { p.sizeGb = p.origSizeGb; p.checked = true; });
-      if (STATE.treemap2D[1]) STATE.treemap2D[1].sizeGb = +(STATE.treemap2D[1].sizeGb + snap.sizeGb).toFixed(2);
-    }
+  const rd = snap.restoreData || {};
+  let paths = Array.isArray(rd.paths) ? rd.paths.slice() : [];
+  if (!paths.length) {
+    // 兼容旧版本快照：regPaths 里混着分类 id 和路径，只取真正像路径的部分。
+    paths = (Array.isArray(rd.regPaths) ? rd.regPaths : []).filter(p => typeof p === 'string' && (p.startsWith('/') || p.startsWith('~')));
   }
-  sendNativeBridge({ action: 'restoreTrashSnapshot', snapshotId: snap.id });
-  if (!window.isNativeMacApp) {
-    STATE.freeDiskGb = Math.max(100, +(STATE.freeDiskGb - snap.sizeGb).toFixed(2));
-  }
-  persistState();
-  recomputeDiskAnalyzeTotals();
-  updateSidebarBadges();
-  renderModule();
-  showToast(`已从废纸篓原路还原快照 ${snap.id} (${snap.sizeGb.toFixed(2)} GB)`);
+  paths = paths.map(p => absolutePath(p)).filter(p => p && typeof p === 'string');
+  if (!paths.length) { showToast('这条记录没有保存原始路径（旧版快照），无法原路还原'); return; }
+  // 先不删历史：等 Go 回执确认真的移回来了才删，成败与部分成功都在 resolveRestore 里按 restoredPaths 结算。
+  submitRestore(snap, paths);
 }
 
 function handlePrimaryAction() {
@@ -2327,12 +2712,12 @@ function renderModule() {
     topTitle.textContent = STATE.lang === 'zh' ? '智能深度清理 · 气闸舱' : 'Smart Deep Clean · Airlock';
     primaryBtnText.textContent = selectedGb > 0 ? `一键清理所选 (${selectedGb.toFixed(2)} GB)` : !STATE.cleanGroups.length ? '开始扫描' : !STATE.cleanGroups.some(g => g.cleaned) ? '请先勾选要清理的项目' : '全部所选项已清理完毕';
     heroHeadline.textContent = selectedGb > 0
-      ? `发现 ${selectedGb.toFixed(2)} GB 可安全释放的系统与应用缓存`
+      ? `已勾选 ${selectedGb.toFixed(2)} GB 清理候选（二次确认后移入废纸篓）`
       : !STATE.cleanGroups.length ? '还没有扫描结果' : !STATE.cleanGroups.some(g => g.cleaned) ? '勾选项目后即可清理' : '当前勾选的系统与应用缓存已全部清理完毕';
     heroDesc.textContent = '按重建成本分为「安全可再生」「需确认项」与「🔒 硬件保护项」（硬件保护项无勾选框，且绝不进入清理确认弹窗）。点击任意分类可在右侧检视具体子目录并执行二次确认清理。';
     heroStatLabel.textContent = '当前已勾选待清理';
     heroStatValue.textContent = `${selectedGb.toFixed(2)} GB`;
-    heroStatSub.textContent = selectedGb > 0 ? `共 ${selectedItems} 项 · 二次确认后真实移入废纸篓` : !STATE.cleanGroups.length ? '扫描只读取，不会删除任何内容' : !STATE.cleanGroups.some(g => g.cleaned) ? '勾选后将显示可释放空间' : '可在「恢复记录与白名单」中随时还原';
+    heroStatSub.textContent = selectedGb > 0 ? `共 ${selectedItems} 项 · 二次确认后真实移入废纸篓` : !STATE.cleanGroups.length ? '扫描只读取，不会删除任何内容' : !STATE.cleanGroups.some(g => g.cleaned) ? '勾选后将显示合计大小' : '可在「恢复记录与白名单」中随时还原';
 
     const filtered = STATE.cleanGroups.filter(g => {
       const matchTier = STATE.cleanFilter === 'all' || g.tier === STATE.cleanFilter;
@@ -2557,7 +2942,7 @@ function renderModule() {
       heroDesc.textContent = '对比 /Applications 与 ~/Library、~/.android、~/.docker、~/.gradle 等位置，找出主程序已不存在的残留。';
       heroStatLabel.textContent = '已勾选孤立残留';
       heroStatValue.textContent = `${totalSelectedOrphanGb.toFixed(2)} GB`;
-      heroStatSub.textContent = `共 ${activeOrphans.length} 组 · 移入废纸篓，可还原`;
+      heroStatSub.textContent = `共 ${activeOrphans.length} 组 · 移入废纸篓，可尝试原路还原`;
 
       if (!selOrphan) {
         stage.innerHTML = dualModeSwitchHtml + `<div class="panel-card" style="padding:32px;text-align:center;color:var(--text-secondary);">没有发现已卸载应用的残留。可切换到「管理应用卸载」处理已安装的应用。</div>`;
@@ -2668,7 +3053,7 @@ function renderModule() {
       const calcAppGb = (a) => {
         if (!a) return 0;
         if (mode === 'cache_only') return +(a.cacheSizeGb || a.leftoverSizeGb * 0.8).toFixed(2);
-        if (mode === 'standard' || a.keepPersonal) return +(a.appSizeGb + (a.cacheSizeGb || a.leftoverSizeGb * 0.8)).toFixed(2);
+        if (mode === 'standard' || a.keepPersonal) return +(a.appSizeGb + (hasNum(a.cacheSizeGb) ? a.cacheSizeGb : 0)).toFixed(2);
         return +(a.appSizeGb + a.leftoverSizeGb).toFixed(2);
       };
       const checkedApps = STATE.appsList.filter(a => a.checked);
@@ -2686,7 +3071,7 @@ function renderModule() {
         ? `${selApp.name}.app v${selApp.version} · ${mode === 'standard' ? '标准卸载（保留配置）' : mode === 'complete' ? '彻底卸载（含 Library 数据）' : '仅清缓存（保留应用）'}`
         : '所选应用已处理完毕';
       heroDesc.textContent = '选择处理方式：标准卸载移除应用并保留个人配置；彻底卸载同时清除 Library 数据；仅清缓存则保留应用。';
-      heroStatLabel.textContent = mode === 'cache_only' ? '可释放应用缓存' : '当前所选卸载体积';
+      heroStatLabel.textContent = mode === 'cache_only' ? '已勾选缓存大小' : '当前所选卸载体积';
       heroStatValue.textContent = `${totalSelectedAppGb.toFixed(2)} GB`;
       heroStatSub.textContent = mode === 'standard' ? '移除应用 · 保留个人配置' : mode === 'complete' ? '移除应用 + 全部 Library 数据' : '保留应用 · 仅清缓存';
 
@@ -2764,7 +3149,7 @@ function renderModule() {
               <div class="bento-4">
                 <div class="bento-cell"><div class="bento-label">应用</div><div class="bento-val">${selApp.appSizeGb.toFixed(2)} GB</div></div>
                 <div class="bento-cell"><div class="bento-label">缓存</div><div class="bento-val" style="color:var(--accent-amber);">${(selApp.cacheSizeGb || selApp.leftoverSizeGb).toFixed(2)} GB</div></div>
-                <div class="bento-cell"><div class="bento-label">个人配置</div><div class="bento-val" style="color:var(--accent-emerald);">${(selApp.configSizeGb || 0.25).toFixed(2)} GB (${selApp.keepPersonal ? '保留' : '清除'})</div></div>
+                <div class="bento-cell"><div class="bento-label">个人配置</div><div class="bento-val" style="color:var(--accent-emerald);">${hasNum(selApp.configSizeGb) ? selApp.configSizeGb.toFixed(2) + ' GB' : '未知'} (${selApp.keepPersonal ? '保留配置' : '清除配置'})</div></div>
                 <div class="bento-cell"><div class="bento-label">当前操作模式</div><div class="bento-val" style="color:var(--accent-primary);">${mode === 'cache_only' ? '仅清缓存' : selApp.keepPersonal ? '标准卸载' : '彻底卸载'}</div></div>
               </div>
 
@@ -2826,7 +3211,7 @@ function renderModule() {
         <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;">
           <button class="btn icon-btn" ${STATE.trailBack.length ? '' : 'disabled'} title="后退" onclick="goBack()">${UI_ICON('back')}</button><button class="btn icon-btn" ${STATE.trailFwd.length ? '' : 'disabled'} title="前进" onclick="goForward()">${UI_ICON('fwd')}</button>
           ${isDrilled ? `<button class="btn" style="padding:2px 8px;font-size:11px;" onclick="drillUp()">${UI_ICON('up')} 上一级</button>` : ''}
-          ${['全机概览'].concat(stack.map(n => n.name.split(' ')[0])).map((c, i, all) => `${i ? '<span class="crumb-sep">▸</span>' : ''}<span class="crumb-item ${i === all.length - 1 ? 'active' : ''}" onclick="jumpToDepth(${i})">${i ? UI_ICON('folder') + ' ' : ''}${c}</span>`).join('')}
+          ${['全机概览'].concat(stack.map(n => n.name)).map((c, i, all) => `${i ? '<span class="crumb-sep">▸</span>' : ''}<span class="crumb-item ${i === all.length - 1 ? 'active' : ''}" onclick="jumpToDepth(${i})">${i ? UI_ICON('folder') + ' ' : ''}${c}</span>`).join('')}
         </div>
         <div class="crumb-actions">
           <span class="crumb-sel">${curSelectedTile.name} · ${curSelectedTile.sizeGb.toFixed(1)} GB${curSelectedTile.pct != null ? ' · ' + curSelectedTile.pct + '%' : ''}</span>
@@ -2840,7 +3225,7 @@ function renderModule() {
       <div class="treemap-split">
         <div class="panel-card">
           <div class="panel-header">
-            <span>${isDrilled ? parentDir.name.split(' ')[0] + ' · 按大小排序' : '顶层目录 · 按大小排序'}</span>
+            <span>${isDrilled ? parentDir.name + ' · 按大小排序' : '顶层目录 · 按大小排序'}</span>
             <span style="font-size:11px;color:var(--text-secondary);">${activeTiles.length} 项</span>
           </div>
           <div class="list-body">
@@ -2917,25 +3302,19 @@ function renderModule() {
       </div>
     `;
   } else if (mod === 'status') {
-    const rpmVal = STATE.fanMode === 'Auto' ? '1240 RPM' : STATE.fanMode === 'Cool' ? '2850 RPM' : '4900 RPM';
-    const curCpu = STATE.cpuSeries[STATE.cpuSeries.length - 1];
-    const curGpu = STATE.gpuSeries[STATE.gpuSeries.length - 1];
-    const curDisk = STATE.diskSeries[STATE.diskSeries.length - 1];
-    const memPct = +((STATE.memUsedGb / Math.max(1, STATE.memTotalGb)) * 100).toFixed(1);
+    const curCpu = stateCpuPct();
+    const memPct = memPercent();
 
     topTitle.textContent = '实时状态监控 · 遥测台';
     primaryBtnText.textContent = '立即采样刷新';
-    heroHeadline.textContent = `系统健康评分 ${STATE.healthScore} · ${STATE.cpuModelName}`;
-    heroDesc.textContent = '每 1.5 秒读取一次进程、内存、磁盘、网络与电池状态。结束进程需要二次确认，系统关键进程已受保护。';
+    heroHeadline.textContent = `系统联检分 ${healthScoreText()} · ${STATE.cpuModelName}`;
+    heroDesc.textContent = '每 1.5 秒由 Go 侧推送进程、内存与磁盘剩余；温度、GPU、磁盘 I/O、网络速率、风扇转速本机不提供（未接入采样源）。结束进程需要二次确认，系统关键进程已受保护。';
     const bat = powerInfo().battery;
     heroStatLabel.textContent = bat ? '电池电量' : 'CPU 占用';
-    heroStatValue.textContent = bat ? `${bat.percent != null ? bat.percent : '--'}%` : `${curCpu}%`;
-    heroStatSub.textContent = bat ? `最大容量 ${bat.healthPct != null ? bat.healthPct + '%' : '--'} · 循环 ${bat.cycles != null ? bat.cycles : '--'} 次` : `内存 ${memPct}% · 磁盘剩余 ${STATE.freeDiskGb.toFixed(1)} GB`;
+    heroStatValue.textContent = bat ? (hasNum(bat.percent) ? bat.percent + '%' : '未知') : (curCpu != null ? fmtNum(curCpu, 1) + '%' : '未知');
+    heroStatSub.textContent = bat ? `最大容量 ${bat.healthPct != null ? bat.healthPct + '%' : UNSUPPORTED} · 循环 ${bat.cycles != null ? bat.cycles : UNSUPPORTED} 次` : `内存 ${memPct != null ? fmtPct(memPct) : '未知'} · 磁盘剩余 ${fmtNum(STATE.freeDiskGb, 1, '未知')} GB`;
 
-    const sortedProcs = [...STATE.processes].sort((a, b) => {
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      return (b[STATE.procSortKey] || 0) - (a[STATE.procSortKey] || 0);
-    });
+    const sortedProcs = sortedProcessesList();
 
     stage.innerHTML = `
       <div class="telemetry-grid">${buildStatusCards()}</div>
@@ -2954,25 +3333,11 @@ function renderModule() {
                 <th>PID</th>
                 <th onclick="sortProcessesBy('cpu')">CPU 占用 ${STATE.procSortKey==='cpu'?'▾':''}</th>
                 <th onclick="sortProcessesBy('memory_mb')">内存 ${STATE.procSortKey==='memory_mb'?'▾':''}</th>
-                <th onclick="sortProcessesBy('power')">估算功耗 ${STATE.procSortKey==='power'?'▾':''}</th>
                 <th>执行路径</th>
                 <th>操作</th>
               </tr>
             </thead>
-            <tbody>
-              ${sortedProcs.slice(0, 8).map(p => `
-                <tr>
-                  <td style="color:#eab308;cursor:pointer;font-size:13px;" onclick="togglePinProcess(${p.pid})" title="点击切换置顶">${p.pinned ? '★' : '☆'}</td>
-                  <td style="font-weight:700;color:var(--text-primary);">${p.name}</td>
-                  <td>${p.pid}</td>
-                  <td style="color:${p.cpu > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${Number(p.cpu || 0).toFixed(1)}%</td>
-                  <td>${p.memory_mb} MB</td>
-                  <td>${Number(p.power || 0).toFixed(1)} W</td>
-                  <td style="color:var(--text-muted);font-size:11px;cursor:pointer;max-width:290px;overflow:hidden;text-overflow:ellipsis;" onclick="revealInFinder('${p.path}')">${p.path}</td>
-                  <td>${killButton(p, false)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
+                        <tbody id="procTbody">${statusProcRowsHTML(sortedProcs)}</tbody>
           </table>
         </div>
       </div>
@@ -3064,13 +3429,13 @@ function renderModule() {
     const isOpt = mod === 'optimize';
     heroHeadline.textContent = isOpt
       ? (doneCount > 0 ? `已完成 ${doneCount} 项系统维护` : `${STATE.optimizeTasks.length} 项系统维护可用`)
-      : `${STATE.historyLogs.length} 个可还原快照`;
+      : `${STATE.historyLogs.length} 条清理记录（可按原始路径尝试还原）`;
     heroDesc.textContent = isOpt
       ? '目前可执行：重置 Quick Look 缩略图缓存。其他维护项尚未接入。'
-      : '清理记录可以原路还原；白名单里的路径不会出现在任何清理列表中。';
+      : '还原是否成功取决于系统 ~/.Trash 里是否仍保留原始条目；白名单里的路径不会出现在任何清理列表中。';
     heroStatLabel.textContent = isOpt ? '已完成维护' : '白名单';
     heroStatValue.textContent = isOpt ? `${doneCount} / ${STATE.optimizeTasks.length}` : `${STATE.whitelist.length} 条`;
-    heroStatSub.textContent = isOpt ? '执行后会重建缩略图缓存' : '核心资产已受保护';
+    heroStatSub.textContent = isOpt ? '回执到达前不计完成' : '核心资产已受保护';
 
     stage.innerHTML = `
       <div class="master-detail-grid">
@@ -3081,16 +3446,16 @@ function renderModule() {
           </div>
           <div class="list-body">
             ${STATE.optimizeTasks.map((t, idx) => `
-              <div class="list-row" onclick="STATE.optimizeTasks[${idx}].done=true;sendNativeBridge({action:'executeOptimize'});renderModule();showToast('已完成系统维护: ${t.name}');">
+              <div class="list-row" onclick="executeOptimizeTask(${idx})">
                 <div class="row-left">
-                  <span>${t.done ? '✅' : '🟢'}</span>
+                  <span>${t.done ? '✅' : t.requested ? '⏳' : '🟢'}</span>
                   <div style="min-width:0;">
                     <div class="row-title">${t.name}</div>
                     <div class="row-sub" style="font-family:var(--font-sans);">${t.detail}</div>
                   </div>
                 </div>
                 <span class="badge badge-safe">
-                  ${t.done ? '已优化完成' : '点击立即优化'}
+                  ${t.done ? '已优化完成' : t.requested ? '已提交 · 等待回执' : '点击立即优化'}
                 </span>
               </div>
             `).join('')}
@@ -3103,12 +3468,18 @@ function renderModule() {
             <span style="font-size:11px;color:var(--text-secondary);">${STATE.whitelist.length} 条受保护路径</span>
           </div>
           <div class="inspector-content">
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">最近清理记录（点击「原路还原」立即从 ~/.Trash 恢复并同步空间数据）</div>
+            ${(STATE.whitelistWarnings || []).length ? `
+              <div class="subpath-item" style="display:block;border:1px solid rgba(244,63,94,.35);background:rgba(244,63,94,.06);">
+                <div style="font-size:10.5px;font-weight:700;color:var(--accent-rose);">有 ${STATE.whitelistWarnings.length} 条白名单条目未被 mole 接受</div>
+                <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);line-height:1.5;word-break:break-all;">${STATE.whitelistWarnings.map(w => escHtml(String(w))).join('<br>')}</div>
+              </div>
+            ` : ''}
+            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">最近清理记录（点击「原路还原」由系统按 recorded 原始路径从 ~/.Trash 恢复）</div>
             ${STATE.historyLogs.map((h, idx) => `
               <div class="subpath-item" style="font-family:var(--font-sans);">
                 <div class="subpath-left" style="flex-direction:column;align-items:flex-start;gap:2px;">
                   <div style="font-size:11.5px;font-weight:600;color:var(--text-primary);">${h.action}</div>
-                  <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);">${h.id} · ${h.time} · ${h.sizeGb.toFixed(2)} GB</div>
+                  <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);">${h.id} · ${h.time} · ${fmtNum(h.sizeGb, 2, '体积未知')} GB</div>
                 </div>
                 <button class="btn subpath-right" style="padding:3px 8px;font-size:10.5px;" onclick="restoreHistorySnapshot(${idx})">↩ 原路还原</button>
               </div>
@@ -3121,12 +3492,14 @@ function renderModule() {
                 <button class="btn" style="padding:2px 7px;font-size:10px;" onclick="addCustomWhitelistInput()">+ 添加</button>
               </div>
             </div>
-            ${STATE.whitelist.map((w, idx) => `
+            ${STATE.whitelist.length ? STATE.whitelist.map((w, idx) => `
               <div class="subpath-item">
-                <span class="subpath-left">${UI_ICON('shield')} ${w}</span>
+                <span class="subpath-left">${UI_ICON('shield')} ${escHtml(String(w))}</span>
                 <span class="badge badge-protected subpath-right" style="cursor:pointer;" onclick="removeWhitelistIdx(${idx})" title="点击移除此白名单">已隔离保护</span>
               </div>
-            `).join('')}
+            `).join('') : `
+              <div class="subpath-item" style="color:var(--text-muted);font-size:11px;">当前白名单为空（以系统返回为准），删除链路会自动跳过受保护路径。</div>
+            `}
           </div>
         </div>
       </div>
@@ -3216,6 +3589,7 @@ window.openConfirmSheet = function() {
   const titleEl = document.getElementById('confirmModalTitle');
   const sumEl = document.getElementById('confirmModalSummary');
   const listEl = document.getElementById('confirmModalItemsList');
+  const confirmBtn = document.getElementById('confirmModalConfirmBtn');
 
   let rowsHtml = '';
   let totalGb = 0;
@@ -3234,28 +3608,33 @@ window.openConfirmSheet = function() {
     `).join('');
   } else if (mod === 'software') {
     if (STATE.softwarePanelMode === 'leftovers') {
-      const orphans = STATE.orphanLeftoversList || [];
-      const sel = orphans.filter(o => o.checked);
-      const activeOrphans = sel.length > 0 ? sel : [orphans[STATE.selectedOrphanIdx] || orphans[0]].filter(Boolean);
-      totalGb = activeOrphans.reduce((s, o) => s + o.leftoverSizeGb, 0);
-      totalCount = activeOrphans.length;
+      const sel = (STATE.orphanLeftoversList || []).filter(o => o.checked);
+      totalGb = sel.reduce((s, o) => s + (Number(o.leftoverSizeGb) || 0), 0);
+      totalCount = sel.length;
       titleEl.textContent = '已卸载应用孤立残留清理二次确认 — 即将移入废纸篓';
-      rowsHtml = activeOrphans.map(o => `
+      rowsHtml = sel.map(o => `
         <div class="list-row" style="padding:7.5px 14px;">
-          <div class="row-left"><span>👻</span><div><div style="font-size:12px;font-weight:600;">${o.name} (${o.statusText})</div><div class="row-sub">${o.subpaths.filter(sp => sp.checked !== false).map(sp => sp.path).join(' · ')}</div></div></div>
-          <span class="size-cell" style="color:var(--accent-amber);">${o.leftoverSizeGb.toFixed(2)} GB</span>
+          <div class="row-left"><span>👻</span><div><div style="font-size:12px;font-weight:600;">${o.name} (${o.statusText})</div><div class="row-sub">${(o.subpaths || []).filter(sp => sp.checked !== false).map(sp => sp.path).join(' · ')}</div></div></div>
+          <span class="size-cell" style="color:var(--accent-amber);">${(Number(o.leftoverSizeGb) || 0).toFixed(2)} GB</span>
         </div>
       `).join('');
     } else {
+      // 与 executeConfirmedClean 的删除集保持一致：0 勾选就是 0 项，不再隐式回退到「当前选中行」
+      const mode = STATE.uninstallMode || 'standard';
       const sel = STATE.appsList.filter(a => a.checked);
-      const activeApps = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
-      totalGb = activeApps.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
-      totalCount = activeApps.length;
-      titleEl.textContent = '管理应用卸载二次确认 — 即将移入废纸篓';
-      rowsHtml = activeApps.map(a => `
+      totalCount = sel.length;
+      totalGb = sel.reduce((s, a) => s + (mode === 'cache_only'
+        ? (Number(a.cacheSizeGb) || 0)
+        : (Number(a.appSizeGb) || 0) + (Number(a.leftoverSizeGb) || 0)), 0);
+      titleEl.textContent = mode === 'cache_only'
+        ? '仅清理应用缓存二次确认 — 应用本体保留'
+        : '管理应用卸载二次确认 — 即将移入废纸篓';
+      rowsHtml = sel.map(a => `
         <div class="list-row" style="padding:7.5px 14px;">
-          <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">主程序 ${a.appSizeGb.toFixed(2)} GB + Library 关联残留 ${a.leftoverSizeGb.toFixed(2)} GB (${a.keepPersonal ? '保留个人配置' : '全量彻底清理'})</div></div></div>
-          <span class="size-cell" style="color:var(--accent-rose);">${(a.appSizeGb + a.leftoverSizeGb).toFixed(2)} GB</span>
+          <div class="row-left"><span>🔴</span><div><div style="font-size:12px;font-weight:600;">${a.name} v${a.version}</div><div class="row-sub">${mode === 'cache_only'
+            ? `仅清理缓存 ${(Number(a.cacheSizeGb) || 0).toFixed(2)} GB，保留 .app 与个人配置`
+            : `主程序 ${(Number(a.appSizeGb) || 0).toFixed(2)} GB + Library 关联残留 ${(Number(a.leftoverSizeGb) || 0).toFixed(2)} GB (${a.keepPersonal ? '保留个人配置' : '全量彻底清理'})`}</div></div></div>
+          <span class="size-cell" style="color:var(--accent-rose);">${(mode === 'cache_only' ? (Number(a.cacheSizeGb) || 0) : (Number(a.appSizeGb) || 0) + (Number(a.leftoverSizeGb) || 0)).toFixed(2)} GB</span>
         </div>
       `).join('');
     }
@@ -3289,151 +3668,204 @@ window.openConfirmSheet = function() {
     `).join('');
   }
 
-  sumEl.innerHTML = `您已勾选以下 <strong>${totalCount} 项可清理目标（合计 ${totalGb.toFixed(2)} GB）</strong>。确认后将立即调用 macOS 原生文件接口移入废纸篓（<code>~/.Trash</code>），同时创建恢复快照：`;
+  if (totalCount === 0) {
+    sumEl.innerHTML = `<strong style="color:var(--accent-rose);">当前没有勾选任何可清理目标</strong>，请返回列表勾选（受保护项与白名单路径不会被清理）。`;
+  } else {
+    sumEl.innerHTML = `您已勾选以下 <strong>${totalCount} 项可清理目标（合计 ${totalGb.toFixed(2)} GB）</strong>。确认后将调用 macOS 原生文件接口移入废纸篓（<code>~/.Trash</code>），并由系统记录可还原的原始路径：`;
+  }
   listEl.innerHTML = rowsHtml;
+  // 0 项时禁用破坏性确认按钮，避免空操作走到执行链路（UI-P1-3）
+  if (confirmBtn) {
+    confirmBtn.disabled = totalCount === 0;
+    confirmBtn.style.opacity = totalCount === 0 ? '0.45' : '';
+    confirmBtn.style.pointerEvents = totalCount === 0 ? 'none' : '';
+  }
   document.getElementById('confirmModal').classList.add('open');
 };
 
 window.closeConfirmSheet = function() { document.getElementById('confirmModal').classList.remove('open'); };
 
 // Real Execution Handler: Persists deleted/uninstalled IDs so they NEVER reappear on app restart, and invokes Swift `trashRealPaths`!
+// 历史快照的展示元数据：只存「哪些实体 / 哪些原始路径」，真正的可还原性由 Go 侧 manifest 决定。
+function buildRestoreData(module, movedEntries, movedPaths) {
+  const ents = (movedEntries || []).map(e => e.entity).filter(Boolean);
+  const paths = Array.isArray(movedPaths) ? movedPaths.slice() : [];
+  if (module === 'clean') return { type: 'clean', ids: ents.map(x => x.id), paths };
+  if (module === 'ai_moon') return { type: 'ai_moon', ids: ents.map(x => x.id), paths };
+  if (module === 'purge') return { type: 'purge', paths };
+  if (module === 'software') {
+    if (STATE.softwarePanelMode === 'leftovers') return { type: 'orphan_leftovers', removedOrphans: ents.map(x => ({ ...x })), ids: ents.map(x => x.id), paths };
+    // 仅清缓存模式下应用本体还在：还原不应把它重新塞回列表，交给重扫反映真实大小。
+    if ((STATE.uninstallMode || 'standard') === 'cache_only') return { type: 'cache_only', ids: ents.map(x => x.id), paths };
+    return { type: 'software', removedApps: ents.map(x => ({ ...x })), ids: ents.map(x => x.id), uninstallMode: STATE.uninstallMode || 'standard', paths };
+  }
+  return { type: 'unknown', paths };
+}
+
 window.executeConfirmedClean = function() {
   closeConfirmSheet();
 
-  let freedGb = 0;
+  const module = STATE.module;
+  const mode = STATE.uninstallMode || 'standard';
+  const entries = [];          // 一个界面实体 = 一个 entry；entry.paths 才是发给 Go 的绝对路径
   let actionLabel = '智能深度清理';
-  let restoreData = null;
-  let trashedPaths = [];
-  let regPaths = [];
 
-  if (STATE.module === 'clean') {
+  if (module === 'clean') {
     const sel = STATE.cleanGroups.filter(g => g.checked && g.tier !== 'protected' && g.sizeGb > 0);
-    freedGb = sel.reduce((s, g) => s + g.sizeGb, 0);
+    if (!sel.length) { showToast('没有勾选可清理的分类（受保护项不会被清理）'); return; }
     actionLabel = `智能深度清理 (${sel.length} 大分类缓存与日志)`;
     sel.forEach(g => {
-      regPaths.push(g.id, g.path);
-      g.subpaths.forEach(sp => {
-        if (sp.checked !== false) trashedPaths.push(sp.path);
+      const paths = (g.subpaths || []).filter(sp => sp.checked !== false).map(sp => absolutePath(sp.path)).filter(Boolean);
+      entries.push({
+        entity: g, label: g.name, sizeGb: Number(g.sizeGb) || 0, paths,
+        regKeys: [g.id, g.path],
+        commit: () => { g.sizeGb = 0; g.checked = false; g.cleaned = true; g.failed = false; (g.subpaths || []).forEach(sp => { sp.checked = false; }); },
+        onFail: () => { g.failed = true; }
       });
-      g.sizeGb = 0;
-      g.checked = false;
-      g.cleaned = true;
-      g.subpaths.forEach(sp => { sp.checked = false; });
     });
-    restoreData = { type: 'clean', ids: sel.map(g => g.id), regPaths: regPaths };
-    if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = Math.max(0.5, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
-  } else if (STATE.module === 'ai_moon') {
+  } else if (module === 'ai_moon') {
     const sel = STATE.aiMoonBands.filter(b => b.checked && b.tier !== 'protected' && b.sizeGb > 0);
-    freedGb = sel.reduce((s, b) => s + b.sizeGb, 0);
+    if (!sel.length) { showToast('没有勾选可清理的 AI 缓存条目（受保护项不会被清理）'); return; }
     actionLabel = `AI 专项清理 (保留周期 ${STATE.aiRetention})`;
     sel.forEach(b => {
-      regPaths.push(b.id, b.path);
-      b.subpaths.forEach(sp => trashedPaths.push(sp.path));
-      b.sizeGb = 0;
-      b.checked = false;
-      b.cleaned = true;
+      const paths = (b.subpaths || []).filter(sp => sp.checked !== false).map(sp => absolutePath(sp.path)).filter(Boolean);
+      entries.push({
+        entity: b, label: b.name, sizeGb: Number(b.sizeGb) || 0, paths,
+        regKeys: [b.id, b.path],
+        commit: () => { b.sizeGb = 0; b.checked = false; b.cleaned = true; b.failed = false; },
+        onFail: () => { b.failed = true; }
+      });
     });
-    restoreData = { type: 'ai_moon', ids: sel.map(b => b.id), regPaths: regPaths };
-    if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = Math.max(0.5, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
-  } else if (STATE.module === 'software') {
+  } else if (module === 'software') {
     if (STATE.softwarePanelMode === 'leftovers') {
-      const orphans = STATE.orphanLeftoversList || [];
-      const sel = orphans.filter(o => o.checked);
-      const active = sel.length > 0 ? sel : [orphans[STATE.selectedOrphanIdx] || orphans[0]].filter(Boolean);
-      freedGb = active.reduce((s, o) => s + o.leftoverSizeGb, 0);
+      const active = (STATE.orphanLeftoversList || []).filter(o => o.checked);
+      if (!active.length) { showToast('请先勾选要清理的已卸载残留项'); return; }
       actionLabel = `已卸载残留清理 (${active.map(o => o.name).join(', ')})`;
       active.forEach(o => {
-        regPaths.push(o.id);
-        o.subpaths.forEach(sp => {
-          if (sp.checked !== false) trashedPaths.push(sp.path);
+        const paths = (o.subpaths || []).filter(sp => sp.checked !== false).map(sp => absolutePath(sp.path)).filter(Boolean);
+        entries.push({
+          entity: o, label: o.name, sizeGb: Number(o.leftoverSizeGb) || 0, paths,
+          regKeys: [o.id],
+          commit: () => { STATE.orphanLeftoversList = (STATE.orphanLeftoversList || []).filter(x => x.id !== o.id); STATE.selectedOrphanIdx = 0; },
+          onFail: () => { o.failed = true; }
         });
       });
-      restoreData = { type: 'orphan_leftovers', removedOrphans: active.map(o => ({ ...o })), regPaths: regPaths };
-      const removeIds = new Set(active.map(o => o.id));
-      STATE.orphanLeftoversList = orphans.filter(o => !removeIds.has(o.id));
-      STATE.selectedOrphanIdx = 0;
-      if (STATE.treemap2D[0]) STATE.treemap2D[0].sizeGb = Math.max(0.5, +(STATE.treemap2D[0].sizeGb - freedGb).toFixed(2));
     } else {
-      const sel = STATE.appsList.filter(a => a.checked);
-      const active = sel.length > 0 ? sel : [STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]].filter(Boolean);
-      freedGb = active.reduce((s, a) => s + a.appSizeGb + a.leftoverSizeGb, 0);
+      const active = STATE.appsList.filter(a => a.checked);
+      if (!active.length) { showToast('请先勾选要卸载的应用（只想清缓存请用「仅清理缓存」模式）'); return; }
       actionLabel = `应用卸载 (${active.map(a => a.name).join(', ')})`;
       active.forEach(a => {
-        if (a.appPath) { trashedPaths.push(a.appPath); regPaths.push(a.appPath); }
-        regPaths.push(a.id);
-        a.subpaths.forEach(sp => {
-          if (sp.checked !== false) trashedPaths.push(sp.path);
+        // 删除集必须与界面勾选一致：cache_only 只动 cache 子项，**不再无条件塞 .app 本体**（UI-P0-2 误卸载）
+        const subs = (a.subpaths || []).filter(sp => sp.checked !== false);
+        const keepApp = mode !== 'cache_only';
+        const paths = [];
+        if (keepApp && a.appPath) paths.push(absolutePath(a.appPath));
+        subs.forEach(sp => { if (sp.path) paths.push(absolutePath(sp.path)); });
+        const uniq = Array.from(new Set(paths.filter(Boolean)));
+        if (!uniq.length) return;
+        let size = 0;
+        if (keepApp) size += Number(a.appSizeGb) || 0;
+        if (subs.some(sp => sp.kind === 'cache')) size += Number(a.cacheSizeGb) || 0;
+        if (subs.some(sp => sp.kind === 'config')) size += Number(a.configSizeGb) || 0;
+        if (!size) size = Number(a.leftoverSizeGb) || 0;
+        entries.push({
+          entity: a, label: a.name, sizeGb: size, paths: uniq,
+          regKeys: [a.id, a.appPath].filter(Boolean),
+          commit: () => {
+            if (keepApp) {
+              STATE.appsList = STATE.appsList.filter(x => x.id !== a.id);
+              STATE.selectedAppIdx = 0;
+            } else {
+              // 仅清理缓存：应用本体保留，只把真正删掉的 cache 子项标记为已清理。
+              (a.subpaths || []).forEach(sp => { if (sp.kind === 'cache' && sp.checked !== false) { sp.checked = false; sp.cleaned = true; } });
+              a.cacheSizeGb = 0;
+            }
+          },
+          onFail: () => { a.failed = true; }
         });
       });
-      restoreData = { type: 'software', removedApps: active.map(a => ({ ...a })), regPaths: regPaths };
-      const removeIds = new Set(active.map(a => a.id));
-      STATE.appsList = STATE.appsList.filter(a => !removeIds.has(a.id));
-      STATE.selectedAppIdx = 0;
-      if (STATE.treemap2D[2]) STATE.treemap2D[2].sizeGb = Math.max(0.5, +(STATE.treemap2D[2].sizeGb - freedGb).toFixed(2));
+      if (!entries.length) { showToast('这些应用的勾选项里没有可删除的内容（仅清缓存模式需勾选缓存子项）'); return; }
     }
-  } else if (STATE.module === 'purge') {
+  } else if (module === 'purge') {
     const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0);
     const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);
-    freedGb = selP.reduce((s, p) => s + p.sizeGb, 0) + selI.reduce((s, i) => s + i.sizeGb, 0);
+    if (!selP.length && !selI.length) { showToast('没有勾选需要清理的构建产物或安装包'); return; }
     actionLabel = '构建产物与遗留安装包清理';
-    selP.forEach(p => {
-      if (p.path) { trashedPaths.push(p.path); regPaths.push(p.path); }
-      p.sizeGb = 0; p.checked = false;
-    });
-    selI.forEach(i => {
-      if (i.path) { trashedPaths.push(i.path); regPaths.push(i.path); }
-      i.checked = false;
-    });
-    restoreData = { type: 'purge', regPaths: regPaths };
-    if (STATE.treemap2D[1]) STATE.treemap2D[1].sizeGb = Math.max(0.5, +(STATE.treemap2D[1].sizeGb - freedGb).toFixed(2));
+    selP.forEach(p => entries.push({
+      entity: p, label: `${p.project}/${p.artifact}`, sizeGb: Number(p.sizeGb) || 0,
+      paths: p.path ? [absolutePath(p.path)] : [], regKeys: [p.path].filter(Boolean),
+      commit: () => { p.sizeGb = 0; p.checked = false; p.cleaned = true; p.failed = false; },
+      onFail: () => { p.failed = true; }
+    }));
+    selI.forEach(i => entries.push({
+      entity: i, label: i.name, sizeGb: Number(i.sizeGb) || 0,
+      paths: i.path ? [absolutePath(i.path)] : [], regKeys: [i.path].filter(Boolean),
+      commit: () => { i.checked = false; i.cleaned = true; i.failed = false; },
+      onFail: () => { i.failed = true; }
+    }));
+  } else {
+    showToast('当前模块没有可执行的清理操作');
+    return;
   }
 
-  if (freedGb > 0) {
-    regPaths.forEach(rp => {
-      if (!STATE.deletedPathsRegistry.includes(rp)) STATE.deletedPathsRegistry.push(rp);
-    });
-    sendNativeBridge({ action: 'trashRealPaths', module: STATE.module, paths: trashedPaths });
-    if (!window.isNativeMacApp) {
-      STATE.freeDiskGb = +(STATE.freeDiskGb + freedGb).toFixed(2);
+  if (!entries.length) { showToast('没有勾选需要清理的项目'); return; }
+
+  submitTrash(entries, {
+    title: actionLabel,
+    emptyHint: '没有解析出可删除的绝对路径，操作已取消',
+    onDone: (moved, failed, res) => {
+      if (!moved.length) return;
+      // 只有真的进了废纸篓的条目才写「已隐藏」黑名单与历史快照，失败项留在原处标红。
+      const movedPaths = [];
+      moved.forEach(e => {
+        (e.regKeys || []).forEach(rp => { if (rp && !STATE.deletedPathsRegistry.includes(rp)) STATE.deletedPathsRegistry.push(rp); });
+        (e.paths || []).forEach(p => { if (p && !movedPaths.includes(p)) movedPaths.push(p); });
+      });
+      const movedGb = moved.reduce((n, e) => n + (Number(e.sizeGb) || 0), 0);
+      if (!window.isNativeMacApp) STATE.freeDiskGb = +(STATE.freeDiskGb + movedGb).toFixed(2);
+      if (module === 'clean') STATE.selectedCleanIdx = 0;
+      const rd = buildRestoreData(module, moved, movedPaths);
+      rd.requestId = (res && res.requestId) || '';
+      STATE.historyLogs.unshift({
+        id: '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
+        time: '刚刚',
+        action: actionLabel,
+        sizeGb: +movedGb.toFixed(2),
+        items: moved.length,
+        status: failed.length ? '部分完成 · 已移入废纸篓 · 可尝试原路还原' : '已移入废纸篓 · 可尝试原路还原',
+        restoreData: rd
+      });
     }
-    recomputeDiskAnalyzeTotals();
-    const snapId = '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999));
-    STATE.historyLogs.unshift({
-      id: snapId,
-      time: '刚刚',
-      action: actionLabel,
-      sizeGb: freedGb,
-      items: trashedPaths.length || 1,
-      status: '位于废纸篓 · 可还原',
-      restoreData: restoreData
-    });
-    persistState();
-    updateSidebarBadges();
-    renderModule();
-    renderMenuBarTrayContent();
-    showToast(`已成功清理 ${freedGb.toFixed(2)} GB 并移入废纸篓！状态已持久化保存`);
-  } else {
-    showToast('当前没有勾选需要清理的项目');
-  }
+  });
 };
 
 // Mole Doctor Modal with Step-by-Step Live Re-Diagnosis (重新体检 / 复诊)
 function renderDoctorChecksList(activeIdx) {
-  document.getElementById('doctorListContainer').innerHTML = STATE.doctorChecks.map((c, idx) => {
+  const box = document.getElementById('doctorListContainer');
+  const list = Array.isArray(STATE.doctorChecks) ? STATE.doctorChecks : [];
+  if (!list.length) {
+    box.innerHTML = `<div class="list-row" style="padding:10px 18px;"><span class="row-sub" style="font-family:var(--font-sans);">Go 侧当前未提供体检项数据（本机不提供）。没有数据就不显示任何“全部通过/正常”结论。</span></div>`;
+    return;
+  }
+  box.innerHTML = list.map((c, idx) => {
     const isScanning = typeof activeIdx === 'number' && idx === activeIdx;
     const isPending = typeof activeIdx === 'number' && idx > activeIdx;
+    const passed = c.passed === true ? true : c.passed === false ? false : null;
+    const icon = isScanning ? '⏳' : isPending ? '⚪' : passed === true ? '✅' : passed === false ? '❌' : '⚪';
+    const badge = isScanning ? '检测中...' : isPending ? '待检测' : passed === true ? '通过' : passed === false ? '异常' : '未知';
+    const badgeCls = isScanning ? 'badge-review' : passed === false ? 'badge-danger' : passed === true ? 'badge-safe' : 'badge-review';
     return `
       <div class="list-row" style="padding:8.5px 18px;opacity:${isPending ? '0.45' : '1'};">
         <div class="row-left">
-          <span style="font-size:15px;">${isScanning ? '⏳' : isPending ? '⚪' : '✅'}</span>
+          <span style="font-size:15px;">${icon}</span>
           <div>
-            <div style="font-size:12px;font-weight:700;">${c.title}</div>
-            <div class="row-sub" style="font-family:var(--font-sans);">${isScanning ? '正在实时校验系统内核与权限状态...' : c.detail}</div>
+            <div style="font-size:12px;font-weight:700;">${c.title || '体检项'}</div>
+            <div class="row-sub" style="font-family:var(--font-sans);">${isScanning ? '正在检测...' : (c.detail || '本机不提供详情')}</div>
           </div>
         </div>
         <div class="row-right">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">${isPending ? '--' : c.latency}</span>
-          <span class="badge ${isScanning ? 'badge-review' : 'badge-safe'}">${isScanning ? '检测中...' : isPending ? '待检测' : '正常通过'}</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">${isPending ? '--' : (c.latency != null ? c.latency : '—')}</span>
+          <span class="badge ${badgeCls}">${badge}</span>
         </div>
       </div>
     `;
@@ -3447,7 +3879,7 @@ window.openDoctorModal = function(autoReRun) {
   } else {
     document.getElementById('doctorProgressBanner').style.display = 'none';
     renderDoctorChecksList(null);
-    document.getElementById('doctorFooterSummary').textContent = `上次体检时间: ${STATE.lastCheckTime} · 综合联检分 ${STATE.healthScore} / 100`;
+    document.getElementById('doctorFooterSummary').textContent = `${STATE.lastCheckTime ? '上次体检时间: ' + STATE.lastCheckTime : '尚无体检记录'} · 联检分 ${healthScoreText()}`;
   }
 };
 
@@ -3463,37 +3895,50 @@ window.startDoctorReDiagnosis = function() {
   btn.textContent = '⏳ 正在复诊检测...';
   sendNativeBridge({ action: 'runDoctorReCheck' });
 
+  let list = Array.isArray(STATE.doctorChecks) ? STATE.doctorChecks : [];
+  if (!list.length && !window._doctorWaitingForReport) {
+    // 第一次点：还没有任何体检项 —— 发请求后挂起，等 Go 的 onNativeDoctorReport
+    // 到了再由它重新进入本函数；没有回执就一直停在「等待」而不是假装跑完。
+    window._doctorWaitingForReport = true;
+    txt.textContent = '正在等待 Go 侧体检回执…';
+    if (pctEl) pctEl.textContent = '';
+    if (bar) bar.style.width = '0%';
+    renderDoctorChecksList(null);
+    return;
+  }
+  window._doctorWaitingForReport = false;
+  list = Array.isArray(STATE.doctorChecks) ? STATE.doctorChecks : [];
+  if (!list.length) {
+    banner.style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '🔄 立即重新联检 (Pre-flight)';
+    showToast('Go 侧未提供体检项，复诊未执行（不编造通过结论）');
+    return;
+  }
   let step = 0;
-  const total = STATE.doctorChecks.length;
+  const total = list.length;
   clearInterval(window._docTimer);
-
   const stepFn = () => {
     if (step < total) {
       const pct = Math.round(((step + 1) / total) * 100);
-      txt.textContent = `正在复诊检测 (${step + 1}/${total}): ${STATE.doctorChecks[step].title}...`;
-      pctEl.textContent = pct + '%';
-      bar.style.width = pct + '%';
-      STATE.doctorChecks[step].latency = (12 + Math.floor(Math.random() * 19)) + 'ms';
-      if (step === 2) {
-        STATE.doctorChecks[2].detail = `剩余 ${STATE.freeDiskGb.toFixed(1)} GB 可用 · NVMe SMART 固态寿命验证通过`;
-      }
+      txt.textContent = `正在复诊检测 (${step + 1}/${total}): ${list[step].title || '检查项'}...`;
+      if (pctEl) pctEl.textContent = pct + '%';
+      if (bar) bar.style.width = pct + '%';
       renderDoctorChecksList(step);
       step++;
     } else {
       clearInterval(window._docTimer);
       STATE.recheckCount++;
-      STATE.healthScore = Math.min(99, 96 + STATE.recheckCount);
-      const nowStr = new Date().toTimeString().slice(0, 8);
-      STATE.lastCheckTime = `刚刚 (${nowStr})`;
-      txt.textContent = `✅ 复诊完成！全部 7 项核心指标检测通过 (耗时 142ms)`;
+      STATE.lastCheckTime = '复诊结束 ' + new Date().toTimeString().slice(0, 8);
+      txt.textContent = '✅ 复诊流程结束（结论以 Go 侧回执为准，无回执不涨分）';
       btn.disabled = false;
       btn.textContent = '🔄 立即重新联检 (Pre-flight)';
       renderDoctorChecksList(null);
-      document.getElementById('doctorFooterSummary').textContent = `复诊完成时间: ${STATE.lastCheckTime} · 综合联检分 ${STATE.healthScore} / 100 (第 ${STATE.recheckCount} 次复诊)`;
+      document.getElementById('doctorFooterSummary').textContent = `${STATE.lastCheckTime} · 联检分 ${healthScoreText()}`;
       persistState();
       updateSidebarBadges();
       renderMenuBarTrayContent();
-      showToast(`系统复诊完成！7/7 项指标正常，最新健康分: ${STATE.healthScore} 分`);
+      showToast(`复诊流程结束；当前联检分 ${healthScoreText()}`);
     }
   };
   stepFn();
@@ -3825,6 +4270,32 @@ if (window.isNativeMacApp) {
   requestDiskAnalyze('');
 }
 setInterval(() => { window.stepLiveTelemetry(); }, 1500);
+// 菜单栏时钟：显示本机真实时间，不写死
+(function(){const el=document.getElementById('menuBarClock');if(!el)return;const f=()=>{const d=new Date();el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};f();setInterval(f,15000);})();
+
+// ───────────── 白名单把清理列表清空时，别显示成「还没扫描」─────────────
+// 本机 ~/.config/mole/whitelist 可能保护着 ~/Library/Caches 这类整根目录：白名单现在
+// 真的生效，清理列表就会是空的。那不是扫描失败，界面必须说清楚，否则用户会以为坏了。
+(function () {
+  const prev = window.onNativeRealScanComplete;
+  if (typeof prev !== 'function' || prev.__whitelistHint) return;
+  const wrapped = function (payload) {
+    const out = prev.apply(this, arguments);
+    try {
+      const protectedCount = Array.isArray(STATE.whitelist) ? STATE.whitelist.length : 0;
+      const cleanEmpty = !Array.isArray(STATE.cleanGroups) || STATE.cleanGroups.length === 0;
+      if (cleanEmpty && protectedCount > 0) {
+        const nav = document.getElementById('navMetaClean');
+        if (nav) nav.textContent = '白名单已保护';
+        const heroSub = document.getElementById('heroStatSub');
+        if (heroSub) heroSub.textContent = protectedCount + ' 条路径已在你的 mole 白名单里，已从清理列表排除（空列表不是扫描失败）';
+      }
+    } catch (e) {}
+    return out;
+  };
+  wrapped.__whitelistHint = true;
+  window.onNativeRealScanComplete = wrapped;
+})();
 </script>
 </body>
 </html>

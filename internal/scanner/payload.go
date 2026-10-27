@@ -1,9 +1,7 @@
 package scanner
 
 import (
-	"os"
 	"sort"
-	"strings"
 
 	"github.com/mymoles/mole-studio/internal/power"
 )
@@ -22,7 +20,15 @@ type FullScanPayload struct {
 	PurgeItems      []map[string]any `json:"purgeItems"`
 	CleanGroups     []map[string]any `json:"cleanGroups"`
 	AIMoonBands     []map[string]any `json:"aiMoonBands"`
-	Whitelist       []string         `json:"whitelist"`
+	// HomePath is the absolute home directory. The page cannot expand ~ on its
+	// own, so without it every "move to Trash" in the space analyzer failed.
+	HomePath string `json:"homePath"`
+	// Whitelist is the editable protection list, without the FINDER_METADATA
+	// sentinel and with composite "a & b" lines split apart.
+	Whitelist []string `json:"whitelist"`
+	// WhitelistWarnings are the entries mole refused to load, so the page can
+	// say why a line it shows is not protecting anything.
+	WhitelistWarnings []string `json:"whitelistWarnings"`
 }
 
 // BuildFullScanPayload measures the whole machine for the frontend's scan
@@ -31,41 +37,21 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	freeGB, totalGB := s.queryDiskSpace()
 	_, memTotalGB := s.queryMemoryUsage()
 	return FullScanPayload{
-		FreeDiskGb:      round2(freeGB),
-		TotalDiskGb:     round2(totalGB),
-		MemTotalGb:      round2(memTotalGB),
-		CPUModel:        s.queryCPUModel(),
-		AppsList:        s.scanInstalledApps(),
-		OrphanLeftovers: s.scanOrphanedLeftovers(),
-		LargeFiles:      s.scanLargeFiles(),
-		InstallerFiles:  s.scanInstallerPackages(),
-		PurgeItems:      s.scanBuildArtifacts(),
-		CleanGroups:     s.scanCleanGroups(),
-		AIMoonBands:     s.scanAICaches(),
-		Whitelist:       s.loadWhitelistEntries(),
+		FreeDiskGb:        round2(freeGB),
+		TotalDiskGb:       round2(totalGB),
+		MemTotalGb:        round2(memTotalGB),
+		CPUModel:          s.queryCPUModel(),
+		AppsList:          s.scanInstalledApps(),
+		OrphanLeftovers:   s.scanOrphanedLeftovers(),
+		LargeFiles:        s.scanLargeFiles(),
+		InstallerFiles:    s.scanInstallerPackages(),
+		PurgeItems:        s.scanBuildArtifacts(),
+		CleanGroups:       s.scanCleanGroups(),
+		AIMoonBands:       s.scanAICaches(),
+		HomePath:          s.home,
+		Whitelist:         s.UserWhitelistPaths(),
+		WhitelistWarnings: s.refreshWhitelist().Warnings,
 	}
-}
-
-// WhitelistPath is the file the app keeps its whitelisted paths in.
-func (s *Scanner) whitelistPath() string {
-	return s.home + "/.config/mole/whitelist"
-}
-
-// loadWhitelistEntries reads the whitelist, dropping comments and blank lines.
-func (s *Scanner) loadWhitelistEntries() []string {
-	data, err := os.ReadFile(s.whitelistPath())
-	if err != nil {
-		return nil
-	}
-	entries := []string{}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		entries = append(entries, line)
-	}
-	return entries
 }
 
 // Telemetry is what the frontend's onNativeRealTelemetry receives.
