@@ -320,7 +320,10 @@ func TestHumanizeTrashErrorPointsAtTheRightSettingsPane(t *testing.T) {
 		{"/Users/me/Library/Mail/1.emlx", "fullDiskAccess", "完全磁盘访问"},
 		{"/Users/me/Library/Caches", "fullDiskAccess", "完全磁盘访问"},
 		{"/private/var/db/sudo", "fullDiskAccess", "完全磁盘访问"},
-		{"/Users/me/Downloads/report.pdf", "fullDiskAccess", "权限不足"},
+		{"/Users/me/Downloads/report.pdf", "filesAndFolders", "文件与文件夹"},
+		{"/Users/me/Documents/tax", "filesAndFolders", "文件与文件夹"},
+		{"/Users/me/Desktop/shot.png", "filesAndFolders", "文件与文件夹"},
+		{"/Users/me/Notes/todo.md", "fullDiskAccess", "权限不足"},
 	}
 	for _, c := range cases {
 		message, pane := humanizeTrashError(c.path, denied)
@@ -370,9 +373,22 @@ func TestNeedsFullDiskAccessCoversProtectedTrees(t *testing.T) {
 			t.Fatalf("%s should need Full Disk Access", path)
 		}
 	}
-	for _, path := range []string{"/Users/me/Downloads", "/Applications/Slack.app", "/tmp/lib"} {
+	for _, path := range []string{"/Users/me/Notes", "/Applications/Slack.app", "/tmp/lib"} {
 		if needsFullDiskAccess(path) {
 			t.Fatalf("%s should not need Full Disk Access", path)
+		}
+	}
+}
+
+func TestNeedsFolderAccessCoversTheGuardedFolders(t *testing.T) {
+	for _, path := range []string{"/Users/me/Downloads/x.bin", "/Users/me/Documents", "/Users/me/Desktop/a.png"} {
+		if !needsFolderAccess(path) {
+			t.Fatalf("%s should need Files and Folders access", path)
+		}
+	}
+	for _, path := range []string{"/Users/me/Notes/x.md", "/Users/me/DownloadsArchive", "/Applications/Slack.app"} {
+		if needsFolderAccess(path) {
+			t.Fatalf("%s should not need Files and Folders access", path)
 		}
 	}
 }

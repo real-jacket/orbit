@@ -130,20 +130,25 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 	return nil
 }
 
-// privacyPaneURLs are the System Settings deep links for the two permissions
-// this app needs: App Management to move another app to the Trash, Full Disk
-// Access to read inside another app's Library folder.
+// privacyPaneURLs are the System Settings deep links for the three permissions
+// this app can trip over: App Management to move another app to the Trash, Files
+// and Folders to delete inside Desktop/Documents/Downloads, and Full Disk Access
+// to read inside another app's Library folder.
 const (
-	privacyPaneAppManagementURL  = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles"
-	privacyPaneFullDiskAccessURL = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+	privacyPaneAppManagementURL   = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles"
+	privacyPaneFullDiskAccessURL  = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+	privacyPaneFilesAndFoldersURL = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders"
 )
 
 // privacyPaneURL maps the pane name the page receives in a failure receipt to
 // the System Settings link that grants it. Unknown panes fall back to Full Disk
 // Access, which is the permission a clean needs.
 func privacyPaneURL(pane string) string {
-	if pane == "appManagement" {
+	switch pane {
+	case "appManagement":
 		return privacyPaneAppManagementURL
+	case "filesAndFolders":
+		return privacyPaneFilesAndFoldersURL
 	}
 	return privacyPaneFullDiskAccessURL
 }

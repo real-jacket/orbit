@@ -294,6 +294,9 @@ func humanizeTrashError(path string, err error) (string, string) {
 			return "macOS 拒绝移动应用：需要在「系统设置 › 隐私与安全性 › App 管理」里允许 MoleStudio。" +
 				"本地签名版本每次重新打包后系统会当成新应用，需要重新授权。", "appManagement"
 		}
+		if needsFolderAccess(path) {
+			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 MoleStudio 访问。", "filesAndFolders"
+		}
 		if needsFullDiskAccess(path) {
 			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 MoleStudio。", "fullDiskAccess"
 		}
@@ -312,6 +315,20 @@ func humanizeTrashError(path string, err error) (string, string) {
 // macOS guards with the App Management permission.
 func isAppBundle(path string) bool {
 	return strings.HasSuffix(strings.ToLower(strings.TrimRight(path, "/")), ".app")
+}
+
+// needsFolderAccess reports whether path lives in one of the folders macOS
+// guards separately, the ones the system prompt calls "Files and Folders": the
+// user's Desktop, Documents and Downloads. Deleting the user's own files needs
+// this permission, not Full Disk Access.
+func needsFolderAccess(path string) bool {
+	cleaned := filepath.Clean(path)
+	for _, folder := range []string{"Desktop", "Documents", "Downloads"} {
+		if strings.Contains(cleaned, "/"+folder+"/") || strings.HasSuffix(cleaned, "/"+folder) {
+			return true
+		}
+	}
+	return false
 }
 
 // needsFullDiskAccess reports whether reading path is gated by Full Disk Access:

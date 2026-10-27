@@ -18,3 +18,9 @@ func TestPrivacyPaneURLCoversBothPermissions(t *testing.T) {
 		t.Fatalf("default URL = %q", got)
 	}
 }
+
+func TestPrivacyPaneURLKnowsFilesAndFolders(t *testing.T) {
+	if got := privacyPaneURL("filesAndFolders"); !strings.Contains(got, "Privacy_FilesAndFolders") {
+		t.Fatalf("filesAndFolders URL = %q", got)
+	}
+}
