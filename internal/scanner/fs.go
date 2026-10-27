@@ -82,26 +82,3 @@ func modifiedTime(path string) int64 {
 	}
 	return info.ModTime().Unix()
 }
-
-// movePathsToTrash moves paths to the Trash and reports how many of them it
-// moved. It drops everything after the first space of each path, which is what
-// the Swift app did with the labels the frontend sends, and expands ~ before
-// moving.
-func (s *Scanner) movePathsToTrash(rawPaths []string) int {
-	moved := 0
-	for _, raw := range rawPaths {
-		path := raw
-		if space := strings.Index(path, " "); space >= 0 {
-			path = path[:space]
-		}
-		path = s.expand(path)
-		if !exists(path) {
-			continue
-		}
-		if err := trashItem(path); err != nil {
-			continue
-		}
-		moved++
-	}
-	return moved
-}

@@ -31,7 +31,9 @@ func (s *Scanner) queryMemoryUsage() (usedGB, totalGB float64) {
 	}
 	pageSize, usedPages, ok := vmStatistics()
 	if !ok {
-		return totalGB * 0.55, totalGB
+		// Report nothing rather than a made-up 55%: a fabricated figure is
+		// indistinguishable from a real one once it reaches the UI.
+		return 0, totalGB
 	}
 	usedGB = float64(usedPages) * float64(pageSize) / 1_073_741_824
 	if cap := totalGB * 0.96; usedGB > cap {
@@ -120,7 +122,7 @@ func (s *Scanner) queryCPUModel() string {
 func (s *Scanner) sampleRealProcesses() (cpuTotal float64, processes []map[string]any) {
 	out, err := exec.Command("/bin/ps", "-Aceo", "pid,%cpu,rss,comm", "-r").Output()
 	if err != nil {
-		return 2.5, nil
+		return 0, nil
 	}
 	cores := runtime.NumCPU()
 	if cores <= 0 {
@@ -177,8 +179,10 @@ func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[st
 		})
 	}
 	cpuTotal = cpuSum / float64(cores)
-	if cpuTotal < 2.5 {
-		cpuTotal = 2.5
+	// No artificial floor: an idle machine really does sit near zero, and a
+	// permanent "2.5%" made every idle reading look busy.
+	if cpuTotal < 0 {
+		cpuTotal = 0
 	}
 	if cpuTotal > 99.9 {
 		cpuTotal = 99.9

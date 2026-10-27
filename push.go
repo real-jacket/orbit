@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/egoist/mygo"
 	"github.com/mymoles/mole-studio/internal/analyze"
@@ -68,19 +69,129 @@ func pushRealTelemetryNow() {
 	}()
 }
 
+// analyzeQueue keeps at most one `mo analyze` running. Each run can take half a
+// minute on a big directory, and the page asks again on every drill-down, so
+// without this the requests pile up behind each other and the last answer
+// arrives long after the one the user is waiting for.
+var analyzeQueue struct {
+	mu      sync.Mutex
+	running bool
+	next    *string
+}
+
 // pushDiskAnalyze sends a `mo analyze` result to the page. An empty path asks
 // for the overview of the root volume; anything else analyses that directory
-// and the page hangs the result under the tile it already has for it.
+// and the page hangs the result under the tile it already has for it. A request
+// that arrives while one is running replaces the pending one, so the newest
+// click wins instead of every click being queued.
 func pushDiskAnalyze(path string) {
+	analyzeQueue.mu.Lock()
+	if analyzeQueue.running {
+		pending := path
+		analyzeQueue.next = &pending
+		analyzeQueue.mu.Unlock()
+		return
+	}
+	analyzeQueue.running = true
+	analyzeQueue.mu.Unlock()
+
 	go func() {
-		var payload analyze.Payload
-		if path == "" {
-			payload = analyze.Overview()
-		} else {
-			payload = analyze.Children(expandTilde(path))
+		current := path
+		for {
+			var payload analyze.Payload
+			if current == "" {
+				payload = analyze.Overview()
+			} else {
+				payload = analyze.Children(expandTilde(current))
+			}
+			evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
+
+			analyzeQueue.mu.Lock()
+			if analyzeQueue.next == nil {
+				analyzeQueue.running = false
+				analyzeQueue.mu.Unlock()
+				return
+			}
+			current = *analyzeQueue.next
+			analyzeQueue.next = nil
+			analyzeQueue.mu.Unlock()
 		}
-		evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
 	}()
+}
+
+// pushTrashResult sends the receipt for one trash request. The page only
+// claims "已成功清理" when this arrives, and it reports the refused and failed
+// paths instead of hiding them.
+func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
+	moved := make([]map[string]any, 0, len(outcome.Moved))
+	for _, entry := range outcome.Moved {
+		moved = append(moved, map[string]any{"original": entry.Original, "trashed": entry.Trashed})
+	}
+	skipped := make([]map[string]any, 0, len(outcome.Skipped))
+	for _, entry := range outcome.Skipped {
+		skipped = append(skipped, map[string]any{"path": entry.Path, "reason": entry.Reason})
+	}
+	failed := make([]map[string]any, 0, len(outcome.Failed))
+	for _, entry := range outcome.Failed {
+		failed = append(failed, map[string]any{"path": entry.Path, "error": entry.Error})
+	}
+	payload := map[string]any{
+		"requestId":  requestID,
+		"requested":  outcome.Requested,
+		"movedCount": len(outcome.Moved),
+		"moved":      moved,
+		"skipped":    skipped,
+		"failed":     failed,
+	}
+	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult(" + jsonOf(payload) + ") : undefined")
+}
+
+// pushRestoreResult sends the receipt for a restore request.
+func pushRestoreResult(requestID string, outcome scanner.RestoreOutcome) {
+	restored := append([]string{}, outcome.Restored...)
+	failed := make([]map[string]any, 0, len(outcome.Failed))
+	for _, entry := range outcome.Failed {
+		failed = append(failed, map[string]any{"path": entry.Path, "error": entry.Error})
+	}
+	payload := map[string]any{
+		"requestId":     requestID,
+		"requested":     outcome.Requested,
+		"restored":      restored,
+		"restoredCount": len(restored),
+		"failed":        failed,
+	}
+	evaluate("window.onNativeRestoreResult ? window.onNativeRestoreResult(" + jsonOf(payload) + ") : undefined")
+}
+
+// pushDoctorReport sends the 体检 rows the page renders.
+func pushDoctorReport(checks []map[string]any) {
+	if checks == nil {
+		checks = []map[string]any{}
+	}
+	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport(" + jsonOf(map[string]any{"checks": checks}) + ") : undefined")
+}
+
+// pushCaffeinateState tells both pages whether the display is being kept awake.
+// The state lives in Go, so the window and the menu-bar panel cannot disagree
+// and a caffeinate that exits on its own timer still turns the switch off.
+func pushCaffeinateState(active bool) {
+	evaluate("window.onNativeCaffeinate ? window.onNativeCaffeinate(" + jsonOf(map[string]any{"active": active}) + ") : undefined")
+}
+
+// pushWhitelistChanged tells the page the protection list changed, so it can
+// redraw the whitelist view and rescan without guessing.
+func pushWhitelistChanged(action, path string, policy scanner.Whitelist, err error) {
+	payload := map[string]any{
+		"action":    action,
+		"path":      path,
+		"whitelist": scanner.Shared.UserWhitelistPaths(),
+		"warnings":  policy.Warnings,
+		"ok":        err == nil,
+	}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	evaluate("window.onNativeWhitelistChanged ? window.onNativeWhitelistChanged(" + jsonOf(payload) + ") : undefined")
 }
 
 // pushRealSystemScanNow scans installed apps, leftovers, large files, installer
