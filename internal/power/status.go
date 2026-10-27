@@ -13,6 +13,14 @@ import (
 	"sync"
 )
 
+// NSProcessInfoThermalState, the values -[NSProcessInfo thermalState] returns.
+const (
+	thermalStateNominal  = 0
+	thermalStateFair     = 1
+	thermalStateSerious  = 2
+	thermalStateCritical = 3
+)
+
 // Snapshot is the JSON-ready state of the machine's power and pressure.
 type Snapshot struct {
 	Thermal     string   `json:"thermal"`
@@ -44,11 +52,22 @@ func Take() Snapshot {
 	return s
 }
 
-// thermalLabel maps the thermal pressure the kernel reports to the names the
-// frontend knows. ProcessInfo.thermalState has no Go equivalent, so this reads
-// the same sysctl that backs it, and falls back to "nominal" when the machine
-// reports nothing.
+// thermalLabel maps the thermal pressure the machine reports to the names the
+// frontend knows. This is ProcessInfo.thermalState in the Swift build, so ask
+// Foundation for the same value first; the sysctl that backs it is only a
+// fallback, and "nominal" is the answer of last resort.
 func thermalLabel() string {
+	if state, ok := appkitThermalState(); ok {
+		switch state {
+		case thermalStateFair:
+			return "fair"
+		case thermalStateSerious:
+			return "serious"
+		case thermalStateCritical:
+			return "critical"
+		}
+		return "nominal"
+	}
 	switch thermalPressureLevel() {
 	case 1:
 		return "fair"
@@ -210,6 +229,40 @@ func minutesEstimate(props map[string]string) *int {
 }
 
 // adapterWatts is the wattage of the connected power adapter.
+//
+// The value lives inside the AdapterDetails dictionary, which ioreg prints on a
+// single line as {"IsWireless"=No,"Watts"=65,...}. Some machines expose a flat
+// Watts property instead, so try that first.
 func adapterWatts(props map[string]string) *int {
-	return number(props, "Watts")
+	if flat := number(props, "Watts"); flat != nil {
+		return flat
+	}
+	return nestedNumber(props["AdapterDetails"], "Watts")
+}
+
+// nestedNumber pulls an integer out of an ioreg dictionary printed in line.
+func nestedNumber(dict, key string) *int {
+	if dict == "" {
+		return nil
+	}
+	needle := `"` + key + `"`
+	at := strings.Index(dict, needle)
+	if at < 0 {
+		return nil
+	}
+	rest := dict[at+len(needle):]
+	eq := strings.Index(rest, "=")
+	if eq < 0 {
+		return nil
+	}
+	rest = strings.TrimSpace(rest[eq+1:])
+	end := 0
+	for end < len(rest) && (rest[end] == '-' || rest[end] >= '0' && rest[end] <= '9') {
+		end++
+	}
+	n, err := strconv.Atoi(rest[:end])
+	if err != nil {
+		return nil
+	}
+	return &n
 }

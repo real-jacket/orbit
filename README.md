@@ -118,7 +118,7 @@ says which Swift file each Go file was written from, so the mapping stays useful
 | Go package | Responsibility | Ported from |
 | --- | --- | --- |
 | `internal/model` | Domain types: modules, safety tiers, clean categories, retention windows, optimize tasks; the selection/toggle arithmetic of the view model | `Sources/MoleStudio/Models/MoleModels.swift`, `Engine/MoleViewModel.swift` |
-| `internal/power` | Thermal, memory-pressure and battery snapshot via `sysctl` and `ioreg` | `Sources/MoleStudio/PowerStatus.swift` |
+| `internal/power` | Thermal (`NSProcessInfo` over purego/objc), memory-pressure and battery snapshot via `sysctl` and `ioreg` | `Sources/MoleStudio/PowerStatus.swift` |
 | `internal/scanner` | The local scan: installed apps, orphaned leftovers, large files, installer packages, clean catalogs, AI Care bands, the home treemap, the process table | `Engine/RealMacSystemScanner.swift`, `Engine/CatalogScanning.swift`, `Engine/OrphanScanning.swift`, `Engine/OrphanSignatures.swift` |
 | `internal/analyze` | Resolves `mo` and runs `mo analyze --json`, shaping the result into treemap tiles | `Engine/MoleAnalyzeBridge.swift`, `Engine/MoleCLIRunner.swift` (binary resolution) |
 | `internal/trayicon` | Draws the 18pt menu-bar template image from an analytic description instead of AppKit | `MoleStudioApp.swift` (`configureStatusItem`) |
@@ -190,7 +190,7 @@ wired up:
 - **The UI in `Resources/src-ui/index.html` is the shipping UI**, carried over unchanged. In a
   `mygo build` bundle MyGo embeds it; `make run` and `mygo dev` serve it from disk.
 - **The samplers are real and tested.** `internal/scanner` walks the disk for apps, leftovers, large
-  files, installers and clean catalogs; `internal/power` reads thermal pressure, memory pressure and
+  files, installers and clean catalogs; `internal/power` reads thermal state, memory pressure and
   the battery from `sysctl`/`ioreg`; `internal/analyze` shells out to `mo analyze --json`.
   `go test ./...` covers the numeric and payload-shape behaviour of all three.
 - **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles all 16 branches the Swift
