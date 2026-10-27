@@ -87,15 +87,38 @@ func runAnalyze(path string) (stdout, source string) {
 		source += " " + path
 	}
 	command := exec.Command("/usr/bin/env", args...)
-	command.Env = []string{
+	command.Env = mergedEnv(os.Environ(),
 		"PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
 		"TERM=dumb",
-	}
+	)
 	out, err := command.Output()
 	if err != nil {
 		return "", "mo analyze unavailable"
 	}
 	return string(out), source
+}
+
+// mergedEnv returns base with the keys of overrides replaced. The Swift app
+// started `mo` with ProcessInfo.processInfo.environment plus a PATH and TERM
+// override, and that inheritance is load-bearing: `mo` is a bash script running
+// under `set -u`, so with an empty HOME it dies with
+// "base.sh: line 168: HOME: unbound variable" before it analyses anything.
+func mergedEnv(base []string, overrides ...string) []string {
+	replaced := make(map[string]bool, len(overrides))
+	for _, entry := range overrides {
+		if key, _, ok := strings.Cut(entry, "="); ok {
+			replaced[key] = true
+		}
+	}
+	env := make([]string, 0, len(base)+len(overrides))
+	for _, entry := range base {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok && replaced[key] {
+			continue
+		}
+		env = append(env, entry)
+	}
+	return append(env, overrides...)
 }
 
 // buildPayload turns mo's JSON into the treemap the frontend draws.

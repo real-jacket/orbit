@@ -124,3 +124,82 @@ func TestNestedNumberIgnoresLookalikes(t *testing.T) {
 		t.Errorf("missing key should yield no number, got %d", *got)
 	}
 }
+
+// ioreg prints a tree: the properties of the matched node sit behind "|". This
+// fixture is trimmed from the real output of `ioreg -rn AppleSmartBattery` on a
+// MacBookPro18,4 running macOS 27.2 — the shape that used to parse to nothing.
+const ioregTreeOutput = `
++-o AppleSmartBattery  <class AppleSmartBattery, id 0x100000a00, registered, matched, active, busy 0 (27 ms), retain 13>
+  | {
+  |   "TimeRemaining" = 65535
+  |   "ExternalConnected" = Yes
+  |   "AdapterDetails" = {"IsWireless"=No,"AdapterID"=0,"AdapterVoltage"=20000,"FamilyCode"=18446744073172697098,"AdapterPowerTier"=2,"Watts"=65,"Current"=3250}
+  |   "MaxCapacity" = 100
+  |   "CurrentCapacity" = 100
+  |   "BatteryData" = {"CurrentCapacity"=100,"AppleRawMaxCapacity"=4843,"DesignCapacity"=6075,"NominalChargeCapacity"=4993,"FullyCharged"=1}
+  |   "CycleCount" = 266
+  |   "FullyCharged" = Yes
+  |   "IsCharging" = No
+  | }
+`
+
+func TestParseIoregReadsTreeIndentedProperties(t *testing.T) {
+	props := parseIoreg(ioregTreeOutput)
+	if got := props["CycleCount"]; got != "266" {
+		t.Errorf("CycleCount = %q, want 266", got)
+	}
+	if got := props["ExternalConnected"]; got != "Yes" {
+		t.Errorf("ExternalConnected = %q, want Yes", got)
+	}
+	if got := props["MaxCapacity"]; got != "100" {
+		t.Errorf("MaxCapacity = %q, want 100", got)
+	}
+	if _, ok := props["BatteryData"]; !ok {
+		t.Error("BatteryData should be captured as one line")
+	}
+	if got := adapterWatts(props); got == nil || *got != 65 {
+		t.Errorf("adapter watts = %v, want 65", got)
+	}
+}
+
+func TestBatteryFromIORegBuildsTheCardTheUIExpects(t *testing.T) {
+	b := batteryFromIOReg(ioregTreeOutput)
+	if b == nil {
+		t.Fatal("batteryFromIOReg returned nil; the status page would hide the battery card")
+	}
+	if b.Percent == nil || *b.Percent != 100 {
+		t.Errorf("percent = %v, want 100", b.Percent)
+	}
+	if b.Cycles == nil || *b.Cycles != 266 {
+		t.Errorf("cycles = %v, want 266", b.Cycles)
+	}
+	if b.AdapterWatts == nil || *b.AdapterWatts != 65 {
+		t.Errorf("adapter watts = %v, want 65", b.AdapterWatts)
+	}
+	if b.Charging {
+		t.Error("charging should be false")
+	}
+	if !b.Plugged {
+		t.Error("plugged should be true")
+	}
+	if !b.Full {
+		t.Error("full should be true")
+	}
+	// TimeRemaining 65535 means "still calculating", and this machine reports
+	// neither Temperature nor DesignCapacity at the top level.
+	if b.Minutes != nil {
+		t.Errorf("minutes = %d, want none", *b.Minutes)
+	}
+	if b.HealthPct != nil {
+		t.Errorf("healthPct = %d, want none", *b.HealthPct)
+	}
+	if b.TempC != nil {
+		t.Errorf("tempC = %v, want none", *b.TempC)
+	}
+}
+
+func TestBatteryFromIORegRejectsUnrelatedOutput(t *testing.T) {
+	if b := batteryFromIOReg("+-o Root  <class IORegistryEntry>\n"); b != nil {
+		t.Errorf("battery = %+v, want nil", b)
+	}
+}

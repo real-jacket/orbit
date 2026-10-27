@@ -11,6 +11,14 @@ package main
 // in the main web view and, when it was open, in the popover. The Go side does
 // the same thing through Page.Eval, which is safe to call from any goroutine
 // because MyGo posts it to the main thread itself.
+//
+// Eval is given an EXPRESSION, not a statement: MyGo first tries to compile the
+// snippet as an expression (so it can return a value), and only falls back to a
+// function body when that fails with a syntax error. An `if (...) call(...);`
+// statement always fails that first attempt, and on WebKit each failed attempt
+// surfaces in the page as a cross-origin "Script error." — once per push, every
+// 1.5 seconds. A conditional expression compiles on the first try, so it costs
+// one eval instead of two and leaves the page's error log alone.
 
 import (
 	"encoding/json"
@@ -19,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/mymoles/mole-studio/internal/analyze"
 	"github.com/mymoles/mole-studio/internal/scanner"
 )
@@ -27,15 +36,20 @@ import (
 // and, while it is open, the menu-bar panel. It mirrors the Swift helper of the
 // same name, which also evaluated on both web views.
 func evaluate(script string) {
-	if w := activeMainWindow(); w != nil {
-		if page := w.Page(); page != nil {
-			_, _ = page.Eval(script)
+	debugEval := os.Getenv("MOLE_DEBUG") != ""
+	run := func(page *mygo.Page) {
+		if page == nil {
+			return
+		}
+		if _, err := page.Eval(script); err != nil && debugEval {
+			fmt.Fprintf(os.Stderr, "mole: eval failed: %v\n", err)
 		}
 	}
+	if w := activeMainWindow(); w != nil {
+		run(w.Page())
+	}
 	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
-		if page := w.Page(); page != nil {
-			_, _ = page.Eval(script)
-		}
+		run(w.Page())
 	}
 }
 
@@ -50,7 +64,7 @@ func pushRealTelemetryNow() {
 		if trayItem != nil {
 			trayItem.SetToolTip(fmt.Sprintf("orbit · CPU %.1f%% · 剩余 %.1f GB", snapshot.CPU, snapshot.FreeDiskGb))
 		}
-		evaluate("if(window.onNativeRealTelemetry) window.onNativeRealTelemetry(" + jsonOf(snapshot) + ");")
+		evaluate("window.onNativeRealTelemetry ? window.onNativeRealTelemetry(" + jsonOf(snapshot) + ") : undefined")
 	}()
 }
 
@@ -65,7 +79,7 @@ func pushDiskAnalyze(path string) {
 		} else {
 			payload = analyze.Children(expandTilde(path))
 		}
-		evaluate("if(window.onNativeDiskAnalyze) window.onNativeDiskAnalyze(" + jsonOf(payload) + ");")
+		evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
 	}()
 }
 
@@ -74,7 +88,7 @@ func pushDiskAnalyze(path string) {
 func pushRealSystemScanNow() {
 	go func() {
 		payload := scanner.Shared.BuildFullScanPayload()
-		evaluate("if(window.onNativeRealScanComplete) window.onNativeRealScanComplete(" + jsonOf(payload) + ");")
+		evaluate("window.onNativeRealScanComplete ? window.onNativeRealScanComplete(" + jsonOf(payload) + ") : undefined")
 	}()
 }
 
