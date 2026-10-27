@@ -4387,6 +4387,73 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
   wrapped.__whitelistHint = true;
   window.onNativeRealScanComplete = wrapped;
 })();
+/* ---------------------------------------------------------------------------
+   权限提示条：Go 侧回执里带 pane 时说明这次失败不是「文件坏了」，而是 macOS
+   的 TCC 授权没给。原来只在 toast 里写「权限不足」，用户不知道去哪里开；这里
+   直接给一个能跳到对应系统设置面板的入口（App 管理 / 完全磁盘访问权限）。
+--------------------------------------------------------------------------- */
+(function () {
+  if (typeof window.resolveTrash !== 'function') return;
+  const prevResolveTrash = window.resolveTrash;
+
+  const PANE_TEXT = {
+    appManagement: ['App 管理', '移动/卸载其他应用需要「App 管理」权限'],
+    fullDiskAccess: ['完全磁盘访问权限', '读取 ~/Library 等受保护目录需要「完全磁盘访问权限」'],
+  };
+
+  function postPane(pane) {
+    if (typeof sendNativeBridge === 'function') sendNativeBridge({ action: 'openPrivacySettings', pane: pane });
+  }
+
+  function dismiss() {
+    const el = document.getElementById('permHint');
+    if (el) el.remove();
+  }
+
+  function showPermissionHint(panes) {
+    dismiss();
+    const pane = panes.find(p => PANE_TEXT[p]) || 'fullDiskAccess';
+    const [title, why] = PANE_TEXT[pane];
+    const el = document.createElement('div');
+    el.id = 'permHint';
+    el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;' +
+      'display:flex;align-items:center;gap:12px;max-width:560px;padding:12px 14px;border-radius:12px;' +
+      'background:var(--surface-raised,#1c1c1e);color:var(--text-primary,#fff);' +
+      'box-shadow:0 12px 32px rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.12);font-size:12.5px;line-height:1.45;';
+    el.innerHTML = '<div style="flex:1;min-width:0;">' +
+      '<div style="font-weight:800;margin-bottom:2px;">系统拒绝了这次操作：缺少「' + title + '」</div>' +
+      '<div style="color:var(--text-secondary,#a1a1aa);">' + why + '。授权后重试即可，已经移入废纸篓的条目不受影响。</div>' +
+      '</div>';
+    const open = document.createElement('button');
+    open.textContent = '去系统设置';
+    open.style.cssText = 'flex:none;padding:7px 12px;border-radius:9px;border:0;cursor:pointer;' +
+      'background:var(--accent-emerald,#10b981);color:#04180f;font-weight:800;font-size:12px;';
+    open.onclick = () => { postPane(pane); dismiss(); };
+    const close = document.createElement('button');
+    close.textContent = '×';
+    close.style.cssText = 'flex:none;width:26px;height:26px;border-radius:8px;border:0;cursor:pointer;' +
+      'background:rgba(255,255,255,.08);color:inherit;font-size:15px;line-height:1;';
+    close.onclick = dismiss;
+    el.appendChild(open);
+    el.appendChild(close);
+    document.body.appendChild(el);
+    window.setTimeout(dismiss, 15000);
+  }
+
+  window.resolveTrash = function (res) {
+    const out = prevResolveTrash.apply(this, arguments);
+    try {
+      const panes = [];
+      (res && Array.isArray(res.failed) ? res.failed : []).forEach(f => {
+        if (f && f.pane && panes.indexOf(String(f.pane)) < 0) panes.push(String(f.pane));
+      });
+      if (panes.length) showPermissionHint(panes);
+      else if (panes.length === 0 && !(res && res.failed && res.failed.length)) dismiss();
+    } catch (e) {}
+    return out;
+  };
+})();
+
 </script>
 </body>
 </html>
