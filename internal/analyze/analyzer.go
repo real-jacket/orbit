@@ -251,13 +251,15 @@ func payloadForNode(node *Node, stats *ScanStats, scanID, scanRoot, requested st
 	}
 
 	payload := Payload{
-		Treemap2D:      tiles,
-		Tiles:          tiles,
-		Insights:       []Tile{},
-		Source:         "orbit scan",
-		ScanID:         scanID,
-		Root:           relativize(scanRoot, home),
-		Path:           relativize(node.Path, home),
+		Treemap2D: tiles,
+		Tiles:     tiles,
+		Insights:  []Tile{},
+		Source:    "orbit scan",
+		ScanID:    scanID,
+		Root:      relativize(scanRoot, home),
+		// 根扫描的 path 必须留空：页面用「有没有 path」区分整机扫描与钻取，
+		// 早先这里填 "~"，页面就把 711 GB 的根结果当成子目录载荷丢掉了。
+		Path:           "",
 		TotalGb:        plainGB(total),
 		TotalSizeGb:    plainGB(total),
 		TotalLogicalGb: plainGB(node.LogBytes),
@@ -270,8 +272,12 @@ func payloadForNode(node *Node, stats *ScanStats, scanID, scanRoot, requested st
 		LargeFiles:     largeFiles,
 		Volume:         volumeInfo(node.Path),
 	}
-	if requested != "" {
-		payload.Path = relativize(requested, home)
+	if node.Path != scanRoot {
+		if requested != "" {
+			payload.Path = relativize(requested, home)
+		} else {
+			payload.Path = relativize(node.Path, home)
+		}
 	}
 	return payload
 }

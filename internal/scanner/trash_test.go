@@ -457,3 +457,22 @@ func TestLogTrashOutcomeAppendsOneJSONLine(t *testing.T) {
 		t.Fatalf("unexpected record: %v", record)
 	}
 }
+
+// A move out of the read-only system volume fails with EXDEV, which is not a
+// cross-volume problem the user can fix by hand — say what it really is.
+func TestHumanizeTrashErrorExplainsTheReadOnlySystemVolume(t *testing.T) {
+	crossDevice := &os.LinkError{Op: "rename", Old: "/System/x", New: "/Users/me/.Trash/x", Err: syscall.EXDEV}
+
+	message, pane := humanizeTrashError("/System/Library/CoreServices/SystemVersion.plist", crossDevice)
+	if pane != "" {
+		t.Fatalf("read-only system file needs no permission grant, got pane %q", pane)
+	}
+	if !strings.Contains(message, "系统卷") {
+		t.Fatalf("message %q does not mention the system volume", message)
+	}
+
+	message, _ = humanizeTrashError("/Volumes/USB/photo.jpg", crossDevice)
+	if !strings.Contains(message, "跨卷") {
+		t.Fatalf("a real cross-volume move should still say 跨卷, got %q", message)
+	}
+}

@@ -1696,12 +1696,12 @@ window.onNativeRealTelemetry = function(data) {
   if (hasNum(data.memTotalGb)) STATE.memTotalGb = +data.memTotalGb.toFixed(1);
   if (hasNum(data.cpu)) {
     const c = +Math.max(0, Math.min(100, data.cpu)).toFixed(1);
-    STATE.cpuSeries.push(c); STATE.cpuSeries.shift();
+    STATE.cpuSeries.push(c); if (STATE.cpuSeries.length > 40) STATE.cpuSeries.shift();
   }
   const memPct = STATE.memTotalGb > 0 ? +((STATE.memUsedGb / STATE.memTotalGb) * 100).toFixed(1) : null;
-  if (memPct != null) { STATE.memSeries.push(memPct); STATE.memSeries.shift(); }
+  if (memPct != null) { STATE.memSeries.push(memPct); if (STATE.memSeries.length > 40) STATE.memSeries.shift(); }
   const diskUsedPct = diskUsedPercent();
-  if (diskUsedPct != null) { STATE.diskSeries.push(diskUsedPct); STATE.diskSeries.shift(); }
+  if (diskUsedPct != null) { STATE.diskSeries.push(diskUsedPct); if (STATE.diskSeries.length > 40) STATE.diskSeries.shift(); }
   if (Array.isArray(data.processes)) {
     const pinnedSet = new Set(STATE.processes.filter(p => p.pinned).map(p => p.name));
     STATE.processes = data.processes.map(p => ({
@@ -2507,7 +2507,8 @@ window.onNativeDiskAnalyze = function(payload) {
   STATE.analyzeScanId = typeof payload.scanId === 'string' ? payload.scanId : '';
   // Go 侧新增 error：扫描器失败时把真实原因显示给用户，而不是只回一份空 treemap。
   STATE.analyzeError = (typeof payload.error === 'string' && payload.error) ? payload.error : '';
-  const isRootScan = !payload.path;
+  // 根扫描的 path 可能为空，也可能被旧版本写成 "~"/家目录；三者都算整机扫描。
+  const isRootScan = !payload.path || payload.path === '~' || (STATE.homePath && payload.path === STATE.homePath);
   const tiles = Array.isArray(payload.treemap2D) ? payload.treemap2D : (Array.isArray(payload.tiles) ? payload.tiles : []);
   if (isRootScan) {
     // 卷信息 / 口径统计只对整机（根）扫描有意义；钻取子目录的载荷里没有这些字段，不能覆盖成 0。
