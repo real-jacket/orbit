@@ -54,6 +54,23 @@
 - 每一次移动都写 `~/Library/Application Support/orbit/trash-manifest.json`，所以「还原」是真的按
   原路径搬回去，而不是重新造一个同名文件。
 
+## 「点了没反应」的第三种可能：rename 被挂住
+
+普通拒绝是 `EPERM`，立刻返回；但授权未决（TCC 正在等一个用户看不见/答不了的弹窗）时，
+`rename(2)` 会**一直挂着不返回**。这正是「点了移入废纸篓，提示条写着等待回执，然后什么都没有」
+的来源：Go 侧没返回，页面就永远等不到回执。
+
+现在的处理：
+
+- 每个移动有 **8 秒看门狗**，超时即判定为「系统没有返回结果」，并在回执里写明这通常是授权
+  未决，而不是文件坏了；迟到的成功仍会补写还原清单，还原不会失效；
+- 每次移动/还原都会往 `~/Library/Application Support/orbit/trash.log` 追加一行 JSON
+  （时间、请求数、成功、跳过、失败原因与 pane），超过 256 KB 自动重建。出问题先看这个文件：
+
+```bash
+tail -n 5 ~/Library/Application\ Support/orbit/trash.log
+```
+
 ## 自检命令
 
 ```bash
