@@ -62,7 +62,8 @@ Beyond the module list:
 
 - macOS 13 (Ventura) or later
 - Go 1.27+ (the module declares `go 1.27.3`)
-- The [MyGo](https://github.com/egoist/mygo) CLI for packaging and dev runs:
+- The [MyGo](https://github.com/egoist/mygo) CLI, for `make dev`, `make app` and
+  `make generate` only — `make build` / `make run` are plain Go and need no CLI:
 
   ```bash
   go install github.com/egoist/mygo/cmd/mygo@v0.6.4
@@ -82,7 +83,7 @@ git clone https://github.com/real-jacket/orbit.git
 cd orbit
 
 make             # go build -v -o mole-studio .
-make run         # build and launch straight from the checkout
+make run         # build and launch straight from the checkout (no mygo CLI needed)
 make test        # unit test suite
 make vet         # go vet
 make check       # vet + test, the same gate CI runs
@@ -92,6 +93,21 @@ make app-nodmg   # app bundle only
 make doctor      # check the Go / MyGo / packaging toolchain
 make help        # list every target
 ```
+
+**Which one should I run?** `make run` for day-to-day work: it compiles the Go
+binary and points MyGo at `Resources/src-ui/` on disk, so edits to that file show
+up on the next launch with no packaging step. `make dev` additionally gives you a
+live-reload dev server, but needs the CLI installed. `make app-nodmg` then
+`open build/darwin-arm64/MoleStudio.app` is what users get: the same frontend,
+embedded into the binary instead of read from disk.
+
+**The first build downloads a toolchain.** `go.mod` declares `go 1.27.3`. If the
+`go` on your `PATH` is older, `GOTOOLCHAIN=auto` (the default) fetches the Go
+1.27.3 toolchain into the module cache — about 240 MB, one time — and prints
+`go: downloading go1.27.3 (darwin/arm64)` before the module downloads (`mygo`,
+`purego`, `x/text`). That is a download, not a hang; every run after it starts in
+about a second. To keep the toolchain in your version manager instead, install it
+there (`gvm install go1.27.3`).
 
 `make app` produces an ad-hoc-signed bundle whose UI is MyGo's embedded copy of
 `Resources/src-ui/`, plus a versioned `.dmg` beside it. Both land in a per-platform

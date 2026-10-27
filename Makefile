@@ -46,9 +46,12 @@ all: build
 build:
 	$(GO) build -v -o $(BIN) .
 
-## Build and launch the app straight from the checkout.
+## Build and launch the app straight from the checkout. No `mygo` CLI needed:
+## a plain `go run` has no embedded frontend (mygo_frontend_gen.go is only
+## written by `mygo build`, and it is gitignored), so point MyGo's dev fallback
+## at the files on disk. Without this the window shows its "No frontend" page.
 run:
-	$(GO) run .
+	MYGO_FRONTEND_DIST=Resources/src-ui $(GO) run .
 
 ## Run the unit test suite.
 test:
