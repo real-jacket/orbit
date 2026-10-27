@@ -79,7 +79,13 @@ var analyzeQueue struct {
 	next    *string
 }
 
-// pushDiskAnalyze sends a `mo analyze` result to the page. An empty path asks
+// pushAnalyzeProgress forwards one scan progress tick to the page, which only
+// redraws the "已扫描 N 个文件" line: the treemap waits for the finished tree.
+func pushAnalyzeProgress(progress analyze.Progress) {
+	evaluate("window.onNativeAnalyzeProgress ? window.onNativeAnalyzeProgress(" + jsonOf(progress) + ") : undefined")
+}
+
+// pushDiskAnalyze sends an analyze result to the page. An empty path asks
 // for the overview of the root volume; anything else analyses that directory
 // and the page hangs the result under the tile it already has for it. A request
 // that arrives while one is running replaces the pending one, so the newest

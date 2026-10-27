@@ -15,6 +15,11 @@ import (
 // Scanner measures the disk. Use Shared.
 type Scanner struct {
 	home string
+
+	// Telemetry is sampled on every tick, but not everything has to be measured
+	// that often: the process table costs a `ps` fork (~15 ms), so it is reused
+	// for a few seconds, and a CPU share needs the previous kernel tick counts.
+	sample telemetryState
 }
 
 // Shared is the app's scanner.

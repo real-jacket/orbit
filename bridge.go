@@ -21,6 +21,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"github.com/mymoles/mole-studio/internal/analyze"
 	"github.com/mymoles/mole-studio/internal/scanner"
 )
 
@@ -95,6 +96,8 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		pushRealSystemScanNow()
 	case "requestDiskAnalyze":
 		pushDiskAnalyze(stringOf(payload["path"]))
+	case "cancelDiskAnalyze":
+		go analyze.Shared.Cancel()
 	case "requestRealTelemetry":
 		pushRealTelemetryNow()
 	case "executeOptimize":
@@ -113,6 +116,10 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		if theme := stringOf(payload["theme"]); theme == themeDark || theme == themeLight || theme == themeSystem {
 			applyTheme(theme, true)
 		}
+	case "openPrivacySettings":
+		// A failed clean or uninstall is usually a missing TCC grant, and the
+		// switch that fixes it lives two clicks deep in System Settings.
+		go openPrivacyPane(stringOf(payload["pane"]))
 	case "runDoctorReCheck":
 		// The 体检 page used to fake this: a random delay, a health score that
 		// only went up and seven hardcoded "通过" rows. The checks are now read
@@ -124,6 +131,34 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		// the page no longer pretends it did something.
 	}
 	return nil
+}
+
+// privacyPaneURLs are the System Settings deep links for the three permissions
+// this app can trip over: App Management to move another app to the Trash, Files
+// and Folders to delete inside Desktop/Documents/Downloads, and Full Disk Access
+// to read inside another app's Library folder.
+const (
+	privacyPaneAppManagementURL   = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AppBundles"
+	privacyPaneFullDiskAccessURL  = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+	privacyPaneFilesAndFoldersURL = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders"
+)
+
+// privacyPaneURL maps the pane name the page receives in a failure receipt to
+// the System Settings link that grants it. Unknown panes fall back to Full Disk
+// Access, which is the permission a clean needs.
+func privacyPaneURL(pane string) string {
+	switch pane {
+	case "appManagement":
+		return privacyPaneAppManagementURL
+	case "filesAndFolders":
+		return privacyPaneFilesAndFoldersURL
+	}
+	return privacyPaneFullDiskAccessURL
+}
+
+// openPrivacyPane asks the system to open the settings pane that grants pane.
+func openPrivacyPane(pane string) {
+	_ = exec.Command("/usr/bin/open", privacyPaneURL(pane)).Run()
 }
 
 // revealInFinder shows path in the Finder. The Swift app cut the path at its
