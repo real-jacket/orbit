@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -146,4 +147,41 @@ func homeForTest(t *testing.T) string {
 		t.Fatalf("home directory: %v", err)
 	}
 	return home
+}
+
+func TestMergedEnvKeepsInheritedVariables(t *testing.T) {
+	base := []string{"HOME=/Users/example", "PATH=/usr/bin:/bin", "SHELL=/bin/zsh"}
+	got := mergedEnv(base, "PATH=/opt/homebrew/bin:/usr/bin", "TERM=dumb")
+
+	seen := map[string]string{}
+	for _, entry := range got {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			t.Fatalf("malformed entry %q", entry)
+		}
+		if _, dup := seen[key]; dup {
+			t.Errorf("duplicate key %q", key)
+		}
+		seen[key] = value
+	}
+	// mo is a bash script under `set -u`: without HOME it exits before it runs.
+	if seen["HOME"] != "/Users/example" {
+		t.Errorf("HOME = %q, want the inherited value", seen["HOME"])
+	}
+	if seen["SHELL"] != "/bin/zsh" {
+		t.Errorf("SHELL = %q, want the inherited value", seen["SHELL"])
+	}
+	if seen["PATH"] != "/opt/homebrew/bin:/usr/bin" {
+		t.Errorf("PATH = %q, want the override", seen["PATH"])
+	}
+	if seen["TERM"] != "dumb" {
+		t.Errorf("TERM = %q, want the override", seen["TERM"])
+	}
+}
+
+func TestMergedEnvAppendsCleanlyWhenNothingToReplace(t *testing.T) {
+	got := mergedEnv(nil, "PATH=/bin", "TERM=dumb")
+	if len(got) != 2 || got[0] != "PATH=/bin" || got[1] != "TERM=dumb" {
+		t.Errorf("mergedEnv(nil, …) = %v", got)
+	}
 }

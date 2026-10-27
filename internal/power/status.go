@@ -128,7 +128,13 @@ func batteryInfo() *Battery {
 	if err != nil {
 		return nil
 	}
-	props := parseIoreg(string(out))
+	return batteryFromIOReg(string(out))
+}
+
+// batteryFromIOReg turns ioreg's text output into a Battery, or nil when the
+// machine has no battery the registry knows about.
+func batteryFromIOReg(out string) *Battery {
+	props := parseIoreg(out)
 	if len(props) == 0 {
 		return nil
 	}
@@ -149,18 +155,29 @@ func batteryInfo() *Battery {
 	return b
 }
 
-// parseIoreg reads the flat "key" = value lines of ioreg's output.
+// parseIoreg reads the "key" = value lines of ioreg's output.
+//
+// ioreg prints the registry as a tree, so the properties of the matched node are
+// indented behind "|" characters:
+//
+//	|   "CycleCount" = 266
+//
+// Nested dictionaries and arrays share the line with their key, which leaves the
+// value intact for nestedNumber to look inside.
 func parseIoreg(out string) map[string]string {
 	props := map[string]string{}
 	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		eq := strings.Index(line, " = ")
-		if !strings.HasPrefix(line, `"`) || eq < 0 {
+		line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "|"))
+		if !strings.HasPrefix(line, `"`) {
 			continue
 		}
-		key := strings.Trim(line[:eq], `"`)
-		value := strings.TrimSuffix(strings.TrimSpace(line[eq+3:]), ",")
-		props[key] = strings.Trim(value, `"`)
+		sep := strings.Index(line, `" = `)
+		if sep < 1 {
+			continue
+		}
+		key := line[1:sep]
+		value := strings.TrimSpace(line[sep+4:])
+		props[key] = strings.Trim(strings.TrimSuffix(value, ","), `"`)
 	}
 	return props
 }
