@@ -34,6 +34,9 @@ type TrashEntry struct {
 type TrashFailure struct {
 	Path  string `json:"path"`
 	Error string `json:"error"`
+	// Pane names the System Settings pane that would fix this failure, empty
+	// when the failure is not a permission problem.
+	Pane string `json:"pane,omitempty"`
 }
 
 // TrashSkip is one path the app refused to move.
@@ -177,7 +180,7 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 		}
 		trashed, err := moveToTrash(path)
 		if err != nil {
-			outcome.Failed = append(outcome.Failed, TrashFailure{Path: path, Error: humanizeTrashError(err)})
+			outcome.Failed = append(outcome.Failed, trashFailure(path, err))
 			continue
 		}
 		outcome.Moved = append(outcome.Moved, TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix()})
@@ -220,7 +223,7 @@ func (s *Scanner) RestoreTrash(originals []string) RestoreOutcome {
 			continue
 		}
 		if err := moveBack(entry); err != nil {
-			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: humanizeTrashError(err)})
+			outcome.Failed = append(outcome.Failed, trashFailure(original, err))
 			continue
 		}
 		outcome.Restored = append(outcome.Restored, original)
@@ -273,16 +276,68 @@ func isTrashRoot(path, home string) bool {
 }
 
 // humanizeTrashError turns the errors users actually hit into advice.
-func humanizeTrashError(err error) string {
+// trashFailure turns one failed move into the message the user reads, and, for
+// permission problems, the System Settings pane that can grant it.
+func trashFailure(path string, err error) TrashFailure {
+	message, pane := humanizeTrashError(path, err)
+	return TrashFailure{Path: path, Error: message, Pane: pane}
+}
+
+// humanizeTrashError explains a failed move. macOS gates two different
+// permissions behind two different panes, so a bare "permission denied" would
+// send the user to the wrong switch: moving an app bundle needs App Management,
+// while reading inside another app's Library folder needs Full Disk Access.
+func humanizeTrashError(path string, err error) (string, string) {
 	switch {
-	case errors.Is(err, os.ErrPermission), errors.Is(err, syscall.EPERM):
-		return "权限不足，可能需要在系统设置里授予完全磁盘访问权限"
+	case errors.Is(err, os.ErrPermission), errors.Is(err, syscall.EPERM), errors.Is(err, syscall.EACCES):
+		if isAppBundle(path) {
+			return "macOS 拒绝移动应用：需要在「系统设置 › 隐私与安全性 › App 管理」里允许 MoleStudio。" +
+				"本地签名版本每次重新打包后系统会当成新应用，需要重新授权。", "appManagement"
+		}
+		if needsFolderAccess(path) {
+			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 MoleStudio 访问。", "filesAndFolders"
+		}
+		if needsFullDiskAccess(path) {
+			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 MoleStudio。", "fullDiskAccess"
+		}
+		return "权限不足，可能需要在系统设置里授予完全磁盘访问权限", "fullDiskAccess"
 	case errors.Is(err, syscall.EXDEV):
-		return "跨卷移动失败，请手动处理"
+		return "跨卷移动失败，请手动处理", ""
 	case errors.Is(err, syscall.ENOSPC):
-		return "磁盘空间不足"
+		return "磁盘空间不足", ""
 	case errors.Is(err, os.ErrNotExist):
-		return "路径不存在"
+		return "路径不存在", ""
 	}
-	return err.Error()
+	return err.Error(), ""
+}
+
+// isAppBundle reports whether path is an application bundle, the kind of item
+// macOS guards with the App Management permission.
+func isAppBundle(path string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimRight(path, "/")), ".app")
+}
+
+// needsFolderAccess reports whether path lives in one of the folders macOS
+// guards separately, the ones the system prompt calls "Files and Folders": the
+// user's Desktop, Documents and Downloads. Deleting the user's own files needs
+// this permission, not Full Disk Access.
+func needsFolderAccess(path string) bool {
+	cleaned := filepath.Clean(path)
+	for _, folder := range []string{"Desktop", "Documents", "Downloads"} {
+		if strings.Contains(cleaned, "/"+folder+"/") || strings.HasSuffix(cleaned, "/"+folder) {
+			return true
+		}
+	}
+	return false
+}
+
+// needsFullDiskAccess reports whether reading path is gated by Full Disk Access:
+// the Library folder of the user or of the system, and the private trees macOS
+// keeps under /private.
+func needsFullDiskAccess(path string) bool {
+	cleaned := filepath.Clean(path)
+	return strings.Contains(cleaned, "/Library/") ||
+		strings.HasSuffix(cleaned, "/Library") ||
+		strings.HasPrefix(cleaned, "/Library") ||
+		strings.HasPrefix(cleaned, "/private/")
 }

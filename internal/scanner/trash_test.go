@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -301,5 +302,93 @@ func TestTrashPathsExpandsTheTildeSoTheReceiptMatchesThePage(t *testing.T) {
 	}
 	if outcome.Moved[0].Trashed == "" {
 		t.Error("receipt has no trashed path, so restore cannot find the file")
+	}
+}
+
+// The permission a failed move needs depends on what is being moved: another
+// app goes through App Management, a protected Library folder through Full Disk
+// Access. Sending the user to the wrong pane is the same as saying nothing.
+func TestHumanizeTrashErrorPointsAtTheRightSettingsPane(t *testing.T) {
+	denied := &os.PathError{Op: "rename", Path: "/x", Err: syscall.EPERM}
+
+	cases := []struct {
+		path string
+		want string
+		msg  string
+	}{
+		{"/Applications/Figma.app", "appManagement", "App 管理"},
+		{"/Users/me/Library/Mail/1.emlx", "fullDiskAccess", "完全磁盘访问"},
+		{"/Users/me/Library/Caches", "fullDiskAccess", "完全磁盘访问"},
+		{"/private/var/db/sudo", "fullDiskAccess", "完全磁盘访问"},
+		{"/Users/me/Downloads/report.pdf", "filesAndFolders", "文件与文件夹"},
+		{"/Users/me/Documents/tax", "filesAndFolders", "文件与文件夹"},
+		{"/Users/me/Desktop/shot.png", "filesAndFolders", "文件与文件夹"},
+		{"/Users/me/Notes/todo.md", "fullDiskAccess", "权限不足"},
+	}
+	for _, c := range cases {
+		message, pane := humanizeTrashError(c.path, denied)
+		if pane != c.want {
+			t.Fatalf("%s: pane = %q, want %q", c.path, pane, c.want)
+		}
+		if !strings.Contains(message, c.msg) {
+			t.Fatalf("%s: message %q does not mention %q", c.path, message, c.msg)
+		}
+	}
+
+	// Non-permission failures carry no pane: there is nothing to grant.
+	for _, err := range []error{syscall.ENOSPC, syscall.EXDEV, os.ErrNotExist} {
+		if _, pane := humanizeTrashError("/Users/me/file", err); pane != "" {
+			t.Fatalf("%v: unexpected pane %q", err, pane)
+		}
+	}
+
+	failure := trashFailure("/Applications/Figma.app", denied)
+	if failure.Path != "/Applications/Figma.app" || failure.Pane != "appManagement" {
+		t.Fatalf("trashFailure = %+v", failure)
+	}
+}
+
+func TestAppBundleDetectionIgnoresCaseAndTrailingSlash(t *testing.T) {
+	for _, path := range []string{"/Applications/Slack.app", "/Applications/Slack.App/", "/Users/me/Desktop/Thing.app"} {
+		if !isAppBundle(path) {
+			t.Fatalf("%s should be an app bundle", path)
+		}
+	}
+	for _, path := range []string{"/Applications", "/Applications/.hidden", "/Users/me/app.txt"} {
+		if isAppBundle(path) {
+			t.Fatalf("%s should not be an app bundle", path)
+		}
+	}
+}
+
+func TestNeedsFullDiskAccessCoversProtectedTrees(t *testing.T) {
+	protected := []string{
+		"/Users/me/Library/Mail",
+		"/Users/me/Library",
+		"/Library/Application Support/Foo",
+		"/private/var/folders/x",
+	}
+	for _, path := range protected {
+		if !needsFullDiskAccess(path) {
+			t.Fatalf("%s should need Full Disk Access", path)
+		}
+	}
+	for _, path := range []string{"/Users/me/Notes", "/Applications/Slack.app", "/tmp/lib"} {
+		if needsFullDiskAccess(path) {
+			t.Fatalf("%s should not need Full Disk Access", path)
+		}
+	}
+}
+
+func TestNeedsFolderAccessCoversTheGuardedFolders(t *testing.T) {
+	for _, path := range []string{"/Users/me/Downloads/x.bin", "/Users/me/Documents", "/Users/me/Desktop/a.png"} {
+		if !needsFolderAccess(path) {
+			t.Fatalf("%s should need Files and Folders access", path)
+		}
+	}
+	for _, path := range []string{"/Users/me/Notes/x.md", "/Users/me/DownloadsArchive", "/Applications/Slack.app"} {
+		if needsFolderAccess(path) {
+			t.Fatalf("%s should not need Files and Folders access", path)
+		}
 	}
 }

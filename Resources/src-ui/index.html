@@ -284,6 +284,8 @@
     box-shadow: inset 0 1px 1px rgba(255,255,255,0.48), inset 0 -1.5px 2px rgba(0,0,0,0.32), 0 3px 8px rgba(0,0,0,0.35);
     position: relative; overflow: hidden;
   }
+  /* Real app artwork: same squircle box, but the image covers it. */
+  img.app-squircle-icon { object-fit: cover; background: transparent; }
   .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
   .nav-item.active .nav-meta { color: var(--accent-primary); font-weight: 600; }
 
@@ -1307,10 +1309,21 @@ const DEFAULT_STATE = {
   installerFiles: [],
   treemap2D: [],
   analyzeInsights: [],
-  analyzeSource: 'mo analyze --json',
+  analyzeSource: '',
   analyzeError: '',
   analyzeLoading: false,
   analyzePath: '',
+  // 自研扫描器（Go internal/analyze）随载荷下发的扫描元信息：不持久化；缺失=老载荷/未扫描，界面按「未知」降级，不补 0。
+  analyzeStatus: '',
+  analyzeScanId: '',
+  analyzeAllocGb: null,      // totalSizeGb：allocated 口径，主显
+  analyzeLogicalGb: null,    // totalLogicalGb：logical 口径，副显
+  analyzeFileCount: null,
+  analyzeRestricted: [],
+  analyzeExcluded: [],
+  analyzeAggregated: null,   // {count, sizeGb}：被合并进「其它」的小项
+  analyzeProgress: null,     // {files, dirs, bytes, seconds, current}：仅扫描中
+  analyzeRestrictedOpen: false,
   historyLogs: [],
   whitelist: [],
   whitelistWarnings: [],
@@ -1592,8 +1605,10 @@ window.onNativeWhitelistChanged = function(res) {
 
 window.onNativeAnalyzeError = function(res) {
   STATE.analyzeLoading = false;
+  STATE.analyzeProgress = null;
+  STATE.analyzeError = (res && typeof res.error === 'string' && res.error) ? res.error : '扫描器未返回结果';
   const path = res && res.path ? displayPath(res.path) : '全机概览';
-  showToast('磁盘分析失败（' + path + '）：' + ((res && res.error) || '未知错误'));
+  showToast('磁盘分析失败（' + path + '）：' + STATE.analyzeError);
   renderModule();
 };
 
@@ -2160,50 +2175,82 @@ function patchStatusLive() {
 }
 
 
+// diskGb = allocated（st_blocks*512），sizeGb 是旧载荷/逻辑口径的兜底；两者都缺失才当 0。
+function diskGbOf(t) {
+  if (!t) return 0;
+  if (hasNum(t.diskGb)) return t.diskGb;
+  if (hasNum(t.sizeGb)) return t.sizeGb;
+  return 0;
+}
+
+// 参数：当前层级的 tiles。返回条目带 idx（在原数组里的下标，供选中/下钻用）。
+// MinTileSize：任一边 < 3px 的矩形不生成 DOM，体积并入一个不可点的「其它」块。
 function layoutTreemap(tiles) {
   const stage = document.querySelector('.treemap-stage');
   const W = Math.max(300, (stage ? stage.clientWidth : 720) - 8), H = stage && stage.clientHeight > 100 ? stage.clientHeight - 8 : 296;
-  const items = tiles.map((t, i) => ({ i, v: Math.max(Number(t.sizeGb) || 0, 0.001) })).sort((a, b) => b.v - a.v);
-  const total = items.reduce((n, x) => n + x.v, 0);
-  items.forEach(it => { it.a = it.v / total * W * H; });
-  const out = [];
-  let x = 0, y = 0, w = W, h = H, row = [];
-  const worst = (r, side) => {
-    const sum = r.reduce((n, q) => n + q.a, 0);
-    const hi = Math.max(...r.map(q => q.a)), lo = Math.min(...r.map(q => q.a));
-    return Math.max(side * side * hi / (sum * sum), sum * sum / (side * side * lo));
-  };
-  const flush = () => {
-    const sum = row.reduce((n, q) => n + q.a, 0);
-    if (w >= h) {
-      const cw = sum / h; let yy = y;
-      row.forEach(q => { const rh = q.a / cw; out[q.i] = { x, y: yy, w: cw, h: rh }; yy += rh; });
-      x += cw; w -= cw;
-    } else {
-      const rh = sum / w; let xx = x;
-      row.forEach(q => { const rw = q.a / rh; out[q.i] = { x: xx, y, w: rw, h: rh }; xx += rw; });
-      y += rh; h -= rh;
+  const MIN_TILE_PX = 3;
+  const squarify = (items) => {
+    const total = items.reduce((n, x) => n + x.v, 0);
+    items.forEach(it => { it.a = it.v / total * W * H; });
+    const out = new Map();
+    let x = 0, y = 0, w = W, h = H, row = [];
+    const worst = (r, side) => {
+      const sum = r.reduce((n, q) => n + q.a, 0);
+      const hi = Math.max(...r.map(q => q.a)), lo = Math.min(...r.map(q => q.a));
+      return Math.max(side * side * hi / (sum * sum), sum * sum / (side * side * lo));
+    };
+    const flush = () => {
+      const sum = row.reduce((n, q) => n + q.a, 0);
+      if (w >= h) {
+        const cw = sum / h; let yy = y;
+        row.forEach(q => { const rh = q.a / cw; out.set(q, { x, y: yy, w: cw, h: rh }); yy += rh; });
+        x += cw; w -= cw;
+      } else {
+        const rh = sum / w; let xx = x;
+        row.forEach(q => { const rw = q.a / rh; out.set(q, { x: xx, y, w: rw, h: rh }); xx += rw; });
+        y += rh; h -= rh;
+      }
+      row = [];
+    };
+    const queue = items.slice();
+    while (queue.length) {
+      const side = Math.min(w, h);
+      if (!row.length || worst(row.concat(queue[0]), side) <= worst(row, side)) row.push(queue.shift());
+      else flush();
     }
-    row = [];
+    if (row.length) flush();
+    return out;
   };
-  const queue = items.slice();
-  while (queue.length) {
-    const side = Math.min(w, h);
-    if (!row.length || worst(row.concat(queue[0]), side) <= worst(row, side)) row.push(queue.shift());
-    else flush();
+  const toPct = (o) => ({
+    x: +(o.x / W * 100).toFixed(3), y: +(o.y / H * 100).toFixed(3),
+    w: +(o.w / W * 100).toFixed(3), h: +(o.h / H * 100).toFixed(3)
+  });
+  const all = tiles.map((t, i) => ({ i, t, v: Math.max(diskGbOf(t), 0.001) }));
+  let pos = squarify(all);
+  const keep = [], tiny = [];
+  all.forEach(q => {
+    const o = pos.get(q);
+    if (o && Math.min(o.w, o.h) >= MIN_TILE_PX) keep.push(q); else tiny.push(q);
+  });
+  const out = keep.map(q => Object.assign({}, q.t, toPct(pos.get(q)), { idx: q.i }));
+  if (tiny.length) {
+    // 小块合成一个「其它」条目：仍占面积，但不可点、不可下钻，避免为每个小项生成 DOM。
+    const othersSizeGb = tiny.reduce((n, q) => n + (Number(q.t.sizeGb) || 0), 0);
+    const others = { i: -1, t: { name: '其它', path: '', isDir: true, sizeGb: othersSizeGb, count: tiny.length }, v: tiny.reduce((n, q) => n + q.v, 0) };
+    pos = squarify(keep.concat([others]));
+    const o = pos.get(others);
+    if (o) out.push(Object.assign({}, others.t, toPct(o), { idx: -1, __others: true, mergedCount: tiny.length }));
   }
-  if (row.length) flush();
-  return tiles.map((t, i) => Object.assign({}, t, {
-    x: +(out[i].x / W * 100).toFixed(3), y: +(out[i].y / H * 100).toFixed(3),
-    w: +(out[i].w / W * 100).toFixed(3), h: +(out[i].h / H * 100).toFixed(3)
-  }));
+  return out;
 }
 
 function recomputeDiskAnalyzeTotals() {
-  const total = STATE.treemap2D.reduce((s, d) => s + d.sizeGb, 0);
-  STATE.totalAnalyzedGb = total;
+  const total = STATE.treemap2D.reduce((s, d) => s + diskGbOf(d), 0);
+  // 根总量优先用扫描器给的 allocated 总量（含被聚合的小项），没有该字段时才退回顶层 tile 求和。
+  if (hasNum(STATE.analyzeAllocGb)) STATE.totalAnalyzedGb = +STATE.analyzeAllocGb.toFixed(2);
+  else if (total > 0) STATE.totalAnalyzedGb = +total.toFixed(2);
   STATE.treemap2D.forEach(d => {
-    d.pct = +((d.sizeGb / Math.max(0.1, total)) * 100).toFixed(1);
+    d.pct = +((diskGbOf(d) / Math.max(0.1, total)) * 100).toFixed(1);
   });
   const usedPct = (hasNum(STATE.totalDiskGb) && STATE.totalDiskGb > 0 && hasNum(STATE.freeDiskGb))
     ? Math.max(0, Math.min(100, Math.round(((STATE.totalDiskGb - STATE.freeDiskGb) / STATE.totalDiskGb) * 100))) : 0;
@@ -2242,6 +2289,10 @@ window.switchModule = function(mod) {
   updateSidebarBadges();
   renderHeroIcon();
   renderModule();
+  // 第一次进入空间分析才开始扫描；之后重进复用 Go 侧内存树（下钻是查表）。
+  if (mod === 'analyze' && !STATE.analyzeLoading && !(STATE.analyzeAllocGb > 0)) {
+    requestDiskAnalyze(STATE.analyzePath || '');
+  }
 };
 
 // Interactive Handlers for Clean (Zero protected items in list)
@@ -2387,32 +2438,109 @@ function toggleAppKeepPersonal(idx, ev) {
 }
 
 // Interactive Handlers for Analyze (Real file deletion + persistent state)
+// 扫描现在由 Go 自研扫描器（internal/analyze）在进程内完成，不再调用 `mo analyze` 子进程。
 function requestDiskAnalyze(path) {
   STATE.analyzeLoading = true;
+  STATE.analyzeProgress = null;
+  STATE.analyzeError = '';
+  STATE.analyzeRestrictedOpen = false;
   STATE.analyzePath = path || '';
   sendNativeBridge({ action: 'requestDiskAnalyze', path: path || '' });
   renderModule();
-  showToast(path ? '正在用 mo analyze 扫描 ' + path : '正在用 mo analyze 扫描全机概览');
+  showToast(path ? '正在扫描 ' + displayPath(path) : '正在扫描全机概览');
 }
+
+// 扫描可中途取消：只发动作；界面在结果或错误回执到达前保持「扫描中」，由回执决定最终状态。
+function cancelDiskAnalyze() {
+  if (!STATE.analyzeLoading) return;
+  sendNativeBridge({ action: 'cancelDiskAnalyze' });
+  showToast('已请求取消扫描，等待扫描器收尾…');
+}
+
+// 进度只改文字与按钮，绝不重排 treemap（大目录扫描时每次重排都会卡住主线程）。
+function fmtScanAmt(v) {
+  if (!hasNum(v) || v < 0) return null;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let n = v, u = 0;
+  while (n >= 1024 && u < units.length - 1) { n = n / 1024; u++; }
+  return (u === 0 ? String(Math.round(n)) : n.toFixed(1)) + ' ' + units[u];
+}
+function renderAnalyzeProgress() {
+  if (STATE.module !== 'analyze' || !STATE.analyzeLoading) return;
+  const p = STATE.analyzeProgress || {};
+  const head = document.getElementById('heroHeadline');
+  const desc = document.getElementById('heroDesc');
+  const btn = document.getElementById('primaryBtnText');
+  if (btn) btn.textContent = '取消扫描';
+  if (head) {
+    head.textContent = hasNum(p.files)
+      ? `正在扫描… 已扫描 ${fmtNum(p.files, 0)} 个文件${hasNum(p.seconds) ? ' · ' + fmtNum(p.seconds, 1) + 's' : ''}`
+      : '正在扫描…';
+  }
+  if (desc) {
+    const bits = [];
+    if (hasNum(p.dirs)) bits.push(`${fmtNum(p.dirs, 0)} 个目录`);
+    const amt = fmtScanAmt(p.bytes);
+    if (amt) bits.push(`已计入 ${amt}`);
+    if (p.current) bits.push(`当前 ${displayPath(p.current)}`);
+    desc.textContent = bits.length ? bits.join(' · ') : '正在遍历本机目录；点「取消扫描」可随时中止，已扫描的部分会保留。';
+  }
+}
+window.onNativeAnalyzeProgress = function(r) {
+  if (!r || !STATE.analyzeLoading) return;
+  STATE.analyzeProgress = {
+    scanId: typeof r.scanId === 'string' ? r.scanId : '',
+    files: hasNum(r.files) ? r.files : null,
+    dirs: hasNum(r.dirs) ? r.dirs : null,
+    bytes: hasNum(r.bytes) ? r.bytes : null,
+    seconds: hasNum(r.seconds) ? r.seconds : null,
+    current: typeof r.current === 'string' ? r.current : ''
+  };
+  renderAnalyzeProgress();
+};
 window.onNativeDiskAnalyze = function(payload) {
   STATE.analyzeLoading = false;
+  STATE.analyzeProgress = null;
   if (!payload) return;
-  STATE.analyzeSource = payload.source || 'mo analyze --json';
-  STATE.analyzeStatus = payload.scanStatus || '';
-  // Go 侧新增 error：mo 缺失 / 超时 / 目录不可读时把真实原因显示给用户，而不是只回一份空 treemap
+  STATE.analyzeSource = typeof payload.source === 'string' ? payload.source : '';
+  STATE.analyzeStatus = typeof payload.scanStatus === 'string' ? payload.scanStatus : '';
+  STATE.analyzeScanId = typeof payload.scanId === 'string' ? payload.scanId : '';
+  // Go 侧新增 error：扫描器失败时把真实原因显示给用户，而不是只回一份空 treemap。
   STATE.analyzeError = (typeof payload.error === 'string' && payload.error) ? payload.error : '';
+  const isRootScan = !payload.path;
+  const tiles = Array.isArray(payload.treemap2D) ? payload.treemap2D : (Array.isArray(payload.tiles) ? payload.tiles : []);
+  if (isRootScan) {
+    // 卷信息 / 口径统计只对整机（根）扫描有意义；钻取子目录的载荷里没有这些字段，不能覆盖成 0。
+    const vol = payload.volume;
+    STATE.analyzeVolume = vol && typeof vol === 'object' && !Array.isArray(vol) ? {
+      totalGb: hasNum(vol.totalGb) ? vol.totalGb : null,
+      usedGb: hasNum(vol.usedGb) ? vol.usedGb : null,
+      freeGb: hasNum(vol.freeGb) ? vol.freeGb : null
+    } : null;
+    STATE.analyzeAllocGb = hasNum(payload.totalSizeGb) ? payload.totalSizeGb : (hasNum(payload.totalGb) ? payload.totalGb : null);
+    STATE.analyzeLogicalGb = hasNum(payload.totalLogicalGb) ? payload.totalLogicalGb : null;
+    STATE.analyzeFileCount = hasNum(payload.fileCount) ? payload.fileCount : null;
+    const agg = payload.aggregated;
+    STATE.analyzeAggregated = agg && typeof agg === 'object' && !Array.isArray(agg) ? {
+      count: hasNum(agg.count) ? agg.count : null,
+      sizeGb: hasNum(agg.sizeGb) ? agg.sizeGb : null
+    } : null;
+    if (Array.isArray(payload.insights)) STATE.analyzeInsights = payload.insights;
+  }
+  const pickRestrictions = (list) => (Array.isArray(list) ? list : [])
+    .filter(r => r && (typeof r.path === 'string' || typeof r.reason === 'string'))
+    .map(r => ({ path: typeof r.path === 'string' ? r.path : '', reason: typeof r.reason === 'string' ? r.reason : '' }));
+  // 根扫描必须整体替换（新结果没有受限项 = 这次真的没有），钻取子目录的载荷不覆盖根的限制清单。
+  if (isRootScan || Array.isArray(payload.restricted)) STATE.analyzeRestricted = pickRestrictions(payload.restricted);
+  if (isRootScan || Array.isArray(payload.excluded)) STATE.analyzeExcluded = pickRestrictions(payload.excluded);
+  STATE.analyzeRestrictedOpen = false;
+
   if (STATE.analyzeError) {
     console.warn('[analyze]', payload.path || '~', STATE.analyzeError);
     showToast(`磁盘分析未完成（${displayPath(payload.path || '~')}）：${STATE.analyzeError}`);
-  }
-  if (typeof payload.totalGb === 'number' && !payload.path) STATE.totalAnalyzedGb = payload.totalGb;
-  const tiles = Array.isArray(payload.treemap2D) ? payload.treemap2D : [];
-  if (!payload.path) STATE.analyzeInsights = Array.isArray(payload.insights) ? payload.insights : [];
-  if (payload.path) {
-    const normPath = payload.path.replace(STATE.homePath || '', '~');
-    const match = findTileByPath(STATE.treemap2D, normPath) || findTileByPath(STATE.treemap2D, payload.path) || (STATE.drillStack || []).slice(-1)[0];
-    if (match) match.children = tiles;
-  } else {
+    // 失败时保留上一份结果：错误态由 renderModule 在结果区展示，不能把页面清成 0 字节空图。
+  } else if (isRootScan) {
+    if (typeof payload.totalGb === 'number') STATE.totalAnalyzedGb = payload.totalGb;
     STATE.treemap2D = tiles;
     STATE.drillDownDirIdx = null;
     STATE.drillStack = [];
@@ -2420,6 +2548,11 @@ window.onNativeDiskAnalyze = function(payload) {
     STATE.trailBack = [];
     STATE.trailFwd = [];
     STATE.collected = [];
+  } else {
+    // 钻取子目录的 totalGb 只是这个子目录的体积，不能覆盖根总量（根总量只由根扫描或 analyzeAllocGb 决定）。
+    const normPath = payload.path.replace(STATE.homePath || '', '~');
+    const match = findTileByPath(STATE.treemap2D, normPath) || findTileByPath(STATE.treemap2D, payload.path) || (STATE.drillStack || []).slice(-1)[0];
+    if (match) match.children = tiles;
   }
   recomputeDiskAnalyzeTotals();
   updateSidebarBadges();
@@ -2766,7 +2899,8 @@ function handlePrimaryAction() {
   if (STATE.module === 'optimize') {
     runAllOptimizeTasks();
   } else if (STATE.module === 'analyze') {
-    requestDiskAnalyze(STATE.analyzePath || '');
+    if (STATE.analyzeLoading) cancelDiskAnalyze();
+    else requestDiskAnalyze(STATE.analyzePath || '');
   } else if (STATE.module === 'status') {
     sendNativeBridge({ action: 'requestRealTelemetry' });
     stepLiveTelemetry();
@@ -3192,9 +3326,11 @@ function renderModule() {
                 <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
-                    <div class="app-squircle-icon" style="background:${iconFor(app.name, app.bundleId, idx).bg};">
+                    ${app.icon
+                      ? `<img class="app-squircle-icon" src="${app.icon}" alt="${app.name}" loading="lazy" />`
+                      : `<div class="app-squircle-icon" style="background:${iconFor(app.name, app.bundleId, idx).bg};">
                       ${iconFor(app.name, app.bundleId, idx).svg}
-                    </div>
+                    </div>`}
                     <div style="min-width:0;">
                       <div class="row-title" style="display:flex;align-items:center;gap:6px;">
                         <span>${app.name}</span>
@@ -3222,9 +3358,11 @@ function renderModule() {
             </div>
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
+                ${selApp.icon
+                  ? `<img class="app-squircle-icon" src="${selApp.icon}" alt="${selApp.name}" style="width:46px;height:46px;border-radius:11px;" />`
+                  : `<div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
                   ${iconFor(selApp.name, selApp.bundleId, 0).svg}
-                </div>
+                </div>`}
                 <div style="min-width:0;flex:1;">
                   <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
                   <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">${selApp.appPath} · ${selApp.bundleId}</div>
@@ -3275,23 +3413,93 @@ function renderModule() {
     const activeTiles = isDrilled ? (Array.isArray(parentDir.children) ? parentDir.children : []) : STATE.treemap2D;
     const activeIdx = Math.min(Math.max(0, STATE.analyzeSel || 0), Math.max(0, activeTiles.length - 1));
     const curSelectedTile = activeTiles[activeIdx] || { name: '暂无目录', path: '~', sizeGb: 0 };
-    const totalLfGb = STATE.largeFiles.reduce((s, f) => s + f.sizeGb, 0);
+    const totalLfGb = STATE.largeFiles.reduce((s, f) => s + (Number(f.sizeGb) || 0), 0);
+    const drillGb = isDrilled ? diskGbOf(parentDir) : STATE.totalAnalyzedGb;
+    const vol = STATE.analyzeVolume;
+    const progress = STATE.analyzeProgress || {};
+    const restricted = STATE.analyzeRestricted || [];
+    const excluded = STATE.analyzeExcluded || [];
+    const agg = STATE.analyzeAggregated;
 
     topTitle.textContent = '磁盘空间分析 · 星图仪';
-    primaryBtnText.textContent = STATE.analyzeLoading ? '扫描中…' : '重新扫描';
-    heroHeadline.textContent = STATE.analyzeLoading
-      ? '正在扫描…'
-      : (isDrilled
-        ? `${parentDir.path} · ${parentDir.sizeGb.toFixed(2)} GB`
-        : `全机概览 · ${STATE.totalAnalyzedGb.toFixed(2)} GB`);
-    heroDesc.textContent = isDrilled
-      ? `${activeTiles.length} 项。单击选中，双击或回车进入目录，退格返回上一级。`
-      : '单击选中，双击或回车进入目录；第一次进入某个目录需要再扫描一次，可能要几秒。勾选后加入待清理，确认前不会动任何文件。';
+    primaryBtnText.textContent = STATE.analyzeLoading ? '取消扫描' : '重新扫描';
+    if (STATE.analyzeError) {
+      heroHeadline.textContent = '磁盘分析未完成';
+      heroDesc.textContent = '扫描器没有产出可用结果；页面不会把失败显示成 0 字节的空图。点「重试」重新扫描，或先用上方「刷新扫描」重扫本机。';
+    } else if (STATE.analyzeLoading) {
+      heroHeadline.textContent = hasNum(progress.files)
+        ? `正在扫描… 已扫描 ${fmtNum(progress.files, 0)} 个文件${hasNum(progress.seconds) ? ' · ' + fmtNum(progress.seconds, 1) + 's' : ''}`
+        : '正在扫描…';
+      const bits = [];
+      if (hasNum(progress.dirs)) bits.push(`${fmtNum(progress.dirs, 0)} 个目录`);
+      const amt = fmtScanAmt(progress.bytes);
+      if (amt) bits.push(`已计入 ${amt}`);
+      if (progress.current) bits.push(`当前 ${displayPath(progress.current)}`);
+      heroDesc.textContent = bits.length ? bits.join(' · ') : '正在遍历本机目录；点「取消扫描」可随时中止，已扫描的部分会保留。';
+    } else if (isDrilled) {
+      heroHeadline.textContent = `${parentDir.path} · ${drillGb.toFixed(2)} GB`;
+      heroDesc.textContent = `${activeTiles.length} 项。单击选中，双击或回车进入目录，退格返回上一级。`;
+    } else {
+      heroHeadline.textContent = `全机概览 · ${STATE.totalAnalyzedGb.toFixed(2)} GB`;
+      heroDesc.textContent = STATE.analyzeStatus === 'partial'
+        ? '部分目录因权限或系统保护未能读取，其体积未计入统计（见「读取受限」）。单击选中，双击或回车进入目录。'
+        : STATE.analyzeStatus === 'canceled'
+          ? '扫描已取消，以下是取消前已完成的部分；点「重新扫描」可重新开始。'
+          : '单击选中，双击或回车进入目录；第一次进入某个目录需要再扫描一次，可能要几秒。勾选后加入待清理，确认前不会动任何文件。';
+    }
     heroStatLabel.textContent = '磁盘实时可用空间';
-    heroStatValue.textContent = `${STATE.freeDiskGb.toFixed(1)} GB`;
-    heroStatSub.textContent = 'Macintosh HD';
+    heroStatValue.textContent = vol && hasNum(vol.freeGb) ? `${vol.freeGb.toFixed(1)} GB` : `${STATE.freeDiskGb.toFixed(1)} GB`;
+    heroStatSub.textContent = vol && hasNum(vol.totalGb)
+      ? `卷容量 ${vol.totalGb.toFixed(1)} GB${hasNum(vol.usedGb) ? ' · 已用 ' + vol.usedGb.toFixed(1) + ' GB' : ''}`
+      : (STATE.totalDiskGb > 0 ? `卷容量 ${STATE.totalDiskGb.toFixed(1)} GB` : '容量未知');
 
-    stage.innerHTML = `
+    // 事实条：只用扫描器真实回传的字段，缺哪个省哪个（不补 0、不猜）。
+    const factBits = [];
+    if (!isDrilled && hasNum(STATE.analyzeFileCount)) factBits.push(`文件 ${fmtNum(STATE.analyzeFileCount, 0)}`);
+    const allocGb = hasNum(STATE.analyzeAllocGb) ? STATE.analyzeAllocGb : STATE.totalAnalyzedGb;
+    factBits.push(`占用 ${allocGb.toFixed(2)} GB（实际）${hasNum(STATE.analyzeLogicalGb) ? ` / ${STATE.analyzeLogicalGb.toFixed(2)} GB（逻辑）` : ''}`);
+    if (!isDrilled && agg && (hasNum(agg.count) || hasNum(agg.sizeGb))) {
+      const ab = [];
+      if (hasNum(agg.count)) ab.push(`${fmtNum(agg.count, 0)} 个小项`);
+      if (hasNum(agg.sizeGb)) ab.push(`共 ${agg.sizeGb.toFixed(2)} GB`);
+      factBits.push(`合并 ${ab.join(' · ')}`);
+    }
+    const restrictedBtn = restricted.length
+      ? `<button class="btn" style="padding:1px 8px;font-size:10.5px;" onclick="STATE.analyzeRestrictedOpen = !STATE.analyzeRestrictedOpen; renderModule();">${restricted.length} 个目录读取受限${STATE.analyzeRestrictedOpen ? ' ▴' : ' ▾'}</button>`
+      : '';
+    const restrictedPanel = STATE.analyzeRestrictedOpen && restricted.length ? `
+      <div style="padding:2px 12px 10px;font-size:11px;color:var(--text-secondary);">
+        <div style="margin-bottom:4px;">这些目录的体积未计入上面的统计（扫描器报错或系统保护）：</div>
+        ${restricted.slice(0, 10).map(r => `
+          <div style="display:flex;gap:10px;padding:1.5px 0;font-family:var(--font-mono);font-size:10.5px;">
+            <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(displayPath(r.path) || '（路径未提供）')}</span>
+            <span style="color:var(--text-tertiary);white-space:nowrap;">${escHtml(r.reason || '未知原因')}</span>
+          </div>`).join('')}
+        ${restricted.length > 10 ? `<div style="margin-top:3px;color:var(--text-tertiary);">仅显示前 10 条，共 ${restricted.length} 条</div>` : ''}
+      </div>` : '';
+    const excludedNote = excluded.length
+      ? `<span style="color:var(--text-tertiary);" title="${escHtml(excluded.slice(0, 6).map(r => displayPath(r.path)).join('、'))}">已跳过 ${excluded.length} 个系统目录</span>`
+      : '';
+    const factsBar = isDrilled ? '' : `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 12px;font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle);">
+        <span>${factBits.join(' · ')}</span>${excludedNote ? '· ' + excludedNote : ''}${restrictedBtn ? '<span>·</span>' + restrictedBtn : ''}
+      </div>${restrictedPanel}`;
+
+    // 结果区的三种「非图表」状态：错误 > 无数据提示；有数据或扫描中时走正常布局（不显示 0 字节空图）。
+    const hasAnyTiles = activeTiles.length > 0 || STATE.treemap2D.length > 0;
+    const errorPanel = STATE.analyzeError ? `
+      <div class="panel-card" style="padding:36px 20px;text-align:center;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:8px;">磁盘分析未完成</div>
+        <div style="font-size:12px;color:var(--text-secondary);max-width:620px;margin:0 auto 14px;white-space:pre-wrap;">${escHtml(STATE.analyzeError)}</div>
+        <button class="btn btn-primary" onclick="requestDiskAnalyze(STATE.analyzePath || '')">重试</button>
+      </div>` : '';
+    const hintPanel = (!STATE.analyzeError && !STATE.analyzeLoading && !hasAnyTiles) ? `
+      <div class="panel-card" style="padding:32px 20px;text-align:center;color:var(--text-secondary);font-size:12.5px;">
+        还没有扫描结果。点右上角「重新扫描」开始分析本机目录。
+      </div>` : '';
+    const emptyBody = errorPanel || hintPanel;
+
+    stage.innerHTML = emptyBody ? emptyBody : `
+      ${STATE.analyzeLoading ? '' : factsBar}
       <div class="breadcrumb-bar">
         <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;">
           <button class="btn icon-btn" ${STATE.trailBack.length ? '' : 'disabled'} title="后退" onclick="goBack()">${UI_ICON('back')}</button><button class="btn icon-btn" ${STATE.trailFwd.length ? '' : 'disabled'} title="前进" onclick="goForward()">${UI_ICON('fwd')}</button>
@@ -3299,7 +3507,7 @@ function renderModule() {
           ${['全机概览'].concat(stack.map(n => n.name)).map((c, i, all) => `${i ? '<span class="crumb-sep">▸</span>' : ''}<span class="crumb-item ${i === all.length - 1 ? 'active' : ''}" onclick="jumpToDepth(${i})">${i ? UI_ICON('folder') + ' ' : ''}${c}</span>`).join('')}
         </div>
         <div class="crumb-actions">
-          <span class="crumb-sel">${curSelectedTile.name} · ${curSelectedTile.sizeGb.toFixed(1)} GB${curSelectedTile.pct != null ? ' · ' + curSelectedTile.pct + '%' : ''}</span>
+          <span class="crumb-sel">${curSelectedTile.name} · ${diskGbOf(curSelectedTile).toFixed(1)} GB${hasNum(curSelectedTile.pct) ? ' · ' + curSelectedTile.pct + '%' : ''}</span>
           ${curSelectedTile.isDir === false ? '' : `<button class="btn btn-primary" style="padding:2px 9px;font-size:10.5px;" onclick="drillTile(${activeIdx})">进入</button>`}
           <button class="btn" style="padding:2px 9px;font-size:10.5px;" onclick="revealInFinder('${jsq(curSelectedTile.path)}')">在访达中显示</button>
           <button class="btn" style="padding:2px 9px;font-size:10.5px;" onclick="copyPath('${jsq(curSelectedTile.path)}')">复制路径</button>
@@ -3314,18 +3522,21 @@ function renderModule() {
             <span style="font-size:11px;color:var(--text-secondary);">${activeTiles.length} 项</span>
           </div>
           <div class="list-body">
-            ${activeTiles.map((d, idx) => `
+            ${activeTiles.map((d, idx) => {
+              const dGb = diskGbOf(d);
+              const dPartial = d.partial === true || d.scanStatus === 'partial';
+              return `
               <div class="list-row ${idx === activeIdx ? 'selected' : ''}" style="padding:5px 14px;" data-idx="${idx}" onclick="selectTile(${idx})" ondblclick="drillTile(${idx})">
                 <div class="row-left">
-                  ${pickControl(d, idx)}<span style="background:${d.color};width:8px;height:8px;border-radius:50%;flex-shrink:0;"></span>
+                  ${pickControl(d, idx)}<span style="background:${d.color || '#475569'};width:8px;height:8px;border-radius:50%;flex-shrink:0;"></span>
                   <div style="min-width:0;">
                     <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI_ICON(d.isDir === false ? 'file' : 'folder')} ${d.name}</div>
-                    <div class="row-sub pct-line"><span class="pct-bar"><i style="width:${Math.min(100, d.pct)}%;background:${d.color}"></i></span>${d.pct}%${d.scanStatus === 'partial' ? ' · 部分' : ''}${d.cleanable ? ' · 可清理' : ''}</div>
+                    <div class="row-sub pct-line"><span class="pct-bar"><i style="width:${Math.min(100, Number(d.pct) || 0)}%;background:${d.color || '#475569'}"></i></span>${hasNum(d.pct) ? d.pct + '%' : '—'}${dPartial ? ' · 受限' : ''}${d.cleanable ? ' · 可清理' : ''}</div>
                   </div>
                 </div>
-                <span class="size-cell">${d.sizeGb.toFixed(1)} GB</span>
-              </div>
-            `).join('')}
+                <span class="size-cell">${dGb.toFixed(1)} GB</span>
+              </div>`;
+            }).join('')}
           </div>
           ${!isDrilled && STATE.analyzeInsights.length ? `
             <details class="insights-box" ${STATE.insightsOpen ? 'open' : ''} ontoggle="STATE.insightsOpen = this.open">
@@ -3333,31 +3544,40 @@ function renderModule() {
               ${STATE.analyzeInsights.map(item => `
                 <div class="subpath-item">
                   <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${jsq(item.path)}')">${UI_ICON(item.cleanable ? 'trash' : 'search')} ${item.name}</span>
-                  <span class="subpath-right">${item.sizeGb.toFixed(2)} GB</span>
+                  <span class="subpath-right">${fmtNum(item.diskGb, 2, fmtNum(item.sizeGb, 2, '未知'))} GB</span>
                 </div>
               `).join('')}
             </details>` : ''}
         </div>
 
         <div class="treemap-stage">
-          ${layoutTreemap(activeTiles).map((r, idx) => `
-            <div class="treemap-tile ${idx === activeIdx ? 'active-tile' : ''}" title="${r.name} · ${r.sizeGb.toFixed(1)} GB · ${r.pct}%" data-idx="${idx}" onclick="selectTile(${idx})" ondblclick="drillTile(${idx})" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${r.color};">
+          ${layoutTreemap(activeTiles).map((r) => {
+            const isOthers = !!r.__others;
+            const rGb = diskGbOf(r);
+            const rPartial = r.partial === true || r.scanStatus === 'partial';
+            const sel = !isOthers && r.idx === activeIdx;
+            const metaLine = isOthers
+              ? `${r.mergedCount || r.count || 0} 个小项已合并`
+              : `${r.partial === true || r.scanStatus === 'partial' ? '受限 · ' : ''}${r.isDir === false ? '文件' : '目录'}`;
+            return `
+            <div class="treemap-tile ${sel ? 'active-tile' : ''}" title="${escHtml(r.name)} · ${rGb.toFixed(2)} GB${rPartial ? ' · 受限（有子目录未读取，体积未计入）' : ''}" ${isOthers ? '' : `data-idx="${r.idx}" onclick="selectTile(${r.idx})" ondblclick="drillTile(${r.idx})"`} style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${r.color || '#475569'};${isOthers ? 'pointer-events:none;opacity:0.72;' : ''}">
+              ${rPartial ? `<span style="position:absolute;top:4px;right:4px;font-size:9px;line-height:1;background:rgba(217,119,6,0.95);padding:3px 5px;border-radius:4px;color:#fff;font-weight:700;">受限</span>` : ''}
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
                 <div style="min-width:0;">
-                  <div style="font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.name}</div>
-                  <div class="tile-meta" style="font-size:10px;color:rgba(255,255,255,0.84);margin-top:2px;font-family:var(--font-mono);">${r.path}${r.scanStatus === 'partial' ? ' · partial' : ''}</div>
+                  <div style="font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${isOthers ? '其它' : escHtml(r.name)}</div>
+                  <div class="tile-meta" style="font-size:10px;color:rgba(255,255,255,0.84);margin-top:2px;font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${isOthers ? escHtml(metaLine) : escHtml(r.path || '')}</div>
                 </div>
-                <span class="drill-pill tile-meta" onclick="event.stopPropagation();drillTile(${idx})">${r.isDir === false ? '文件' : '进入 ▸'}</span>
+                ${isOthers ? '' : `<span class="drill-pill tile-meta" onclick="event.stopPropagation();drillTile(${r.idx})">${r.isDir === false ? '文件' : '进入 ▸'}</span>`}
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;white-space:nowrap;gap:6px;">
-                <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:#fff;white-space:nowrap;">${r.sizeGb.toFixed(1)} GB<span class="tile-pct"> (${r.pct}%)</span></span>
+                <span style="font-family:var(--font-mono);font-size:12px;font-weight:800;color:#fff;white-space:nowrap;">${rGb.toFixed(1)} GB<span class="tile-pct">${hasNum(r.pct) ? ' (' + r.pct + '%)' : ''}</span></span>
                 <div class="tile-actions" style="display:flex;gap:5px;">
-                  ${r.cleanable ? `<span style="font-size:9.5px;background:rgba(46,158,107,0.85);padding:2px 6px;border-radius:4px;color:#fff;font-weight:600;" onclick="event.stopPropagation();switchModule('clean');">可清理缓存</span>` : ''}
-                  <span style="font-size:9.5px;background:rgba(0,0,0,0.38);padding:2px 6px;border-radius:4px;color:#fff;white-space:nowrap;" onclick="event.stopPropagation();revealInFinder('${r.path}')">访达 ↗</span>
+                  ${r.cleanable && !isOthers ? `<span style="font-size:9.5px;background:rgba(46,158,107,0.85);padding:2px 6px;border-radius:4px;color:#fff;font-weight:600;" onclick="event.stopPropagation();switchModule('clean');">可清理缓存</span>` : ''}
+                  ${isOthers ? '' : `<span style="font-size:9.5px;background:rgba(0,0,0,0.38);padding:2px 6px;border-radius:4px;color:#fff;white-space:nowrap;" onclick="event.stopPropagation();revealInFinder('${jsq(r.path)}')">访达 ↗</span>`}
                 </div>
               </div>
-            </div>
-          `).join('')}
+            </div>`;
+          }).join('')}
         </div>
       </div>
 
@@ -3372,13 +3592,13 @@ function renderModule() {
               <div class="row-left">
                 <span class="row-glyph">${get_skeuo_svg('purge', 'lf' + idx)}</span>
                 <div style="min-width:0;">
-                  <div class="row-title">${lf.name}</div>
-                  <div class="row-sub" style="cursor:pointer;" onclick="revealInFinder('${lf.path}')">${lf.path}</div>
+                  <div class="row-title">${escHtml(lf.name)}</div>
+                  <div class="row-sub" style="cursor:pointer;" onclick="revealInFinder('${jsq(lf.path)}')">${escHtml(lf.path)}</div>
                 </div>
               </div>
               <div class="row-right">
-                <span class="badge badge-review">${lf.kind}</span>
-                <span class="size-cell">${lf.sizeGb.toFixed(2)} GB</span>
+                <span class="badge badge-review">${escHtml(lf.kind || '文件')}</span>
+                <span class="size-cell">${(Number(lf.sizeGb) || 0).toFixed(2)} GB</span>
                 <button class="btn" style="padding:3px 9px;font-size:11px;" onclick="removeLargeFile(${idx})">移至废纸篓</button>
               </div>
             </div>
@@ -3630,7 +3850,7 @@ const CMD_PALETTE_ITEMS = [
   { icon: 'ai_moon', title: 'AI 专项清理：查看本机 AI 工具缓存', sub: '智核舱 · 扫描 Claude / Cursor / Codex 目录', kbd: '⌘2', run: () => { switchModule('ai_moon'); } },
   { icon: 'software', title: '应用彻底卸载：扫描本机 /Applications 应用与 Library 残留', sub: '/Applications & ~/Library/Application Support', kbd: '⌘3', run: () => { switchModule('software'); selectAppRow(0); } },
   { icon: 'purge', title: '构建与安装包：清理跨项目陈旧 node_modules / target', sub: '~/Projects & ~/Downloads', kbd: '⌘7', run: () => { switchModule('purge'); } },
-  { icon: 'analyze', title: '星图仪：用 mo analyze 查看磁盘占用', sub: 'mo analyze --json · 可下钻目录', kbd: '⌘5', run: () => { switchModule('analyze'); } },
+  { icon: 'analyze', title: '星图仪：扫描本机目录并下钻查看磁盘占用', sub: 'Go 自研扫描器 · 可取消 · 可下钻目录', kbd: '⌘5', run: () => { switchModule('analyze'); } },
   { icon: 'status', title: '实时状态监控：查看本机实时进程 (/bin/ps) 与硬件传感器', sub: '1.5s 同步进程表 / 网络 / 磁盘 I/O / GPU / 温度与风扇转速', kbd: '⌘6', run: () => { switchModule('status'); } },
   { icon: 'brand', title: '系统健康体检：立即启动 7 项核心指标重新体检 (复诊)', sub: '逐项检测磁盘权限、统一内存压力、SMART 寿命与电池散热', kbd: '⌘D', run: () => { openDoctorModal(true); } },
   { icon: 'history', title: '恢复记录与白名单：从废纸篓一键原路还原历史清理项', sub: '管理受保护的核心白名单路径', kbd: '⌘8', run: () => { switchModule('history'); } }
@@ -4352,7 +4572,8 @@ renderModule();
 renderMenuBarTrayContent();
 if (window.isNativeMacApp) {
   triggerNativeRescan();
-  requestDiskAnalyze('');
+  // 空间分析改成首次打开模块时再扫：home 全树扫描要十几秒，启动即扫会
+  // 让「打开应用就卡一下」，而大多数时候用户并不看这一页。
 }
 setInterval(() => { window.stepLiveTelemetry(); }, 1500);
 // 菜单栏时钟：显示本机真实时间，不写死
@@ -4381,6 +4602,74 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
   wrapped.__whitelistHint = true;
   window.onNativeRealScanComplete = wrapped;
 })();
+/* ---------------------------------------------------------------------------
+   权限提示条：Go 侧回执里带 pane 时说明这次失败不是「文件坏了」，而是 macOS
+   的 TCC 授权没给。原来只在 toast 里写「权限不足」，用户不知道去哪里开；这里
+   直接给一个能跳到对应系统设置面板的入口（App 管理 / 完全磁盘访问权限）。
+--------------------------------------------------------------------------- */
+(function () {
+  if (typeof window.resolveTrash !== 'function') return;
+  const prevResolveTrash = window.resolveTrash;
+
+  const PANE_TEXT = {
+    appManagement: ['App 管理', '移动/卸载其他应用需要「App 管理」权限'],
+    filesAndFolders: ['文件与文件夹', '删除「桌面 / 文稿 / 下载」里的文件需要允许访问这些文件夹'],
+    fullDiskAccess: ['完全磁盘访问权限', '读取 ~/Library 等受保护目录需要「完全磁盘访问权限」'],
+  };
+
+  function postPane(pane) {
+    if (typeof sendNativeBridge === 'function') sendNativeBridge({ action: 'openPrivacySettings', pane: pane });
+  }
+
+  function dismiss() {
+    const el = document.getElementById('permHint');
+    if (el) el.remove();
+  }
+
+  function showPermissionHint(panes) {
+    dismiss();
+    const pane = panes.find(p => PANE_TEXT[p]) || 'fullDiskAccess';
+    const [title, why] = PANE_TEXT[pane];
+    const el = document.createElement('div');
+    el.id = 'permHint';
+    el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;' +
+      'display:flex;align-items:center;gap:12px;max-width:560px;padding:12px 14px;border-radius:12px;' +
+      'background:var(--surface-raised,#1c1c1e);color:var(--text-primary,#fff);' +
+      'box-shadow:0 12px 32px rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.12);font-size:12.5px;line-height:1.45;';
+    el.innerHTML = '<div style="flex:1;min-width:0;">' +
+      '<div style="font-weight:800;margin-bottom:2px;">系统拒绝了这次操作：缺少「' + title + '」</div>' +
+      '<div style="color:var(--text-secondary,#a1a1aa);">' + why + '。授权后重试即可，已经移入废纸篓的条目不受影响。</div>' +
+      '</div>';
+    const open = document.createElement('button');
+    open.textContent = '去系统设置';
+    open.style.cssText = 'flex:none;padding:7px 12px;border-radius:9px;border:0;cursor:pointer;' +
+      'background:var(--accent-emerald,#10b981);color:#04180f;font-weight:800;font-size:12px;';
+    open.onclick = () => { postPane(pane); dismiss(); };
+    const close = document.createElement('button');
+    close.textContent = '×';
+    close.style.cssText = 'flex:none;width:26px;height:26px;border-radius:8px;border:0;cursor:pointer;' +
+      'background:rgba(255,255,255,.08);color:inherit;font-size:15px;line-height:1;';
+    close.onclick = dismiss;
+    el.appendChild(open);
+    el.appendChild(close);
+    document.body.appendChild(el);
+    window.setTimeout(dismiss, 15000);
+  }
+
+  window.resolveTrash = function (res) {
+    const out = prevResolveTrash.apply(this, arguments);
+    try {
+      const panes = [];
+      (res && Array.isArray(res.failed) ? res.failed : []).forEach(f => {
+        if (f && f.pane && panes.indexOf(String(f.pane)) < 0) panes.push(String(f.pane));
+      });
+      if (panes.length) showPermissionHint(panes);
+      else if (panes.length === 0 && !(res && res.failed && res.failed.length)) dismiss();
+    } catch (e) {}
+    return out;
+  };
+})();
+
 </script>
 </body>
 </html>

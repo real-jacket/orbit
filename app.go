@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"github.com/mymoles/mole-studio/internal/analyze"
 	"github.com/mymoles/mole-studio/internal/trayicon"
 )
 
@@ -111,6 +112,10 @@ func buildUI() {
 	mygo.App.Focus()
 
 	startTelemetryTimer()
+
+	// The disk analyzer reports scan progress from its own goroutine; the page
+	// turns it into the "已扫描 N 个文件" line.
+	analyze.Shared.SetProgressSink(pushAnalyzeProgress)
 }
 
 // createTray puts the app's mark in the menu bar. The icon is drawn in Go as a

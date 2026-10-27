@@ -53,9 +53,52 @@ type Payload struct {
 	ScanStatus string  `json:"scanStatus,omitempty"`
 	TotalGb    float64 `json:"totalGb"`
 	Path       string  `json:"path,omitempty"`
-	// Error explains a failed run: "mo" missing, directory unreadable, timeout.
+	// Error explains a failed run: unreadable directory, timeout, no `mo`.
 	// Without it every failure looked like the same "unavailable" label.
 	Error string `json:"error,omitempty"`
+
+	// The rest describes the scan itself rather than the rectangles: which
+	// volume the numbers came from, how much of the tree was readable, and
+	// what the numbers mean. `tiles` duplicates `treemap2D` for the newer
+	// page code, which reads the documented name.
+	Tiles          []Tile            `json:"tiles,omitempty"`
+	ScanID         string            `json:"scanId,omitempty"`
+	Root           string            `json:"root,omitempty"`
+	TotalSizeGb    float64           `json:"totalSizeGb,omitempty"`
+	TotalLogicalGb float64           `json:"totalLogicalGb,omitempty"`
+	FileCount      int64             `json:"fileCount,omitempty"`
+	Partial        bool              `json:"partial,omitempty"`
+	Restricted     []RestrictionInfo `json:"restricted,omitempty"`
+	Excluded       []RestrictionInfo `json:"excluded,omitempty"`
+	Aggregated     *Aggregated       `json:"aggregated,omitempty"`
+	LargeFiles     []LargeFileTile   `json:"largeFiles,omitempty"`
+	Volume         *Volume           `json:"volume,omitempty"`
+}
+
+// Volume is the filesystem the scan ran on.
+type Volume struct {
+	TotalGb float64 `json:"totalGb"`
+	UsedGb  float64 `json:"usedGb"`
+	FreeGb  float64 `json:"freeGb"`
+}
+
+// Aggregated counts the children the scan folded into "…其它".
+type Aggregated struct {
+	Count  int     `json:"count"`
+	SizeGb float64 `json:"sizeGb"`
+}
+
+// RestrictionInfo is one path the scan could not read or chose not to visit.
+type RestrictionInfo struct {
+	Path   string `json:"path"`
+	Reason string `json:"reason"`
+}
+
+// LargeFileTile is one entry of the large-file list.
+type LargeFileTile struct {
+	Name   string  `json:"name"`
+	Path   string  `json:"path"`
+	SizeGb float64 `json:"sizeGb"`
 }
 
 // Tile is one rectangle of the treemap.
@@ -63,6 +106,9 @@ type Tile struct {
 	Name       string  `json:"name"`
 	Path       string  `json:"path"`
 	SizeGb     float64 `json:"sizeGb"`
+	DiskGb     float64 `json:"diskGb,omitempty"`
+	LogicalGb  float64 `json:"logicalGb,omitempty"`
+	Partial    bool    `json:"partial,omitempty"`
 	Pct        float64 `json:"pct"`
 	Color      string  `json:"color"`
 	Files      int     `json:"files"`
@@ -77,20 +123,29 @@ type Tile struct {
 }
 
 // Overview analyzes the home directory.
-func Overview() Payload {
-	stdout, source, failure := runAnalyze("")
-	payload := buildPayload(stdout, source)
-	payload.Overview = true
-	payload.Error = failure
-	return payload
-}
+func Overview() Payload { return PayloadFor("") }
 
 // Children analyzes one directory.
-func Children(path string) Payload {
-	stdout, source, failure := runAnalyze(path)
-	payload := buildPayload(stdout, source)
-	payload.Path = absolutize(path)
-	payload.Error = failure
+func Children(path string) Payload { return PayloadFor(path) }
+
+// PayloadFor returns the treemap of path, scanning it when the in-memory tree
+// does not cover it yet. Drilling into a directory the tree already holds costs
+// a map lookup; the `mo` CLI is only consulted when the scan itself fails.
+func PayloadFor(path string) Payload {
+	node, stats, scanID, err := Shared.Tree(path)
+	if err != nil {
+		stdout, source, failure := runAnalyze(path)
+		payload := buildPayload(stdout, source)
+		payload.Path = absolutize(path)
+		payload.Overview = path == ""
+		if failure == "" {
+			failure = err.Error()
+		}
+		payload.Error = failure
+		return payload
+	}
+	payload := payloadForNode(node, stats, scanID, Shared.Root(), absolutize(path))
+	payload.Overview = path == ""
 	return payload
 }
 
