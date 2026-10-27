@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo"
 
 	"github.com/mymoles/mole-studio/internal/analyze"
+	"github.com/mymoles/mole-studio/internal/scanner"
 	"github.com/mymoles/mole-studio/internal/trayicon"
 )
 
@@ -24,6 +25,13 @@ var (
 // appName is what the app calls itself in the menu bar, the About panel and the
 // window title. It is the name the Swift app used.
 const appName = "orbit"
+
+// fillBuildInfo stamps the running build into the scanner so the 体检 panel can
+// report it. The commit comes from the linker when a release build sets it;
+// otherwise the executable's mtime is the honest answer.
+func fillBuildInfo() {
+	scanner.BuildTime = scanner.DescribeExecutable()
+}
 
 // quitting is set while a quit is in progress. The window's close handler
 // normally hides the window instead of closing it, and without this flag that
@@ -64,6 +72,7 @@ func run() {
 // buildUI creates the windows and the menu bar. It runs once, on the main
 // thread, right before the event loop starts.
 func buildUI() {
+	fillBuildInfo()
 	createTray()
 
 	// Main window. The Swift app used a full-size content view with a
