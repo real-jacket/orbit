@@ -21,6 +21,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"github.com/mymoles/mole-studio/internal/analyze"
 	"github.com/mymoles/mole-studio/internal/scanner"
 )
 
@@ -95,6 +96,8 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		pushRealSystemScanNow()
 	case "requestDiskAnalyze":
 		pushDiskAnalyze(stringOf(payload["path"]))
+	case "cancelDiskAnalyze":
+		go analyze.Shared.Cancel()
 	case "requestRealTelemetry":
 		pushRealTelemetryNow()
 	case "executeOptimize":

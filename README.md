@@ -39,7 +39,7 @@ so you always run the upstream version you installed.
 | **AI Care** · Moon | `mo clean --ai-care` | Stale AI CLI binaries, render caches, expired agent worktrees, SQLite compaction |
 | **Uninstaller** · Mars | `mo uninstall` | Removes app bundles plus their leftover support files, with "keep personal data" |
 | **Optimize** · Mercury | `mo optimize` | Refreshes caches, rebuilds QuickLook/icon caches, vacuums system SQLite databases |
-| **Astrolabe** · disk analyzer | `mo analyze --json` | Treemap of the CLI overview, with a fresh CLI scan when a directory is opened |
+| **Astrolabe** · disk analyzer | `internal/analyze` (in-process scan) | Treemap of the home tree; one walk, then drill-down is a memory lookup |
 | **Live Status** · Sun | `mo status` | Process table with CPU, memory and power draw |
 | **Purge** | `mo purge`, `mo installer` | Removes rebuildable project artifacts and stale installer packages |
 | **History & Whitelist** | `mo history`, `mo clean --whitelist` | Cleanup audit log and protected-path management |
@@ -141,7 +141,7 @@ says which Swift file each Go file was written from, so the mapping stays useful
 | `internal/smc` | Reads AppleSMC over IOKit: CPU temperature and fan speeds, with the byte-order handling both Intel and Apple silicon need | — (new; the Swift build had no SMC reader) |
 | `internal/telemetry` | Network throughput from the routing `sysctl`, disk I/O and GPU utilisation from the IORegistry, sampled on independent cache intervals | — (new; the Swift build showed fixed placeholder numbers) |
 | `internal/scanner` | The local scan: installed apps, orphaned leftovers, large files, installer packages, clean catalogs, AI Care bands, the home treemap, the process table | `Engine/RealMacSystemScanner.swift`, `Engine/CatalogScanning.swift`, `Engine/OrphanScanning.swift`, `Engine/OrphanSignatures.swift` |
-| `internal/analyze` | Resolves `mo` and runs `mo analyze --json`, shaping the result into treemap tiles | `Engine/MoleAnalyzeBridge.swift`, `Engine/MoleCLIRunner.swift` (binary resolution) |
+| `internal/analyze` | Walks a directory tree in-process (allocated + logical sizes, hard-link dedupe, progress, cancellation) and shapes it into treemap tiles; falls back to `mo analyze --json` only if a walk fails | `Engine/MoleAnalyzeBridge.swift`, `Engine/MoleCLIRunner.swift` (the CLI resolution the fallback reuses) |
 | `internal/trayicon` | Draws the 18pt menu-bar template image from an analytic description instead of AppKit | `MoleStudioApp.swift` (`configureStatusItem`) |
 
 The app shell itself is a handful of files in `package main` at the repository root, because that is
@@ -156,12 +156,14 @@ where MyGo wants the entry point:
 | `push.go` | Go → page: serialises payloads and calls the page's `window.onNative*` globals in every open window | `MoleStudioApp.swift` (`evaluateJavaScript` call sites) |
 | `theme.go` | `mygo.Theme` plus a `preferences.json` in the user data directory, replacing `UserDefaults` | `MoleStudioApp.swift` (`applyTheme`) |
 
-Three documents go deeper: [`docs/go-port.md`](docs/go-port.md) is the porting record — file-by-file
+Four documents go deeper: [`docs/go-port.md`](docs/go-port.md) is the porting record — file-by-file
 mapping, the decisions behind it, and the known gaps against the Swift build — while
-[`docs/mygo-migration.md`](docs/mygo-migration.md) is the framework analysis that justified the move, and
+[`docs/mygo-migration.md`](docs/mygo-migration.md) is the framework analysis that justified the move,
 [`docs/business-logic-review.md`](docs/business-logic-review.md) is the review that followed the port:
 what was fabricated, what only pretended to work (清理回执、还原、白名单、体检、退出), and how each was
-replaced with a real implementation.
+replaced with a real implementation, and
+[`docs/disk-analyzer.md`](docs/disk-analyzer.md) explains why the disk analyzer stopped shelling out to
+`mo analyze` and how the in-process scanner counts bytes, reports progress and cancels.
 
 The port itself did not touch the frontend, and the markup and layout are still the original page. What
 did change in `Resources/src-ui/index.html` is the part that talked to the native side: `preload.go`
@@ -170,10 +172,10 @@ restores the `window.webkit.messageHandlers.moleNative` object the page expects 
 before it claims anything was deleted or restored. Actions the page sends: `revealInFinder`, `copyText`,
 `killProcess`, `trashRealPaths`/`executeClean`/`trashPath`, `restoreTrashSnapshot`, `addWhitelist`/
 `removeWhitelist`, `runDoctorReCheck`, `requestRealSystemScan`, `requestDiskAnalyze`,
-`requestRealTelemetry`, `toggleCaffeinate`, `startWindowDrag`, `toggleWindowZoom`, `setTheme`, the
-`menubar*` family. Callbacks: `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`,
+`requestRealTelemetry`, `cancelDiskAnalyze`, `toggleCaffeinate`, `startWindowDrag`, `toggleWindowZoom`,
+`setTheme`, the `menubar*` family. Callbacks: `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`,
 `onNativeTrashResult`, `onNativeRestoreResult`, `onNativeWhitelistChanged`, `onNativeCaffeinate`,
-`onNativeDoctorReport`, `switchModule`, `openConfirmSheet`. Only `setFanMode` still falls through to
+`onNativeDoctorReport`, `onNativeAnalyzeProgress`, `switchModule`, `openConfirmSheet`. Only `setFanMode` still falls through to
 `default`: it needs SMC access, which the port deliberately does not do (see
 [`docs/business-logic-review.md`](docs/business-logic-review.md) §4).
 
@@ -220,8 +222,8 @@ wired up:
 - **The samplers are real and tested.** `internal/scanner` walks the disk for apps, leftovers, large
   files, installers and clean catalogs; `internal/power` reads thermal state, memory pressure and
   the battery from `sysctl`/`ioreg`; `internal/telemetry` reads network, disk I/O and GPU rates from
-  the kernel and `internal/smc` reads temperatures and fan speeds; `internal/analyze` shells out to
-  `mo analyze --json`.
+  the kernel and `internal/smc` reads temperatures and fan speeds; `internal/analyze` walks the disk
+  itself — `mo analyze --json` is only the fallback when a walk fails.
   `go test ./...` covers the numeric and payload-shape behaviour of all three.
 - **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles all 16 branches the Swift
   switch handled: Finder reveal, clipboard, process killing (SIGTERM then SIGKILL), moving paths to the
