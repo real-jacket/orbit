@@ -42,7 +42,9 @@ GO       ?= go
 
 all: build
 
-## Build the Go executable at ./mole-studio.
+## Build the Go executable at ./mole-studio. On its own it shows MyGo's
+## "No frontend" page, because nothing is embedded: run it as
+## MYGO_FRONTEND_DIST=Resources/src-ui ./mole-studio, or use `make run`.
 build:
 	$(GO) build -v -o $(BIN) .
 
