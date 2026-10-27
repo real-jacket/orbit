@@ -198,7 +198,7 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 		outcome.Moved = append(outcome.Moved, TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix()})
 		entries = append(entries, outcome.Moved[len(outcome.Moved)-1])
 	}
-	defer logTrashOutcome("trash", outcome)
+	defer func() { logTrashOutcome("trash", outcome) }()
 	if len(entries) > 0 {
 		if err := recordTrash(entries); err != nil {
 			// The files are already gone; recording the receipt is best effort,
@@ -391,6 +391,9 @@ func humanizeTrashError(path string, err error) (string, string) {
 		}
 		return "权限不足，可能需要在系统设置里授予完全磁盘访问权限", "fullDiskAccess"
 	case errors.Is(err, syscall.EXDEV):
+		if isSystemVolume(path) {
+			return "这是 macOS 系统卷上的文件（只读保护），不能移入废纸篓", ""
+		}
 		return "跨卷移动失败，请手动处理", ""
 	case errors.Is(err, syscall.ENOSPC):
 		return "磁盘空间不足", ""
@@ -398,6 +401,18 @@ func humanizeTrashError(path string, err error) (string, string) {
 		return "路径不存在", ""
 	}
 	return err.Error(), ""
+}
+
+// isSystemVolume reports whether path lives on the read-only system volume,
+// where a move to the Trash can only ever fail with EXDEV.
+func isSystemVolume(path string) bool {
+	cleaned := filepath.Clean(path)
+	for _, prefix := range []string{"/System/", "/usr/", "/bin/", "/sbin/", "/Library/Apple/"} {
+		if strings.HasPrefix(cleaned, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // isAppBundle reports whether path is an application bundle, the kind of item

@@ -12,6 +12,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -31,6 +33,10 @@ type NativeBridge struct{}
 
 // Dispatch answers one message from the page.
 func (b *NativeBridge) Dispatch(payload map[string]any) error {
+	if os.Getenv("MOLE_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "DISPATCH action=%v paths=%v path=%v requestId=%v\n",
+			payload["action"], payload["paths"], payload["path"], payload["requestId"])
+	}
 	switch payload["action"] {
 	case "startWindowDrag":
 		// Nothing to do: the preload marks the window chrome with

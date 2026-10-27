@@ -75,17 +75,54 @@ func preloadScript(menubar bool) string {
 // forwarder into the one bound Go method that handles every action. It is a
 // function body so both preload variants can share it.
 const nativeBridgeShim = `
-    try {
-      window.webkit.messageHandlers.moleNative = {
-        postMessage: function (payload) {
-          if (!runtime || typeof runtime.call !== 'function') return;
-          try {
-            var pending = runtime.call('NativeBridge.Dispatch', payload);
-            if (pending && typeof pending.catch === 'function') pending.catch(function () {});
-          } catch (e) {}
-        }
-      };
-    } catch (e) {}
+    // The page talks to the shell through window.webkit.messageHandlers.moleNative.
+    // Two ordering hazards make a one-shot assignment unreliable here:
+    //   * the preload can run before MyGo's bridge script defines window.webkit,
+    //     and then "window.webkit.messageHandlers" throws — an assignment wrapped
+    //     in try/catch silently leaves the page deaf;
+    //   * window.mygo can be installed after the preload ran, so capturing the
+    //     runtime in a closure binds undefined.
+    // Both were invisible: the page's sendNativeBridge swallows errors, so every
+    // action (清理、还原、体检、空间分析) was dropped while Go→page pushes kept
+    // working. Retry the attachment and resolve the runtime at call time instead.
+    function attachMoleNative(attempt) {
+      var handlers = null;
+      try { handlers = window.webkit && window.webkit.messageHandlers; } catch (e) {}
+      window.__moleDiag = { attempts: attempt, hasWebkit: !!window.webkit, hasHandlers: !!handlers, attached: !!(window.__moleDiag && window.__moleDiag.attached) };
+      if (handlers) {
+        try {
+          handlers.moleNative = {
+            postMessage: function (payload) {
+              var runtime = window.mygo;
+              if (!runtime || typeof runtime.call !== 'function') return;
+              try {
+                var pending = runtime.call('NativeBridge.Dispatch', payload);
+                if (pending && typeof pending.catch === 'function') pending.catch(function () {});
+              } catch (e) {}
+            }
+          };
+          if (handlers.moleNative) {
+            window.__moleDiag.attached = true;
+            return;
+          }
+        } catch (e) {}
+      }
+      if (attempt < 240) window.setTimeout(function () { attachMoleNative(attempt + 1); }, 25);
+    }
+    // WebKit materialises the real messageHandlers object when the load
+    // finishes and silently drops properties added before that, so the
+    // attachment has to be re-established when it goes missing. A page cannot
+    // tell the difference between "no handler" and "handler not yet attached":
+    // both just do nothing, which is how every action after boot disappeared.
+    function keepMoleNativeAttached() {
+      var handlers = null;
+      try { handlers = window.webkit && window.webkit.messageHandlers; } catch (e) {}
+      if (handlers && !handlers.moleNative) attachMoleNative(0);
+    }
+    attachMoleNative(0);
+    window.setInterval(keepMoleNativeAttached, 500);
+    window.addEventListener('load', keepMoleNativeAttached);
+    document.addEventListener('DOMContentLoaded', keepMoleNativeAttached);
 `
 
 // dragRegions marks the window chrome as a native drag region. MyGo's bridge

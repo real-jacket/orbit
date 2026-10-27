@@ -559,3 +559,26 @@ func TestScanTreeFanOutTotals(t *testing.T) {
 		t.Fatalf("子项合计 Files=%d Disk=%d，根 Files=%d Disk=%d", childFiles, childDisk, stats.Files, node.DiskBytes)
 	}
 }
+
+// A root scan must not report a path: the page reads "has path" as "this is a
+// drill-down", and a root payload that claimed "~" was thrown away, leaving the
+// analyzer showing 0.00 GB while Go had measured 711 GB.
+func TestPayloadForNodeLeavesTheRootPathEmpty(t *testing.T) {
+	root := &Node{Path: "/Users/me", Dir: true, Partial: false}
+	child := &Node{Path: "/Users/me/Documents", Dir: true, Name: "Documents"}
+	root.Children = []*Node{child}
+	stats := &ScanStats{}
+
+	rootPayload := payloadForNode(root, stats, "scan-1", "/Users/me", "")
+	if rootPayload.Path != "" {
+		t.Fatalf("root payload path = %q, want empty", rootPayload.Path)
+	}
+	if rootPayload.TotalSizeGb == 0 && root.DiskBytes > 0 {
+		t.Fatal("root payload lost its size")
+	}
+
+	drill := payloadForNode(child, stats, "scan-1", "/Users/me", "")
+	if drill.Path == "" {
+		t.Fatal("drill-down payload lost its path, so the page cannot place the tiles")
+	}
+}
