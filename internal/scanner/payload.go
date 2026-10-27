@@ -112,9 +112,11 @@ func batteryPayload(b *power.Battery) map[string]any {
 
 // BuildTelemetry samples the machine for the telemetry event.
 func (s *Scanner) BuildTelemetry() Telemetry {
-	cpu, processes := s.sampleRealProcesses()
+	host := telemetry.HostSample()
+	cpu := s.cpuShare(host)
+	processes := s.cachedProcesses()
 	freeGB, _ := s.queryDiskSpace()
-	usedGB, totalGB := s.queryMemoryUsage()
+	usedGB, totalGB := s.memoryUsage(host)
 	snapshot := power.Take()
 	payload := PowerPayload{
 		Thermal:     snapshot.Thermal,

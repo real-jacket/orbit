@@ -284,6 +284,8 @@
     box-shadow: inset 0 1px 1px rgba(255,255,255,0.48), inset 0 -1.5px 2px rgba(0,0,0,0.32), 0 3px 8px rgba(0,0,0,0.35);
     position: relative; overflow: hidden;
   }
+  /* Real app artwork: same squircle box, but the image covers it. */
+  img.app-squircle-icon { object-fit: cover; background: transparent; }
   .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
   .nav-item.active .nav-meta { color: var(--accent-primary); font-weight: 600; }
 
@@ -3192,9 +3194,11 @@ function renderModule() {
                 <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${app.checked ? 'checked' : ''} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
-                    <div class="app-squircle-icon" style="background:${iconFor(app.name, app.bundleId, idx).bg};">
+                    ${app.icon
+                      ? `<img class="app-squircle-icon" src="${app.icon}" alt="${app.name}" loading="lazy" />`
+                      : `<div class="app-squircle-icon" style="background:${iconFor(app.name, app.bundleId, idx).bg};">
                       ${iconFor(app.name, app.bundleId, idx).svg}
-                    </div>
+                    </div>`}
                     <div style="min-width:0;">
                       <div class="row-title" style="display:flex;align-items:center;gap:6px;">
                         <span>${app.name}</span>
@@ -3222,9 +3226,11 @@ function renderModule() {
             </div>
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
-                <div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
+                ${selApp.icon
+                  ? `<img class="app-squircle-icon" src="${selApp.icon}" alt="${selApp.name}" style="width:46px;height:46px;border-radius:11px;" />`
+                  : `<div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
                   ${iconFor(selApp.name, selApp.bundleId, 0).svg}
-                </div>
+                </div>`}
                 <div style="min-width:0;flex:1;">
                   <div style="font-size:14.5px;font-weight:800;">${selApp.name}.app <span style="font-size:11px;font-weight:500;color:var(--text-secondary);">v${selApp.version}</span></div>
                   <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;">${selApp.appPath} · ${selApp.bundleId}</div>

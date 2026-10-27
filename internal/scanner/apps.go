@@ -104,10 +104,13 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 			leftoverGB := round2(cacheGB + configGB)
 
 			results = append(results, map[string]any{
-				"id":             bundleID,
-				"name":           name,
-				"category":       "Mac 应用",
-				"appPath":        fullPath,
+				"id":       bundleID,
+				"name":     name,
+				"category": "Mac 应用",
+				"appPath":  fullPath,
+				// The bundle's own artwork, as a data URL: drawing a made-up
+				// squircle for an installed app made the list look fake.
+				"icon":           appIconDataURL(fullPath),
 				"bundleId":       bundleID,
 				"version":        version,
 				"lastUsed":       "本机已安装",
