@@ -106,8 +106,8 @@ Swift 版就没做过 manifest：丢进废纸篓时把文件平铺改名成 `原
 
 | 项 | 原因 |
 | --- | --- |
-| 网络上下行速率、磁盘 I/O 吞吐、GPU 占用/曲线 | 需要新采样源（`netstat -ib` 差分、`iostat`、IOKit GPU 统计）；属于"新增采集能力"，不在业务逻辑修复范围。界面显示「本机不提供」 |
-| SMC 真实 CPU 温度、风扇转速控制 | 需要读 SMC（未公开接口，需 IOKit `AppleSMC` 私有 key），风险高；Swift 版也是写死的。显示「本机不提供」 |
+| 网络上下行速率、磁盘 I/O 吞吐、GPU 占用 | ~~本机不提供~~ → **已补上**（后续提交）：`sysctl NET_RT_IFLIST2` 差分、`ioreg IOBlockStorageDriver`、`ioreg IOAccelerator`，见 `docs/go-port.md` §7 |
+| SMC 真实 CPU 温度、风扇转速 | ~~本机不提供~~ → **已补上**（后续提交）：`internal/smc` 读 `Tp*`/`TC0*` 与 `F0Ac`/`F1Ac`；风扇「控制」仍然不做（写 SMC 有风险，只读） |
 | 系统应用（`/System/Applications`）卸载 | 产品上不应支持；`installedAppIndex` 只加名字用于避免误判「应用已卸载」 |
 | 整根 `~/Library/Caches` 改成逐子目录 | 行为变更太大（mole 本身就是整根清理），保留整根，但界面加「运行中的应用可能异常」提示 |
 | 让 `mo` 的输出参与 UI 主流程 | `mo analyze --json` 是单目录、可慢到 30s；现有超时 + 单飞 + 错误透出已够，不引入长驻进程 |

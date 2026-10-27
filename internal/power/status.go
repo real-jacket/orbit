@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mymoles/mole-studio/internal/smc"
 )
 
 // NSProcessInfoThermalState, the values -[NSProcessInfo thermalState] returns.
@@ -140,7 +142,26 @@ func batteryInfo() *Battery {
 	if err != nil {
 		return nil
 	}
-	return batteryFromIOReg(string(out))
+	b := batteryFromIOReg(string(out))
+	if b != nil && b.TempC == nil {
+		b.TempC = smcBatteryTemperature()
+	}
+	return b
+}
+
+// smcBatteryTemperature reads the battery thermistor. IOPlatformExpertDevice
+// does not publish a Temperature property on Apple Silicon, so the SmartBattery
+// node has no temperature at all and the SMC key TB0T is the only source.
+func smcBatteryTemperature() *float64 {
+	client, err := smc.SharedClient()
+	if err != nil {
+		return nil
+	}
+	value, ok := client.BatteryTemperature()
+	if !ok || value <= 0 || value > 120 {
+		return nil
+	}
+	return &value
 }
 
 // batteryFromIOReg turns ioreg's text output into a Battery, or nil when the
