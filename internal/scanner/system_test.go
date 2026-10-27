@@ -98,13 +98,13 @@ func TestParseProcessesNeverReportsZeroMemory(t *testing.T) {
 	}
 }
 
-func TestParseProcessesClampsTheTotal(t *testing.T) {
-	// A quiet machine still reports the floor the Swift app used...
-	cpu, _ := parseProcesses(psOutput, 8)
-	if cpu < 2.5 {
-		t.Errorf("cpu = %v, want at least 2.5", cpu)
+func TestParseProcessesReportsTheRealTotal(t *testing.T) {
+	// The Swift app floored the total at 2.5%, which made an idle machine look
+	// busy; the real sum of this fixture is 16.5% over 8 cores.
+	if cpu, _ := parseProcesses(psOutput, 8); cpu != 2.0625 {
+		t.Errorf("cpu = %v, want 2.0625", cpu)
 	}
-	// ...and a busy one stops short of 100%.
+	// A busy one still stops short of 100%.
 	busy := "PID %CPU RSS COMM\n" + strings.Repeat("  99 100.0 1000 /usr/bin/busy\n", 20)
 	if cpu, _ := parseProcesses(busy, 2); cpu != 99.9 {
 		t.Errorf("cpu = %v, want 99.9", cpu)
@@ -113,8 +113,8 @@ func TestParseProcessesClampsTheTotal(t *testing.T) {
 
 func TestParseProcessesOnEmptyOutput(t *testing.T) {
 	cpu, processes := parseProcesses("", 8)
-	if cpu != 2.5 {
-		t.Errorf("cpu = %v, want 2.5", cpu)
+	if cpu != 0 {
+		t.Errorf("cpu = %v, want 0", cpu)
 	}
 	if len(processes) != 0 {
 		t.Errorf("got %d processes, want none", len(processes))

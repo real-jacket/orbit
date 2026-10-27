@@ -191,15 +191,21 @@ func isDir(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// dirSize is a directory's size in bytes and how many entries it has.
+// dirSize is a directory's size in bytes, how many entries were visited, and
+// how many of them were regular files. The two counts differ because the caps
+// in the scan functions bound files, not the directory entries that lead to
+// them: a tree with thousands of empty folders used to exhaust the budget
+// before a single byte was counted, which is how a 2.1 GB cache directory was
+// reported as 0.89 GB.
 type dirSize struct {
 	bytes int64
 	count int
+	files int
 }
 
 // fastDirectorySize measures how large a directory is, walking at most
-// maxFiles entries. A path that is not a directory reports its own size and
-// one entry, which is what the Swift app did.
+// maxFiles regular files. A path that is not a directory reports its own size
+// and one entry, which is what the Swift app did.
 func (s *Scanner) fastDirectorySize(path string, maxFiles int) dirSize {
 	path = s.expand(path)
 	info, err := os.Stat(path)
@@ -207,21 +213,23 @@ func (s *Scanner) fastDirectorySize(path string, maxFiles int) dirSize {
 		return dirSize{}
 	}
 	if !info.IsDir() {
-		return dirSize{bytes: info.Size(), count: 1}
+		return dirSize{bytes: info.Size(), count: 1, files: 1}
 	}
 	var total dirSize
 	walkDir(path, maxFiles, &total)
 	return total
 }
 
-// walkDir accumulates the sizes of the regular files under dir.
+// walkDir accumulates the sizes of the regular files under dir. The cap counts
+// regular files; directories cost nothing and are still visited while the file
+// budget lasts.
 func walkDir(dir string, maxFiles int, total *dirSize) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
 	for _, entry := range entries {
-		if maxFiles > 0 && total.count >= maxFiles {
+		if maxFiles > 0 && total.files >= maxFiles {
 			return
 		}
 		path := filepath.Join(dir, entry.Name())
@@ -237,8 +245,62 @@ func walkDir(dir string, maxFiles int, total *dirSize) {
 		if !info.Mode().IsRegular() {
 			continue
 		}
+		total.files++
 		total.bytes += allocatedSize(info)
 	}
+}
+
+// scanProtection reports how the whitelist covers path. LoadWhitelist stores
+// mole's legacy composite "a & b" lines as a single pattern; the app shows them
+// split, so protection decisions split them too, otherwise a line such as
+// "~/Library/Caches & ~/Library/Logs" would protect nothing.
+func (s *Scanner) scanProtection(path string) (Protection, bool) {
+	policy := s.whitelist()
+	if protection, protected := policy.Protection(path); protected {
+		return protection, true
+	}
+	parts := splitCompositeWhitelistPatterns(policy.Patterns, s.home)
+	if len(parts) == 0 {
+		return Protection{}, false
+	}
+	return Whitelist{Patterns: parts}.Protection(path)
+}
+
+// splitCompositeWhitelistPatterns returns the individual absolute paths of the
+// legacy composite entries, so the rest of the scanner can treat each one as
+// the protection it was meant to be.
+func splitCompositeWhitelistPatterns(patterns []string, home string) []string {
+	var parts []string
+	for _, pattern := range patterns {
+		if !strings.Contains(pattern, " & ") {
+			continue
+		}
+		for _, part := range strings.Split(pattern, " & ") {
+			// LoadWhitelist only expands the first token of a composite line,
+			// so "~/Library/Logs" is still abbreviated here.
+			part = expandWhitelistPattern(strings.TrimSpace(part), home)
+			if !strings.HasPrefix(part, "/") {
+				continue
+			}
+			if !containsString(parts, part) {
+				parts = append(parts, part)
+			}
+		}
+	}
+	return parts
+}
+
+// scanMayOffer reports whether path may be offered for deletion: it is not
+// protected at all, or only because a protected child lives under it, in which
+// case the caller measures its unprotected children instead of the folder as a
+// whole. Anything else is left out entirely, so a checked row is always a row
+// the trash implementation will accept.
+func (s *Scanner) scanMayOffer(path string) (expandChildren bool, ok bool) {
+	protection, protected := s.scanProtection(path)
+	if !protected {
+		return false, true
+	}
+	return protection.Descendant, protection.Descendant
 }
 
 // allocatedSize is a file's size on disk, blocks times block size, which is

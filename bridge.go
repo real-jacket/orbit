@@ -50,9 +50,43 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 				paths = []string{path}
 			}
 		}
+		if len(paths) == 0 {
+			return nil
+		}
+		requestID := stringOf(payload["requestId"])
 		go func() {
-			scanner.Shared.MovePathsToTrash(paths)
+			// The page waits for this receipt before it claims success, so a
+			// refused or failed path is reported instead of swallowed.
+			pushTrashResult(requestID, scanner.Shared.TrashPaths(paths))
 			pushRealTelemetryNow()
+			pushRealSystemScanNow()
+		}()
+	case "restoreTrashSnapshot":
+		// The page's "可还原/已还原" buttons used to be decoration: the Swift
+		// app ignored this action and the Go port inherited that. Restoring is
+		// now a real move-back through the app's own manifest.
+		originals := stringsOf(payload["paths"])
+		requestID := stringOf(payload["requestId"])
+		go func() {
+			pushRestoreResult(requestID, scanner.Shared.RestoreTrash(originals))
+			pushRealTelemetryNow()
+			pushRealSystemScanNow()
+		}()
+	case "addWhitelist", "removeWhitelist":
+		action := stringOf(payload["action"])
+		path := stringOf(payload["path"])
+		if path == "" {
+			return nil
+		}
+		go func() {
+			var policy scanner.Whitelist
+			var err error
+			if action == "addWhitelist" {
+				policy, err = scanner.Shared.AddWhitelistEntry(path)
+			} else {
+				policy, err = scanner.Shared.RemoveWhitelistEntry(path)
+			}
+			pushWhitelistChanged(action, path, policy, err)
 			pushRealSystemScanNow()
 		}()
 	case "killProcess":
@@ -79,36 +113,49 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		if theme := stringOf(payload["theme"]); theme == themeDark || theme == themeLight || theme == themeSystem {
 			applyTheme(theme, true)
 		}
+	case "runDoctorReCheck":
+		// The 体检 page used to fake this: a random delay, a health score that
+		// only went up and seven hardcoded "通过" rows. The checks are now read
+		// from the machine, and a check that cannot be decided is reported as
+		// unknown rather than as a pass.
+		go func() { pushDoctorReport(scanner.Shared.DoctorChecks()) }()
 	default:
-		// addWhitelist, restoreTrashSnapshot, runDoctorReCheck and
-		// setFanMode arrive here. The Swift app ignored them too: the
-		// page keeps that state itself.
+		// setFanMode still arrives here. There is no fan-control API to call, so
+		// the page no longer pretends it did something.
 	}
 	return nil
 }
 
-// revealInFinder shows path in the Finder, falling back the way the Swift app
-// did: the frontend appends labels to some paths, so everything after the first
-// space is dropped, ~ is expanded, and a path that no longer exists reveals its
-// parent directory instead.
+// revealInFinder shows path in the Finder. The Swift app cut the path at its
+// first space, which silently broke every folder whose name contains one
+// ("Visual Studio Code.app"); the trailing label the page appends is stripped
+// instead, so "~/Library/Caches (0.92 GB)" still reveals the real folder.
 func revealInFinder(raw string) {
-	path := raw
-	if space := strings.Index(path, " "); space >= 0 {
-		path = path[:space]
-	}
-	path = expandTilde(path)
+	path := expandTilde(strings.TrimSpace(raw))
 	if path == "" {
 		return
 	}
-	if exists(path) {
-		mygo.Shell.ShowItemInFolder(path)
-		return
+	for _, candidate := range revealCandidates(path) {
+		if exists(candidate) {
+			mygo.Shell.ShowItemInFolder(candidate)
+			return
+		}
 	}
 	if parent := filepath.Dir(path); parent != "" && exists(parent) {
 		mygo.Shell.ShowItemInFolder(parent)
 		return
 	}
 	mygo.Shell.ShowItemInFolder(homeDir())
+}
+
+// revealCandidates lists the paths worth trying for one request: the path
+// itself, then the same path with a trailing " (label)" removed.
+func revealCandidates(path string) []string {
+	candidates := []string{path}
+	if open := strings.LastIndex(path, " ("); open > 0 && strings.HasSuffix(path, ")") {
+		candidates = append(candidates, strings.TrimSpace(path[:open]))
+	}
+	return candidates
 }
 
 // killProcess asks a process to quit, then kills it if it is still there a
@@ -145,18 +192,37 @@ var (
 // process.
 func setCaffeinate(active bool) {
 	caffeinateMu.Lock()
-	defer caffeinateMu.Unlock()
 	if caffeinateProcess != nil {
 		_ = caffeinateProcess.Process.Signal(syscall.SIGTERM)
 		caffeinateProcess = nil
 	}
 	if !active {
+		caffeinateMu.Unlock()
+		pushCaffeinateState(false)
 		return
 	}
 	cmd := exec.Command("/usr/bin/caffeinate", "-d", "-i", "-t", "7200")
-	if err := cmd.Start(); err == nil {
-		caffeinateProcess = cmd
+	if err := cmd.Start(); err != nil {
+		caffeinateMu.Unlock()
+		pushCaffeinateState(false)
+		return
 	}
+	caffeinateProcess = cmd
+	caffeinateMu.Unlock()
+	pushCaffeinateState(true)
+	// caffeinate exits by itself when its -t limit runs out, so wait for it and
+	// tell the page, instead of leaving the switch on forever.
+	go func() {
+		_ = cmd.Wait()
+		caffeinateMu.Lock()
+		if caffeinateProcess == cmd {
+			caffeinateProcess = nil
+			caffeinateMu.Unlock()
+			pushCaffeinateState(false)
+			return
+		}
+		caffeinateMu.Unlock()
+	}()
 }
 
 // showMainWindow brings the main window forward, closing the menu-bar panel

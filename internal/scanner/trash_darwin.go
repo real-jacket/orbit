@@ -3,35 +3,26 @@
 package scanner
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 )
 
-// trashItem moves path to the Trash. It uses ~/.Trash, which is where
-// Finder's delete puts things too, so the user can restore them.
-func trashItem(path string) error {
-	home, err := os.UserHomeDir()
+// moveToTrash moves path into ~/.Trash and reports where it landed. It is the
+// same place Finder deletes to, so the user can put the item back by hand as
+// well as through the app's own restore.
+func moveToTrash(path string) (string, error) {
+	trash, err := trashDir()
 	if err != nil {
-		return err
-	}
-	trash := filepath.Join(home, ".Trash")
-	if err := os.MkdirAll(trash, 0o755); err != nil {
-		return err
+		return "", err
 	}
 	target := filepath.Join(trash, filepath.Base(path))
 	if exists(target) {
 		// Never overwrite what is already in the Trash: give the item a
-		// unique name instead, as Finder does.
-		stem := filepath.Base(path)
-		dir := trash
-		for i := 2; ; i++ {
-			candidate := filepath.Join(dir, fmt.Sprintf("%s %d", stem, i))
-			if !exists(candidate) {
-				target = candidate
-				break
-			}
-		}
+		// unique name instead, the way Finder does.
+		target = uniqueSibling(target)
 	}
-	return os.Rename(path, target)
+	if err := os.Rename(path, target); err != nil {
+		return "", err
+	}
+	return target, nil
 }

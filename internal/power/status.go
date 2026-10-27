@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // NSProcessInfoThermalState, the values -[NSProcessInfo thermalState] returns.
@@ -48,8 +49,31 @@ func Take() Snapshot {
 		Thermal:     thermalLabel(),
 		MemPressure: memoryPressureLabel(),
 	}
-	s.Battery = batteryInfo()
+	s.Battery = batteryCached()
 	return s
+}
+
+// batteryTTL is how long a battery reading is reused. ioreg costs ~17ms, which
+// is the single most expensive part of a 1.5s telemetry tick, and charge,
+// cycles and capacity move slowly: thermal and memory pressure stay live.
+const batteryTTL = 30 * time.Second
+
+var (
+	batteryMu     sync.Mutex
+	batteryValue  *Battery
+	batteryReadAt time.Time
+)
+
+// batteryCached returns the battery, re-reading it at most every batteryTTL.
+func batteryCached() *Battery {
+	batteryMu.Lock()
+	defer batteryMu.Unlock()
+	if batteryValue != nil && time.Since(batteryReadAt) < batteryTTL {
+		return batteryValue
+	}
+	batteryValue = batteryInfo()
+	batteryReadAt = time.Now()
+	return batteryValue
 }
 
 // thermalLabel maps the thermal pressure the machine reports to the names the
@@ -79,40 +103,28 @@ func thermalLabel() string {
 	return "nominal"
 }
 
-var (
-	thermalOnce  sync.Once
-	thermalLevel int
-)
-
 // thermalPressureLevel reads kern.thermal_pressure_level: 0 is nominal, 1
-// fair, 2 serious, 3 critical.
+// fair, 2 serious, 3 critical. It is read on every call: the level changes
+// while the app runs, and caching it froze the status page on the value the
+// first scan happened to see.
 func thermalPressureLevel() int {
-	thermalOnce.Do(func() {
-		out, err := exec.Command("sysctl", "-n", "kern.thermal_pressure_level").Output()
-		if err != nil {
-			return
-		}
-		thermalLevel, _ = strconv.Atoi(strings.TrimSpace(string(out)))
-	})
-	return thermalLevel
+	out, err := exec.Command("sysctl", "-n", "kern.thermal_pressure_level").Output()
+	if err != nil {
+		return 0
+	}
+	level, _ := strconv.Atoi(strings.TrimSpace(string(out)))
+	return level
 }
 
-var (
-	pressureOnce  sync.Once
-	pressureLevel int
-)
-
 // memoryPressureLabel is the memory pressure the kernel reports, as the
-// frontend names it.
+// frontend names it. Like the thermal level it is read every time: pressure
+// falls back to normal on its own, and a cached value would never show it.
 func memoryPressureLabel() string {
-	pressureOnce.Do(func() {
-		out, err := exec.Command("sysctl", "-n", "kern.memorystatus_vm_pressure_level").Output()
-		if err != nil {
-			return
-		}
-		pressureLevel, _ = strconv.Atoi(strings.TrimSpace(string(out)))
-	})
-	switch pressureLevel {
+	level := 0
+	if out, err := exec.Command("sysctl", "-n", "kern.memorystatus_vm_pressure_level").Output(); err == nil {
+		level, _ = strconv.Atoi(strings.TrimSpace(string(out)))
+	}
+	switch level {
 	case 4:
 		return "critical"
 	case 2:
@@ -147,7 +159,7 @@ func batteryFromIOReg(out string) *Battery {
 		Plugged:   flag(props, "ExternalConnected"),
 		Full:      flag(props, "FullyCharged"),
 	}
-	if temp := number(props, "Temperature"); temp != nil {
+	if temp := batteryNumber(props, "Temperature"); temp != nil {
 		c := float64(*temp) / 100.0
 		b.TempC = &c
 	}
@@ -166,8 +178,19 @@ func batteryFromIOReg(out string) *Battery {
 // value intact for nestedNumber to look inside.
 func parseIoreg(out string) map[string]string {
 	props := map[string]string{}
+	// ioreg -rn prints the matched node and then its children; a child that
+	// exposes the same key would overwrite the node's value, so stop there.
+	matched := false
 	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "|"))
+		trimmed := strings.TrimSpace(line)
+		if at := strings.Index(trimmed, "+-o "); at >= 0 {
+			if matched {
+				break
+			}
+			matched = true
+			continue
+		}
+		line = strings.TrimSpace(strings.TrimLeft(trimmed, "|"))
 		if !strings.HasPrefix(line, `"`) {
 			continue
 		}
@@ -180,6 +203,17 @@ func parseIoreg(out string) map[string]string {
 		props[key] = strings.Trim(strings.TrimSuffix(value, ","), `"`)
 	}
 	return props
+}
+
+// batteryNumber reads an integer battery property. Apple silicon keeps the
+// capacity figures (DesignCapacity, NominalChargeCapacity, AppleRawMaxCapacity,
+// Temperature) inside the BatteryData dictionary, which ioreg prints on one
+// line, so a flat lookup alone leaves the battery card without a health figure.
+func batteryNumber(props map[string]string, key string) *int {
+	if n := number(props, key); n != nil {
+		return n
+	}
+	return nestedNumber(props["BatteryData"], key)
 }
 
 // number reads an integer property.
@@ -217,13 +251,13 @@ func chargePercent(props map[string]string) *int {
 // healthPercent is the full-charge capacity against the design capacity, in
 // percent.
 func healthPercent(props map[string]string) *int {
-	design := number(props, "DesignCapacity")
+	design := batteryNumber(props, "DesignCapacity")
 	if design == nil || *design <= 0 {
 		return nil
 	}
-	full := number(props, "NominalChargeCapacity")
+	full := batteryNumber(props, "NominalChargeCapacity")
 	if full == nil {
-		full = number(props, "AppleRawMaxCapacity")
+		full = batteryNumber(props, "AppleRawMaxCapacity")
 	}
 	if full == nil {
 		return nil
@@ -238,7 +272,7 @@ func healthPercent(props map[string]string) *int {
 // minutesEstimate is the minutes to empty or to full. Values outside the
 // range mean "still calculating".
 func minutesEstimate(props map[string]string) *int {
-	minutes := number(props, "TimeRemaining")
+	minutes := batteryNumber(props, "TimeRemaining")
 	if minutes == nil || *minutes <= 0 || *minutes >= 6000 {
 		return nil
 	}

@@ -7,15 +7,19 @@ import (
 	"strings"
 )
 
-// appendExisting appends a subpath entry for each candidate that exists and is
-// not empty, and reports how large they are together.
+// appendExisting appends a subpath entry for each candidate that exists, is not
+// empty, and is not protected by the whitelist, and reports how large they are
+// together.
 func (s *Scanner) appendExisting(candidates []string, kind string, checked bool, into *[]map[string]any) int64 {
 	var total int64
 	for _, candidate := range candidates {
 		if !exists(candidate) {
 			continue
 		}
-		size := s.fastDirectorySize(candidate, 600)
+		if _, protected := s.scanProtection(candidate); protected {
+			continue
+		}
+		size := s.fastDirectorySize(candidate, appLeftoverFileCap)
 		if size.bytes <= 0 {
 			continue
 		}
@@ -51,6 +55,9 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				continue
 			}
 			fullPath := filepath.Join(dir, item)
+			if _, protected := s.scanProtection(fullPath); protected {
+				continue
+			}
 			info := readBundleInfo(fullPath)
 			name := info.displayName
 			if name == "" {
@@ -67,23 +74,15 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 			if version == "" {
 				version = "1.0"
 			}
-			size := s.fastDirectorySize(fullPath, 1200)
-			appGB := float64(size.bytes) / 1_000_000_000
-			if appGB < 0.05 {
-				appGB = 0.05
-			}
+			size := s.fastDirectorySize(fullPath, appBundleFileCap)
+			appBytes := size.bytes
 
-			appSize := size.bytes
-			if appSize < 50_000_000 {
-				appSize = 50_000_000
-			}
 			subpaths := []map[string]any{{
 				"path":    fullPath,
-				"size":    formatBytes(appSize),
+				"size":    formatBytes(appBytes),
 				"kind":    "app",
 				"checked": true,
 			}}
-			var leftoverBytes int64
 			cacheCandidates := []string{
 				home + "/Library/Caches/" + bundleID,
 				home + "/Library/Caches/" + name,
@@ -95,15 +94,15 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				home + "/Library/Saved Application State/" + bundleID + ".savedState",
 				home + "/Library/Preferences/" + bundleID + ".plist",
 			}
-			leftoverBytes += s.appendExisting(cacheCandidates, "cache", true, &subpaths)
-			leftoverBytes += s.appendExisting(configCandidates, "config", false, &subpaths)
+			// Report the measured cache and configuration sizes separately
+			// instead of splitting the leftover total with a made-up 80/20
+			// ratio; a group that was not found reports zero.
+			cacheBytes := s.appendExisting(cacheCandidates, "cache", true, &subpaths)
+			configBytes := s.appendExisting(configCandidates, "config", false, &subpaths)
+			cacheGB := round2(float64(cacheBytes) / 1_000_000_000)
+			configGB := round2(float64(configBytes) / 1_000_000_000)
+			leftoverGB := round2(cacheGB + configGB)
 
-			leftoverGB := float64(leftoverBytes) / 1_000_000_000
-			cacheGB := leftoverGB * 0.8
-			configGB := leftoverGB - cacheGB
-			if configGB < 0 {
-				configGB = 0
-			}
 			results = append(results, map[string]any{
 				"id":             bundleID,
 				"name":           name,
@@ -112,12 +111,14 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				"bundleId":       bundleID,
 				"version":        version,
 				"lastUsed":       "本机已安装",
-				"appSizeGb":      round2(appGB),
-				"leftoverSizeGb": round2(leftoverGB),
-				"cacheSizeGb":    round2(cacheGB),
-				"configSizeGb":   round2(configGB),
-				"checked":        len(results) == 0,
-				"keepPersonal":   true,
+				"appSizeGb":      round2(float64(appBytes) / 1_000_000_000),
+				"leftoverSizeGb": leftoverGB,
+				"cacheSizeGb":    cacheGB,
+				"configSizeGb":   configGB,
+				// Nothing is pre-selected: uninstalling an app is not a
+				// safe-by-default action.
+				"checked":      false,
+				"keepPersonal": true,
 				"impact": "卸载时将把 " + fullPath + " 及 " +
 					itoa64(int64(len(subpaths)-1)) + " 处 ~/Library 关联缓存移入废纸篓 (~/.Trash)。",
 				"subpaths": subpaths,
@@ -147,14 +148,13 @@ type bundleInfo struct {
 	shortVersion string
 }
 
-// bundleInfo reads an app bundle's Info.plist, the three keys the uninstall
+// readBundleInfo reads an app bundle's Info.plist, the three keys the uninstall
 // list shows. A bundle whose plist is missing or unreadable reports nothing.
 func readBundleInfo(path string) bundleInfo {
-	data, err := os.ReadFile(filepath.Join(path, "Contents", "Info.plist"))
+	props, err := parsePlistFile(filepath.Join(path, "Contents", "Info.plist"))
 	if err != nil {
 		return bundleInfo{}
 	}
-	props := parsePlist(data)
 	return bundleInfo{
 		displayName:  props["CFBundleDisplayName"],
 		bundleName:   props["CFBundleName"],
@@ -183,29 +183,55 @@ func (s *Scanner) matchingWildcardPaths(parentDir, prefix string) []string {
 	return paths
 }
 
-// installedAppIndex collects the names and bundle identifiers of every app in
-// /Applications, which decides whether a leftover directory still has an owner.
+// installedAppIndex collects the names and bundle identifiers of every app the
+// machine reports as installed, which decides whether a leftover directory
+// still has an owner. System apps and Homebrew formulas count as installed too,
+// otherwise their support folders were offered as "leftovers".
 func (s *Scanner) installedAppIndex(home string) (names, bundleIDs map[string]struct{}) {
 	names = map[string]struct{}{}
 	bundleIDs = map[string]struct{}{}
-	dirs := []string{"/Applications", filepath.Join(home, "Applications")}
-	for _, dir := range dirs {
-		items, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, entry := range items {
-			item := entry.Name()
+	appDirs := []string{
+		"/Applications",
+		"/Applications/Utilities",
+		"/System/Applications",
+		"/System/Applications/Utilities",
+		filepath.Join(home, "Applications"),
+	}
+	for _, dir := range appDirs {
+		for _, path := range s.matchingWildcardPaths(dir, "") {
+			item := baseName(path)
 			if !strings.HasSuffix(item, ".app") {
 				continue
 			}
 			names[strings.ToLower(strings.TrimSuffix(item, ".app"))] = struct{}{}
-			info := readBundleInfo(filepath.Join(dir, item))
+			info := readBundleInfo(path)
 			for _, value := range []string{info.identifier, info.displayName, info.bundleName} {
 				if value != "" {
 					bundleIDs[strings.ToLower(value)] = struct{}{}
 				}
 			}
+		}
+	}
+	// Command line tools of Homebrew and /usr/local have no bundle, but their
+	// support folders must not be reported as orphaned.
+	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
+		for _, path := range s.matchingWildcardPaths(dir, "") {
+			name := strings.ToLower(baseName(path))
+			if name == "" || strings.HasPrefix(name, ".") {
+				continue
+			}
+			names[name] = struct{}{}
+		}
+	}
+	// Homebrew formulas whose binaries are linked outside bin, and casks whose
+	// app lives inside the Cellar/Caskroom.
+	for _, dir := range []string{"/opt/homebrew/Cellar", "/usr/local/Cellar", "/opt/homebrew/Caskroom", "/usr/local/Caskroom"} {
+		for _, path := range s.matchingWildcardPaths(dir, "") {
+			name := strings.ToLower(baseName(path))
+			if name == "" || strings.HasPrefix(name, ".") {
+				continue
+			}
+			names[name] = struct{}{}
 		}
 	}
 	return names, bundleIDs

@@ -185,13 +185,15 @@ func TestBatteryFromIORegBuildsTheCardTheUIExpects(t *testing.T) {
 	if !b.Full {
 		t.Error("full should be true")
 	}
-	// TimeRemaining 65535 means "still calculating", and this machine reports
-	// neither Temperature nor DesignCapacity at the top level.
+	// TimeRemaining 65535 means "still calculating"; Temperature does not exist
+	// on this machine at all, so the card has no figure for it.
 	if b.Minutes != nil {
 		t.Errorf("minutes = %d, want none", *b.Minutes)
 	}
-	if b.HealthPct != nil {
-		t.Errorf("healthPct = %d, want none", *b.HealthPct)
+	// Apple silicon keeps the capacity figures inside BatteryData:
+	// NominalChargeCapacity 4993 against DesignCapacity 6075 is 82%.
+	if b.HealthPct == nil || *b.HealthPct != 82 {
+		t.Errorf("healthPct = %v, want 82", b.HealthPct)
 	}
 	if b.TempC != nil {
 		t.Errorf("tempC = %v, want none", *b.TempC)
