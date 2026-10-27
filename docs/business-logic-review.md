@@ -110,7 +110,7 @@ Swift 版就没做过 manifest：丢进废纸篓时把文件平铺改名成 `原
 | SMC 真实 CPU 温度、风扇转速 | ~~本机不提供~~ → **已补上**（后续提交）：`internal/smc` 读 `Tp*`/`TC0*` 与 `F0Ac`/`F1Ac`；风扇「控制」仍然不做（写 SMC 有风险，只读） |
 | 系统应用（`/System/Applications`）卸载 | 产品上不应支持；`installedAppIndex` 只加名字用于避免误判「应用已卸载」 |
 | 整根 `~/Library/Caches` 改成逐子目录 | 行为变更太大（mole 本身就是整根清理），保留整根，但界面加「运行中的应用可能异常」提示 |
-| 让 `mo` 的输出参与 UI 主流程 | `mo analyze --json` 是单目录、可慢到 30s；现有超时 + 单飞 + 错误透出已够，不引入长驻进程 |
+| 让 `mo` 的输出参与 UI 主流程 | **已反转**（后续提交）：`mo analyze --json` 单目录、home 冷扫 87.6s 且不可取消，遂改为自研并行扫描器（17s、可取消、下钻查表），`mo` 仅作兜底，见 `docs/disk-analyzer.md` |
 
 ## 5. 验证
 
