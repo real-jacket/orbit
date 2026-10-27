@@ -324,3 +324,54 @@ window.onNativeRealTelemetry ? window.onNativeRealTelemetry(<json>) : undefined
 ```
 
 实测页面错误从 33 条降到 0 条。另外 `evaluate()` 现在会在 `MOLE_DEBUG=1` 时把 `Eval` 返回的错误打到 stderr——这类失败以前是完全静默的（5.2 就是靠它一句话定位的）。
+
+## 6. 界面联调记录
+
+在没有「辅助功能」权限的机器上也能驱动真机界面：让真实二进制去加载一份带探针的页面副本即可。`MYGO_DEV=1` 时 MyGo 的 `devURL()` 返回 `MYGO_DEV_URL`（`mygo@v0.6.4/frontend.go:46`），于是 Go 侧一行不改，页面、桥、数据全是真的：
+
+```bash
+MYGO_DEV=1 MYGO_DEV_URL=http://127.0.0.1:8765 ./build/darwin-arm64/MoleStudio.app/Contents/MacOS/MoleStudio
+```
+
+（`mygo dev` 自己会设这两个变量；直接跑打包件时也要设 `MYGO_DEV=1`，否则 `IsDev()` 为假、窗口仍走 `mygo://`。）
+
+### 6.1 24 步交互结果
+
+| 检查项 | 结果 |
+| --- | --- |
+| 8 个模块切换 | `module` 与侧栏 `navActive` 全部一致 |
+| 主题三连（浅/深/跟随系统） | light → dark → light → dark，无残留 |
+| 清理勾选 | 4 项 1.30 GB → 3 项 0.38 GB → 3 项 1.20 GB |
+| 「仅看可清理」筛选 | 分组卡 4 → 1 |
+| 二次确认弹层 / 系统联检弹层 / 命令面板 | 三个都正常弹出、内容正确 |
+| 搜索过滤 | 卡片 22 → 21，正文 1086 → 967 字 |
+| 状态页刷新 | 内存 66.4% ↔ 66.7%、已用 21.2 ↔ 21.3 GB 每 1.5 s 跳动 |
+| 残缺文本扫描 | 每一步的 `badText` 都为空（无 `undefined`/`NaN`/`[object Object]`） |
+| 页面错误 | 0 条 |
+
+截图存档（`/build/` 被 gitignore）：`build/ui-verify/01..25-*.png` 与四张拼版 `v1..v4.png`。
+
+### 6.2 性能
+
+| 指标 | 实测 |
+| --- | --- |
+| `DOMContentLoaded` / `FCP` | 182 ms / 171 ms |
+| 首次遥测到达 | 238 ms |
+| 首次全盘扫描 | 3.6–6.8 s（冷启动时更长） |
+| `mo analyze --json` | 30.4 s，异步，不挡主线程 |
+| 主线程长任务（>50 ms） | 0 个 |
+| 滚动帧率 | 62 fps（窗口可见时） |
+| 驻留内存 | 主进程 140 MB + WebContent 75 MB + GPU 47 MB + Networking 9 MB ≈ 271 MB |
+| 1.5 s 遥测一跳的代价 | `ioreg` 18.1 ms + `vm_stat` 7.0 ms + `sysctl` 6.1 ms ≈ 32 ms（约 2% 单核），与 Swift 版同源同频 |
+
+沙箱里 `/bin/ps` 和 `/usr/bin/top` 都被拒（`Operation not permitted`），所以进程列表为空、也拿不到 `ps` 口径的 CPU 占比；进程号与驻留内存改用 `proc_pid_rusage` 读（见下），子进程的真实耗时是直接 `time` 出来的。
+
+```bash
+# 这台机器上 proc_pid_rusage 是唯一能拿到单进程数据的口径
+swift rusage.swift <pid> [样本数] [间隔ms]
+```
+
+### 6.3 两个不算 bug 但值得知道的界面状态
+
+- 空间分析在 `mo analyze` 返回前一直显示「正在扫描」骨架屏，本机约 30 秒。Swift 版走同一个 `mo` 调用，等待时间一样长。
+- 构建产物页在扫描结果为 0 项时，右侧面板仍会画出占位骨架行，读起来像还在加载。这是前端原有的空态画法，迁移没有改动。
