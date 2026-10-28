@@ -3398,7 +3398,7 @@ function renderModule() {
       primaryBtnText.textContent = `一键清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)`;
       heroHeadline.textContent = selOrphan
         ? `发现 ${orphans.length} 组已卸载应用的残留`
-        : '残留已全部清理';
+        : '没有发现已卸载残留';
       heroDesc.textContent = '对比 /Applications 与 ~/Library、~/.android、~/.docker、~/.gradle 等位置，找出主程序已不存在的残留。';
       heroStatLabel.textContent = '已勾选孤立残留';
       heroStatValue.textContent = `${totalSelectedOrphanGb.toFixed(2)} GB`;
@@ -4722,6 +4722,14 @@ document.addEventListener('keydown', (e) => {
   function decorate() {
     const stage = document.getElementById('moduleStage');
     if (!stage) return;
+    // 主按钮只在真的可执行时是实心可点的：文案说明「请先勾选 / 已清理完毕」时禁用，
+    // 免得上一次点击还被当成一次清空操作。
+    const pbt = document.getElementById('primaryBtnText');
+    const pbtn = pbt && pbt.closest('button');
+    if (pbtn) {
+      const idle = /请先勾选|已清理完毕|已全部清理完毕|没有发现|等待本机扫描/.test(pbt.textContent || '');
+      pbtn.disabled = idle;
+    }
     // 右侧检查栏没有内容时不要留一整块空白：给一行说明。
     stage.querySelectorAll('.panel-card').forEach(card => {
       const kids = Array.from(card.children);
