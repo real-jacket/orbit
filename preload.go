@@ -107,7 +107,8 @@ const nativeBridgeShim = `
           }
         } catch (e) {}
       }
-      if (attempt < 240) window.setTimeout(function () { attachMoleNative(attempt + 1); }, 25);
+      // 页面脚本一加载就可能发请求，前几秒用更密的间隔补挂
+      if (attempt < 400) window.setTimeout(function () { attachMoleNative(attempt + 1); }, attempt < 40 ? 20 : 250);
     }
     // WebKit materialises the real messageHandlers object when the load
     // finishes and silently drops properties added before that, so the
