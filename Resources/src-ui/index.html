@@ -984,9 +984,7 @@
   <div class="modal-sheet">
     <div class="panel-header" style="padding:12px 18px;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span class="palette-glyph" style="background:${'linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%)'};width:20px;height:20px;border-radius:5px;">
-          ${get_skeuo_svg('brand', 'doc')}
-        </span>
+        <span class="palette-glyph" id="doctorModalGlyph" style="background:linear-gradient(145deg, #2e2e33 0%, #0a0a0c 90%, #6e2910 100%);width:20px;height:20px;border-radius:5px;"></span>
         <span id="doctorModalHeaderTitle">轨道发射前联检中心 · Pre-flight Check (7 项系统实时联检)</span>
       </div>
       <div style="display:flex;gap:6px;">
@@ -4208,6 +4206,15 @@ function renderDoctorChecksList(activeIdx) {
 
 window.openDoctorModal = function(autoReRun) {
   document.getElementById('doctorModal').classList.add('open');
+  // 静态标记里的图标只能用 JS 补，否则模板字符串会原样显示成文字压在标题上。
+  const glyph = document.getElementById('doctorModalGlyph');
+  if (glyph && !glyph.firstChild && typeof get_skeuo_svg === 'function') {
+    glyph.innerHTML = get_skeuo_svg('brand', 'doc');
+  }
+  if (!autoReRun && !(Array.isArray(STATE.doctorChecks) ? STATE.doctorChecks.length : 0)) {
+    // 从来没有体检数据时，打开面板就直接向 Go 要一次，而不是让用户先看到空列表再自己点。
+    autoReRun = true;
+  }
   if (autoReRun) {
     startDoctorReDiagnosis();
   } else {
