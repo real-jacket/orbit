@@ -10,7 +10,7 @@ Dials: **Variance 4 · Motion 3 · Density 7**. This is Operate mode (someone fi
 consistency and truthful states outrank expression. Density is high, but expression is limited to typography,
 one accent, and the honest presentation of data.
 
-## 2. Color Palette & Roles
+## 2. Colors — 调色板与用途
 
 Neutral base (dark, the shipped theme):
 
@@ -37,7 +37,7 @@ Brand and semantics (one accent, four signals):
 Banned in this product: purple accents (protection is communicated with a lock glyph and muted text, not a colour),
 pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 
-## 3. Typography Rules
+## 3. Typography — 排版规则
 
 - **Display / page headline** — SF Pro (system), 18px / 1.25, 700, tracking `-0.02em`. One line; never wraps to three.
 - **Section title** — 12.5px / 1.3, 700. Sits in the panel header, sentence case, no tracking tricks.
@@ -49,7 +49,7 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 - Banned: Inter and other webfont substitutes (this is a native macOS app; SF is the correct voice), serif anywhere,
   letter-spacing above `0.06em`, all-caps labels longer than three words.
 
-## 4. Component Stylings
+## 4. Components — 组件规范
 
 - **Buttons** — 28px tall, 12px horizontal padding, radius 8, 11.5px/600. Primary: terracotta fill with **ink** text.
   Secondary: raised ink with a hairline border. Ghost: text only, appears on hover of its row. Every button shows
