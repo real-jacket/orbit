@@ -16,10 +16,11 @@ import (
 // image data instead of magic bytes.
 func testPNG(t *testing.T, size int) []byte {
 	t.Helper()
+	// 不能是纯色：纯色会被 pngLooksBlank 判成占位方块（这正是线上 Adobe 那个 bug）。
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
-			img.Set(x, y, color.RGBA{R: 0xd9, G: 0x77, B: 0x57, A: 0xff})
+			img.Set(x, y, color.RGBA{R: uint8(0xd9 - x%32), G: uint8(0x77 + y%32), B: uint8(0x57 + (x+y)%48), A: 0xff})
 		}
 	}
 	var buffer bytes.Buffer
@@ -48,19 +49,89 @@ func testICNS(chunks ...[2]any) []byte {
 	return append(out, body.Bytes()...)
 }
 
-// TestICNSPNGPrefersAReadableSize proves the extractor picks the 128 px rep over
-// the 512 px one, so sixteen icons stay small in the scan payload.
-func TestICNSPNGPrefersAReadableSize(t *testing.T) {
+// testFlatPNG builds a single-colour opaque square: the placeholder artwork some
+// installers ship in one rep while the real icon lives in another.
+func testFlatPNG(t *testing.T, size int, c color.RGBA) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			img.Set(x, y, c)
+		}
+	}
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, img); err != nil {
+		t.Fatalf("encode flat png: %v", err)
+	}
+	return buffer.Bytes()
+}
+
+// testDetailedPNG builds artwork that is not a flat colour, so the blank check
+// treats it as real.
+func testDetailedPNG(t *testing.T, size int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x * 7), G: uint8(y * 13), B: uint8((x + y) * 3), A: 0xff})
+		}
+	}
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, img); err != nil {
+		t.Fatalf("encode detailed png: %v", err)
+	}
+	return buffer.Bytes()
+}
+
+// TestICNSPNGPrefersTheLargerRealArtwork pins the current policy: the biggest
+// non-blank rep wins, because a 38 px row at 2× still benefits from 256 px and
+// some bundles only carry the real icon in the larger reps.
+func TestICNSPNGPrefersTheLargerRealArtwork(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "AppIcon.icns")
-	large := testPNG(t, 64) // stand-in for a big rep: content size is what matters here
-	small := testPNG(t, 8)
+	large := testDetailedPNG(t, 64)
+	small := testDetailedPNG(t, 16)
 	if err := os.WriteFile(path, testICNS([2]any{"ic09", large}, [2]any{"ic07", small}), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got := icnsPNG(path)
-	if !bytes.Equal(got, small) {
-		t.Fatalf("expected the ic07 payload, got %d bytes (small=%d large=%d)", len(got), len(small), len(large))
+	if got := icnsPNG(path); !bytes.Equal(got, large) {
+		t.Fatalf("expected the larger ic09 payload, got %d bytes (small=%d large=%d)", len(got), len(small), len(large))
+	}
+}
+
+// TestICNSPNGSkipsBlankingRepresentations covers the Adobe cleaner-tool case: the
+// preferred 256 px rep is a flat white square, so the real artwork further down
+// the list must win instead.
+func TestICNSPNGSkipsBlankRepresentations(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "AppIcon.icns")
+	blank := testFlatPNG(t, 32, color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff})
+	real := testDetailedPNG(t, 16)
+	// ic08 (rank 0, preferred) is blank; ic07 (rank 4) carries the artwork.
+	if err := os.WriteFile(path, testICNS([2]any{"ic08", blank}, [2]any{"ic07", real}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := icnsPNG(path); !bytes.Equal(got, real) {
+		t.Fatalf("expected the non-blank ic07 payload, got %d bytes", len(got))
+	}
+}
+
+// TestPNGLooksBlank pins the detector's two triggers: no opaque pixel at all, and
+// a canvas that is one flat colour.
+func TestPNGLooksBlank(t *testing.T) {
+	if !pngLooksBlank(testFlatPNG(t, 16, color.RGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff})) {
+		t.Fatal("a flat square should read as blank")
+	}
+	if pngLooksBlank(testDetailedPNG(t, 24)) {
+		t.Fatal("varying pixels should read as artwork")
+	}
+	clear := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, clear); err != nil {
+		t.Fatal(err)
+	}
+	if !pngLooksBlank(buffer.Bytes()) {
+		t.Fatal("a fully transparent canvas should read as blank")
 	}
 }
 
