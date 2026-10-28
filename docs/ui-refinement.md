@@ -56,6 +56,15 @@
 
 验证（同一份代码上量的）：大块 642×338 → 两个 51×21 文字按钮、标签可见；中块 118×172 → 两个 23×21 图标按钮、标签隐藏；小块 88×70 → `.tt-actions` 为 `display: none`。列表标题 `scrollWidth === clientWidth`（157px，不再截断）。注意容器查询量的是**内容盒**，阈值按 `offsetWidth − 26` 折算，这是第一版把 118px 的中块误判成小块的教训。
 
+## 3.3 应用图标（按你的截图改的）
+
+两个问题：图标外面套了一层「squircle 底板 + 内高光 + 投影」，而且个别应用的图是错的（Adobe Creative Cloud Cleaner Tool 显示成一块空白方块）。
+
+- **真实图标不再套底板**：`img.app-squircle-icon` 改成 `object-fit: contain; background: transparent; border-radius: 0; box-shadow: none;`，直接呈现应用自己的图（macOS 图标自带圆角与透明边）。没有图标的回落方块仍然保留渐变底——那本来就是"缺图"的标记。
+- **修掉空白图标**：ICNS 里优先 256/512 的 rep（`ic08 > ic13 > ic09 > ic14 > ic07 > ic10 > ic12 > ic11`），并新增 `pngLooksBlank`：整幅透明、或超过 92% 采样像素同一颜色时判为占位图，跳到下一个 rep。
+- **JPEG 2000 的容器**：Adobe 那个 bundle 的 `ic08/ic09` 是 `jP` 开头（JPEG 2000），标准库解不了——新增 `icnsPNGViaSips` 用 `/usr/bin/sips` 转一张 256px PNG 兜底，结果同样按 bundle 路径缓存。
+- 实测：`/Applications` + `/System/Applications` 全量扫描后**没有 blank 图标**；Adobe CC Cleaner 从「无图」变成 33,481 字节的真图；列表 16 个图标全部 `naturalWidth > 0`，`background: rgba(0,0,0,0)`、`box-shadow: none`、`border-radius: 0px`、`object-fit: contain`。
+
 ## 4. 有意没做的
 
 - 没有换掉暖炭底色与陶土主色（这是产品的识别）；没有引入字体文件；没有把单文件前端拆成构建产物。

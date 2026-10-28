@@ -294,8 +294,10 @@
     box-shadow: inset 0 1px 1px rgba(255,255,255,0.48), inset 0 -1.5px 2px rgba(0,0,0,0.32), 0 3px 8px rgba(0,0,0,0.35);
     position: relative; overflow: hidden;
   }
-  /* Real app artwork: same squircle box, but the image covers it. */
-  img.app-squircle-icon { object-fit: cover; background: transparent; }
+  /* 真实图标：应用自己的图就是完整的一枚图标，不需要底板、圆角、内高光或投影。 */
+  img.app-squircle-icon {
+    object-fit: contain; background: transparent; border-radius: 0; box-shadow: none;
+  }
   .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
   .nav-item.active .nav-meta { color: var(--accent-primary); font-weight: 600; }
   .nav-svg-icon {
@@ -3637,8 +3639,8 @@ function renderModule() {
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
                 ${selApp.icon
-                  ? `<img class="app-squircle-icon" src="${selApp.icon}" alt="${selApp.name}" style="width:46px;height:46px;border-radius:11px;" />`
-                  : `<div class="app-squircle-icon" style="width:46px;height:46px;border-radius:11px;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
+                  ? `<img class="app-squircle-icon" src="${selApp.icon}" alt="${selApp.name}" style="width:46px;height:46px;border-radius:0;" />`
+                  : `<div class="app-squircle-icon" style="width:46px;height:46px;border-radius:0;background:${iconFor(selApp.name, selApp.bundleId, 0).bg};">
                   ${iconFor(selApp.name, selApp.bundleId, 0).svg}
                 </div>`}
                 <div style="min-width:0;flex:1;">
