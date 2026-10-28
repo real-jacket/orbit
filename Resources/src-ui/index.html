@@ -392,8 +392,9 @@
     display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
     font-size: 10.5px; color: var(--text-muted); flex-wrap: wrap;
   }
-  .summary-headline { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; line-height: 1.25; }
-  .summary-desc { font-size: 11.5px; color: var(--text-secondary); line-height: 1.42; }
+  .summary-headline { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  /* 扫描进度每 200ms 改一次这行：等宽数字 + 单行省略，才不会每帧抖一下 */
+  .summary-desc { font-size: 11.5px; color: var(--text-secondary); line-height: 1.42; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .summary-right {
     display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
@@ -509,9 +510,22 @@
   .crumb-item:hover { color: var(--text-primary); }
   .crumb-item.active { background: var(--accent-soft); color: var(--accent-primary); font-weight: 700; }
 
+  .facts-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-height: 26px; overflow: hidden;
+    padding: 6px 12px; font-size: 11px; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle); font-variant-numeric: tabular-nums;
+  }
+  /* 统计条永远一行：扫描结束时它从占位文案换成真实数字，行数一变就会顶动下面的图表 */
+  .facts-bar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .treemap-split { display: grid; grid-template-columns: 276px minmax(0, 1fr); gap: 12px; height: 304px; flex-shrink: 0; }
+  /* 两栏高度固定：列表在自己的卡片里滚动，占位行不会溢到卡片外 */
+  .treemap-split { grid-template-rows: 100%; overflow: hidden; }
+  .treemap-split > * { min-width: 0; min-height: 0; overflow: hidden; }
+  .treemap-split > .panel-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .treemap-split > .panel-card > .panel-header { flex: none; }
+  .treemap-split > .panel-card > .list-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
   .treemap-stage {
-    position: relative; width: 100%; height: 304px; border-radius: var(--radius-lg);
+    position: relative; width: 100%; height: 100%; min-height: 304px; border-radius: var(--radius-lg);
     overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); padding: 4px;
   }
   .treemap-tile {
@@ -577,7 +591,8 @@
   @media (max-width: 960px) {
     .sidebar { width: 188px; padding: 10px 8px; }
     .master-detail-grid { grid-template-columns: 1fr; overflow-y: auto; }
-    .treemap-split { grid-template-columns: 1fr; height: auto; }
+    .treemap-split { grid-template-columns: 1fr; height: auto; grid-template-rows: auto; }
+    .treemap-stage { height: 304px; min-height: 304px; }
     .summary-right { align-items: flex-start; width: 100%; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
   }
 
@@ -641,6 +656,7 @@
   .empty-desc { font-size: 11.5px; line-height: 1.5; max-width: 300px; }
   .empty-state .btn { margin-top: 6px; }
   .skel-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+  .skel-row:last-child { border-bottom: none; }
   .skel {
     display: block; border-radius: 5px; background-size: 200% 100%; animation: skel 1.4s linear infinite;
     background-image: linear-gradient(90deg, var(--bg-input) 25%, var(--bg-card-hover) 50%, var(--bg-input) 75%);
@@ -3499,9 +3515,10 @@ function renderModule() {
     const excludedNote = excluded.length
       ? `<span style="color:var(--text-tertiary);" title="${escHtml(excluded.slice(0, 6).map(r => displayPath(r.path)).join('、'))}">已跳过 ${excluded.length} 个系统目录</span>`
       : '';
-    const factsBar = isDrilled ? '' : `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 12px;font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle);">
-        <span>${factBits.join(' · ')}</span>${excludedNote ? '· ' + excludedNote : ''}${restrictedBtn ? '<span>·</span>' + restrictedBtn : ''}
-      </div>${restrictedPanel}`;
+    // 统计条在扫描期间也占位：否则结果一到、整块内容下移一次（就是「抖一下」）。
+    const factsBar = isDrilled ? '' : `<div class="facts-bar">
+        <span>${STATE.analyzeLoading ? '扫描完成后显示统计口径（实际占用 / 逻辑占用 / 合并项）' : factBits.join(' · ')}</span>${STATE.analyzeLoading ? '' : (excludedNote ? '· ' + excludedNote : '')}${STATE.analyzeLoading ? '' : (restrictedBtn ? '<span>·</span>' + restrictedBtn : '')}
+      </div>${STATE.analyzeLoading ? '' : restrictedPanel}`;
 
     // 结果区的三种「非图表」状态：错误 > 无数据提示；有数据或扫描中时走正常布局（不显示 0 字节空图）。
     const hasAnyTiles = activeTiles.length > 0 || STATE.treemap2D.length > 0;
@@ -3518,7 +3535,7 @@ function renderModule() {
     const emptyBody = errorPanel || hintPanel;
 
     stage.innerHTML = emptyBody ? emptyBody : `
-      ${STATE.analyzeLoading ? '' : factsBar}
+      ${factsBar}
       <div class="breadcrumb-bar">
         <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;">
           <button class="btn icon-btn" ${STATE.trailBack.length ? '' : 'disabled'} title="后退" onclick="goBack()">${UI_ICON('back')}</button><button class="btn icon-btn" ${STATE.trailFwd.length ? '' : 'disabled'} title="前进" onclick="goForward()">${UI_ICON('fwd')}</button>
