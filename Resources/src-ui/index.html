@@ -497,6 +497,7 @@
   }
 
   .row-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .row-left > div { min-width: 0; flex: 1; }
   .row-title { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -561,7 +562,7 @@
   }
   /* 统计条永远一行：扫描结束时它从占位文案换成真实数字，行数一变就会顶动下面的图表 */
   .facts-bar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .treemap-split { display: grid; grid-template-columns: 276px minmax(0, 1fr); gap: 12px; height: 304px; flex-shrink: 0; }
+  .treemap-split { display: grid; grid-template-columns: 324px minmax(0, 1fr); gap: 12px; height: 336px; flex-shrink: 0; }
   /* 两栏高度固定：列表在自己的卡片里滚动，占位行不会溢到卡片外 */
   .treemap-split { grid-template-rows: 100%; overflow: hidden; }
   .treemap-split > * { min-width: 0; min-height: 0; overflow: hidden; }
@@ -573,8 +574,8 @@
     overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); padding: 4px;
   }
   .treemap-tile {
-    position: absolute; border: 3px solid var(--bg-surface); border-radius: 10px;
-    padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+    position: absolute; border: 2px solid var(--bg-surface); border-radius: 9px;
+    padding: 9px 11px; display: flex; flex-direction: column; justify-content: space-between; gap: 5px;
     cursor: pointer; overflow: hidden; container-type: size;
     transition: box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.16s ease;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
@@ -582,7 +583,7 @@
   .treemap-tile:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4), inset 0 1px 0 rgba(255,255,255,0.16); }
   .treemap-tile:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
   .treemap-tile.active-tile {
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.94), 0 10px 24px rgba(0,0,0,0.42);
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
     z-index: 5;
   }
   .treemap-tile.tt-others { opacity: 0.72; }
@@ -603,29 +604,14 @@
     position: absolute; top: 5px; right: 5px; font-size: 9px; line-height: 1; font-weight: 700;
     background: rgba(180, 83, 9, 0.96); color: #fff; padding: 3px 5px; border-radius: 4px;
   }
-  /* 动作只在悬停/键盘聚焦/选中时出现：方块本身已经可点，常驻三个按钮只会盖住数据 */
-  .tt-actions {
-    position: absolute; right: 8px; bottom: 8px; display: flex; gap: 5px;
-    opacity: 0; transform: translateY(2px); pointer-events: none;
-    transition: opacity 0.12s ease, transform 0.12s ease;
-  }
-  .treemap-tile:hover .tt-actions,
-  .treemap-tile:focus-within .tt-actions,
-  .treemap-tile.active-tile .tt-actions { opacity: 1; transform: none; pointer-events: auto; }
-  .tt-btn {
-    font: inherit; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.24); background: rgba(0,0,0,0.45); color: #fff;
-  }
-  .tt-btn:hover { background: rgba(0,0,0,0.62); }
-  .tt-btn-ghost { background: rgba(0,0,0,0.28); }
-  .tt-btn-safe { background: rgba(4,120,87,0.9); border-color: rgba(255,255,255,0.2); }
+  /* 方块是只读的数据面：悬停只加一圈内描边，动作在面包屑栏里（进入/访达/加入待清理）。 */
   /* 尺寸分档：放不下就少写，不硬塞 */
-  @container (max-width: 150px) {
+  @container (max-width: 104px) {
     .tt-flag { font-size: 0; width: 7px; height: 7px; padding: 0; border-radius: 99px; overflow: hidden; }
   }
   @container (max-width: 168px) { .tt-path { display: none; } }
   @container (max-width: 128px) { .tt-pct { display: none; } }
-  @container (max-height: 74px) { .tt-foot { display: none; } }
+  @container (max-height: 54px) { .tt-foot { display: none; } }
   @container (max-height: 58px) { .tt-name { font-size: 11.5px; } }
   @container (max-width: 86px) { .tt-name { font-size: 11px; } .tt-size em { font-size: 8.5px; } }
   .tt-tip {
@@ -3802,7 +3788,7 @@ function renderModule() {
               return `
               <div class="list-row ${idx === activeIdx ? 'selected' : ''}" style="padding:5px 14px;" data-idx="${idx}" title="${escHtml(d.path || d.name)}" onclick="selectTile(${idx})" ondblclick="drillTile(${idx})">
                 <div class="row-left">
-                  ${pickControl(d, idx)}<span class="rank-badge">${idx + 1}</span><span class="rank-dot" style="background:${tileTint(idx, activeTiles.length)};"></span>
+                  ${pickControl(d, idx)}<span class="rank-dot" style="background:${tileTint(idx, activeTiles.length)};"></span>
                   <div style="min-width:0;">
                     <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI_ICON(d.isDir === false ? 'file' : 'folder')} ${d.name}</div>
                     <div class="row-sub pct-line"><span class="pct-bar"><i style="width:${Math.min(100, Number(d.pct) || 0)}%;background:${d.color || '#475569'}"></i></span>${hasNum(d.pct) ? d.pct + '%' : '—'}${dPartial ? ' · 受限' : ''}${d.cleanable ? ' · 可清理' : ''}</div>
@@ -3848,12 +3834,6 @@ function renderModule() {
                 <span class="tt-size">${rGb >= 10 ? rGb.toFixed(1) : rGb.toFixed(2)}<em>GB</em></span>
                 <span class="tt-pct">${hasNum(r.pct) ? r.pct + '%' : ''}</span>
               </div>
-              ${isOthers ? '' : `
-              <div class="tt-actions">
-                ${r.isDir === false ? '' : `<button class="tt-btn" onclick="event.stopPropagation();drillTile(${r.idx})">进入</button>`}
-                <button class="tt-btn tt-btn-ghost" title="在访达中显示" onclick="event.stopPropagation();revealInFinder('${jsq(r.path)}')">访达</button>
-                ${r.cleanable ? `<button class="tt-btn tt-btn-safe" onclick="event.stopPropagation();switchModule('clean')">可清理</button>` : ''}
-              </div>`}
             </div>`;
             }).join('');
           })()}
@@ -5016,6 +4996,8 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
     tipTimer = setTimeout(() => {
       const text = tile.getAttribute('data-tip') || '';
       if (!text) return;
+      // 大块已经把名字、路径、体积、占比写在脸上了，再弹一层浮层只是盖住邻居。
+      if (tile.offsetWidth >= 132 && tile.offsetHeight >= 64) return;
       const el = ensureTip();
       el.textContent = text;
       el.classList.add('show');
