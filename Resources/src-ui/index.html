@@ -174,6 +174,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+    /* 一行的内容比侧栏宽时：图标与徽章钉住，中间文字省略，而不是把整张卡片撑出侧栏 */
+    overflow: hidden;
+    min-width: 0;
+    max-width: 100%;
     padding: 8.5px 10px;
     margin-bottom: 11px;
     border-radius: var(--radius-md);
@@ -184,7 +189,8 @@
     transition: border-color 0.15s ease;
   }
   .doctor-card:hover { border-color: var(--border-strong); }
-  .doctor-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .doctor-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+  .doctor-meta { min-width: 0; flex: 1 1 auto; overflow: hidden; }
   .btn-glyph {
   display: inline-block;
   width: 14px;
@@ -236,8 +242,8 @@
     display: flex; align-items: center; justify-content: center;
     color: #fff; flex-shrink: 0;
   }
-  .app-name { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
-  .app-health-sub { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .app-name { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-health-sub { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .health-pill {
     font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
     background: var(--accent-emerald-soft); color: var(--accent-emerald);
@@ -760,7 +766,7 @@
         <div class="app-icon-box brand-plate">
           <span class="glyph" data-icon="brand"></span>
         </div>
-        <div>
+        <div class="doctor-meta">
           <div class="app-name">orbit</div>
           <div class="app-health-sub" id="sidebarHealthSub">联检分 — · 尚未体检</div>
         </div>
