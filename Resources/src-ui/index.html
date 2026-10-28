@@ -766,6 +766,20 @@
   }
   .btn-quiet:hover { background: var(--accent-soft); border-color: transparent; }
   /* 右栏没有选中项时的说明，避免一整块空白面板。 */
+  .opt-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex: none;
+    background: var(--border-strong);
+  }
+  .opt-dot.done { background: var(--accent-emerald); }
+  .opt-dot.pending { background: var(--accent-amber); }
+  .opt-dot.bad { background: var(--accent-rose); }
+  .row-action {
+    background: transparent; border: 0; padding: 2px 4px; font-size: 10.5px;
+    color: var(--text-muted); cursor: pointer; border-radius: 5px; opacity: 0;
+    transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .list-row:hover .row-action, .row-action:focus-visible { opacity: 1; }
+  .row-action:hover { color: var(--accent-primary); }
   .row-remove {
     background: transparent; border: 0; padding: 2px 4px; font-size: 10.5px;
     color: var(--text-muted); cursor: pointer; border-radius: 5px; opacity: 0;
@@ -904,7 +918,7 @@
   </div>
   <div style="display:flex;align-items:center;gap:14px;font-family:var(--font-mono);font-size:11px;">
     <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px;" onclick="toggleSystemMenuBarDemo()" data-icon-slot="bar"></span>
-    <span id="menuBarNet" title="网络速率 · Go 侧 1.5s 采样">🛜 —</span>
+    <span id="menuBarNet" title="网络速率 · 每 1.5 秒采样">网络 —</span>
     <span id="menuBarBatt" title="电量 · IOPS 电池数据">🔋 —</span>
     <span id="menuBarClock" title="本机时间">--:--</span>
   </div>
@@ -2208,7 +2222,7 @@ function updateMenuBarHw() {
   if (netEl) {
     const rx = hw.net ? fmtBytesPerSec(hw.net.rx) : null;
     const tx = hw.net ? fmtBytesPerSec(hw.net.tx) : null;
-    netEl.textContent = (rx || tx) ? `🛜 ↓${rx || '—'} ↑${tx || '—'}` : '🛜 —';
+    netEl.textContent = (rx || tx) ? `网络 ↓${rx || '—'} ↑${tx || '—'}` : '网络 —';
     netEl.title = (rx || tx) ? '网络速率 · Go 侧 1.5s 采样（en0/utun）' : '本机不提供网络速率采样';
   }
   const batEl = document.getElementById('menuBarBatt');
@@ -3260,7 +3274,7 @@ function renderModule() {
                 <div class="subpath-item">
                   <div class="subpath-left">
                     ${selGroup.tier === 'protected' ? `<span class="lock-glyph">${get_skeuo_svg('history', 'lk3')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
-                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${sp.path}')">${UI_ICON('folder')} ${sp.path}</span>
                   </div>
                   <div class="subpath-right">
                     <span>${selGroup.cleaned ? '0 MB' : sp.size}</span>
@@ -3351,7 +3365,7 @@ function renderModule() {
             <div style="display:flex;flex-direction:column;gap:5px;">
               ${selBand.subpaths.map(sp => `
                 <div class="subpath-item">
-                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${sp.path}')">📂 ${sp.path}</span>
+                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${sp.path}')">${UI_ICON('folder')} ${sp.path}</span>
                   <span class="subpath-right">${selBand.cleaned ? '0 MB' : sp.size}</span>
                 </div>
               `).join('')}
@@ -3500,7 +3514,7 @@ function renderModule() {
                 <button class="btn" style="justify-content:center;" onclick="revealInFinder('${selOrphan.subpaths[0]?.path || '~/Library'}')">
                   在访达中显示
                 </button>
-                <button class="btn btn-primary" style="justify-content:center;" onclick="openConfirmSheet();">
+                <button class="btn" style="justify-content:center;" onclick="openConfirmSheet();">
                   清理所选残留 (${totalSelectedOrphanGb.toFixed(2)} GB)
                 </button>
               </div>
@@ -3947,7 +3961,7 @@ function renderModule() {
                   </div>
                 </div>
                 <div class="row-right">
-                  <span class="badge badge-safe">${item.sizeGb === 0 ? '✅ 已清理' : '可安全重建'}</span>
+                  <span class="badge badge-safe">${item.sizeGb === 0 ? '已清理' : '可安全重建'}</span>
                   <span class="size-cell">${item.sizeGb.toFixed(2)} GB</span>
                 </div>
               </div>
@@ -3986,7 +4000,7 @@ function renderModule() {
             </div>
             <div style="margin-top:auto;display:flex;gap:8px;padding-top:4px;">
               <button class="btn" style="flex:1;justify-content:center;" onclick="revealInFinder('${selPurge.project}')">在访达中定位工程</button>
-              <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="openConfirmSheet()">清理所选项目</button>
+              <button class="btn" style="flex:1;justify-content:center;" onclick="openConfirmSheet()">清理所选项目</button>
             </div>
           </div>` : ''}
         </div>
@@ -4012,22 +4026,21 @@ function renderModule() {
       <div class="master-detail-grid">
         <div class="panel-card">
           <div class="panel-header">
-            <span>系统加速与维护任务清单（点击任意项可立即执行）</span>
-            <button class="btn btn-primary" style="padding:3px 10px;font-size:10.5px;" onclick="runAllOptimizeTasks()">一键执行全部优化</button>
+            <span>系统加速与维护任务清单</span>
           </div>
           <div class="list-body">
             ${STATE.optimizeTasks.map((t, idx) => `
               <div class="list-row" onclick="executeOptimizeTask(${idx})">
                 <div class="row-left">
-                  <span>${t.done ? '✅' : t.requested ? '⏳' : '🟢'}</span>
+                  <span class="opt-dot ${t.done ? 'done' : t.requested ? 'pending' : ''}"></span>
                   <div style="min-width:0;">
                     <div class="row-title">${t.name}</div>
                     <div class="row-sub" style="font-family:var(--font-sans);">${t.detail}</div>
                   </div>
                 </div>
-                <span class="badge badge-safe">
-                  ${t.done ? '已优化完成' : t.requested ? '已提交 · 等待回执' : '点击立即优化'}
-                </span>
+                ${t.done ? '<span class="badge badge-safe">已完成</span>'
+                  : t.requested ? '<span class="badge badge-review">等待回执</span>'
+                  : '<button class="row-action" onclick="event.stopPropagation();executeOptimizeTask(' + idx + ')">执行 →</button>'}
               </div>
             `).join('')}
           </div>
@@ -4173,7 +4186,7 @@ window.openConfirmSheet = function() {
     titleEl.textContent = `AI 专项清理二次确认 — 即将移入废纸篓`;
     rowsHtml = sel.map(b => `
       <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>🟢</span><div><div style="font-size:12px;font-weight:600;">${b.name}</div><div class="row-sub">${b.path}</div></div></div>
+        <div class="row-left"><span class="opt-dot done"></span><div><div style="font-size:12px;font-weight:600;">${b.name}</div><div class="row-sub">${b.path}</div></div></div>
         <span class="size-cell" style="color:var(--accent-emerald);">${b.sizeGb.toFixed(2)} GB</span>
       </div>
     `).join('');
@@ -4217,7 +4230,7 @@ window.openConfirmSheet = function() {
     titleEl.textContent = '构建产物与安装包清理二次确认';
     rowsHtml = selP.map(p => `
       <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>🟢</span><div><div style="font-size:12px;font-weight:600;">${p.project}/${p.artifact}</div><div class="row-sub">${p.kind} · ${p.rebuildNote}</div></div></div>
+        <div class="row-left"><span class="opt-dot done"></span><div><div style="font-size:12px;font-weight:600;">${p.project}/${p.artifact}</div><div class="row-sub">${p.kind} · ${p.rebuildNote}</div></div></div>
         <span class="size-cell" style="color:var(--accent-emerald);">${p.sizeGb.toFixed(2)} GB</span>
       </div>
     `).join('') + selI.map(i => `
@@ -4233,7 +4246,7 @@ window.openConfirmSheet = function() {
     titleEl.textContent = '智能深度清理二次确认 — 即将移入废纸篓';
     rowsHtml = sel.map(g => `
       <div class="list-row" style="padding:7.5px 14px;">
-        <div class="row-left"><span>${g.tier === 'safe' ? '🟢' : '🟡'}</span><div><div style="font-size:12px;font-weight:600;">${g.name}</div><div class="row-sub">${g.path} · ${g.items} 个子项 · 重建: ${g.rebuildTime}</div></div></div>
+        <div class="row-left"><span class="opt-dot ${g.tier === 'safe' ? 'done' : 'pending'}"></span><div><div style="font-size:12px;font-weight:600;">${g.name}</div><div class="row-sub">${g.path} · ${g.items} 个子项 · 重建: ${g.rebuildTime}</div></div></div>
         <span class="size-cell" style="color:${g.tier === 'safe' ? 'var(--accent-emerald)' : 'var(--accent-amber)'};">${g.sizeGb.toFixed(2)} GB</span>
       </div>
     `).join('');
@@ -4429,13 +4442,13 @@ function renderDoctorChecksList(activeIdx) {
     const isScanning = typeof activeIdx === 'number' && idx === activeIdx;
     const isPending = typeof activeIdx === 'number' && idx > activeIdx;
     const passed = c.passed === true ? true : c.passed === false ? false : null;
-    const icon = isScanning ? '⏳' : isPending ? '⚪' : passed === true ? '✅' : passed === false ? '❌' : '⚪';
+    const dotCls = isScanning || isPending ? 'pending' : passed === true ? 'done' : passed === false ? 'bad' : '';
     const badge = isScanning ? '检测中...' : isPending ? '待检测' : passed === true ? '通过' : passed === false ? '异常' : '未知';
     const badgeCls = isScanning ? 'badge-review' : passed === false ? 'badge-danger' : passed === true ? 'badge-safe' : 'badge-review';
     return `
       <div class="list-row" style="padding:8.5px 18px;opacity:${isPending ? '0.45' : '1'};">
         <div class="row-left">
-          <span style="font-size:15px;">${icon}</span>
+          <span class="opt-dot ${dotCls}"></span>
           <div>
             <div style="font-size:12px;font-weight:700;">${c.title || '体检项'}</div>
             <div class="row-sub" style="font-family:var(--font-sans);">${isScanning ? '正在检测...' : (c.detail || '本机不提供详情')}</div>
@@ -4479,7 +4492,7 @@ window.startDoctorReDiagnosis = function() {
 
   banner.style.display = 'block';
   btn.disabled = true;
-  btn.textContent = '⏳ 正在复诊检测...';
+  btn.textContent = '正在复诊检测…';
   sendNativeBridge({ action: 'runDoctorReCheck' });
 
   let list = Array.isArray(STATE.doctorChecks) ? STATE.doctorChecks : [];
@@ -4517,7 +4530,7 @@ window.startDoctorReDiagnosis = function() {
       clearInterval(window._docTimer);
       STATE.recheckCount++;
       STATE.lastCheckTime = '复诊结束 ' + new Date().toTimeString().slice(0, 8);
-      txt.textContent = '✅ 复诊流程结束（结论以 Go 侧回执为准，无回执不涨分）';
+      txt.textContent = '复诊流程结束（结论以 Go 侧回执为准，无回执不涨分）';
       btn.disabled = false;
       btn.textContent = '🔄 立即重新联检 (Pre-flight)';
       renderDoctorChecksList(null);
