@@ -547,7 +547,8 @@
   .breadcrumb-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 7px 14px; background: var(--bg-card); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md); font-size: 11.5px; flex-shrink: 0; flex-wrap: wrap;
+    border-radius: var(--radius-md); font-size: 11.5px; flex-shrink: 0; flex-wrap: nowrap;
+    height: 34px; overflow: hidden;
   }
   .crumb-item {
     padding: 2px 7px; border-radius: 4px; cursor: pointer; color: var(--text-secondary); font-weight: 500;
@@ -879,13 +880,16 @@
   .list-row.hl { background: var(--bg-card-hover); }
   .drill-pill { cursor: pointer; }
   .crumb-sep { color: var(--text-muted); }
-  .crumb-actions { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); min-width: 0; }
+  .crumb-left { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .crumb-actions { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); flex: 0 0 auto; }
   .crumb-preview {
-    display: none; margin-left: 10px; font-family: var(--font-mono); font-size: 10.5px;
-    color: var(--text-secondary); max-width: 460px; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; padding-left: 10px; border-left: 1px solid var(--border-subtle);
+    flex: 0 0 auto; width: 300px; max-width: 34vw;
+    margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border-subtle);
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    visibility: hidden;
   }
-  .crumb-preview.show { display: inline-block; }
+  .crumb-preview.show { visibility: visible; }
   .crumb-sel { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
   .insights-box { border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
   .insights-box summary { padding: 7px 14px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
@@ -3798,6 +3802,7 @@ function renderModule() {
           ${isDrilled ? `<button class="btn" style="padding:2px 8px;font-size:11px;" onclick="drillUp()">${UI_ICON('up')} 上一级</button>` : ''}
           ${['全机概览'].concat(stack.map(n => n.name)).map((c, i, all) => `${i ? '<span class="crumb-sep">▸</span>' : ''}<span class="crumb-item ${i === all.length - 1 ? 'active' : ''}" onclick="jumpToDepth(${i})">${i ? UI_ICON('folder') + ' ' : ''}${c}</span>`).join('')}
         </div>
+        <span id="tilePreview" class="crumb-preview" aria-live="polite"></span>
         <div class="crumb-actions">
           <span class="crumb-sel">${curSelectedTile.name} · ${diskGbOf(curSelectedTile).toFixed(1)} GB${hasNum(curSelectedTile.pct) ? ' · ' + curSelectedTile.pct + '%' : ''}</span>
           ${curSelectedTile.isDir === false ? '' : `<button class="btn btn-primary" style="padding:2px 9px;font-size:10.5px;" onclick="drillTile(${activeIdx})">进入</button>`}
@@ -5023,13 +5028,14 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
   function ensurePreview() {
     let el = document.getElementById('tilePreview');
     if (el && el.isConnected) return el;
-    const slot = document.querySelector('.breadcrumb-bar .crumb-left') || document.querySelector('.breadcrumb-bar');
-    if (!slot) return null;
+    const bar = document.querySelector('.breadcrumb-bar');
+    if (!bar) return null;
     el = document.createElement('span');
     el.id = 'tilePreview';
     el.className = 'crumb-preview';
     el.setAttribute('aria-live', 'polite');
-    slot.appendChild(el);
+    const actions = bar.querySelector('.crumb-actions');
+    bar.insertBefore(el, actions || null);   // 固定宽度的独立一格：不参与路径的排布
     return el;
   }
 
