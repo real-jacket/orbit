@@ -604,7 +604,30 @@
     position: absolute; top: 5px; right: 5px; font-size: 9px; line-height: 1; font-weight: 700;
     background: rgba(180, 83, 9, 0.96); color: #fff; padding: 3px 5px; border-radius: 4px;
   }
-  /* 方块是只读的数据面：悬停只加一圈内描边，动作在面包屑栏里（进入/访达/加入待清理）。 */
+  /* 方块自带动作：悬停/聚焦/选中才出现，窄了收成图标，再窄就交给面包屑栏。 */
+  .tt-actions {
+    position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
+  .treemap-tile:hover .tt-actions,
+  .treemap-tile:focus-within .tt-actions,
+  .treemap-tile.active-tile .tt-actions { opacity: 1; pointer-events: auto; }
+  .tt-btn {
+    display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap;
+    font: inherit; font-size: 10px; font-weight: 700; line-height: 1; padding: 4px 7px;
+    border-radius: 6px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.26); background: rgba(0,0,0,0.52); color: #fff;
+  }
+  .tt-btn .ui-ico { width: 11px; height: 11px; }
+  .tt-btn:hover { background: rgba(0,0,0,0.7); border-color: rgba(255,255,255,0.4); }
+  /* 容器查询量的是内容盒：阈值按 内容宽 ≈ offsetWidth − 26（边框 + 内边距）折算。 */
+  @container (max-width: 213px) { .tt-btn .tt-label { display: none; } .tt-btn { padding: 4px 5px; } }
+  @container (max-width: 75px) { .tt-actions { display: none; } }
+  @container (max-height: 51px) { .tt-actions { display: none; } }
+  /* 动作出现时给底部数字留出位置，避免压住体积与占比。 */
+  .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 74px; }
+  @container (max-width: 213px) { .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 52px; } }
   /* 尺寸分档：放不下就少写，不硬塞 */
   @container (max-width: 104px) {
     .tt-flag { font-size: 0; width: 7px; height: 7px; padding: 0; border-radius: 99px; overflow: hidden; }
@@ -3834,6 +3857,11 @@ function renderModule() {
                 <span class="tt-size">${rGb >= 10 ? rGb.toFixed(1) : rGb.toFixed(2)}<em>GB</em></span>
                 <span class="tt-pct">${hasNum(r.pct) ? r.pct + '%' : ''}</span>
               </div>
+              ${isOthers ? '' : `
+              <div class="tt-actions">
+                ${r.isDir === false ? '' : `<button class="tt-btn" title="进入目录（双击同样可以）" onclick="event.stopPropagation();drillTile(${r.idx})"><span class="tt-label">进入</span>${UI_ICON('fwd')}</button>`}
+                <button class="tt-btn" title="在访达中显示" onclick="event.stopPropagation();revealInFinder('${jsq(r.path)}')"><span class="tt-label">访达</span>${UI_ICON('folder')}</button>
+              </div>`}
             </div>`;
             }).join('');
           })()}
