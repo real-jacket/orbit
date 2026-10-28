@@ -65,6 +65,14 @@
 - **JPEG 2000 的容器**：Adobe 那个 bundle 的 `ic08/ic09` 是 `jP` 开头（JPEG 2000），标准库解不了——新增 `icnsPNGViaSips` 用 `/usr/bin/sips` 转一张 256px PNG 兜底，结果同样按 bundle 路径缓存。
 - 实测：`/Applications` + `/System/Applications` 全量扫描后**没有 blank 图标**；Adobe CC Cleaner 从「无图」变成 33,481 字节的真图；列表 16 个图标全部 `naturalWidth > 0`，`background: rgba(0,0,0,0)`、`box-shadow: none`、`border-radius: 0px`、`object-fit: contain`。
 
+## 3.4 焦点环（一个会「框住好几个方块」的假象）
+
+之前有两条全局 `:focus-visible`：我加的那条给**所有**元素套 `box-shadow: var(--ring)` 并把圆角改成 7px；原有的那条又给所有元素画 `outline`。方块本身是 `container-type: size` 的绝对定位元素，WebKit 对这种元素上的 `outline` 会按包含块绘制——于是出现「一圈橙色框同时框住 code、.hermes 两个方块」的假象。
+
+- 全局焦点环收窄到真正可聚焦的控件：`button / a / input / select / textarea`，`border-radius: inherit`（不再强行 7px）。
+- 方块自己的焦点改成**内描边**：`.treemap-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-primary); }`——内阴影只能画在自己的盒子里，不可能跨块。
+- 实测焦点落在 `code` 方块：`outline: none`、`box-shadow: rgb(217,119,87) 0 0 0 2px inset`、`.treemap-stage` 的 `box-shadow: none`，截图里描边只贴着自己这一块。
+
 ## 4. 有意没做的
 
 - 没有换掉暖炭底色与陶土主色（这是产品的识别）；没有引入字体文件；没有把单文件前端拆成构建产物。
