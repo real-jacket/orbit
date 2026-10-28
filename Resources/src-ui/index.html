@@ -604,6 +604,14 @@
     position: absolute; top: 5px; right: 5px; font-size: 9px; line-height: 1; font-weight: 700;
     background: rgba(180, 83, 9, 0.96); color: #fff; padding: 3px 5px; border-radius: 4px;
   }
+  /* 静止态的可见提示：目录方块右下角一个 chevron，悬停后被真按钮替换。 */
+  .tt-chevron {
+    position: absolute; right: 9px; bottom: 7px; font-size: 13px; line-height: 1;
+    color: rgba(255,255,255,0.55); pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
+  .treemap-tile:hover .tt-chevron, .treemap-tile:focus-within .tt-chevron,
+  .treemap-tile.active-tile .tt-chevron { opacity: 0; }
   /* 方块自带动作：悬停/聚焦/选中才出现，窄了收成图标，再窄就交给面包屑栏。 */
   .tt-actions {
     position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px;
@@ -623,8 +631,10 @@
   .tt-btn:hover { background: rgba(0,0,0,0.7); border-color: rgba(255,255,255,0.4); }
   /* 容器查询量的是内容盒：阈值按 内容宽 ≈ offsetWidth − 26（边框 + 内边距）折算。 */
   @container (max-width: 213px) { .tt-btn .tt-label { display: none; } .tt-btn { padding: 4px 5px; } }
-  @container (max-width: 75px) { .tt-actions { display: none; } }
-  @container (max-height: 51px) { .tt-actions { display: none; } }
+  /* 更窄时只保留第一个动作（目录是「进入」，文件是「访达」），再窄才彻底交给面包屑。 */
+  @container (max-width: 74px) { .tt-actions .tt-btn ~ .tt-btn { display: none; } }
+  @container (max-width: 39px) { .tt-actions { display: none; } }
+  @container (max-height: 44px) { .tt-actions { display: none; } }
   /* 动作出现时给底部数字留出位置，避免压住体积与占比。 */
   .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 74px; }
   @container (max-width: 213px) { .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 52px; } }
@@ -637,13 +647,6 @@
   @container (max-height: 54px) { .tt-foot { display: none; } }
   @container (max-height: 58px) { .tt-name { font-size: 11.5px; } }
   @container (max-width: 86px) { .tt-name { font-size: 11px; } .tt-size em { font-size: 8.5px; } }
-  .tt-tip {
-    position: fixed; z-index: 70; max-width: 340px; padding: 9px 11px; border-radius: 10px;
-    background: rgba(9, 9, 11, 0.97); color: #fafafa; font-size: 11.5px; line-height: 1.5;
-    border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 14px 34px rgba(0,0,0,0.5);
-    white-space: pre-line; pointer-events: none; opacity: 0; transition: opacity 0.12s ease;
-  }
-  .tt-tip.show { opacity: 1; }
   .treemap-split .list-body { scrollbar-width: thin; }
   .treemap-split .list-body::-webkit-scrollbar { width: 9px; }
   .treemap-split .list-body::-webkit-scrollbar-thumb {
@@ -877,6 +880,12 @@
   .drill-pill { cursor: pointer; }
   .crumb-sep { color: var(--text-muted); }
   .crumb-actions { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); min-width: 0; }
+  .crumb-preview {
+    display: none; margin-left: 10px; font-family: var(--font-mono); font-size: 10.5px;
+    color: var(--text-secondary); max-width: 460px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; padding-left: 10px; border-left: 1px solid var(--border-subtle);
+  }
+  .crumb-preview.show { display: inline-block; }
   .crumb-sel { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
   .insights-box { border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
   .insights-box summary { padding: 7px 14px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
@@ -3784,7 +3793,7 @@ function renderModule() {
     stage.innerHTML = emptyBody ? emptyBody : (scanningBody || `
       ${factsBar}
       <div class="breadcrumb-bar">
-        <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;">
+        <div class="crumb-left" style="display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;overflow:hidden;">
           <button class="btn icon-btn" ${STATE.trailBack.length ? '' : 'disabled'} title="后退" onclick="goBack()">${UI_ICON('back')}</button><button class="btn icon-btn" ${STATE.trailFwd.length ? '' : 'disabled'} title="前进" onclick="goForward()">${UI_ICON('fwd')}</button>
           ${isDrilled ? `<button class="btn" style="padding:2px 8px;font-size:11px;" onclick="drillUp()">${UI_ICON('up')} 上一级</button>` : ''}
           ${['全机概览'].concat(stack.map(n => n.name)).map((c, i, all) => `${i ? '<span class="crumb-sep">▸</span>' : ''}<span class="crumb-item ${i === all.length - 1 ? 'active' : ''}" onclick="jumpToDepth(${i})">${i ? UI_ICON('folder') + ' ' : ''}${c}</span>`).join('')}
@@ -3857,6 +3866,7 @@ function renderModule() {
                 <span class="tt-size">${rGb >= 10 ? rGb.toFixed(1) : rGb.toFixed(2)}<em>GB</em></span>
                 <span class="tt-pct">${hasNum(r.pct) ? r.pct + '%' : ''}</span>
               </div>
+              ${isOthers || r.isDir === false ? '' : '<span class="tt-chevron" aria-hidden="true">›</span>'}
               ${isOthers ? '' : `
               <div class="tt-actions">
                 ${r.isDir === false ? '' : `<button class="tt-btn" title="进入目录（双击同样可以）" onclick="event.stopPropagation();drillTile(${r.idx})"><span class="tt-label">进入</span>${UI_ICON('fwd')}</button>`}
@@ -4998,66 +5008,65 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
 --------------------------------------------------------------------------- */
 (function () {
   if (typeof STATE === 'undefined') return;
-  let tipEl = null, tipTimer = null, pending = null, raf = 0;
+  let tipTimer = null, pending = null;
 
-  function ensureTip() {
-    if (tipEl && tipEl.isConnected) return tipEl;
-    tipEl = document.createElement('div');
-    tipEl.className = 'tt-tip';
-    document.body.appendChild(tipEl);
-    return tipEl;
+  // 悬停详情不再浮在方块上（会盖住邻居和邻居的体积），而是停靠在面包屑左侧的
+  // 一条只读信息里：位置固定、宽度固定，鼠标怎么移都不会遮住任何一个方块。
+  function previewOf(tile) {
+    const tip = (tile.getAttribute('data-tip') || '').split('\n');
+    const name = tip[0] || '';
+    const path = tip[1] || '';
+    const rest = tip.slice(2).filter(Boolean).join(' · ');
+    return { name, path, rest };
   }
 
-  function placeTip(x, y) {
-    const el = ensureTip();
-    const pad = 14;
-    const w = el.offsetWidth || 240, h = el.offsetHeight || 60;
-    let left = x + pad, top = y + pad;
-    if (left + w > window.innerWidth - 8) left = x - w - pad;
-    if (top + h > window.innerHeight - 8) top = y - h - pad;
-    el.style.left = Math.max(8, left) + 'px';
-    el.style.top = Math.max(8, top) + 'px';
+  function ensurePreview() {
+    let el = document.getElementById('tilePreview');
+    if (el && el.isConnected) return el;
+    const slot = document.querySelector('.breadcrumb-bar .crumb-left') || document.querySelector('.breadcrumb-bar');
+    if (!slot) return null;
+    el = document.createElement('span');
+    el.id = 'tilePreview';
+    el.className = 'crumb-preview';
+    el.setAttribute('aria-live', 'polite');
+    slot.appendChild(el);
+    return el;
   }
 
-  function showTip(tile, x, y) {
+  function showPreview(tile) {
     clearTimeout(tipTimer);
     tipTimer = setTimeout(() => {
-      const text = tile.getAttribute('data-tip') || '';
-      if (!text) return;
-      // 大块已经把名字、路径、体积、占比写在脸上了，再弹一层浮层只是盖住邻居。
-      if (tile.offsetWidth >= 132 && tile.offsetHeight >= 64) return;
-      const el = ensureTip();
-      el.textContent = text;
-      el.classList.add('show');
-      placeTip(x, y);
-    }, 140);
+      const el = ensurePreview();
+      if (!el) return;
+      const p = previewOf(tile);
+      // 大块脸上已经写全了，只在小块上补；其余情况清空，避免重复。
+      const small = tile.offsetWidth < 150 || tile.offsetHeight < 70;
+      el.textContent = small && p.rest ? `${p.name} · ${p.rest}` : '';
+      el.classList.toggle('show', !!el.textContent);
+    }, 120);
   }
 
-  function hideTip() {
+  function hidePreview() {
     clearTimeout(tipTimer);
-    if (tipEl) tipEl.classList.remove('show');
+    const el = document.getElementById('tilePreview');
+    if (el) { el.textContent = ''; el.classList.remove('show'); }
   }
 
   document.addEventListener('pointerover', (e) => {
     const tile = e.target.closest && e.target.closest('.treemap-tile');
     if (!tile || tile.classList.contains('tt-others')) return;
-    pending = { tile, x: e.clientX, y: e.clientY };
-    showTip(tile, e.clientX, e.clientY);
-  });
-  document.addEventListener('pointermove', (e) => {
-    if (!pending) return;
-    pending.x = e.clientX; pending.y = e.clientY;
-    if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (pending && tipEl && tipEl.classList.contains('show')) placeTip(pending.x, pending.y); });
+    pending = { tile };
+    showPreview(tile);
   });
   document.addEventListener('pointerout', (e) => {
     const tile = e.target.closest && e.target.closest('.treemap-tile');
     if (!tile) return;
     pending = null;
-    hideTip();
+    hidePreview();
   });
-  window.addEventListener('blur', () => { pending = null; hideTip(); });
-  document.addEventListener('click', () => { pending = null; hideTip(); }, true);
-  document.addEventListener('scroll', () => { pending = null; hideTip(); }, true);
+  window.addEventListener('blur', () => { pending = null; hidePreview(); });
+  document.addEventListener('click', () => { pending = null; hidePreview(); }, true);
+  document.addEventListener('scroll', () => { pending = null; hidePreview(); }, true);
 
   // 键盘：方向键在方块之间移动，Enter 进入，空格选中，Backspace 返回上一级
   document.addEventListener('keydown', (e) => {
