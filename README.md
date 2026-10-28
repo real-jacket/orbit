@@ -156,16 +156,19 @@ where MyGo wants the entry point:
 | `push.go` | Go → page: serialises payloads and calls the page's `window.onNative*` globals in every open window | `MoleStudioApp.swift` (`evaluateJavaScript` call sites) |
 | `theme.go` | `mygo.Theme` plus a `preferences.json` in the user data directory, replacing `UserDefaults` | `MoleStudioApp.swift` (`applyTheme`) |
 
-Four documents go deeper: [`docs/go-port.md`](docs/go-port.md) is the porting record — file-by-file
+Five documents go deeper: [`docs/go-port.md`](docs/go-port.md) is the porting record — file-by-file
 mapping, the decisions behind it, and the known gaps against the Swift build — while
 [`docs/mygo-migration.md`](docs/mygo-migration.md) is the framework analysis that justified the move,
 [`docs/business-logic-review.md`](docs/business-logic-review.md) is the review that followed the port:
 what was fabricated, what only pretended to work (清理回执、还原、白名单、体检、退出), and how each was
 replaced with a real implementation, and
 [`docs/disk-analyzer.md`](docs/disk-analyzer.md) explains why the disk analyzer stopped shelling out to
-`mo analyze` and how the in-process scanner counts bytes, reports progress and cancels.
+`mo analyze` and how the in-process scanner counts bytes, reports progress and cancels, and
+[`docs/ui-refinement.md`](docs/ui-refinement.md) records the interface pass: which decorative layers
+were removed, what replaced them, and what was deliberately left alone. The design rules themselves live
+in [`DESIGN.md`](DESIGN.md), the product rules in [`PRODUCT.md`](PRODUCT.md).
 
-The port itself did not touch the frontend, and the markup and layout are still the original page. What
+The port itself did not touch the frontend's visual design; the layout is still the original page. What
 did change in `Resources/src-ui/index.html` is the part that talked to the native side: `preload.go`
 restores the `window.webkit.messageHandlers.moleNative` object the page expects to post to (MyGo has no
 `WKScriptMessageHandler`, so it forwards to `NativeBridge.Dispatch`), and the page now waits for a receipt
