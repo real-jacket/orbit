@@ -2378,6 +2378,9 @@ function toggleOrphanCheck(idx, ev) {
   const item = STATE.orphanLeftoversList[idx];
   if (!item) return;
   item.checked = !item.checked;
+  // 一组残留 = 一个整体：勾上这一组就把它的残留目录一起勾上，否则右栏看着已选、
+  // 真正发给 Go 的路径集合却是空的（就是「没有解析出可删除的绝对路径」）。
+  (item.subpaths || []).forEach(sp => { sp.checked = item.checked; });
   persistState();
   updateSidebarBadges();
   renderModule();
@@ -4060,7 +4063,14 @@ window.executeConfirmedClean = function() {
       if (!active.length) { showToast('请先勾选要清理的已卸载残留项'); return; }
       actionLabel = `已卸载残留清理 (${active.map(o => o.name).join(', ')})`;
       active.forEach(o => {
-        const paths = (o.subpaths || []).filter(sp => sp.checked !== false).map(sp => absolutePath(sp.path)).filter(Boolean);
+        // 组被勾选而子项没有单独勾选时，按「整组」处理：这些残留目录本来就是这个
+        // 组的全部内容，用户勾的是这一组。空路径集合会让整次操作被取消。
+        const subs = (o.subpaths || []).length
+          ? ((o.subpaths || []).filter(sp => sp.checked !== false).length
+            ? (o.subpaths || []).filter(sp => sp.checked !== false)
+            : (o.subpaths || []))
+          : [];
+        const paths = subs.map(sp => absolutePath(sp.path)).filter(Boolean);
         entries.push({
           entity: o, label: o.name, sizeGb: Number(o.leftoverSizeGb) || 0, paths,
           regKeys: [o.id],
