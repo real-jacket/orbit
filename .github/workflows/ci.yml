@@ -22,7 +22,7 @@ jobs:
     name: Build & package
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
@@ -45,7 +45,7 @@ jobs:
 
       - name: Install the MyGo CLI
         run: |
-          go install github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}
+          go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Package the .app bundle
@@ -89,7 +89,7 @@ jobs:
     name: Lint
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
@@ -110,6 +110,6 @@ jobs:
 
       - name: The generated TypeScript client is current
         run: |
-          go install github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}
+          go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
           "$(go env GOPATH)/bin/mygo" generate
           git diff --exit-code -- mygo.ts

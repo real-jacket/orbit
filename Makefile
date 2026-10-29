@@ -38,7 +38,7 @@ OUT_DIR  := build
 MYGO     ?= mygo
 GO       ?= go
 
-.PHONY: all build run test vet dev app app-nodmg generate doctor check clean help
+.PHONY: all build run test vet dev app app-nodmg generate set-version doctor check clean help
 
 all: build
 
@@ -78,6 +78,12 @@ app-nodmg:
 ## Regenerate the typed TypeScript client (mygo.ts) from the bound services.
 generate:
 	$(MYGO) generate
+
+## Write a version into mygo.json — the one place the version lives locally.
+## Releases take their version from the Git tag instead; see README "Releases".
+set-version:
+	@test -n "$(VERSION)" || { echo "usage: make set-version VERSION=x.y.z" >&2; exit 2; }
+	scripts/set-version.sh "$(VERSION)"
 
 ## Check the toolchain MyGo needs (Go, the CLI, packaging dependencies).
 doctor:

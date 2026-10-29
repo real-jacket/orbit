@@ -33,6 +33,19 @@ func fillBuildInfo() {
 	scanner.BuildTime = scanner.DescribeExecutable()
 }
 
+// buildVersion is the version the running build reports. `mygo build` writes
+// mygo.json's version into the bundle's Info.plist and this reads it back, so
+// the number in the About panel and the 体检 row is the number of the code that
+// actually ran. A plain `go run` has no bundle to read, and says "dev" rather
+// than a version nobody bumped. The release workflow stamps mygo.json from the
+// tag before it builds (see .github/workflows/release.yml).
+func buildVersion() string {
+	if version := mygo.App.Version(); version != "" {
+		return version
+	}
+	return "dev"
+}
+
 // quitting is set while a quit is in progress. The window's close handler
 // normally hides the window instead of closing it, and without this flag that
 // hid the window out from under App.Quit, so 退出 never quit.
@@ -43,7 +56,10 @@ func run() {
 	mygo.Bind(&NativeBridge{})
 
 	mygo.App.SetName(appName)
-	mygo.App.SetVersion("0.1.0")
+
+	version := buildVersion()
+	mygo.App.SetVersion(version)
+	scanner.BuildVersion = version
 
 	// Without a listener MyGo quits when the last window closes. The Swift
 	// app returned false from applicationShouldTerminateAfterLastWindowClosed
