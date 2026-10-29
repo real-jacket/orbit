@@ -5,16 +5,21 @@ name: Release
 #
 #   make set-version VERSION=0.2.0   # in the pull request
 #
-# Every push to main asks one question: has the version in mygo.json been
-# released yet? If not, this workflow builds that commit, verifies the bundle
-# and the disk image, creates the tag, and publishes the GitHub Release. If it
-# has, the push is a no-op. The tag is an output here, not an input, so code
-# that never reached main cannot be released. Only macOS is built; the app is a
-# macOS-only MyGo/WKWebView bundle.
+# A push to main that changes mygo.json asks one question: has that version
+# been released yet? If not, this workflow builds that commit, verifies the
+# bundle and the disk image, creates the tag, and publishes the GitHub Release.
+# If it has, the push is a no-op. The tag is an output here, not an input, so
+# code that never reached main cannot be released, and a failed build leaves no
+# tag behind — re-run the workflow from main to retry once the fix has landed.
+# Only macOS is built; the app is a macOS-only MyGo/WKWebView bundle.
 
 on:
   push:
     branches: [main]
+    # A release is a version bump: a push to main that changes mygo.json.
+    # Other merges leave the release alone instead of re-checking it on every
+    # commit.
+    paths: ['mygo.json']
   workflow_dispatch:
     inputs:
       publish:
@@ -38,9 +43,6 @@ env:
 jobs:
   release:
     name: Build & release
-    # The manual trigger can be started from any branch in the UI; a release
-    # only ever comes from main.
-    if: github.ref == 'refs/heads/main'
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -58,6 +60,14 @@ jobs:
           INPUT_PUBLISH: ${{ github.event.inputs.publish }}
         run: |
           set -euo pipefail
+
+          # The push trigger only fires for main; a hand-started run can be
+          # pointed at any branch, so it is checked here and fails loudly.
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::releases are cut from main; this run is for $GITHUB_REF"
+            exit 1
+          fi
+
           version="$(jq -r .version mygo.json)"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::mygo.json version '$version' is not MAJOR.MINOR.PATCH (CFBundleShortVersionString holds three numbers)"
@@ -94,9 +104,10 @@ jobs:
             publish=false
           fi
 
-          # A push that changes nothing about the released version is a no-op.
-          # A hand-started run always rebuilds, which is how a release whose
-          # assets went missing gets repaired.
+          # A push that changes nothing about the released version (mygo.json
+          # touched, version unchanged) is a no-op. A hand-started run always
+          # rebuilds, which is how a failed build or a release whose assets went
+          # missing gets repaired.
           skip=false
           if [[ "$EVENT" == "push" && "$tag_exists" == true && "$release_exists" == true ]]; then
             skip=true
@@ -105,6 +116,12 @@ jobs:
           if [[ "$tag_exists" == true ]]; then
             # Rebuild the tagged commit, not whatever main has grown since.
             build_ref="$(git rev-parse "refs/tags/$tag")"
+            # A hand-pushed tag could point anywhere; only commits that are
+            # already on main may be released.
+            if ! git merge-base --is-ancestor "$build_ref" "$GITHUB_SHA"; then
+              echo "::error::$tag points at $build_ref, which is not on main"
+              exit 1
+            fi
           else
             build_ref="$GITHUB_SHA"
           fi
@@ -123,7 +140,7 @@ jobs:
             {
               echo "### Skipped: $tag is already released"
               echo
-              printf 'main is at `%s` and `%s` already has a GitHub Release, so this push had nothing to publish.\n' "$version" "$tag"
+              echo "main is at \`$version\` and \`$tag\` already has a GitHub Release, so this push had nothing to publish."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -133,11 +150,11 @@ jobs:
             echo
             echo "| | |"
             echo "| --- | --- |"
-            printf '| Version | `%s` |\n' "$version"
-            printf '| Building | `%s` |\n' "$build_ref"
-            printf '| Tag already exists | `%s` |\n' "$tag_exists"
-            printf '| Release already exists | `%s` |\n' "$release_exists"
-            printf '| Publish | `%s` |\n' "$publish"
+            echo "| Version | \`$version\` |"
+            echo "| Building | \`$build_ref\` |"
+            echo "| Tag already exists | \`$tag_exists\` |"
+            echo "| Release already exists | \`$release_exists\` |"
+            echo "| Publish | \`$publish\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Export the release facts
@@ -264,13 +281,12 @@ jobs:
           {
             echo "## orbit $TAG"
             echo
-            printf 'Built `%s` from main.\n' "$(git rev-parse --short=7 HEAD)"
+            echo "Built \`$(git rev-parse --short=7 HEAD)\` from main."
             echo
             echo "| Asset | SHA-256 |"
             echo "| --- | --- |"
             for file in "$RUNNER_TEMP/release"/*.dmg; do
-              # shellcheck disable=SC2016 # markdown backticks, not a command
-              printf '| %s | `%s` |\n' "$(basename "$file")" "$(shasum -a 256 "$file" | cut -d' ' -f1)"
+              echo "| $(basename "$file") | \`$(shasum -a 256 "$file" | cut -d' ' -f1)\` |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
