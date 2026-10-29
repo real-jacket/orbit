@@ -1,39 +1,30 @@
 name: Release
 
-# Every Mac, one download: pushing a version tag builds orbit for Apple silicon
-# and Intel, checks the bundle and the disk image, and publishes them.
+# A release is driven by main, never by a branch or a hand-made tag. Merging a
+# version bump into main is the release gesture:
 #
-#   git tag v0.2.0
-#   git push origin v0.2.0
+#   make set-version VERSION=0.2.0   # in the pull request
 #
-# The tag is the source of truth for the version. It is written into mygo.json
-# before the build, so Info.plist, the .dmg name, the in-app build stamp and the
-# release page carry the same number. Only macOS is built here; the app is a
+# Every push to main asks one question: has the version in mygo.json been
+# released yet? If not, this workflow builds that commit, verifies the bundle
+# and the disk image, creates the tag, and publishes the GitHub Release. If it
+# has, the push is a no-op. The tag is an output here, not an input, so code
+# that never reached main cannot be released. Only macOS is built; the app is a
 # macOS-only MyGo/WKWebView bundle.
 
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+    branches: [main]
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version to build, without the leading v (default: mygo.json)"
-        required: false
-        type: string
       publish:
-        description: Create or update the GitHub release
+        description: Publish the GitHub release (off = build and verify only)
         type: boolean
         default: true
-      draft:
-        description: Leave the release as a draft
-        type: boolean
-        default: false
 
-# A release is not worth racing: never cancel one half-way through, and never
-# run two for the same tag at once.
+# Two merges landing together must not race for the same tag.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 permissions:
@@ -47,50 +38,148 @@ env:
 jobs:
   release:
     name: Build & release
+    # The manual trigger can be started from any branch in the UI; a release
+    # only ever comes from main.
+    if: github.ref == 'refs/heads/main'
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Tags are the release ledger, so the whole history has to come along.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Decide what this push releases
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          INPUT_PUBLISH: ${{ github.event.inputs.publish }}
+        run: |
+          set -euo pipefail
+          version="$(jq -r .version mygo.json)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::mygo.json version '$version' is not MAJOR.MINOR.PATCH (CFBundleShortVersionString holds three numbers)"
+            exit 1
+          fi
+          tag="v$version"
+
+          # Releases only move forward. Reverting mygo.json on main is a
+          # mistake, not a downgrade: fail loudly instead of shipping it.
+          all_tags="$(git tag --list 'v[0-9]*' --sort=-version:refname)"
+          latest=""
+          if [[ -n "$all_tags" ]]; then
+            latest="${all_tags%%$'\n'*}"
+            latest="${latest#v}"
+            first="$(printf '%s\n%s\n' "$version" "$latest" | sort -t. -k1,1n -k2,2n -k3,3n | sed -n 1p)"
+            if [[ "$first" == "$version" && "$version" != "$latest" ]]; then
+              echo "::error::main is at $version but the newest release is v$latest; bump mygo.json forward instead of moving backwards"
+              exit 1
+            fi
+          fi
+
+          tag_exists=false
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            tag_exists=true
+          fi
+
+          release_exists=false
+          if [[ "$tag_exists" == true ]] && gh release view "$tag" > /dev/null 2>&1; then
+            release_exists=true
+          fi
+
+          publish=true
+          if [[ "$EVENT" == "workflow_dispatch" && "$INPUT_PUBLISH" == "false" ]]; then
+            publish=false
+          fi
+
+          # A push that changes nothing about the released version is a no-op.
+          # A hand-started run always rebuilds, which is how a release whose
+          # assets went missing gets repaired.
+          skip=false
+          if [[ "$EVENT" == "push" && "$tag_exists" == true && "$release_exists" == true ]]; then
+            skip=true
+          fi
+
+          if [[ "$tag_exists" == true ]]; then
+            # Rebuild the tagged commit, not whatever main has grown since.
+            build_ref="$(git rev-parse "refs/tags/$tag")"
+          else
+            build_ref="$GITHUB_SHA"
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "tag_exists=$tag_exists"
+            echo "release_exists=$release_exists"
+            echo "publish=$publish"
+            echo "skip=$skip"
+            echo "build_ref=$build_ref"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$skip" == true ]]; then
+            {
+              echo "### Skipped: $tag is already released"
+              echo
+              printf 'main is at `%s` and `%s` already has a GitHub Release, so this push had nothing to publish.\n' "$version" "$tag"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "### Releasing $tag"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            printf '| Version | `%s` |\n' "$version"
+            printf '| Building | `%s` |\n' "$build_ref"
+            printf '| Tag already exists | `%s` |\n' "$tag_exists"
+            printf '| Release already exists | `%s` |\n' "$release_exists"
+            printf '| Publish | `%s` |\n' "$publish"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Export the release facts
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          {
+            echo "VERSION=${{ steps.decide.outputs.version }}"
+            echo "TAG=${{ steps.decide.outputs.tag }}"
+            echo "BUILD_REF=${{ steps.decide.outputs.build_ref }}"
+          } >> "$GITHUB_ENV"
 
       - uses: actions/setup-go@v7
+        if: steps.decide.outputs.skip != 'true'
         with:
           go-version-file: go.mod
           cache: true
 
       # MyGo is not vendored; install the version the build uses, as CI does.
       - name: Install the MyGo CLI
+        if: steps.decide.outputs.skip != 'true'
         run: |
           go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           "$(go env GOPATH)/bin/mygo" version
 
-      - name: Resolve the version
-        env:
-          INPUT_VERSION: ${{ inputs.version }}
+      # The tagged commit is rebuilt for repairs, so the version is checked
+      # against what that commit claims, not against what main has now.
+      - name: Check out the commit being released
+        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#v}"
-          else
-            version="${INPUT_VERSION#v}"
-            [[ -n "$version" ]] || version="$(jq -r .version mygo.json)"
-          fi
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::$version is not a MAJOR.MINOR.PATCH version (CFBundleShortVersionString holds three numbers)"
-            exit 1
-          fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-          echo "TAG=v$version" >> "$GITHUB_ENV"
-          echo "Releasing orbit $version from $GITHUB_REF"
-
-      - name: Stamp the version into mygo.json
-        run: scripts/set-version.sh "$VERSION"
+          git checkout -q "$BUILD_REF"
+          got="$(jq -r .version mygo.json)"
+          [[ "$got" == "$VERSION" ]] || { echo "::error::the commit being built says $got, not $VERSION"; exit 1; }
 
       - name: Vet and test
+        if: steps.decide.outputs.skip != 'true'
         run: make check
 
       # The 体检 panel shows the commit, so a bug report names the code.
       - name: Stamp the commit into the build
+        if: steps.decide.outputs.skip != 'true'
         run: |
           echo "MYGO_LDFLAGS=-X github.com/mymoles/mole-studio/internal/scanner.BuildCommit=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_ENV"
 
@@ -100,9 +189,11 @@ jobs:
       # in mygo.json and import the certificate into the runner's keychain
       # before this step.
       - name: Build the app and the disk image
+        if: steps.decide.outputs.skip != 'true'
         run: mygo build --platform darwin/universal
 
       - name: Verify the artifacts
+        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           app="$PLATFORM_DIR/$BUNDLE"
@@ -120,7 +211,7 @@ jobs:
             [[ " $archs " == *" $arch "* ]] || { echo "::error::$binary has no $arch slice"; exit 1; }
           done
 
-          # The tag is the version the bundle and the app report.
+          # The version is the one main declared, stamped into the bundle by mygo.
           for key in CFBundleShortVersionString CFBundleVersion; do
             got="$(plutil -extract "$key" raw "$plist")"
             [[ "$got" == "$VERSION" ]] || { echo "::error::$key is '$got', want '$VERSION'"; exit 1; }
@@ -157,6 +248,7 @@ jobs:
           trap - EXIT
 
       - name: Collect the release assets
+        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           dmg=("$PLATFORM_DIR"/*.dmg)
@@ -166,10 +258,13 @@ jobs:
           ( cd "$RUNNER_TEMP/release" && shasum -a 256 "$asset" > "$asset.sha256" )
 
       - name: Write the run summary
+        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           {
             echo "## orbit $TAG"
+            echo
+            printf 'Built `%s` from main.\n' "$(git rev-parse --short=7 HEAD)"
             echo
             echo "| Asset | SHA-256 |"
             echo "| --- | --- |"
@@ -180,23 +275,32 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Keep the artifacts on the run
+        if: steps.decide.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: MoleStudio-${{ env.VERSION }}
           path: ${{ runner.temp }}/release/*
           if-no-files-found: error
           retention-days: 14
-          # Re-running the job for the same tag replaces the previous upload
+          # Re-running the job for the same version replaces the previous upload
           # instead of failing because the artifact name is taken.
           overwrite: true
+
+      # The tag is the receipt for a build that passed, not an input: it is
+      # created here, after verification, and only then does the release exist.
+      - name: Tag the verified commit
+        if: steps.decide.outputs.skip != 'true' && steps.decide.outputs.publish == 'true' && steps.decide.outputs.tag_exists == 'false'
+        run: |
+          set -euo pipefail
+          git tag "$TAG" "$BUILD_REF"
+          git push origin "refs/tags/$TAG"
 
       # gh is on every runner and authenticates with GITHUB_TOKEN, so no
       # third-party action gets to see the token.
       - name: Publish the release
-        if: github.event_name == 'push' || inputs.publish
+        if: steps.decide.outputs.skip != 'true' && steps.decide.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          DRAFT: ${{ inputs.draft }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -204,20 +308,10 @@ jobs:
           (( ${#assets[@]} )) || { echo "::error::no assets to publish"; exit 1; }
 
           if gh release view "$TAG" > /dev/null 2>&1; then
-            # A re-run of the tag, or a hand-started release that already
-            # exists: replace the assets instead of failing.
+            # Re-running a release (or repairing one whose assets were lost):
+            # replace the assets instead of failing.
             gh release upload "$TAG" "${assets[@]}" --clobber
-            if [[ "$DRAFT" != "true" ]]; then
-              gh release edit "$TAG" --draft=false --latest
-            fi
+            gh release edit "$TAG" --draft=false --latest
           else
-            args=(--title "orbit $TAG" --generate-notes)
-            if [[ "$DRAFT" == "true" ]]; then
-              args+=(--draft)
-            fi
-            if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
-              # A hand-started run has no tag yet: release the commit it built.
-              args+=(--target "$GITHUB_SHA")
-            fi
-            gh release create "$TAG" "${assets[@]}" "${args[@]}"
+            gh release create "$TAG" "${assets[@]}" --title "orbit $TAG" --generate-notes
           fi

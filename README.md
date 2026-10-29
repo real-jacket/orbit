@@ -128,20 +128,25 @@ export PATH="/tmp/gopath/bin:$PATH"   # where `go install` put the mygo CLI
 
 ## Releases
 
-Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml) from a tag.
-Nothing is published or committed by hand:
+Releases are cut from **main**, by [`.github/workflows/release.yml`](.github/workflows/release.yml).
+Merging a version bump is the release gesture — nothing is tagged, built or published by hand:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+make set-version VERSION=0.2.0   # in the pull request that ships the change
 ```
 
-The tag **is** the version. The workflow writes it into `mygo.json` before `mygo build`, so the tag,
-`CFBundleShortVersionString`, the `.dmg` name, the app's own build stamp and the release page all
-carry the same number. Tags are `vMAJOR.MINOR.PATCH` and nothing else: macOS stores that string
-verbatim, so a `-rc.1` suffix would ship a bundle that misreports itself, and the workflow refuses
-it. Each release is one universal `.dmg` — Apple silicon and Intel in a single download — with the
-bundle inside:
+Every push to main asks one question: has the version in `mygo.json` been released yet? If not, the
+workflow builds that commit, verifies it, creates the tag `v<version>`, and publishes the GitHub
+Release; if it has, the push is a no-op. The tag is therefore a *receipt* for a build that passed,
+never an input: pushing a tag by hand does nothing, which is what keeps a release from coming out of
+an unmerged branch. Versions only move forward — reverting `mygo.json` on main fails the run instead
+of downgrading a published release.
+
+The version in `mygo.json` is what `CFBundleShortVersionString`, the `.dmg` name, the app's own build
+stamp and the release page carry. It is `MAJOR.MINOR.PATCH` and nothing else: macOS stores that
+string verbatim, so a `-rc.1` suffix would ship a bundle that misreports itself, and the workflow
+refuses it. Each release is one universal `.dmg` — Apple silicon and Intel in a single download —
+with the bundle inside:
 
 - `MoleStudio-<version>-universal.dmg` — drag `MoleStudio.app` to `/Applications`
 - `MoleStudio-<version>-universal.dmg.sha256` — `shasum -a 256 -c` it
@@ -152,10 +157,11 @@ and ad-hoc `codesign --verify`, and it mounts the `.dmg` to confirm the app and 
 symlink are there. The run page carries the SHA-256 in its summary, and the staged assets stay
 attached to the run as an artifact for 14 days.
 
-To cut a release without tagging — a dry run, or a release from a branch — run the workflow by hand
-(Actions → Release → Run workflow). `version` defaults to `mygo.json`; turn `publish` off to build
-and keep the artifacts without creating a release, and `draft` to open it as a draft. Re-running a
-tag replaces the assets on the existing release instead of failing.
+To rebuild the current main version by hand — a dry run, or a repair for a release whose assets are
+missing — run the workflow (Actions → Release → Run workflow) **from main**. It rebuilds the tagged
+commit, so a repair never picks up code merged later; `publish` can be turned off to build and keep
+the artifacts without touching the release. Re-running replaces the existing release's assets instead
+of failing.
 
 **Version bumps.** `mygo.json` is the only place the version is written down: `app.go` reads it back
 from the bundle at runtime (`mygo.App.Version()`) rather than hard-coding it, and the scanner's build
