@@ -135,12 +135,13 @@ Merging a version bump is the release gesture — nothing is tagged, built or pu
 make set-version VERSION=0.2.0   # in the pull request that ships the change
 ```
 
-Every push to main asks one question: has the version in `mygo.json` been released yet? If not, the
-workflow builds that commit, verifies it, creates the tag `v<version>`, and publishes the GitHub
-Release; if it has, the push is a no-op. The tag is therefore a *receipt* for a build that passed,
-never an input: pushing a tag by hand does nothing, which is what keeps a release from coming out of
-an unmerged branch. Versions only move forward — reverting `mygo.json` on main fails the run instead
-of downgrading a published release.
+A push to main that changes `mygo.json` asks one question: has that version been released yet? If
+not, the workflow builds that commit, verifies it, creates the tag `v<version>`, and publishes the
+GitHub Release; if it has, the push is a no-op. The tag is therefore a *receipt* for a build that
+passed, never an input: pushing a tag by hand does nothing, which is what keeps a release from
+coming out of an unmerged branch. A failed build leaves no tag behind — fix the code, merge it, then
+run the workflow from main to retry. Versions only move forward — reverting `mygo.json` on main
+fails the run instead of downgrading a published release.
 
 The version in `mygo.json` is what `CFBundleShortVersionString`, the `.dmg` name, the app's own build
 stamp and the release page carry. It is `MAJOR.MINOR.PATCH` and nothing else: macOS stores that
@@ -157,10 +158,12 @@ and ad-hoc `codesign --verify`, and it mounts the `.dmg` to confirm the app and 
 symlink are there. The run page carries the SHA-256 in its summary, and the staged assets stay
 attached to the run as an artifact for 14 days.
 
-To rebuild the current main version by hand — a dry run, or a repair for a release whose assets are
-missing — run the workflow (Actions → Release → Run workflow) **from main**. It rebuilds the tagged
-commit, so a repair never picks up code merged later; `publish` can be turned off to build and keep
-the artifacts without touching the release. Re-running replaces the existing release's assets instead
+To rebuild the current main version by hand — a dry run, a retry after a failed build, or a repair
+for a release whose assets are missing — run the workflow (Actions → Release → Run workflow)
+**from main** (a hand-started run from any other branch fails on purpose). It rebuilds the tagged
+commit when a tag exists, so a repair never picks up code merged later, and the current main head
+when it does not, so a failed build can be retried. Turn `publish` off to build and keep the
+artifacts without touching the release. Re-running replaces the existing release's assets instead
 of failing.
 
 **Version bumps.** `mygo.json` is the only place the version is written down: `app.go` reads it back
