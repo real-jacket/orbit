@@ -27,7 +27,9 @@ type Host struct {
 	// MemUsedGB is what the machine reports as used: active + wired + compressed
 	// pages, capped at 96% of installed memory so a leaky accounting can never
 	// draw a bar past the end. MemAvailableGB is the memory a new process could
-	// claim before swapping: free + inactive + speculative pages.
+	// claim before swapping: free + inactive pages. The kernel's free_count
+	// already includes the speculative pages (vm_stats in osfmk/kern/host.c),
+	// so adding speculative_count again would count that cache twice.
 	//
 	// They are two different accounting views, not halves of one pie: they do
 	// not add up to MemTotalGB.
@@ -228,8 +230,9 @@ func HostSample() Host {
 		if stats, ok := readVMStatistics(); ok {
 			usedPages := float64(stats.activeCount) + float64(stats.wireCount) +
 				float64(stats.compressorPageCount)
-			availablePages := float64(stats.freeCount) + float64(stats.inactiveCount) +
-				float64(stats.speculativeCount)
+			// freeCount already counts the speculative pages, so inactive is the
+			// only counter left to add for the reclaimable total.
+			availablePages := float64(stats.freeCount) + float64(stats.inactiveCount)
 			host.MemUsedGB = math.Min(totalGB*0.96, usedPages*pageSize/gibibyte)
 			host.MemAvailableGB = availablePages * pageSize / gibibyte
 			host.MemReady = true
