@@ -126,6 +126,53 @@ export GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
 export PATH="/tmp/gopath/bin:$PATH"   # where `go install` put the mygo CLI
 ```
 
+## Releases
+
+Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml) from a tag.
+Nothing is published or committed by hand:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The tag **is** the version. The workflow writes it into `mygo.json` before `mygo build`, so the tag,
+`CFBundleShortVersionString`, the `.dmg` name, the app's own build stamp and the release page all
+carry the same number. Tags are `vMAJOR.MINOR.PATCH` and nothing else: macOS stores that string
+verbatim, so a `-rc.1` suffix would ship a bundle that misreports itself, and the workflow refuses
+it. Each release is one universal `.dmg` — Apple silicon and Intel in a single download — with the
+bundle inside:
+
+- `MoleStudio-<version>-universal.dmg` — drag `MoleStudio.app` to `/Applications`
+- `MoleStudio-<version>-universal.dmg.sha256` — `shasum -a 256 -c` it
+
+Before publishing, the workflow runs `make check` (the same gate CI enforces) and then checks what
+was actually built: both architectures via `lipo`, the bundle identifier, icon, embedded-page marker
+and ad-hoc `codesign --verify`, and it mounts the `.dmg` to confirm the app and the `/Applications`
+symlink are there. The run page carries the SHA-256 in its summary, and the staged assets stay
+attached to the run as an artifact for 14 days.
+
+To cut a release without tagging — a dry run, or a release from a branch — run the workflow by hand
+(Actions → Release → Run workflow). `version` defaults to `mygo.json`; turn `publish` off to build
+and keep the artifacts without creating a release, and `draft` to open it as a draft. Re-running a
+tag replaces the assets on the existing release instead of failing.
+
+**Version bumps.** `mygo.json` is the only place the version is written down: `app.go` reads it back
+from the bundle at runtime (`mygo.App.Version()`) rather than hard-coding it, and the scanner's build
+version falls back to `"dev"` only for plain `go run`. For a local `make app` build, stamp one:
+
+```bash
+make set-version VERSION=0.2.0
+```
+
+**Signing.** Bundles are ad-hoc signed (`macos.signingIdentity` is `-` in `mygo.json`) and not
+notarized, so Gatekeeper asks once before the first launch — right-click the app → **Open**, or
+`xattr -dr com.apple.quarantine /Applications/MoleStudio.app`. No repository secrets are needed for
+that. To ship notarized builds, replace `-` with a Developer ID identity, add
+`macos.notarize.keychainProfile` to `mygo.json`, import the certificate and profile into the runner's
+keychain before the build step, and drop the ad-hoc comments in `release.yml`; MyGo then signs,
+submits the `.dmg` with `notarytool` and staples the ticket.
+
 ## Architecture
 
 The app is a Go program that embeds MyGo, which in turn hosts the same single-file

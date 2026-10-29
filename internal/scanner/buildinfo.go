@@ -10,9 +10,11 @@ import (
 // binary built before the fix; without a visible build stamp there is no way to
 // tell a bug from a stale copy of the app. These three values are filled from
 // the executable itself at startup (see app.go), so the number the user reads in
-// the 体检 panel is the number of the code that actually ran.
+// the 体检 panel is the number of the code that actually ran. BuildVersion is
+// "dev" until app.go reads the bundle's Info.plist: a plain `go run` has no
+// bundle to read, and a packaged build always replaces this.
 var (
-	BuildVersion = "0.1.0"
+	BuildVersion = "dev"
 	BuildCommit  = "unknown"
 	BuildTime    = ""
 )
