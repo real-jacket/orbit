@@ -18,7 +18,7 @@ import (
 // The windows and the menu-bar item the bridge and the push helpers talk to.
 var (
 	mainWindow   *mygo.Window
-	flyoutWindow *mygo.Window
+	flyoutWindow atomic.Pointer[mygo.Window]
 	trayItem     *mygo.Tray
 )
 
@@ -167,7 +167,7 @@ func createTray() {
 // ?mode=menubar, which is how it knows to draw the compact layout instead of
 // the full window.
 func toggleFlyout() {
-	w := flyoutWindow
+	w := flyoutWindow.Load()
 	if w != nil && !w.IsDestroyed() {
 		if w.IsVisible() {
 			w.Hide()
@@ -189,8 +189,8 @@ func toggleFlyout() {
 // popover that the system closed may take its window with it, so a destroyed
 // panel is replaced rather than reused.
 func ensureFlyout() *mygo.Window {
-	if flyoutWindow != nil && !flyoutWindow.IsDestroyed() {
-		return flyoutWindow
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
+		return w
 	}
 	if trayItem == nil {
 		return nil
@@ -214,11 +214,9 @@ func ensureFlyout() *mygo.Window {
 		pushRealSystemScanNow()
 	})
 	panel.OnClosed(func() {
-		if flyoutWindow == panel {
-			flyoutWindow = nil
-		}
+		flyoutWindow.CompareAndSwap(panel, nil)
 	})
-	flyoutWindow = panel
+	flyoutWindow.Store(panel)
 	return panel
 }
 
@@ -245,7 +243,7 @@ func appVisible() bool {
 	if w := activeMainWindow(); w != nil && w.IsVisible() {
 		return true
 	}
-	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
 		return true
 	}
 	return false

@@ -37,8 +37,9 @@ BIN      := mole-studio
 OUT_DIR  := build
 MYGO     ?= mygo
 GO       ?= go
+NODE     ?= node
 
-.PHONY: all build run test vet dev app app-nodmg generate set-version doctor check clean help
+.PHONY: all build run test test-ui-webkit vet dev app app-nodmg generate set-version doctor check clean help
 
 all: build
 
@@ -58,6 +59,13 @@ run:
 ## Run the unit test suite.
 test:
 	$(GO) test ./... -count=1
+	$(NODE) scripts/test-ui.cjs
+
+## Render and verify isolated UI fixtures in macOS WebKit (requires the Xcode command-line tools).
+test-ui-webkit:
+	$(NODE) scripts/webkit-fixtures.cjs .review/webkit
+	xcrun swiftc scripts/test-webkit.swift -o .review/webkit/test-webkit
+	.review/webkit/test-webkit Resources/src-ui/index.html .review/webkit
 
 ## Run the Go static checker.
 vet:

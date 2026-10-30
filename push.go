@@ -49,7 +49,7 @@ func evaluate(script string) {
 	if w := activeMainWindow(); w != nil {
 		run(w.Page())
 	}
-	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
 		run(w.Page())
 	}
 }
@@ -139,7 +139,7 @@ func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
 	}
 	failed := make([]map[string]any, 0, len(outcome.Failed))
 	for _, entry := range outcome.Failed {
-		failed = append(failed, map[string]any{"path": entry.Path, "error": entry.Error})
+		failed = append(failed, map[string]any{"path": entry.Path, "error": entry.Error, "pane": entry.Pane})
 	}
 	payload := map[string]any{
 		"requestId":  requestID,
@@ -170,11 +170,11 @@ func pushRestoreResult(requestID string, outcome scanner.RestoreOutcome) {
 }
 
 // pushDoctorReport sends the 体检 rows the page renders.
-func pushDoctorReport(checks []map[string]any) {
+func pushDoctorReport(requestID string, checks []map[string]any) {
 	if checks == nil {
 		checks = []map[string]any{}
 	}
-	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport(" + jsonOf(map[string]any{"checks": checks}) + ") : undefined")
+	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport(" + jsonOf(map[string]any{"requestId": requestID, "checks": checks}) + ") : undefined")
 }
 
 // pushCaffeinateState tells both pages whether the display is being kept awake.

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -72,6 +73,34 @@ func TestTrashPathsMovesIntoTrashAndRecordsManifest(t *testing.T) {
 	}
 	if manifest := readTrashManifest(); len(manifest.Entries) != 0 {
 		t.Errorf("manifest still holds %+v after restoring", manifest.Entries)
+	}
+}
+
+func TestConcurrentTrashReceiptsAreNotLost(t *testing.T) {
+	s := newTestScanner(t)
+	const count = 20
+	start := make(chan struct{})
+	errors := make(chan error, count)
+	var workers sync.WaitGroup
+	for i := 0; i < count; i++ {
+		workers.Add(1)
+		go func(i int) {
+			defer workers.Done()
+			<-start
+			path := filepath.Join(s.home, itoa64(int64(i)))
+			errors <- recordTrash([]TrashEntry{{Original: path, Trashed: path + ".trash"}})
+		}(i)
+	}
+	close(start)
+	workers.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := len(readTrashManifest().Entries); got != count {
+		t.Fatalf("manifest has %d receipts, want %d", got, count)
 	}
 }
 

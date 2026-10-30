@@ -48,7 +48,9 @@ CI runs the same steps on `macos-latest`, using the Go version from `go.mod`.
 
 ## Tests
 
-`make test` runs the Go suite. The tests live next to the code they cover:
+`make test` runs the Go suite and the dependency-free frontend checks (Node.js 18+ required for development only).
+`node scripts/test-ui.cjs` checks inline JavaScript syntax, selection arithmetic, uninstall mode boundaries,
+the frozen confirmation path set and duplicate submission. The Go tests live next to the code they cover:
 
 - **`internal/model`** — the safety invariants. Asserts `protected` rows cannot be selected even by
   calling the toggle directly, and that dry-run defaults to on.
@@ -62,6 +64,12 @@ CI runs the same steps on `macos-latest`, using the Go version from `go.mod`.
   and the ring is cut where it passes behind the planet.
 
 If you change `Tier`, `Module`, or the layout math, extend the existing file rather than adding a new one.
+
+For layout or interaction changes, `make test-ui-webkit` loads the actual HTML in an isolated macOS
+WebKit view and checks all modules, both themes, the minimum window, search, dialogs and receipts.
+It uses clearly labelled fixture data, never invokes native cleanup, and saves screenshots and
+`webkit-report.json` under the ignored `.review/webkit/` directory. Animations are disabled only in
+the test view so screenshots capture the final state. This command needs the Xcode command-line tools.
 
 ## App icon
 

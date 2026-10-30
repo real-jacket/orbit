@@ -1,9 +1,16 @@
 package scanner
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/mymoles/mole-studio/internal/fsread"
 )
 
 // fileEntry is one entry of a directory listing.
@@ -12,9 +19,24 @@ type fileEntry struct {
 	isDir bool
 }
 
-// readDir lists a directory, and reports nothing for one it cannot read.
+var directoryReads = struct {
+	sync.Mutex
+	failed map[string]string
+}{failed: map[string]string{}}
+
 func readDir(dir string) []fileEntry {
-	entries, err := os.ReadDir(dir)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	entries, err := fsread.ReadDir(ctx, dir)
+	directoryReads.Lock()
+	delete(directoryReads.failed, dir)
+	if err != nil && !os.IsNotExist(err) {
+		directoryReads.failed[dir] = err.Error()
+		if errors.Is(err, context.DeadlineExceeded) {
+			directoryReads.failed[dir] = "目录读取超时，可能正在等待 macOS 授权；未计入本次扫描"
+		}
+	}
+	directoryReads.Unlock()
 	if err != nil {
 		return nil
 	}
@@ -23,6 +45,23 @@ func readDir(dir string) []fileEntry {
 		out = append(out, fileEntry{name: entry.Name(), isDir: entry.IsDir()})
 	}
 	return out
+}
+
+func scanReadWarnings(home string) []map[string]any {
+	directoryReads.Lock()
+	defer directoryReads.Unlock()
+	var paths []string
+	for path := range directoryReads.failed {
+		if path == home || strings.HasPrefix(path, home+string(os.PathSeparator)) {
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	warnings := make([]map[string]any, 0, len(paths))
+	for _, path := range paths {
+		warnings = append(warnings, map[string]any{"path": path, "reason": directoryReads.failed[path]})
+	}
+	return warnings
 }
 
 // walkFiles calls visit for every regular file under dir, up to maxFiles

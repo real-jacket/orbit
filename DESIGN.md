@@ -6,8 +6,8 @@ A quiet instrument panel, not a dashboard. The surface is warm charcoal, the typ
 terracotta accent carries every action. Nothing glows, nothing floats: separation comes from hairline borders and
 generous vertical rhythm, so the numbers read as measurements rather than decoration.
 
-Dials: **Variance 4 · Motion 3 · Density 7**. This is Operate mode (someone finishing a task), so scanability,
-consistency and truthful states outrank expression. Density is high, but expression is limited to typography,
+Dials: **Variance 5 / Motion 3 / Density 6**. This is Operate mode (someone finishing a task), so scanability,
+consistency and truthful states outrank expression. Density is moderate, but expression is limited to typography,
 one accent, and the honest presentation of data.
 
 ## 2. Colors — 调色板与用途
@@ -29,9 +29,9 @@ Brand and semantics (one accent, four signals):
 
 - **Terracotta** `#d97757` — the single accent: primary action, focus ring, active nav
 - **Ink on Terracotta** `#1a1613` — text placed on the accent (white on terracotta fails AA at 11.5px)
-- **Recoverable Green** `#34a277` — safe to clean, healthy values
-- **Review Amber** `#d99b26` — needs confirmation, partial scans
-- **Refusal Rose** `#e05263` — failures, destructive confirmation
+- **Recoverable Green** `#58b78f` — safe to clean, healthy values
+- **Review Amber** `#e7b35c` — needs confirmation, partial scans
+- **Refusal Rose** `#ee8290` — failures, destructive confirmation
 - **Data Blue** `#5b8def` — measured throughput / utilisation only
 
 Banned in this product: purple accents (protection is communicated with a lock glyph and muted text, not a colour),
@@ -39,9 +39,9 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 
 ## 3. Typography — 排版规则
 
-- **Display / page headline** — SF Pro (system), 18px / 1.25, 700, tracking `-0.02em`. One line; never wraps to three.
+- **Display / page headline** — SF Pro (system), 20px / 1.35, 700, tracking `-0.02em`. One line; never wraps to three.
 - **Section title** — 12.5px / 1.3, 700. Sits in the panel header, sentence case, no tracking tricks.
-- **Row title** — 12.5px / 1.35, 600. Truncates with an ellipsis; the full value lives in the tooltip.
+- **Row title** — 13px / 1.35, 600. Truncates with an ellipsis; the full value lives in the tooltip.
 - **Body** — 12px / 1.5, 400, max 72ch (this is app copy, not an article).
 - **Meta / unit labels** — 10.5px / 1.4, 500, `--text-muted`; never smaller than 10px.
 - **Numbers** — SF Mono with `font-variant-numeric: tabular-nums`, always. Percentages, sizes and counts must not
@@ -51,15 +51,15 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 
 ## 4. Components — 组件规范
 
-- **Buttons** — 28px tall, 12px horizontal padding, radius 8, 11.5px/600. Primary: terracotta fill with **ink** text.
+- **Buttons** — 32px tall, 12px horizontal padding, radius 8, 11.5px/600. Primary: terracotta fill with **ink** text.
   Secondary: raised ink with a hairline border. Ghost: text only, appears on hover of its row. Every button shows
   hover, active (`translateY(0.5px)`), disabled (45% opacity, no pointer), and a 2px accent focus ring.
 - **Panels** — Panel Ink fill, 1px Whisper Line, radius 12, **no shadow**. Elevation is declared once: borders for
   surfaces, shadow only for things that float (modal, tray, tooltip).
-- **Rows** — 10px / 16px padding, hairline divider, hover tint, selected = accent tint plus a 1px inset accent ring.
+- **Rows** — 12px / 16px padding, hairline divider, hover tint, selected = accent tint plus a 1px inset accent ring.
   No coloured side bars.
-- **Summary header** — 40px flat tinted icon tile (no gloss, no inner highlight), 18px headline, one 11.5px
-  description line, one right-aligned stat with a 4px track. No chip rows, no repeated labels.
+- **Summary header** — 40px flat tinted icon tile (no gloss, no inner highlight), 20px headline, one 12px
+  description, one right-aligned 26px stat without a decorative track. No chip rows, no repeated labels.
 - **Inputs** — Label above, control below, helper text below that, 8px gap. Sunken Ink fill, hairline border,
   accent focus ring.
 - **Loaders** — Skeleton rows that match the final row geometry (same heights, same paddings). No spinners.
@@ -75,7 +75,7 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 - Sidebar 236px, window content padding 14px 18px 18px, section gap 14px.
 - A panel's header, body and footer share the same left/right inset (16px) so text columns line up across panels.
 - Two panes that sit side by side share one height; long lists scroll inside their own card, never push the layout.
-- Below 960px the master-detail collapses to a single column and the sidebar narrows to 188px. No horizontal scroll.
+- Below 1100px the master-detail collapses to a single column and below 960px the sidebar narrows to 188px. No horizontal scroll.
 - Nothing overlaps: no absolutely positioned labels over content except badges inside a tile's own padding box.
 
 ## 6. Motion & Interaction
@@ -100,3 +100,12 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 - No purple, no neon, no gradient text, no `#000`, no `#fff` fills.
 - No dual "start scan" buttons (one intent, one label, in one place).
 - No marketing verbs (提升 / 畅享 / 一键智能) and no hero copy longer than two lines.
+
+## 8. Interaction Acceptance
+
+- Selection is separate from inspection: selecting a row does not authorize deleting it.
+- Confirmation lists exact paths and freezes the submitted set; background scans cannot expand it.
+- Empty scans, absent data and failed scans are different states. A whitelist is not proof of why a list is empty.
+- Native maintenance needs a correlated command receipt; stale diagnostics cannot animate into a new result.
+- Light-mode action ink is `#fcfaf7` on `#a74426`; dark-mode action ink stays `#1a1613`.
+- Search is contextual; unsupported modules disable it explicitly.
