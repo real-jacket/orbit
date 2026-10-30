@@ -29,7 +29,8 @@ type FullScanPayload struct {
 	Whitelist []string `json:"whitelist"`
 	// WhitelistWarnings are the entries mole refused to load, so the page can
 	// say why a line it shows is not protecting anything.
-	WhitelistWarnings []string `json:"whitelistWarnings"`
+	WhitelistWarnings []string         `json:"whitelistWarnings"`
+	ReadWarnings      []map[string]any `json:"readWarnings"`
 }
 
 // BuildFullScanPayload measures the whole machine for the frontend's scan
@@ -52,6 +53,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 		HomePath:          s.home,
 		Whitelist:         s.UserWhitelistPaths(),
 		WhitelistWarnings: s.refreshWhitelist().Warnings,
+		ReadWarnings:      scanReadWarnings(s.home),
 	}
 }
 

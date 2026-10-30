@@ -11,6 +11,7 @@ package main
 // page needs no changes at all.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -107,7 +108,14 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 	case "requestRealTelemetry":
 		pushRealTelemetryNow()
 	case "executeOptimize":
-		go func() { _ = exec.Command("/usr/bin/qlmanage", "-r", "cache").Run() }()
+		requestID := stringOf(payload["requestId"])
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			output, err := exec.CommandContext(ctx, "/usr/bin/qlmanage", "-r", "cache").CombinedOutput()
+			result := optimizeOutcome(requestID, output, err)
+			evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(result) + ") : undefined")
+		}()
 	case "toggleCaffeinate":
 		setCaffeinate(boolOf(payload["active"]))
 	case "menubarOpenClean":
@@ -131,12 +139,25 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		// only went up and seven hardcoded "通过" rows. The checks are now read
 		// from the machine, and a check that cannot be decided is reported as
 		// unknown rather than as a pass.
-		go func() { pushDoctorReport(scanner.Shared.DoctorChecks()) }()
+		requestID := stringOf(payload["requestId"])
+		go func() { pushDoctorReport(requestID, scanner.Shared.DoctorChecks()) }()
 	default:
 		// setFanMode still arrives here. There is no fan-control API to call, so
 		// the page no longer pretends it did something.
 	}
 	return nil
+}
+
+func optimizeOutcome(requestID string, output []byte, err error) map[string]any {
+	result := map[string]any{"requestId": requestID, "ok": err == nil}
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if len(message) > 500 {
+			message = message[:500]
+		}
+		result["error"] = fmt.Sprintf("%v: %s", err, message)
+	}
+	return result
 }
 
 // privacyPaneURLs are the System Settings deep links for the three permissions
@@ -270,7 +291,7 @@ func setCaffeinate(active bool) {
 // first, and optionally runs a script in the page. It is the Go form of the
 // Swift app's showMainWindow.
 func showMainWindow(script string) {
-	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
 		w.Hide()
 	}
 	w := activeMainWindow()

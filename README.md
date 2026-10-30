@@ -35,14 +35,14 @@ so you always run the upstream version you installed.
 
 | Module | Backed by | What it does |
 | --- | --- | --- |
-| **Deep Clean** · Earth | `mo clean` | Caches, logs, browser render caches, Xcode `DerivedData`, package-manager caches |
-| **AI Care** · Moon | `mo clean --ai-care` | Stale AI CLI binaries, render caches, expired agent worktrees, SQLite compaction |
-| **Uninstaller** · Mars | `mo uninstall` | Removes app bundles plus their leftover support files, with "keep personal data" |
-| **Optimize** · Mercury | `mo optimize` | Refreshes caches, rebuilds QuickLook/icon caches, vacuums system SQLite databases |
-| **Astrolabe** · disk analyzer | `internal/analyze` (in-process scan) | Treemap of the home tree; one walk, then drill-down is a memory lookup |
-| **Live Status** · Sun | `mo status` | Process table with CPU, memory and power draw |
-| **Purge** | `mo purge`, `mo installer` | Removes rebuildable project artifacts and stale installer packages |
-| **History & Whitelist** | `mo history`, `mo clean --whitelist` | Cleanup audit log and protected-path management |
+| **Deep Clean** | `internal/scanner` + native Trash | Measures caches and logs; previews selected paths before moving them |
+| **AI Care** | AI catalog + native Trash | Reviews AI tool packages, runtime caches and worktree directories; no age-based filtering |
+| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data |
+| **Optimize** | `qlmanage -r cache` | Resets Quick Look thumbnails, with a correlated success/failure receipt |
+| **Astrolabe** | `internal/analyze` | Allocated/logical size treemap; in-process scan and memory drill-down |
+| **Live Status** | Kernel + `ps` + hardware sensors | CPU, memory, network and supported sensor data; search processes by name/path/PID |
+| **Purge** | Build/installer scanner + native Trash | Reviews rebuildable artifacts and installer packages |
+| **History & Whitelist** | Native manifests + mole whitelist | Cleanup receipts, path restoration and protected-path management |
 
 Beyond the module list:
 
@@ -51,7 +51,7 @@ Beyond the module list:
 - **Proportional volume bars** — every row carries an inline bar relative to total scan size.
 - **Pre-execution diff** — deletions are previewed as a structured sheet (paths, safety tier, Trash
   recovery checkpoint) before anything runs.
-- **Dry-run by default** — `dryRunMode` defaults to `true`.
+- **Preview before removal** — the confirmation shows the exact paths and freezes the submitted selection.
 - **Menu bar presence** — an orbit-mark status item whose popover is the same tray UI (clean, health check, caffeinate, quit).
 - **Live local scan** — installed apps, leftover Library paths, and large files are sampled on the Mac and pushed into the UI over the JS bridge.
 - **Three uninstall modes** — Standard, Complete, and Cache-only, with per-path selection before anything moves to the Trash.
@@ -85,6 +85,7 @@ cd orbit
 make             # go build -v -o mole-studio .
 make run         # build and launch straight from the checkout (no mygo CLI needed)
 make test        # unit test suite
+make test-ui-webkit # isolated WebKit rendering + interaction checks
 make vet         # go vet
 make check       # vet + test, the same gate CI runs
 make dev         # MyGo dev server with live reload (needs the `mygo` CLI)
@@ -276,7 +277,7 @@ Three details worth knowing if you edit the renderer:
 This is an early-stage client, and the Go port is mid-flight. Being explicit about what is and is not
 wired up:
 
-- **The UI in `Resources/src-ui/index.html` is the shipping UI**, carried over unchanged. In a
+- **The UI in `Resources/src-ui/index.html` is the shipping UI**, maintained as one dependency-free HTML file. In a
   `mygo build` bundle MyGo embeds it; `make run` and `mygo dev` serve it from disk.
 - **The samplers are real and tested.** `internal/scanner` walks the disk for apps, leftovers, large
   files, installers and clean catalogs; `internal/power` reads thermal state, memory pressure and
@@ -284,22 +285,26 @@ wired up:
   the kernel and `internal/smc` reads temperatures and fan speeds; `internal/analyze` walks the disk
   itself — `mo analyze --json` is only the fallback when a walk fails.
   `go test ./...` covers the numeric and payload-shape behaviour of all three.
-- **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles all 16 branches the Swift
-  switch handled: Finder reveal, clipboard, process killing (SIGTERM then SIGKILL), moving paths to the
-  Trash, `qlmanage -r cache` for Optimize, `caffeinate -d -i -t 7200` for Keep Awake, theme persistence,
-  window zoom and drag, and the menu-bar commands that eval a script into the page. Four actions the page
-  can post — `addWhitelist`, `restoreTrashSnapshot`, `runDoctorReCheck`, `setFanMode` — fall through to
-  `default` exactly as they did in Swift, because the page keeps that state itself.
+- **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles Finder reveal, clipboard,
+  process termination, native Trash/restore, whitelist updates, diagnostics, Quick Look maintenance,
+  caffeinate, theme persistence and window/menu-bar actions. Trash, restore, diagnosis and maintenance
+  use native receipts. Fan control remains unsupported.
 - **CI builds the Go app.** `.github/workflows/ci.yml` runs `go vet` / `go test` / `go build`, installs the
   pinned `mygo` CLI, packages with `mygo build --skip-dmg`, and then asserts the bundle is real — the
   Mach-O executable, a valid `Info.plist`, `Contents/Resources/AppIcon.icns` that unpacks with
   `iconutil`, and the embedded frontend marker in the binary. A second job gates `gofmt`, `go vet`, and a
   clean `mygo generate` (so `mygo.ts` can never be stale in a PR).
-- **Some CLI flags shown in the UI are aspirational.** `mo clean --ai-care`, `--retention` and
-  `--band` do not exist in `mo` 1.56.1. Treat those strings as design intent for the AI Care module,
-  not as working commands.
-- **CPU load, memory, disk free space, installed apps, leftovers, installers, and build artifacts are sampled on this Mac.**
-  Temperature shown next to CPU is still estimated from load.
+- **AI cleanup does not depend on aspirational CLI flags.** It scans the local AI catalog and submits
+  selected paths through the native Trash bridge. The unsupported 15/30/90-day retention selector is removed.
+- **Missing sensors remain missing.** CPU temperature comes from SMC when available, not from CPU load.
+- **Frontend regressions run in CI.** `node scripts/test-ui.cjs` checks selected paths, immutable confirmation,
+  mode boundaries, request receipts and primary-button contrast in both themes. Node is development-only;
+  the shipped UI still has no third-party runtime.
+- **Rendered UI checks are repeatable.** `make test-ui-webkit` verifies the actual page in an isolated
+  macOS WebKit view across both themes and minimum-window layouts; screenshots and source-hashed reports
+  stay under `.review/webkit/`. See [`docs/optimization-validation.md`](docs/optimization-validation.md).
+- **Restricted reads are visible.** Directory reads waiting for macOS authorization are bounded and
+  coalesced, with their paths reported as not counted, rather than as zero-byte empty directories.
 
 ## Safety model
 

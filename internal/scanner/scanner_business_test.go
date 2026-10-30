@@ -20,6 +20,35 @@ func fixtureHome(t *testing.T) string {
 	return home
 }
 
+func TestAppSubpathsExposeUnroundedMeasuredSize(t *testing.T) {
+	home := fixtureHome(t)
+	cache := fixtureDir(t, home, "Library/Caches/Example", 1234)
+	s := &Scanner{home: home}
+	info, err := os.Stat(filepath.Join(cache, "payload.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBytes := allocatedSize(info)
+	var paths []map[string]any
+	if got := s.appendExisting([]string{cache}, "cache", true, &paths); got != wantBytes {
+		t.Fatalf("bytes = %d", got)
+	}
+	if len(paths) != 1 || paths[0]["sizeGb"] != plainGB(wantBytes) {
+		t.Fatalf("subpaths = %v", paths)
+	}
+}
+
+func TestAIPackagesAndExtensionsRequireExplicitSelection(t *testing.T) {
+	home := fixtureHome(t)
+	fixtureDir(t, home, ".local/share/claude/versions/current", 4096)
+	s := &Scanner{home: home}
+	rows := rowsByID(s.scanAICaches())
+	row := rows["ai_versions"]
+	if row == nil || row["tier"] != "review" || row["checked"] != false {
+		t.Fatalf("package directory can contain the current installation: %v", row)
+	}
+}
+
 // writeWhitelist writes the user whitelist fixture, one entry per line.
 func writeWhitelist(t *testing.T, home string, lines ...string) {
 	t.Helper()

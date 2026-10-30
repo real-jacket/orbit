@@ -60,6 +60,7 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 				"path":    s.relativize(candidate.path),
 				"kind":    candidate.kind,
 				"size":    formatBytes(size.bytes),
+				"sizeGb":  plainGB(size.bytes),
 				"checked": !stillInstalled,
 			})
 		}
@@ -254,6 +255,7 @@ func (s *Scanner) scanUnclaimedContainers(
 					"path":    s.relativize(fullPath),
 					"kind":    target.kind,
 					"size":    formatBytes(size.bytes),
+					"sizeGb":  plainGB(size.bytes),
 					"checked": false,
 				}},
 			})

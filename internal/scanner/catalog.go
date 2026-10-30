@@ -319,10 +319,10 @@ func aiCacheSpecs() []struct {
 			spec: CatalogSpec{
 				ID:       "ai_versions",
 				Category: "可重建程序包",
-				Name:     "Claude / Cursor 旧版本与扩展缓存",
+				Name:     "Claude / Cursor 程序包与扩展目录",
 				Roots:    []string{"~/.local/share/claude/versions", "~/.cursor/extensions"},
-				Tier:     "safe",
-				Impact:   "旧版本程序包和扩展缓存可以重新下载。",
+				Tier:     "review",
+				Impact:   "这里可能包含当前程序版本或已安装扩展，移除后需要重新安装。请先退出相关工具，确认所选路径不再使用。",
 			},
 			band: "可重建程序包",
 		},

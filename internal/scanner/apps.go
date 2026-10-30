@@ -27,6 +27,7 @@ func (s *Scanner) appendExisting(candidates []string, kind string, checked bool,
 		*into = append(*into, map[string]any{
 			"path":    s.relativize(candidate),
 			"size":    formatBytes(size.bytes),
+			"sizeGb":  plainGB(size.bytes),
 			"kind":    kind,
 			"checked": checked,
 		})
@@ -80,6 +81,7 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 			subpaths := []map[string]any{{
 				"path":    fullPath,
 				"size":    formatBytes(appBytes),
+				"sizeGb":  plainGB(appBytes),
 				"kind":    "app",
 				"checked": true,
 			}}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -22,6 +23,9 @@ const trashManifestVersion = 1
 // trashManifestLimit keeps the manifest bounded; older receipts stop being
 // restorable rather than growing the file forever.
 const trashManifestLimit = 1000
+
+// The main window, tray, and late file moves can all record receipts at once.
+var trashManifestMu sync.Mutex
 
 // TrashEntry records one trashed item: where it came from and where it is now.
 type TrashEntry struct {
@@ -125,6 +129,8 @@ func writeTrashManifest(manifest trashManifest) error {
 
 // recordTrash adds entries to the manifest, newest first.
 func recordTrash(entries []TrashEntry) error {
+	trashManifestMu.Lock()
+	defer trashManifestMu.Unlock()
 	manifest := readTrashManifest()
 	manifest.Entries = append(entries, manifest.Entries...)
 	return writeTrashManifest(manifest)
@@ -132,6 +138,8 @@ func recordTrash(entries []TrashEntry) error {
 
 // forgetTrash drops the receipts for originals that were restored.
 func forgetTrash(originals []string) error {
+	trashManifestMu.Lock()
+	defer trashManifestMu.Unlock()
 	restored := make(map[string]struct{}, len(originals))
 	for _, original := range originals {
 		restored[original] = struct{}{}
