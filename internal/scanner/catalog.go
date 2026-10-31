@@ -4,18 +4,20 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // CatalogSpec describes one row of the clean list: which directories make it
 // up, how safe it is to remove them, and what the user loses.
 type CatalogSpec struct {
-	ID       string
-	Category string
-	Name     string
-	Roots    []string
-	Tier     string
-	Impact   string
-	Rebuild  string
+	ID             string
+	Category       string
+	Name           string
+	Roots          []string
+	Tier           string
+	Impact         string
+	Rebuild        string
+	ExpandChildren bool
 }
 
 // The file budget of a catalog root, a single child of an expanded root, and an
@@ -73,8 +75,8 @@ func (c *catalogClaims) claimedBytesUnder(path string) int64 {
 
 // catalogChild is one directory an expanded root reports on its own.
 type catalogChild struct {
-	path  string
-	bytes int64
+	path string
+	size dirSize
 }
 
 // catalog measures the directories of spec that exist, and returns a clean list
@@ -91,7 +93,21 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 	checkedByTier := spec.Tier == "safe"
 	var subpaths []map[string]any
 	var total int64
+	var files int
+	var latest int64
+	partial := false
 	firstPath := ""
+	appendPath := func(path string, size dirSize) {
+		claims.add(path, size.bytes)
+		total += size.bytes
+		files += size.files
+		latest = max(latest, size.modified)
+		partial = partial || size.partial
+		subpaths = append(subpaths, map[string]any{
+			"path": s.relativize(path), "size": formatBytes(size.bytes), "sizeGb": plainGB(size.bytes),
+			"checked": checkedByTier && !size.partial, "partial": size.partial, "tier": spec.Tier, "isDir": size.directory,
+		})
+	}
 
 	for _, root := range spec.Roots {
 		path := s.expand(root)
@@ -102,25 +118,19 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 			continue
 		}
 		expandChildren, offered := s.scanMayOffer(path)
-		if !offered {
+		if !offered && spec.Tier != "protected" {
 			continue
 		}
+		expandChildren = spec.ExpandChildren || expandChildren
 		if descendants := excludedUnder(excluded, path); len(descendants) > 0 {
 			expandChildren = true
 		}
 		if expandChildren {
 			for _, child := range s.catalogChildren(path, claims, excluded) {
-				claims.add(child.path, child.bytes)
-				total += child.bytes
 				if firstPath == "" {
 					firstPath = s.relativize(path)
 				}
-				subpaths = append(subpaths, map[string]any{
-					"path":    s.relativize(child.path),
-					"size":    formatBytes(child.bytes),
-					"sizeGb":  plainGB(child.bytes),
-					"checked": checkedByTier,
-				})
+				appendPath(child.path, child.size)
 			}
 			continue
 		}
@@ -136,22 +146,19 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 			}
 			size.bytes -= claimed
 		}
-		claims.add(path, size.bytes)
-		total += size.bytes
 		if firstPath == "" {
 			firstPath = s.relativize(path)
 		}
-		subpaths = append(subpaths, map[string]any{
-			"path":    s.relativize(path),
-			"size":    formatBytes(size.bytes),
-			"sizeGb":  plainGB(size.bytes),
-			"checked": checkedByTier,
-		})
+		appendPath(path, size)
 	}
 	if len(subpaths) == 0 {
 		return nil
 	}
-	return map[string]any{
+	lastMod := "无法读取修改时间"
+	if latest > 0 {
+		lastMod = time.Unix(latest, 0).Local().Format("2006-01-02 15:04")
+	}
+	row := map[string]any{
 		"id":          spec.ID,
 		"category":    spec.Category,
 		"name":        spec.Name,
@@ -159,8 +166,10 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 		"sizeGb":      gb(total),
 		"origSizeGb":  gb(total),
 		"items":       len(subpaths),
-		"filesCount":  itoa64(int64(len(subpaths))) + " 个目录",
-		"lastMod":     "本机扫描",
+		"filesCount":  itoa64(int64(files)) + " 个文件 · " + itoa64(int64(len(subpaths))) + " 个路径",
+		"lastMod":     lastMod,
+		"partial":     partial,
+		"source":      "orbit 本地目录扫描",
 		"rebuildTime": spec.Rebuild,
 		"tier":        spec.Tier,
 		"checked":     checkedByTier,
@@ -168,6 +177,8 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 		"impact":      spec.Impact,
 		"subpaths":    subpaths,
 	}
+	s.applyCleanupProtection(row)
+	return row
 }
 
 // catalogChildren lists the direct children of an expanded root that may be
@@ -194,10 +205,10 @@ func (s *Scanner) catalogChildren(parent string, claims *catalogClaims, excluded
 		if size.bytes <= 0 {
 			continue
 		}
-		children = append(children, catalogChild{path: child, bytes: size.bytes})
+		children = append(children, catalogChild{path: child, size: size})
 	}
 	sort.SliceStable(children, func(i, j int) bool {
-		return children[i].bytes > children[j].bytes
+		return children[i].size.bytes > children[j].size.bytes
 	})
 	return children
 }
@@ -232,13 +243,14 @@ func (s *Scanner) specRoots(specs []CatalogSpec, exceptID string) []string {
 func cleanGroupSpecs() []CatalogSpec {
 	return []CatalogSpec{
 		{
-			ID:       "user_caches",
-			Category: "应用缓存与日志",
-			Name:     "用户缓存与诊断日志",
-			Roots:    []string{"~/Library/Caches", "~/Library/Logs"},
-			Tier:     "safe",
-			Impact:   "只统计本机实际存在的缓存和日志目录。",
-			Rebuild:  "应用下次启动时按需重建",
+			ID:             "user_caches",
+			Category:       "应用缓存与日志",
+			Name:           "用户缓存与诊断日志",
+			Roots:          []string{"~/Library/Caches", "~/Library/Logs"},
+			Tier:           "review",
+			ExpandChildren: true,
+			Impact:         "按缓存与日志的直接子路径审查；目录名称不能证明可删除，未知用途默认不选。核心资料和活跃缓存保持原状。",
+			Rebuild:        "重建行为依应用而定，未知用途不处理",
 		},
 		{
 			ID:       "browser_caches",
@@ -317,14 +329,15 @@ func aiCacheSpecs() []struct {
 	}{
 		{
 			spec: CatalogSpec{
-				ID:       "ai_versions",
-				Category: "可重建程序包",
-				Name:     "Claude / Cursor 旧版本与扩展缓存",
-				Roots:    []string{"~/.local/share/claude/versions", "~/.cursor/extensions"},
-				Tier:     "safe",
-				Impact:   "旧版本程序包和扩展缓存可以重新下载。",
+				ID:       "ai_extensions",
+				Category: "已安装扩展",
+				Name:     "Cursor 已安装扩展（仅检查）",
+				Roots:    []string{"~/.cursor/extensions"},
+				Tier:     "protected",
+				Impact:   "扩展目录可能正在使用，不以目录名或修改时间推断过期。请在 Cursor 扩展管理器中卸载。",
+				Rebuild:  "由工具自身管理，不在这里移除",
 			},
-			band: "可重建程序包",
+			band: "已安装扩展",
 		},
 		{
 			spec: CatalogSpec{
@@ -333,20 +346,22 @@ func aiCacheSpecs() []struct {
 				Name:     "Cursor / Claude 运行缓存与日志",
 				Roots:    []string{"~/Library/Caches/Cursor", "~/Library/Logs/Claude"},
 				Tier:     "safe",
-				Impact:   "运行缓存和日志不影响对话记录。",
+				Impact:   "只处理已知缓存和日志路径。相关工具运行中或进程状态未知时保留，不包括对话、配置或凭据。",
+				Rebuild:  "闲置时可处理；下次启动按需重建",
 			},
 			band: "运行缓存",
 		},
 		{
 			spec: CatalogSpec{
-				ID:       "ai_worktrees",
-				Category: "临时工作树",
-				Name:     "Codex 临时工作树与模型下载缓存",
-				Roots:    []string{"~/.codex/worktrees", "~/.cache/huggingface"},
-				Tier:     "review",
-				Impact:   "删除前确认没有未提交的工作树。",
+				ID:       "ai_models",
+				Category: "模型资源",
+				Name:     "Hugging Face / Ollama 模型（仅检查）",
+				Roots:    []string{"~/.cache/huggingface", "~/.ollama/models"},
+				Tier:     "protected",
+				Impact:   "模型缓存可被多个项目、修订和离线任务共享。需要模型管理工具确认引用关系，不整目录移除。",
+				Rebuild:  "离线模型与共享资源保持原状",
 			},
-			band: "临时工作树",
+			band: "模型资源",
 		},
 	}
 }
@@ -355,19 +370,16 @@ func aiCacheSpecs() []struct {
 // one item per band.
 func (s *Scanner) scanAICaches() []map[string]any {
 	claims := &catalogClaims{}
-	var items []map[string]any
+	items := s.scanAIVersions(claims)
 	for _, entry := range aiCacheSpecs() {
 		row := s.catalog(entry.spec, claims, nil)
 		if row == nil {
 			continue
 		}
 		row["band"] = entry.band
-		row["filesCount"] = itoa64(int64(intOf(row["items"]))) + " 个目录"
-		row["lastMod"] = "本机扫描"
-		row["rebuildTime"] = "可重新下载或重新生成"
 		items = append(items, row)
 	}
-	return items
+	return append(items, s.scanAIWorktrees(claims)...)
 }
 
 // catalogRoots lists the expanded roots of every catalog row that is still

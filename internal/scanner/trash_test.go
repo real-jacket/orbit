@@ -1,11 +1,14 @@
 package scanner
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // newTestScanner builds a scanner rooted at a temporary home, and points the
@@ -70,6 +73,85 @@ func TestTrashPathsMovesIntoTrashAndRecordsManifest(t *testing.T) {
 	}
 	if manifest := readTrashManifest(); len(manifest.Entries) != 0 {
 		t.Errorf("manifest still holds %+v after restoring", manifest.Entries)
+	}
+}
+
+func TestCleanupStopsWhenWhitelistCannotBeRead(t *testing.T) {
+	s := newTestScanner(t)
+	original := filepath.Join(s.home, "Library/Caches/Example/payload.bin")
+	writeFile(t, original, "keep this")
+	s.refreshWhitelist()
+	if err := os.MkdirAll(WhitelistPath(s.home), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outcome := s.TrashPaths([]string{original})
+	if len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 || !strings.Contains(outcome.Skipped[0].Reason, "白名单") || !exists(original) {
+		t.Fatalf("an unreadable whitelist must not revert to less restrictive defaults: %+v", outcome)
+	}
+}
+
+func TestCleanupProtectsCoreAIDataAndSymlinkAliases(t *testing.T) {
+	s := newTestScanner(t)
+	for _, relative := range []string{".ssh/key", ".codex/worktrees/a/project/source", ".claude/projects/session", ".cursor/extensions/installed/payload", ".cache/huggingface/hub/model"} {
+		original := filepath.Join(s.home, relative)
+		writeFile(t, original, "user data")
+		if outcome := s.TrashPaths([]string{original}); len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 || !exists(original) {
+			t.Fatalf("protected data %s was accepted: %+v", relative, outcome)
+		}
+	}
+	alias := filepath.Join(s.home, "alias")
+	if err := os.Symlink(filepath.Join(s.home, ".ssh"), alias); err != nil {
+		t.Fatal(err)
+	}
+	if outcome := s.TrashPaths([]string{filepath.Join(alias, "key")}); len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 {
+		t.Fatalf("an alias cannot bypass data protection: %+v", outcome)
+	}
+}
+
+func TestCleanupRechecksAnActiveCacheAfterInspection(t *testing.T) {
+	s := newTestScanner(t)
+	path := filepath.Join(s.home, "Library/Caches/Google")
+	writeFile(t, filepath.Join(path, "cache.bin"), "cache")
+	s.processProbe = func() (string, error) { return "launchd\n", nil }
+	if reason := s.CleanupReason(path); reason != "" {
+		t.Fatalf("idle cache unexpectedly refused: %s", reason)
+	}
+	s.processProbe = func() (string, error) { return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n", nil }
+	row := rowsByID(s.scanCleanGroups())["browser_caches"]
+	if row == nil || row["tier"] != "protected" || row["checked"] != false {
+		t.Fatalf("an active browser cache must stay visible but unselectable: %v", row)
+	}
+	outcome := s.TrashPaths([]string{path})
+	if len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 || !strings.Contains(outcome.Skipped[0].Reason, "正在运行") {
+		t.Fatalf("a process that started after inspection must block execution: %+v", outcome)
+	}
+}
+
+func TestConcurrentTrashReceiptsAreNotLost(t *testing.T) {
+	s := newTestScanner(t)
+	const count = 20
+	start := make(chan struct{})
+	errors := make(chan error, count)
+	var workers sync.WaitGroup
+	for i := 0; i < count; i++ {
+		workers.Add(1)
+		go func(i int) {
+			defer workers.Done()
+			<-start
+			path := filepath.Join(s.home, itoa64(int64(i)))
+			errors <- recordTrash([]TrashEntry{{Original: path, Trashed: path + ".trash"}})
+		}(i)
+	}
+	close(start)
+	workers.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := len(readTrashManifest().Entries); got != count {
+		t.Fatalf("manifest has %d receipts, want %d", got, count)
 	}
 }
 
@@ -324,6 +406,10 @@ func TestHumanizeTrashErrorPointsAtTheRightSettingsPane(t *testing.T) {
 		{"/Users/me/Documents/tax", "filesAndFolders", "文件与文件夹"},
 		{"/Users/me/Desktop/shot.png", "filesAndFolders", "文件与文件夹"},
 		{"/Users/me/Notes/todo.md", "fullDiskAccess", "权限不足"},
+		// Another app's data container: the switch that unblocks it is the App
+		// Data policy, and the pane that carries it is Full Disk Access.
+		{"/Users/me/Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram", "fullDiskAccess", "数据容器"},
+		{"/Users/me/Library/Containers/com.docker.docker", "fullDiskAccess", "数据容器"},
 	}
 	for _, c := range cases {
 		message, pane := humanizeTrashError(c.path, denied)
@@ -390,5 +476,83 @@ func TestNeedsFolderAccessCoversTheGuardedFolders(t *testing.T) {
 		if needsFolderAccess(path) {
 			t.Fatalf("%s should not need Files and Folders access", path)
 		}
+	}
+}
+
+// A rename that never returns is what an unanswerable TCC prompt looks like, so
+// the move is bounded. The bound must not break ordinary moves, and the audit log
+// must record what happened even when nobody is watching the app.
+func TestMoveWithWatchdogMovesAFilePromptly(t *testing.T) {
+	dir := t.TempDir()
+	trash := t.TempDir()
+	t.Setenv("MOLE_STUDIO_STATE_DIR", t.TempDir())
+	t.Setenv("MOLE_STUDIO_TRASH_DIR", trash)
+
+	file := filepath.Join(dir, "prompt.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	trashed, err, timedOut := moveWithWatchdog(file)
+	if timedOut {
+		t.Fatal("moving a small file must not hit the watchdog")
+	}
+	if err != nil {
+		t.Fatalf("move failed: %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > 3*time.Second {
+		t.Fatalf("move took %v, watchdog would fire on a slow disk", elapsed)
+	}
+	if !exists(trashed) {
+		t.Fatalf("trashed path %q does not exist", trashed)
+	}
+	if exists(file) {
+		t.Fatal("original still exists after the move")
+	}
+}
+
+func TestLogTrashOutcomeAppendsOneJSONLine(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("MOLE_STUDIO_STATE_DIR", state)
+
+	logTrashOutcome("trash", TrashOutcome{
+		Requested: 2,
+		Moved:     []TrashEntry{{Original: "/Users/me/a.txt", Trashed: "/Users/me/.Trash/a.txt", At: 1}},
+		Failed:    []TrashFailure{{Path: "/Users/me/b.app", Error: "拒绝", Pane: "appManagement"}},
+	})
+
+	raw, err := os.ReadFile(filepath.Join(state, "trash.log"))
+	if err != nil {
+		t.Fatalf("no audit log written: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("want one line, got %d: %q", len(lines), string(raw))
+	}
+	var record map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &record); err != nil {
+		t.Fatalf("log line is not JSON: %v", err)
+	}
+	if record["action"] != "trash" || record["requested"] != float64(2) || record["moved"] != float64(1) {
+		t.Fatalf("unexpected record: %v", record)
+	}
+}
+
+// A move out of the read-only system volume fails with EXDEV, which is not a
+// cross-volume problem the user can fix by hand — say what it really is.
+func TestHumanizeTrashErrorExplainsTheReadOnlySystemVolume(t *testing.T) {
+	crossDevice := &os.LinkError{Op: "rename", Old: "/System/x", New: "/Users/me/.Trash/x", Err: syscall.EXDEV}
+
+	message, pane := humanizeTrashError("/System/Library/CoreServices/SystemVersion.plist", crossDevice)
+	if pane != "" {
+		t.Fatalf("read-only system file needs no permission grant, got pane %q", pane)
+	}
+	if !strings.Contains(message, "系统卷") {
+		t.Fatalf("message %q does not mention the system volume", message)
+	}
+
+	message, _ = humanizeTrashError("/Volumes/USB/photo.jpg", crossDevice)
+	if !strings.Contains(message, "跨卷") {
+		t.Fatalf("a real cross-volume move should still say 跨卷, got %q", message)
 	}
 }

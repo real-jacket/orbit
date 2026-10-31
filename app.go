@@ -11,19 +11,40 @@ import (
 	"github.com/egoist/mygo"
 
 	"github.com/mymoles/mole-studio/internal/analyze"
+	"github.com/mymoles/mole-studio/internal/scanner"
 	"github.com/mymoles/mole-studio/internal/trayicon"
 )
 
 // The windows and the menu-bar item the bridge and the push helpers talk to.
 var (
 	mainWindow   *mygo.Window
-	flyoutWindow *mygo.Window
+	flyoutWindow atomic.Pointer[mygo.Window]
 	trayItem     *mygo.Tray
 )
 
 // appName is what the app calls itself in the menu bar, the About panel and the
 // window title. It is the name the Swift app used.
 const appName = "orbit"
+
+// fillBuildInfo stamps the running build into the scanner so the 体检 panel can
+// report it. The commit comes from the linker when a release build sets it;
+// otherwise the executable's mtime is the honest answer.
+func fillBuildInfo() {
+	scanner.BuildTime = scanner.DescribeExecutable()
+}
+
+// buildVersion is the version the running build reports. `mygo build` writes
+// mygo.json's version into the bundle's Info.plist and this reads it back, so
+// the number in the About panel and the 体检 row is the number of the code that
+// actually ran. A plain `go run` has no bundle to read, and says "dev" rather
+// than a version nobody bumped. The release workflow stamps mygo.json from the
+// tag before it builds (see .github/workflows/release.yml).
+func buildVersion() string {
+	if version := mygo.App.Version(); version != "" {
+		return version
+	}
+	return "dev"
+}
 
 // quitting is set while a quit is in progress. The window's close handler
 // normally hides the window instead of closing it, and without this flag that
@@ -35,7 +56,10 @@ func run() {
 	mygo.Bind(&NativeBridge{})
 
 	mygo.App.SetName(appName)
-	mygo.App.SetVersion("0.1.0")
+
+	version := buildVersion()
+	mygo.App.SetVersion(version)
+	scanner.BuildVersion = version
 
 	// Without a listener MyGo quits when the last window closes. The Swift
 	// app returned false from applicationShouldTerminateAfterLastWindowClosed
@@ -64,6 +88,7 @@ func run() {
 // buildUI creates the windows and the menu bar. It runs once, on the main
 // thread, right before the event loop starts.
 func buildUI() {
+	fillBuildInfo()
 	createTray()
 
 	// Main window. The Swift app used a full-size content view with a
@@ -142,7 +167,7 @@ func createTray() {
 // ?mode=menubar, which is how it knows to draw the compact layout instead of
 // the full window.
 func toggleFlyout() {
-	w := flyoutWindow
+	w := flyoutWindow.Load()
 	if w != nil && !w.IsDestroyed() {
 		if w.IsVisible() {
 			w.Hide()
@@ -164,8 +189,8 @@ func toggleFlyout() {
 // popover that the system closed may take its window with it, so a destroyed
 // panel is replaced rather than reused.
 func ensureFlyout() *mygo.Window {
-	if flyoutWindow != nil && !flyoutWindow.IsDestroyed() {
-		return flyoutWindow
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
+		return w
 	}
 	if trayItem == nil {
 		return nil
@@ -189,11 +214,9 @@ func ensureFlyout() *mygo.Window {
 		pushRealSystemScanNow()
 	})
 	panel.OnClosed(func() {
-		if flyoutWindow == panel {
-			flyoutWindow = nil
-		}
+		flyoutWindow.CompareAndSwap(panel, nil)
 	})
-	flyoutWindow = panel
+	flyoutWindow.Store(panel)
 	return panel
 }
 
@@ -220,7 +243,7 @@ func appVisible() bool {
 	if w := activeMainWindow(); w != nil && w.IsVisible() {
 		return true
 	}
-	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
 		return true
 	}
 	return false

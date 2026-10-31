@@ -11,7 +11,10 @@ package main
 // page needs no changes at all.
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -21,7 +24,6 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/mymoles/mole-studio/internal/analyze"
 	"github.com/mymoles/mole-studio/internal/scanner"
 )
 
@@ -31,6 +33,10 @@ type NativeBridge struct{}
 
 // Dispatch answers one message from the page.
 func (b *NativeBridge) Dispatch(payload map[string]any) error {
+	if os.Getenv("MOLE_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "DISPATCH action=%v paths=%v path=%v requestId=%v\n",
+			payload["action"], payload["paths"], payload["path"], payload["requestId"])
+	}
 	switch payload["action"] {
 	case "startWindowDrag":
 		// Nothing to do: the preload marks the window chrome with
@@ -95,13 +101,20 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 	case "requestRealSystemScan":
 		pushRealSystemScanNow()
 	case "requestDiskAnalyze":
-		pushDiskAnalyze(stringOf(payload["path"]))
+		pushDiskAnalyze(stringOf(payload["path"]), boolOf(payload["refresh"]), stringOf(payload["requestId"]))
 	case "cancelDiskAnalyze":
-		go analyze.Shared.Cancel()
+		go cancelDiskAnalyze(stringOf(payload["requestId"]))
 	case "requestRealTelemetry":
 		pushRealTelemetryNow()
 	case "executeOptimize":
-		go func() { _ = exec.Command("/usr/bin/qlmanage", "-r", "cache").Run() }()
+		requestID := stringOf(payload["requestId"])
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			output, err := exec.CommandContext(ctx, "/usr/bin/qlmanage", "-r", "cache").CombinedOutput()
+			result := optimizeOutcome(requestID, output, err)
+			evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(result) + ") : undefined")
+		}()
 	case "toggleCaffeinate":
 		setCaffeinate(boolOf(payload["active"]))
 	case "menubarOpenClean":
@@ -125,12 +138,25 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		// only went up and seven hardcoded "通过" rows. The checks are now read
 		// from the machine, and a check that cannot be decided is reported as
 		// unknown rather than as a pass.
-		go func() { pushDoctorReport(scanner.Shared.DoctorChecks()) }()
+		requestID := stringOf(payload["requestId"])
+		go func() { pushDoctorReport(requestID, scanner.Shared.DoctorChecks()) }()
 	default:
 		// setFanMode still arrives here. There is no fan-control API to call, so
 		// the page no longer pretends it did something.
 	}
 	return nil
+}
+
+func optimizeOutcome(requestID string, output []byte, err error) map[string]any {
+	result := map[string]any{"requestId": requestID, "ok": err == nil}
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if len(message) > 500 {
+			message = message[:500]
+		}
+		result["error"] = fmt.Sprintf("%v: %s", err, message)
+	}
+	return result
 }
 
 // privacyPaneURLs are the System Settings deep links for the three permissions
@@ -264,7 +290,7 @@ func setCaffeinate(active bool) {
 // first, and optionally runs a script in the page. It is the Go form of the
 // Swift app's showMainWindow.
 func showMainWindow(script string) {
-	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
 		w.Hide()
 	}
 	w := activeMainWindow()

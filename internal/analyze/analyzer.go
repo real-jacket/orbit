@@ -24,10 +24,11 @@ const scanTimeout = 10 * time.Minute
 
 // Progress is one `onNativeAnalyzeProgress` payload.
 type Progress struct {
-	ScanID  string  `json:"scanId"`
-	Files   int64   `json:"files"`
-	Seconds float64 `json:"seconds"`
-	Current string  `json:"current,omitempty"`
+	RequestID string  `json:"requestId,omitempty"`
+	ScanID    string  `json:"scanId"`
+	Files     int64   `json:"files"`
+	Seconds   float64 `json:"seconds"`
+	Current   string  `json:"current,omitempty"`
 }
 
 // Analyzer owns the scanned tree of one root at a time.
@@ -59,10 +60,10 @@ func (a *Analyzer) SetProgressSink(sink func(Progress)) {
 	a.sink = sink
 }
 
-// Tree returns the tree for path, scanning it when the current tree does not
-// cover it. When the tree already covers path, the matching node comes back
-// without touching the disk. path may be empty, which means the home directory.
-func (a *Analyzer) Tree(path string) (*Node, *ScanStats, string, error) {
+// Tree returns the tree for path. Drill-downs reuse a complete tree; refresh
+// forces a new disk walk, and a canceled tree is never reused as complete.
+// path may be empty, which means the home directory.
+func (a *Analyzer) Tree(path string, refresh bool) (*Node, *ScanStats, string, error) {
 	target := absolutize(path)
 	if target == "" {
 		home, err := os.UserHomeDir()
@@ -79,11 +80,14 @@ func (a *Analyzer) Tree(path string) (*Node, *ScanStats, string, error) {
 		rootPath, tree, stats, scanID := a.rootPath, a.tree, a.stats, a.scanID
 		a.mu.Unlock()
 
+		if refresh || running && !covers(rootPath, target) {
+			break
+		}
 		if running && done != nil {
 			<-done
 			continue
 		}
-		if tree != nil && covers(rootPath, target) {
+		if tree != nil && stats != nil && !stats.Canceled && covers(rootPath, target) {
 			if node := Find(tree, target); node != nil {
 				return node, stats, scanID, nil
 			}
@@ -118,9 +122,12 @@ func (a *Analyzer) scan(target string) (*Node, *ScanStats, string, error) {
 	startedAt := time.Now()
 	var progressMu sync.Mutex
 	var lastProgress time.Time
+	var tree *Node
+	var stats *ScanStats
+	var scanErr error
 	go func() {
 		defer close(done)
-		tree, stats, err := ScanTree(ctx, ScanOptions{
+		tree, stats, scanErr = ScanTree(ctx, ScanOptions{
 			Root:         target,
 			MinKeepBytes: defaultMinKeepBytes,
 			Progress: func(files int64, current string) {
@@ -144,8 +151,6 @@ func (a *Analyzer) scan(target string) (*Node, *ScanStats, string, error) {
 				})
 			},
 		})
-		_ = err
-
 		a.mu.Lock()
 		if a.scanID == scanID {
 			a.tree = tree
@@ -163,9 +168,9 @@ func (a *Analyzer) scan(target string) (*Node, *ScanStats, string, error) {
 		return nil, nil, scanID, fmt.Errorf("扫描超时（%s）", scanTimeout)
 	}
 
-	a.mu.Lock()
-	tree, stats := a.tree, a.stats
-	a.mu.Unlock()
+	if scanErr != nil {
+		return nil, nil, scanID, scanErr
+	}
 	if tree == nil || stats == nil {
 		return nil, nil, scanID, fmt.Errorf("扫描 %s 失败", target)
 	}
@@ -205,7 +210,7 @@ func covers(root, target string) bool {
 	if root == target {
 		return true
 	}
-	return strings.HasPrefix(target, root+string(filepath.Separator))
+	return pathIsUnder(target, root)
 }
 
 // payloadForNode turns one node of the in-memory tree into the payload the page
@@ -213,9 +218,6 @@ func covers(root, target string) bool {
 func payloadForNode(node *Node, stats *ScanStats, scanID, scanRoot, requested string) Payload {
 	home, _ := os.UserHomeDir()
 	total := node.DiskBytes
-	if total <= 0 {
-		total = node.LogBytes
-	}
 
 	tiles := make([]Tile, 0, len(node.Children))
 	aggregatedCount, aggregatedBytes := 0, int64(0)
@@ -243,35 +245,49 @@ func payloadForNode(node *Node, stats *ScanStats, scanID, scanRoot, requested st
 
 	largeFiles := make([]LargeFileTile, 0, len(stats.LargeFiles))
 	for _, file := range stats.LargeFiles {
+		if !pathIsUnder(file.Path, node.Path) {
+			continue
+		}
 		largeFiles = append(largeFiles, LargeFileTile{
 			Name:   file.Name,
 			Path:   relativize(file.Path, home),
 			SizeGb: plainGB(file.SizeBytes),
 		})
+		if len(largeFiles) >= maxLargeFiles {
+			break
+		}
 	}
 
+	viewStats := *stats
+	viewStats.Partial = node.Partial
 	payload := Payload{
-		Treemap2D:      tiles,
-		Tiles:          tiles,
-		Insights:       []Tile{},
-		Source:         "orbit scan",
-		ScanID:         scanID,
-		Root:           relativize(scanRoot, home),
-		Path:           relativize(node.Path, home),
+		Treemap2D: tiles,
+		Tiles:     tiles,
+		Insights:  []Tile{},
+		Source:    "orbit scan",
+		ScanID:    scanID,
+		Root:      relativize(scanRoot, home),
+		// 根扫描的 path 必须留空：页面用「有没有 path」区分整机扫描与钻取，
+		// 早先这里填 "~"，页面就把 711 GB 的根结果当成子目录载荷丢掉了。
+		Path:           "",
 		TotalGb:        plainGB(total),
 		TotalSizeGb:    plainGB(total),
 		TotalLogicalGb: plainGB(node.LogBytes),
 		FileCount:      node.FileCount,
-		ScanStatus:     scanStatus(stats),
+		ScanStatus:     scanStatus(&viewStats),
 		Partial:        node.Partial,
-		Restricted:     restrictionInfos(stats.Restricted, home),
-		Excluded:       restrictionInfos(stats.Excluded, home),
+		Restricted:     restrictionInfos(stats.Restricted, home, node.Path),
+		Excluded:       restrictionInfos(stats.Excluded, home, node.Path),
 		Aggregated:     &Aggregated{Count: aggregatedCount, SizeGb: plainGB(aggregatedBytes)},
 		LargeFiles:     largeFiles,
 		Volume:         volumeInfo(node.Path),
 	}
-	if requested != "" {
-		payload.Path = relativize(requested, home)
+	if node.Path != scanRoot {
+		if requested != "" {
+			payload.Path = relativize(requested, home)
+		} else {
+			payload.Path = relativize(node.Path, home)
+		}
 	}
 	return payload
 }
@@ -317,12 +333,15 @@ func syntheticCount(name string) int {
 }
 
 // restrictionInfos relativizes and shortens restriction lists for the page.
-func restrictionInfos(list []Restriction, home string) []RestrictionInfo {
+func restrictionInfos(list []Restriction, home, root string) []RestrictionInfo {
 	if len(list) == 0 {
 		return nil
 	}
 	out := make([]RestrictionInfo, 0, len(list))
 	for _, item := range list {
+		if item.Path != root && !pathIsUnder(item.Path, root) {
+			continue
+		}
 		out = append(out, RestrictionInfo{
 			Path:   relativize(item.Path, home),
 			Reason: item.Reason,

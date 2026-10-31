@@ -2,10 +2,13 @@ package scanner
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/mymoles/mole-studio/internal/power"
 	"github.com/mymoles/mole-studio/internal/telemetry"
 )
+
+var fullScanMu sync.Mutex
 
 // FullScanPayload is what the frontend's onNativeRealScanComplete receives: the
 // state of the whole machine, as the Swift app's buildFullScanPayload sent it.
@@ -29,12 +32,23 @@ type FullScanPayload struct {
 	Whitelist []string `json:"whitelist"`
 	// WhitelistWarnings are the entries mole refused to load, so the page can
 	// say why a line it shows is not protecting anything.
-	WhitelistWarnings []string `json:"whitelistWarnings"`
+	WhitelistWarnings []string         `json:"whitelistWarnings"`
+	ReadWarnings      []map[string]any `json:"readWarnings"`
 }
 
 // BuildFullScanPayload measures the whole machine for the frontend's scan
 // complete event.
 func (s *Scanner) BuildFullScanPayload() FullScanPayload {
+	fullScanMu.Lock()
+	defer fullScanMu.Unlock()
+	s.refreshWhitelist()
+	directoryReads.Lock()
+	for path := range directoryReads.failed {
+		if withinPath(path, s.home) {
+			delete(directoryReads.failed, path)
+		}
+	}
+	directoryReads.Unlock()
 	freeGB, totalGB := s.queryDiskSpace()
 	_, memTotalGB := s.queryMemoryUsage()
 	return FullScanPayload{
@@ -52,6 +66,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 		HomePath:          s.home,
 		Whitelist:         s.UserWhitelistPaths(),
 		WhitelistWarnings: s.refreshWhitelist().Warnings,
+		ReadWarnings:      scanReadWarnings(s.home),
 	}
 }
 

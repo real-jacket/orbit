@@ -27,6 +27,7 @@ func (s *Scanner) appendExisting(candidates []string, kind string, checked bool,
 		*into = append(*into, map[string]any{
 			"path":    s.relativize(candidate),
 			"size":    formatBytes(size.bytes),
+			"sizeGb":  plainGB(size.bytes),
 			"kind":    kind,
 			"checked": checked,
 		})
@@ -80,6 +81,7 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 			subpaths := []map[string]any{{
 				"path":    fullPath,
 				"size":    formatBytes(appBytes),
+				"sizeGb":  plainGB(appBytes),
 				"kind":    "app",
 				"checked": true,
 			}}
@@ -99,9 +101,9 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 			// ratio; a group that was not found reports zero.
 			cacheBytes := s.appendExisting(cacheCandidates, "cache", true, &subpaths)
 			configBytes := s.appendExisting(configCandidates, "config", false, &subpaths)
-			cacheGB := round2(float64(cacheBytes) / 1_000_000_000)
-			configGB := round2(float64(configBytes) / 1_000_000_000)
-			leftoverGB := round2(cacheGB + configGB)
+			cacheGB := plainGB(cacheBytes)
+			configGB := plainGB(configBytes)
+			leftoverGB := cacheGB + configGB
 
 			results = append(results, map[string]any{
 				"id":       bundleID,
@@ -114,7 +116,7 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				"bundleId":       bundleID,
 				"version":        version,
 				"lastUsed":       "本机已安装",
-				"appSizeGb":      round2(float64(appBytes) / 1_000_000_000),
+				"appSizeGb":      plainGB(appBytes),
 				"leftoverSizeGb": leftoverGB,
 				"cacheSizeGb":    cacheGB,
 				"configSizeGb":   configGB,

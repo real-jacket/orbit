@@ -1,12 +1,15 @@
 package scanner
 
 import (
+	"errors"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fixtureHome builds a temporary home with no whitelist file, so the default
@@ -18,6 +21,135 @@ func fixtureHome(t *testing.T) string {
 		t.Fatalf("MkdirAll(.config/mole): %v", err)
 	}
 	return home
+}
+
+func TestAppSubpathsExposeUnroundedMeasuredSize(t *testing.T) {
+	home := fixtureHome(t)
+	cache := fixtureDir(t, home, "Library/Caches/Example", 1234)
+	s := &Scanner{home: home}
+	info, err := os.Stat(filepath.Join(cache, "payload.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBytes := allocatedSize(info)
+	var paths []map[string]any
+	if got := s.appendExisting([]string{cache}, "cache", true, &paths); got != wantBytes {
+		t.Fatalf("bytes = %d", got)
+	}
+	if len(paths) != 1 || paths[0]["sizeGb"] != plainGB(wantBytes) {
+		t.Fatalf("subpaths = %v", paths)
+	}
+}
+
+func TestAIKeepsUnidentifiedVersionsAndInstalledExtensions(t *testing.T) {
+	home := fixtureHome(t)
+	fixtureDir(t, home, ".local/share/claude/versions/current", 4096)
+	fixtureDir(t, home, ".cursor/extensions/vendor.extension", 4096)
+	s := &Scanner{home: home}
+	rows := s.scanAICaches()
+	if len(rows) != 2 {
+		t.Fatalf("expected the version and extension inspections: %v", rows)
+	}
+	for _, row := range rows {
+		if row["tier"] != "protected" || row["checked"] != false {
+			t.Fatalf("unknown versions and installed extensions cannot be cleanup candidates: %v", row)
+		}
+	}
+}
+
+func TestAIVersionPlanRechecksLauncherAndRunningProcesses(t *testing.T) {
+	home := fixtureHome(t)
+	s := &Scanner{home: home, processProbe: func() (string, error) { return "launchd\n", nil }}
+	root := filepath.Join(home, aiVersionSpecs[0].root)
+	var paths []string
+	for i, name := range []string{"1.0.0", "1.1.0", "1.2.0", "1.3.0"} {
+		path := fixtureDir(t, home, aiVersionSpecs[0].root+"/"+name, 4096)
+		modified := time.Unix(1_700_000_000+int64(i)*100, 0)
+		if err := os.Chtimes(path, modified, modified); err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, path)
+	}
+	launcher := filepath.Join(home, aiVersionSpecs[0].launcher)
+	if err := os.MkdirAll(filepath.Dir(launcher), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(paths[1], "payload.bin"), launcher); err != nil {
+		t.Fatal(err)
+	}
+	rows := rowsByID(s.scanAICaches())
+	for i, path := range paths {
+		row := rows["ai_version:"+path]
+		want := "review"
+		if i == 1 || i == 3 {
+			want = "protected"
+		}
+		if row == nil || row["tier"] != want || row["checked"] != false || row["path"] == s.relativize(root) {
+			t.Fatalf("version %d must be a precisely bounded, unchecked %s row: %v", i, want, row)
+		}
+	}
+	s.processProbe = func() (string, error) { return filepath.Join(paths[0], "payload.bin") + "\n", nil }
+	if reason := s.CleanupReason(paths[0]); !strings.Contains(reason, "运行") {
+		t.Fatalf("active old executable was offered: %q", reason)
+	}
+	s.processProbe = func() (string, error) { return "", errors.New("test process refusal") }
+	if reason := s.CleanupReason(paths[2]); !strings.Contains(reason, "未知") {
+		t.Fatalf("unknown process state must preserve versions: %q", reason)
+	}
+	s.processProbe = func() (string, error) { return "launchd\n", nil }
+	if err := os.Remove(launcher); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(paths[0], "payload.bin"), launcher); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MOLE_STUDIO_TRASH_DIR", t.TempDir())
+	t.Setenv("MOLE_STUDIO_STATE_DIR", t.TempDir())
+	outcome := s.TrashPaths([]string{paths[0], root})
+	if len(outcome.Moved) != 0 || len(outcome.Skipped) != 2 || !exists(paths[0]) {
+		t.Fatalf("a launcher change after preview must invalidate deletion permission: %+v", outcome)
+	}
+}
+
+func TestCleanCatalogUsesPreciseSizesAndRealFileFacts(t *testing.T) {
+	home := fixtureHome(t)
+	path := fixtureDir(t, home, "Library/Caches/UnknownCache", 1234)
+	s := &Scanner{home: home}
+	row := rowsByID(s.scanCleanGroups())["user_caches"]
+	if row == nil || row["tier"] != "review" || row["checked"] != false || !strings.Contains(row["filesCount"].(string), "1 个文件") || row["lastMod"] == "本机扫描" {
+		t.Fatalf("generic cache is an unchecked inspection with actual facts: %v", row)
+	}
+	info, err := os.Stat(filepath.Join(path, "payload.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row["sizeGb"] != plainGB(allocatedSize(info)) || row["sizeGb"].(float64) >= 0.01 || row["subpaths"].([]map[string]any)[0]["path"] != "~/Library/Caches/UnknownCache" {
+		t.Fatalf("small cache must not be inflated or authorize its parent: %v", row)
+	}
+}
+
+func TestAIWorktreesAreReadOnlyEvenWithUncommittedContent(t *testing.T) {
+	home := fixtureHome(t)
+	repo := fixtureDir(t, home, ".codex/worktrees/task/project", 4096)
+	if output, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git fixture init: %s, %v", output, err)
+	}
+	if output, err := exec.Command("git", "-C", repo, "add", "payload.bin").CombinedOutput(); err != nil {
+		t.Fatalf("git fixture add: %s, %v", output, err)
+	}
+	index := filepath.Join(repo, ".git", "index")
+	before, err := os.ReadFile(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := (&Scanner{home: home}).scanAIWorktrees(&catalogClaims{})
+	if len(rows) != 1 || rows[0]["tier"] != "protected" || rows[0]["checked"] != false || !strings.Contains(rows[0]["gitState"].(string), "未提交") {
+		t.Fatalf("worktree state must not authorize its removal: %v", rows)
+	}
+	after, err := os.ReadFile(index)
+	if err != nil || string(after) != string(before) {
+		t.Fatal("read-only worktree inspection changed the Git index")
+	}
 }
 
 // writeWhitelist writes the user whitelist fixture, one entry per line.
@@ -89,12 +221,12 @@ func TestCleanGroupsReportEachRootOnce(t *testing.T) {
 	if !strings.Contains(strings.Join(subpathPaths(userCaches), ","), "FooCache") {
 		t.Errorf("user_caches lost its unprotected child: %v", subpathPaths(userCaches))
 	}
-	if checked, _ := userCaches["checked"].(bool); !checked {
-		t.Error("safe-tier user_caches must be pre-checked")
+	if checked, _ := userCaches["checked"].(bool); checked {
+		t.Error("generic user caches require review, not directory-wide default selection")
 	}
 	for _, subpath := range userCaches["subpaths"].([]map[string]any) {
-		if checked, _ := subpath["checked"].(bool); !checked {
-			t.Errorf("safe-tier subpath %v must be pre-checked", subpath["path"])
+		if checked, _ := subpath["checked"].(bool); checked {
+			t.Errorf("unclassified subpath %v must not be pre-checked", subpath["path"])
 		}
 	}
 

@@ -48,7 +48,15 @@ func TestVMStatistics64Layout(t *testing.T) {
 // TestHostSampleMemorySane checks that the four page counters are decoded from
 // the right places and that the derived numbers are physically possible. The
 // free-page counter is cross-checked against the vm.page_free_count sysctl,
-// which is a different kernel interface for the same number.
+// which is a different kernel interface for the free list.
+//
+// The two do not count the same pages: host_statistics64 publishes
+// vm_page_free_count + speculative_count as free_count (xnu, osfmk/kern/host.c
+// in vm_stats), while the sysctl exposes vm_page_free_count alone (xnu,
+// bsd/vm/vm_unix.c). Subtracting the speculative count before comparing matters
+// on small machines, where the speculative cache is a sizeable share of RAM:
+// the raw difference on a 7 GB CI runner was several percent of installed
+// memory, which says nothing about the struct layout.
 func TestHostSampleMemorySane(t *testing.T) {
 	host := HostSample()
 	if !host.MemReady {
@@ -99,11 +107,18 @@ func TestHostSampleMemorySane(t *testing.T) {
 	if !ok {
 		t.Skip("vm.page_free_count sysctl unavailable")
 	}
-	// Pages move between the free lists while the two readings are taken, so a
-	// couple of percent of installed memory of slop is expected; a layout
-	// mistake would be off by a factor, not by a page migration.
-	if diff := float64(stats.freeCount) - float64(freeSysctl); diff < -totalPages*0.02 || diff > totalPages*0.02 {
-		t.Errorf("free_count = %d pages, vm.page_free_count = %d: layout or read is wrong", stats.freeCount, freeSysctl)
+	// host_statistics64's free_count is vm_page_free_count + speculative_count,
+	// so subtract the speculative pages before comparing against the sysctl,
+	// which reports the free list alone. Pages move between the lists while the
+	// two readings are taken, so a couple of percent of installed memory of slop
+	// is expected; a layout mistake would be off by a factor, not by a page
+	// migration.
+	if stats.freeCount < stats.speculativeCount {
+		t.Fatalf("free_count = %d pages < speculative_count = %d, impossible", stats.freeCount, stats.speculativeCount)
+	}
+	freeList := uint64(stats.freeCount - stats.speculativeCount)
+	if diff := float64(freeList) - float64(freeSysctl); diff < -totalPages*0.02 || diff > totalPages*0.02 {
+		t.Errorf("free_count - speculative_count = %d pages, vm.page_free_count = %d: layout or read is wrong", freeList, freeSysctl)
 	}
 }
 

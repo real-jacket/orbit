@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -22,6 +23,9 @@ const trashManifestVersion = 1
 // trashManifestLimit keeps the manifest bounded; older receipts stop being
 // restorable rather than growing the file forever.
 const trashManifestLimit = 1000
+
+// The main window, tray, and late file moves can all record receipts at once.
+var trashManifestMu sync.Mutex
 
 // TrashEntry records one trashed item: where it came from and where it is now.
 type TrashEntry struct {
@@ -125,6 +129,8 @@ func writeTrashManifest(manifest trashManifest) error {
 
 // recordTrash adds entries to the manifest, newest first.
 func recordTrash(entries []TrashEntry) error {
+	trashManifestMu.Lock()
+	defer trashManifestMu.Unlock()
 	manifest := readTrashManifest()
 	manifest.Entries = append(entries, manifest.Entries...)
 	return writeTrashManifest(manifest)
@@ -132,6 +138,8 @@ func recordTrash(entries []TrashEntry) error {
 
 // forgetTrash drops the receipts for originals that were restored.
 func forgetTrash(originals []string) error {
+	trashManifestMu.Lock()
+	defer trashManifestMu.Unlock()
 	restored := make(map[string]struct{}, len(originals))
 	for _, original := range originals {
 		restored[original] = struct{}{}
@@ -153,11 +161,10 @@ func forgetTrash(originals []string) error {
 // enforces the same protection `mo` does, because it does the deleting itself.
 func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 	outcome := TrashOutcome{Requested: len(rawPaths)}
-	policy := s.whitelist()
 	entries := make([]TrashEntry, 0, len(rawPaths))
 	for _, raw := range rawPaths {
-		path := strings.TrimSpace(raw)
-		if path == "" {
+		path := raw
+		if strings.TrimSpace(path) == "" {
 			continue
 		}
 		path = s.expand(path)
@@ -170,15 +177,27 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "拒绝整根移动废纸篓与家目录"})
 			continue
 		}
-		if policy.Protects(path) {
-			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "白名单保护"})
+		if reason := s.CleanupReason(path); reason != "" {
+			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: reason})
 			continue
 		}
 		if !exists(path) {
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: path, Error: "路径不存在"})
 			continue
 		}
-		trashed, err := moveToTrash(path)
+		trashed, err, timedOut := moveWithWatchdog(path)
+		if timedOut {
+			// A blocked rename is what an impossible-to-answer TCC prompt looks
+			// like: the syscall never returns, so without this the page waits for
+			// a receipt that never comes and the user sees "nothing happened".
+			outcome.Failed = append(outcome.Failed, TrashFailure{
+				Path: path,
+				Error: "系统没有返回结果：macOS 很可能正在等一个授权弹窗。" +
+					"请在「系统设置 › 隐私与安全性」里给 MoleStudio 打开「文件与文件夹」或「完全磁盘访问权限」后重试。",
+				Pane: "filesAndFolders",
+			})
+			continue
+		}
 		if err != nil {
 			outcome.Failed = append(outcome.Failed, trashFailure(path, err))
 			continue
@@ -186,6 +205,7 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 		outcome.Moved = append(outcome.Moved, TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix()})
 		entries = append(entries, outcome.Moved[len(outcome.Moved)-1])
 	}
+	defer func() { logTrashOutcome("trash", outcome) }()
 	if len(entries) > 0 {
 		if err := recordTrash(entries); err != nil {
 			// The files are already gone; recording the receipt is best effort,
@@ -232,7 +252,76 @@ func (s *Scanner) RestoreTrash(originals []string) RestoreOutcome {
 	if len(restored) > 0 {
 		_ = forgetTrash(restored)
 	}
+	logTrashOutcome("restore", TrashOutcome{Requested: outcome.Requested, Failed: outcome.Failed})
 	return outcome
+}
+
+// moveWatchdog bounds how long the app waits for one move. A TCC prompt that
+// can never be answered turns rename(2) into a blocking call; without a bound
+// the receipt is never produced and the UI looks frozen rather than refused.
+const moveWatchdog = 8 * time.Second
+
+// moveWithWatchdog moves one path to the Trash and reports whether the kernel
+// left the call hanging instead of refusing it outright.
+func moveWithWatchdog(path string) (string, error, bool) {
+	type result struct {
+		trashed string
+		err     error
+	}
+	done := make(chan result, 1)
+	go func() {
+		trashed, err := moveToTrash(path)
+		done <- result{trashed: trashed, err: err}
+	}()
+	select {
+	case out := <-done:
+		return out.trashed, out.err, false
+	case <-time.After(moveWatchdog):
+		// The move may still finish later; keep the receipt so restore works.
+		go func() {
+			out := <-done
+			if out.err != nil {
+				return
+			}
+			_ = recordTrash([]TrashEntry{{Original: path, Trashed: out.trashed, At: time.Now().Unix()}})
+			logTrashOutcome("trash-late", TrashOutcome{
+				Requested: 1,
+				Moved:     []TrashEntry{{Original: path, Trashed: out.trashed, At: time.Now().Unix()}},
+			})
+		}()
+		return "", nil, true
+	}
+}
+
+// logTrashOutcome appends one JSON line to <state>/trash.log so a refusal can be
+// diagnosed later without reproducing it in a debugger. It is best effort and
+// caps the file so it cannot grow without bound.
+func logTrashOutcome(action string, outcome TrashOutcome) {
+	record := map[string]any{
+		"at":        time.Now().Format(time.RFC3339),
+		"action":    action,
+		"requested": outcome.Requested,
+		"moved":     len(outcome.Moved),
+		"skipped":   outcome.Skipped,
+		"failed":    outcome.Failed,
+	}
+	line, err := json.Marshal(record)
+	if err != nil {
+		return
+	}
+	path := filepath.Join(StateDir(), "trash.log")
+	if info, err := os.Stat(path); err == nil && info.Size() > 256*1024 {
+		_ = os.Remove(path)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	_, _ = file.Write(append(line, '\n'))
 }
 
 // moveBack returns one trashed item to its original path, renaming it if
@@ -297,11 +386,21 @@ func humanizeTrashError(path string, err error) (string, string) {
 		if needsFolderAccess(path) {
 			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 MoleStudio 访问。", "filesAndFolders"
 		}
+		if needsAppDataAccess(path) {
+			// An uninstalled app's container belongs to another app. macOS keeps
+			// those under its App Data policy even after the owning app is gone,
+			// so a "permission denied" here is not a broken file: it is a switch.
+			return "这是其它应用留下的数据容器，macOS 需要「完全磁盘访问权限」（部分系统版本在「App 管理」）才能移动。" +
+				"授权后重试即可，已经移入废纸篓的条目不受影响。", "fullDiskAccess"
+		}
 		if needsFullDiskAccess(path) {
 			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 MoleStudio。", "fullDiskAccess"
 		}
 		return "权限不足，可能需要在系统设置里授予完全磁盘访问权限", "fullDiskAccess"
 	case errors.Is(err, syscall.EXDEV):
+		if isSystemVolume(path) {
+			return "这是 macOS 系统卷上的文件（只读保护），不能移入废纸篓", ""
+		}
 		return "跨卷移动失败，请手动处理", ""
 	case errors.Is(err, syscall.ENOSPC):
 		return "磁盘空间不足", ""
@@ -309,6 +408,18 @@ func humanizeTrashError(path string, err error) (string, string) {
 		return "路径不存在", ""
 	}
 	return err.Error(), ""
+}
+
+// isSystemVolume reports whether path lives on the read-only system volume,
+// where a move to the Trash can only ever fail with EXDEV.
+func isSystemVolume(path string) bool {
+	cleaned := filepath.Clean(path)
+	for _, prefix := range []string{"/System/", "/usr/", "/bin/", "/sbin/", "/Library/Apple/"} {
+		if strings.HasPrefix(cleaned, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // isAppBundle reports whether path is an application bundle, the kind of item
@@ -329,6 +440,18 @@ func needsFolderAccess(path string) bool {
 		}
 	}
 	return false
+}
+
+// needsAppDataAccess reports whether path is another app's data container. macOS
+// keeps ~/Library/Containers and ~/Library/Group Containers under the App Data
+// policy, and that policy outlives the app that owned the directory, so leftover
+// cleanup from the uninstall module always runs into it.
+func needsAppDataAccess(path string) bool {
+	cleaned := filepath.Clean(path)
+	return strings.Contains(cleaned, "/Library/Containers/") ||
+		strings.Contains(cleaned, "/Library/Group Containers/") ||
+		strings.HasSuffix(cleaned, "/Library/Containers") ||
+		strings.HasSuffix(cleaned, "/Library/Group Containers")
 }
 
 // needsFullDiskAccess reports whether reading path is gated by Full Disk Access:

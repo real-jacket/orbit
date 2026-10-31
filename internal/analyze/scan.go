@@ -18,7 +18,7 @@ package analyze
 // Directories are the unit of work. A fixed pool of workers pops directory
 // jobs from a queue, reads one directory, counts its files inline (a file's
 // lstat is cheap next to shipping it to another goroutine) and pushes child
-// directories back onto the queue. There is no goroutine parked per directory:
+// directories back onto the queue. There is no goroutine waiting for each child directory:
 // a 2.3M-file home directory has hundreds of thousands of directories, and a
 // goroutine each would cost more memory than the tree itself.
 //
@@ -54,6 +54,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mymoles/mole-studio/internal/fsread"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -435,6 +436,7 @@ func (s *treeScanner) worker(queue *dirQueue) {
 		}
 		if s.ctx.Err() != nil {
 			s.markCanceled()
+			job.record.partial = true
 			queue.shutdown()
 			queue.finish()
 			continue
@@ -451,10 +453,11 @@ func (s *treeScanner) scanDir(job dirJob, queue *dirQueue) {
 	s.dirs.Add(1) // 含根目录；ReadDir 失败也计入，因为它确实被访问过
 	record := job.record
 	record.scanned = true
-	entries, err := os.ReadDir(job.path)
+	entries, err := fsread.ReadDir(s.ctx, job.path)
 	if err != nil {
 		if s.ctx.Err() != nil {
 			s.markCanceled()
+			record.partial = true
 			queue.shutdown()
 		} else {
 			s.restrict(job.path, err)
@@ -468,6 +471,7 @@ func (s *treeScanner) scanDir(job dirJob, queue *dirQueue) {
 	for index, entry := range entries {
 		if index%cancelCheckEvery == 0 && s.ctx.Err() != nil {
 			s.markCanceled()
+			record.partial = true
 			queue.shutdown()
 			break
 		}
@@ -653,6 +657,7 @@ func (s *treeScanner) finalizeDir(record *dirRecord) *Node {
 
 	for _, childRecord := range record.childRecords {
 		if !childRecord.scanned {
+			partial = true
 			continue // cancellation dropped this directory's job
 		}
 		child := s.finalizeDir(childRecord)
@@ -812,9 +817,6 @@ func (s *treeScanner) largeSnapshot() []LargeFile {
 		}
 		return files[i].Path < files[j].Path
 	})
-	if len(files) > maxLargeFiles {
-		files = files[:maxLargeFiles]
-	}
 	return files
 }
 

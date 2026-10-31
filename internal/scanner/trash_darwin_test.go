@@ -45,3 +45,30 @@ func TestMoveToTrashMovesARealFile(t *testing.T) {
 		t.Errorf("source still exists: %v", err)
 	}
 }
+
+func TestTrashAndRestoreRealFixture(t *testing.T) {
+	if os.Getenv("MOLE_TRASH_E2E") == "" {
+		t.Skip("set MOLE_TRASH_E2E=1 to verify a new fixture file against the user's Trash")
+	}
+	home := t.TempDir()
+	t.Setenv("MOLE_STUDIO_STATE_DIR", filepath.Join(home, "state"))
+	t.Setenv("MOLE_STUDIO_TRASH_DIR", "")
+	s := &Scanner{home: home}
+	path := filepath.Join(home, "restore fixture.txt")
+	writeFile(t, path, "bytes")
+	outcome := s.TrashPaths([]string{path})
+	if len(outcome.Moved) != 1 {
+		t.Fatalf("trash = %+v", outcome)
+	}
+	t.Cleanup(func() { _ = os.Remove(outcome.Moved[0].Trashed) })
+	if entries := readTrashManifest().Entries; len(entries) != 1 || entries[0].Original != path {
+		t.Fatalf("manifest = %+v", entries)
+	}
+	restored := s.RestoreTrash([]string{path})
+	if len(restored.Restored) != 1 {
+		t.Fatalf("restore = %+v", restored)
+	}
+	if content, err := os.ReadFile(path); err != nil || string(content) != "bytes" {
+		t.Fatalf("restored content = %q, error = %v", content, err)
+	}
+}

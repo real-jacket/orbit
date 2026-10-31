@@ -39,14 +39,10 @@ func TestOrphanSignaturesAreNonEmptyAndUnique(t *testing.T) {
 	}
 }
 
-// TestFullScanPayloadKeepsItsKeys is the Go port of
-// testFullScanPayloadKeepsItsKeys. It is the single test that touches the real
-// home directory, exactly as the Swift test did; skip it with -short.
+// Payload-shape tests use a fixture home; live permission behavior is tested
+// separately, not by traversing a developer's private desktop during unit tests.
 func TestFullScanPayloadKeepsItsKeys(t *testing.T) {
-	if testing.Short() {
-		t.Skip("real-home scan skipped in short mode")
-	}
-	payload := Shared.BuildFullScanPayload()
+	payload := (&Scanner{home: fixtureHome(t)}).BuildFullScanPayload()
 	data, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("json.Marshal(FullScanPayload) failed: %v", err)
@@ -55,7 +51,7 @@ func TestFullScanPayloadKeepsItsKeys(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(payload) failed: %v", err)
 	}
-	for _, key := range []string{"orphanLeftoversList", "cleanGroups", "appsList"} {
+	for _, key := range []string{"orphanLeftoversList", "cleanGroups", "appsList", "readWarnings"} {
 		if _, ok := decoded[key]; !ok {
 			t.Errorf("buildFullScanPayload must still emit %q", key)
 		}
@@ -98,8 +94,8 @@ func TestOrphanRowsCarryTheFieldsTheUIBinds(t *testing.T) {
 		sizeGb, ok := row["leftoverSizeGb"].(float64)
 		if !ok {
 			t.Errorf("row %d has leftoverSizeGb of type %T, want float64", i, row["leftoverSizeGb"])
-		} else if sizeGb < 0.01 {
-			t.Errorf("row %d has leftoverSizeGb = %v, want >= 0.01", i, sizeGb)
+		} else if sizeGb <= 0 {
+			t.Errorf("row %d has leftoverSizeGb = %v, want a positive measured size", i, sizeGb)
 		}
 
 		if _, isBool := row["checked"].(bool); !isBool {

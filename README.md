@@ -35,14 +35,14 @@ so you always run the upstream version you installed.
 
 | Module | Backed by | What it does |
 | --- | --- | --- |
-| **Deep Clean** · Earth | `mo clean` | Caches, logs, browser render caches, Xcode `DerivedData`, package-manager caches |
-| **AI Care** · Moon | `mo clean --ai-care` | Stale AI CLI binaries, render caches, expired agent worktrees, SQLite compaction |
-| **Uninstaller** · Mars | `mo uninstall` | Removes app bundles plus their leftover support files, with "keep personal data" |
-| **Optimize** · Mercury | `mo optimize` | Refreshes caches, rebuilds QuickLook/icon caches, vacuums system SQLite databases |
-| **Astrolabe** · disk analyzer | `internal/analyze` (in-process scan) | Treemap of the home tree; one walk, then drill-down is a memory lookup |
-| **Live Status** · Sun | `mo status` | Process table with CPU, memory and power draw |
-| **Purge** | `mo purge`, `mo installer` | Removes rebuildable project artifacts and stale installer packages |
-| **History & Whitelist** | `mo history`, `mo clean --whitelist` | Cleanup audit log and protected-path management |
+| **Deep Clean** | `internal/scanner` + native Trash | Measures cache/log children and real file facts; unknown, partial or active paths stay unselected |
+| **AI Care** | AI catalog + native Trash | Rechecks old agent versions against the active launcher/process; extensions, models and worktrees are inspect-only |
+| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data |
+| **Optimize** | `qlmanage -r cache` | Resets Quick Look thumbnails, with a correlated success/failure receipt |
+| **Astrolabe** | `internal/analyze` | Allocated/logical size treemap; in-process scan and memory drill-down |
+| **Live Status** | Kernel + `ps` + hardware sensors | CPU, memory, network and supported sensor data; search processes by name/path/PID |
+| **Purge** | Build/installer scanner + native Trash | Reviews rebuildable artifacts and installer packages |
+| **History & Whitelist** | Native manifests + mole whitelist | Cleanup receipts, path restoration and protected-path management |
 
 Beyond the module list:
 
@@ -51,7 +51,7 @@ Beyond the module list:
 - **Proportional volume bars** — every row carries an inline bar relative to total scan size.
 - **Pre-execution diff** — deletions are previewed as a structured sheet (paths, safety tier, Trash
   recovery checkpoint) before anything runs.
-- **Dry-run by default** — `dryRunMode` defaults to `true`.
+- **Preview before removal** — the confirmation shows the exact paths and freezes the submitted selection.
 - **Menu bar presence** — an orbit-mark status item whose popover is the same tray UI (clean, health check, caffeinate, quit).
 - **Live local scan** — installed apps, leftover Library paths, and large files are sampled on the Mac and pushed into the UI over the JS bridge.
 - **Three uninstall modes** — Standard, Complete, and Cache-only, with per-path selection before anything moves to the Trash.
@@ -85,6 +85,7 @@ cd orbit
 make             # go build -v -o mole-studio .
 make run         # build and launch straight from the checkout (no mygo CLI needed)
 make test        # unit test suite
+make test-ui-webkit # isolated WebKit rendering + interaction checks
 make vet         # go vet
 make check       # vet + test, the same gate CI runs
 make dev         # MyGo dev server with live reload (needs the `mygo` CLI)
@@ -126,6 +127,62 @@ export GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
 export PATH="/tmp/gopath/bin:$PATH"   # where `go install` put the mygo CLI
 ```
 
+## Releases
+
+Releases are cut from **main**, by [`.github/workflows/release.yml`](.github/workflows/release.yml).
+Merging a version bump is the release gesture — nothing is tagged, built or published by hand:
+
+```bash
+make set-version VERSION=0.2.0   # in the pull request that ships the change
+```
+
+A push to main that changes `mygo.json` asks one question: has that version been released yet? If
+not, the workflow builds that commit, verifies it, creates the tag `v<version>`, and publishes the
+GitHub Release; if it has, the push is a no-op. The tag is therefore a *receipt* for a build that
+passed, never an input: pushing a tag by hand does nothing, which is what keeps a release from
+coming out of an unmerged branch. A failed build leaves no tag behind — fix the code, merge it, then
+run the workflow from main to retry. Versions only move forward — reverting `mygo.json` on main
+fails the run instead of downgrading a published release.
+
+The version in `mygo.json` is what `CFBundleShortVersionString`, the `.dmg` name, the app's own build
+stamp and the release page carry. It is `MAJOR.MINOR.PATCH` and nothing else: macOS stores that
+string verbatim, so a `-rc.1` suffix would ship a bundle that misreports itself, and the workflow
+refuses it. Each release is one universal `.dmg` — Apple silicon and Intel in a single download —
+with the bundle inside:
+
+- `MoleStudio-<version>-universal.dmg` — drag `MoleStudio.app` to `/Applications`
+- `MoleStudio-<version>-universal.dmg.sha256` — `shasum -a 256 -c` it
+
+Before publishing, the workflow runs `make check` (the same gate CI enforces) and then checks what
+was actually built: both architectures via `lipo`, the bundle identifier, icon, embedded-page marker
+and ad-hoc `codesign --verify`, and it mounts the `.dmg` to confirm the app and the `/Applications`
+symlink are there. The run page carries the SHA-256 in its summary, and the staged assets stay
+attached to the run as an artifact for 14 days.
+
+To rebuild the current main version by hand — a dry run, a retry after a failed build, or a repair
+for a release whose assets are missing — run the workflow (Actions → Release → Run workflow)
+**from main** (a hand-started run from any other branch fails on purpose). It rebuilds the tagged
+commit when a tag exists, so a repair never picks up code merged later, and the current main head
+when it does not, so a failed build can be retried. Turn `publish` off to build and keep the
+artifacts without touching the release. Re-running replaces the existing release's assets instead
+of failing.
+
+**Version bumps.** `mygo.json` is the only place the version is written down: `app.go` reads it back
+from the bundle at runtime (`mygo.App.Version()`) rather than hard-coding it, and the scanner's build
+version falls back to `"dev"` only for plain `go run`. For a local `make app` build, stamp one:
+
+```bash
+make set-version VERSION=0.2.0
+```
+
+**Signing.** Bundles are ad-hoc signed (`macos.signingIdentity` is `-` in `mygo.json`) and not
+notarized, so Gatekeeper asks once before the first launch — right-click the app → **Open**, or
+`xattr -dr com.apple.quarantine /Applications/MoleStudio.app`. No repository secrets are needed for
+that. To ship notarized builds, replace `-` with a Developer ID identity, add
+`macos.notarize.keychainProfile` to `mygo.json`, import the certificate and profile into the runner's
+keychain before the build step, and drop the ad-hoc comments in `release.yml`; MyGo then signs,
+submits the `.dmg` with `notarytool` and staples the ticket.
+
 ## Architecture
 
 The app is a Go program that embeds MyGo, which in turn hosts the same single-file
@@ -156,16 +213,19 @@ where MyGo wants the entry point:
 | `push.go` | Go → page: serialises payloads and calls the page's `window.onNative*` globals in every open window | `MoleStudioApp.swift` (`evaluateJavaScript` call sites) |
 | `theme.go` | `mygo.Theme` plus a `preferences.json` in the user data directory, replacing `UserDefaults` | `MoleStudioApp.swift` (`applyTheme`) |
 
-Four documents go deeper: [`docs/go-port.md`](docs/go-port.md) is the porting record — file-by-file
+Five documents go deeper: [`docs/go-port.md`](docs/go-port.md) is the porting record — file-by-file
 mapping, the decisions behind it, and the known gaps against the Swift build — while
 [`docs/mygo-migration.md`](docs/mygo-migration.md) is the framework analysis that justified the move,
 [`docs/business-logic-review.md`](docs/business-logic-review.md) is the review that followed the port:
 what was fabricated, what only pretended to work (清理回执、还原、白名单、体检、退出), and how each was
 replaced with a real implementation, and
 [`docs/disk-analyzer.md`](docs/disk-analyzer.md) explains why the disk analyzer stopped shelling out to
-`mo analyze` and how the in-process scanner counts bytes, reports progress and cancels.
+`mo analyze` and how the in-process scanner counts bytes, reports progress and cancels, and
+[`docs/ui-refinement.md`](docs/ui-refinement.md) records the interface pass: which decorative layers
+were removed, what replaced them, and what was deliberately left alone. The design rules themselves live
+in [`DESIGN.md`](DESIGN.md), the product rules in [`PRODUCT.md`](PRODUCT.md).
 
-The port itself did not touch the frontend, and the markup and layout are still the original page. What
+The port itself did not touch the frontend's visual design; the layout is still the original page. What
 did change in `Resources/src-ui/index.html` is the part that talked to the native side: `preload.go`
 restores the `window.webkit.messageHandlers.moleNative` object the page expects to post to (MyGo has no
 `WKScriptMessageHandler`, so it forwards to `NativeBridge.Dispatch`), and the page now waits for a receipt
@@ -217,7 +277,7 @@ Three details worth knowing if you edit the renderer:
 This is an early-stage client, and the Go port is mid-flight. Being explicit about what is and is not
 wired up:
 
-- **The UI in `Resources/src-ui/index.html` is the shipping UI**, carried over unchanged. In a
+- **The UI in `Resources/src-ui/index.html` is the shipping UI**, maintained as one dependency-free HTML file. In a
   `mygo build` bundle MyGo embeds it; `make run` and `mygo dev` serve it from disk.
 - **The samplers are real and tested.** `internal/scanner` walks the disk for apps, leftovers, large
   files, installers and clean catalogs; `internal/power` reads thermal state, memory pressure and
@@ -225,22 +285,27 @@ wired up:
   the kernel and `internal/smc` reads temperatures and fan speeds; `internal/analyze` walks the disk
   itself — `mo analyze --json` is only the fallback when a walk fails.
   `go test ./...` covers the numeric and payload-shape behaviour of all three.
-- **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles all 16 branches the Swift
-  switch handled: Finder reveal, clipboard, process killing (SIGTERM then SIGKILL), moving paths to the
-  Trash, `qlmanage -r cache` for Optimize, `caffeinate -d -i -t 7200` for Keep Awake, theme persistence,
-  window zoom and drag, and the menu-bar commands that eval a script into the page. Four actions the page
-  can post — `addWhitelist`, `restoreTrashSnapshot`, `runDoctorReCheck`, `setFanMode` — fall through to
-  `default` exactly as they did in Swift, because the page keeps that state itself.
+- **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles Finder reveal, clipboard,
+  process termination, native Trash/restore, whitelist updates, diagnostics, Quick Look maintenance,
+  caffeinate, theme persistence and window/menu-bar actions. Trash, restore, diagnosis and maintenance
+  use native receipts. Fan control remains unsupported.
 - **CI builds the Go app.** `.github/workflows/ci.yml` runs `go vet` / `go test` / `go build`, installs the
   pinned `mygo` CLI, packages with `mygo build --skip-dmg`, and then asserts the bundle is real — the
   Mach-O executable, a valid `Info.plist`, `Contents/Resources/AppIcon.icns` that unpacks with
   `iconutil`, and the embedded frontend marker in the binary. A second job gates `gofmt`, `go vet`, and a
   clean `mygo generate` (so `mygo.ts` can never be stale in a PR).
-- **Some CLI flags shown in the UI are aspirational.** `mo clean --ai-care`, `--retention` and
-  `--band` do not exist in `mo` 1.56.1. Treat those strings as design intent for the AI Care module,
-  not as working commands.
-- **CPU load, memory, disk free space, installed apps, leftovers, installers, and build artifacts are sampled on this Mac.**
-  Temperature shown next to CPU is still estimated from load.
+- **AI cleanup does not depend on aspirational CLI flags.** Mole CLI has no AI-clean subcommand; orbit
+  scans a local, bounded catalog and submits only verified-old-version paths through native Trash.
+  Current/spare versions, active tools, extensions, models, sessions and worktrees are retained.
+- **Missing sensors remain missing.** CPU temperature comes from SMC when available, not from CPU load.
+- **Frontend regressions run in CI.** `node scripts/test-ui.cjs` checks selected paths, immutable confirmation,
+  mode boundaries, request receipts and primary-button contrast in both themes. Node is development-only;
+  the shipped UI still has no third-party runtime.
+- **Rendered UI checks are repeatable.** `make test-ui-webkit` verifies the actual page in an isolated
+  macOS WebKit view across both themes and minimum-window layouts; screenshots and source-hashed reports
+  stay under `.review/webkit/`. See [`docs/optimization-validation.md`](docs/optimization-validation.md).
+- **Restricted reads are visible.** Directory reads waiting for macOS authorization are bounded and
+  coalesced, with their paths reported as not counted, rather than as zero-byte empty directories.
 
 ## Safety model
 

@@ -60,6 +60,7 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 				"path":    s.relativize(candidate.path),
 				"kind":    candidate.kind,
 				"size":    formatBytes(size.bytes),
+				"sizeGb":  plainGB(size.bytes),
 				"checked": !stillInstalled,
 			})
 		}
@@ -71,10 +72,7 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 		if stillInstalled {
 			statusText = "深层容器与 SDK 残留"
 		}
-		leftoverGB := round2(float64(totalBytes) / 1_000_000_000)
-		if leftoverGB < 0.01 {
-			leftoverGB = 0.01
-		}
+		leftoverGB := plainGB(totalBytes)
 		orphans = append(orphans, map[string]any{
 			"id":             uniqueOrphanID(usedIDs, signature.ID),
 			"name":           signature.Name,
@@ -233,10 +231,7 @@ func (s *Scanner) scanUnclaimedContainers(
 				continue
 			}
 			claimedNow[fullPath] = struct{}{}
-			leftoverGB := round2(float64(size.bytes) / 1_000_000_000)
-			if leftoverGB < 0.01 {
-				leftoverGB = 0.01
-			}
+			leftoverGB := plainGB(size.bytes)
 			found = append(found, map[string]any{
 				// Two roots can hold a directory with the same name, so the
 				// root is part of the id (S-12).
@@ -254,6 +249,7 @@ func (s *Scanner) scanUnclaimedContainers(
 					"path":    s.relativize(fullPath),
 					"kind":    target.kind,
 					"size":    formatBytes(size.bytes),
+					"sizeGb":  plainGB(size.bytes),
 					"checked": false,
 				}},
 			})
