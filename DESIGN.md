@@ -115,5 +115,9 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 - Folded space is inspectable through a bounded sample, not an inert “其它” tile or an empty-list message.
   A sample row names its exact path and size; remaining unreported children are sent to Finder instead of
   pretending the sample is complete.
+- Space analysis uses one squarified geometry for both the current layer and bounded direct-child previews inside
+  large directory tiles. Preview cells are visual only; selection and drill-down keep one action model on the parent.
 - Space analysis shows allocated/logical size, file count and newest modification separately. One “查看折叠项”
   intent exists per surface; the map, summary and tile must not sprout competing duplicate CTAs.
+- Read restrictions are grouped by the directory a user would open in Finder. Every group keeps a path action and
+  the recovery panel names the exact permission pane; it never reduces the fix to a generic “go to Settings” button.

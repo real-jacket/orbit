@@ -99,6 +99,19 @@
 尚未运行远程 CI、发布、公证或其他 macOS 版本验收。当前包仍为 ad-hoc 签名，TCC 授权可能随重建变化；
 受限目录不计入统计，需要用户授权后重新扫描。
 
+## 2026-11-01 空间分析与权限恢复
+
+- 当前层和目录内子项预览共用 squarified 布局；后端只发送最多 4 个直接子项加 1 个余项，
+  大目录不再是一整块没有内部结构的纯色矩形。
+- 权限恢复按目录聚合受限路径；每组可在访达中定位并打开推荐的「完全磁盘访问权限」或
+  「文件与文件夹」面板。「在访达中显示当前应用」由 Go 从 `os.Executable()` 向上解析 `.app`，
+  用来把实际运行的构建加入系统设置。
+- `make check` 通过；`MOLE_TRASH_E2E=1 go test -race ./...` 为 238 项通过；
+  `make test-ui-webkit` 为 84 个场景通过，包含嵌套方块、权限路径分组和失败回执动作。
+- MyGo `0.6.4` 构建、`codesign --verify --deep --strict` 与 `plutil -lint` 通过；
+  bundle 中页面与工作区页面的 SHA-256 均为
+  `0702c9d9c8f2012f8e987836e6c84c9f42500f2ae542399abfb41fa0447da42e`。
+
 ## 参考
 
 对话框的命名、初始焦点和隔离背景参考 [MDN dialog 文档](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog)。

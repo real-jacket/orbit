@@ -576,19 +576,35 @@
   }
   .treemap-tile {
     position: absolute; border: 2px solid var(--bg-surface); border-radius: 9px;
-    padding: 9px 11px; display: flex; flex-direction: column; justify-content: space-between; gap: 5px;
-    cursor: pointer; overflow: hidden; container-type: size;
+    padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+    cursor: pointer; overflow: hidden; container-type: size; isolation: isolate;
     transition: box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.16s ease;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
   }
-  .treemap-tile:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4), inset 0 1px 0 rgba(255,255,255,0.16); }
+  .treemap-tile:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.34); }
   .treemap-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-primary); }
   .treemap-tile.active-tile {
     box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
     z-index: 5;
   }
   .treemap-tile.tt-others { opacity: 0.72; }
-  .tt-head { min-width: 0; }
+  .tt-preview {
+    position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: inherit;
+    pointer-events: none; opacity: 0.9;
+  }
+  .tt-preview-cell {
+    position: absolute; display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(18, 16, 14, 0.34); border-radius: 2px; box-sizing: border-box;
+    padding: 8px;
+  }
+  .tt-preview-cell.dir { background: rgba(255, 211, 169, 0.15); }
+  .tt-preview-cell.file { background: rgba(215, 210, 201, 0.16); }
+  .tt-preview-cell.other { background: rgba(255, 250, 240, 0.055); }
+  .tt-preview-label {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: rgba(255,255,255,0.78); font-size: 10.5px; font-weight: 650;
+    text-shadow: 0 1px 2px rgba(12, 10, 9, 0.55);
+  }
+  .tt-head { min-width: 0; position: relative; z-index: 1; text-shadow: 0 1px 2px rgba(12, 10, 9, 0.46); }
   .tt-name {
     font-size: 13px; font-weight: 800; letter-spacing: -0.01em; color: #fff;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -597,17 +613,20 @@
     margin-top: 2px; font-size: 10px; color: rgba(255,255,255,0.74);
     font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .tt-foot { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .tt-foot {
+    position: relative; z-index: 1; display: flex; align-items: baseline; gap: 6px; white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(12, 10, 9, 0.46);
+  }
   .tt-size { font-family: var(--font-mono); font-size: 12.5px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
   .tt-size em { font-style: normal; font-size: 9.5px; font-weight: 700; margin-left: 2px; color: rgba(255,255,255,0.72); }
   .tt-pct { font-family: var(--font-mono); font-size: 10.5px; color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
   .tt-flag {
-    position: absolute; top: 5px; right: 5px; font-size: 9px; line-height: 1; font-weight: 700;
+    position: absolute; z-index: 2; top: 5px; right: 5px; font-size: 9px; line-height: 1; font-weight: 700;
     background: rgba(180, 83, 9, 0.96); color: #fff; padding: 3px 5px; border-radius: 4px;
   }
   /* 静止态的可见提示：目录方块右下角一个 chevron，悬停后被真按钮替换。 */
   .tt-chevron {
-    position: absolute; right: 9px; bottom: 7px; font-size: 13px; line-height: 1;
+    position: absolute; z-index: 2; right: 9px; bottom: 7px; font-size: 13px; line-height: 1;
     color: rgba(255,255,255,0.55); pointer-events: none;
     transition: opacity 0.12s ease;
   }
@@ -615,7 +634,7 @@
   .treemap-tile.active-tile .tt-chevron { opacity: 0; }
   /* 方块自带动作：悬停/聚焦/选中才出现，窄了收成图标，再窄就交给面包屑栏。 */
   .tt-actions {
-    position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px;
+    position: absolute; z-index: 3; right: 8px; bottom: 8px; display: flex; gap: 4px;
     opacity: 0; pointer-events: none;
     transition: opacity 0.12s ease;
   }
@@ -636,6 +655,8 @@
   @container (max-width: 74px) { .tt-actions .tt-btn ~ .tt-btn { display: none; } }
   @container (max-width: 39px) { .tt-actions { display: none; } }
   @container (max-height: 44px) { .tt-actions { display: none; } }
+  @container (max-width: 91px) { .tt-preview { display: none; } }
+  @container (max-height: 67px) { .tt-preview { display: none; } }
   /* 动作出现时给底部数字留出位置，避免压住体积与占比。 */
   .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 74px; }
   @container (max-width: 213px) { .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 52px; } }
@@ -947,6 +968,43 @@
   .analysis-no-match > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
   .analysis-no-match b { font-size: 13px; color: var(--text-primary); }
   .analysis-no-match span { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+  .permission-recovery {
+    flex: none; margin: 0 12px 10px; padding: 12px;
+    border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-card);
+  }
+  .permission-recovery-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; }
+  .permission-recovery-icon {
+    width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 7px; background: var(--accent-amber-soft); color: var(--accent-amber);
+  }
+  .permission-recovery-icon .ui-ico { width: 15px; height: 15px; }
+  .permission-recovery-head strong { display: block; font-size: 12.5px; color: var(--text-primary); }
+  .permission-recovery-head p { margin-top: 3px; font-size: 11.5px; line-height: 1.55; color: var(--text-secondary); }
+  .permission-recovery-head small { display: block; margin-top: 4px; font-size: 10.5px; line-height: 1.45; color: var(--text-muted); }
+  .permission-recovery-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .permission-recovery-actions .btn { height: 28px; padding: 0 9px; font-size: 10.5px; }
+  .permission-groups { margin-top: 10px; border-top: 1px solid var(--border-subtle); }
+  .permission-groups summary {
+    padding-top: 9px; color: var(--text-secondary); cursor: pointer;
+    font-size: 10.5px; font-weight: 700;
+  }
+  .permission-group-list { max-height: 190px; overflow-y: auto; margin-top: 5px; }
+  .permission-group-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px;
+    min-height: 36px; padding: 5px 0; border-top: 1px solid var(--border-subtle);
+  }
+  .permission-group-path {
+    min-width: 0; display: flex; align-items: center; gap: 7px; padding: 0;
+    border: 0; background: transparent; color: var(--text-primary); text-align: left; cursor: pointer;
+  }
+  .permission-group-path .ui-ico { width: 13px; height: 13px; flex: none; color: var(--text-secondary); }
+  .permission-group-path > span { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .permission-group-path b, .permission-group-path small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .permission-group-path b { font: 11px/1.35 var(--font-mono); font-weight: 650; }
+  .permission-group-path small { font-size: 10px; color: var(--text-muted); }
+  .permission-group-path:hover b { color: var(--accent-primary); }
+  .permission-group-path:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+  .permission-group-pane { height: 26px; padding: 0 7px; font-size: 10px; white-space: nowrap; }
   .tt-others { cursor: pointer; }
   .insights-box { border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
   .insights-box summary { padding: 7px 14px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
@@ -1016,6 +1074,29 @@
   .confirm-entry-head { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
   .confirm-path { font: 11px/1.6 var(--font-mono); color: var(--text-secondary); overflow-wrap: anywhere; margin-top: 4px; user-select: text; }
   .toast { max-width: min(600px, calc(100vw - 40px)); white-space: normal; line-height: 1.6; }
+  .permission-toast {
+    position: fixed; left: 50%; bottom: 22px; z-index: 9999; transform: translateX(-50%);
+    width: min(640px, calc(100vw - 32px)); padding: 12px 14px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px;
+    border: 1px solid var(--border-strong); border-radius: 12px; background: var(--bg-elevated);
+    color: var(--text-primary); box-shadow: var(--shadow-modal);
+  }
+  .permission-toast strong { display: block; font-size: 12.5px; }
+  .permission-toast p { margin-top: 3px; font-size: 11.5px; line-height: 1.5; color: var(--text-secondary); }
+  .permission-toast-path {
+    margin-top: 5px; font: 10.5px/1.45 var(--font-mono); color: var(--text-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .permission-toast-actions { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 5px; }
+  .permission-toast-actions .btn { height: 28px; padding: 0 9px; font-size: 10.5px; white-space: nowrap; }
+  .permission-toast-close {
+    justify-self: end; border: 0; background: transparent; color: var(--text-muted);
+    font-size: 14px; cursor: pointer; padding: 0 2px;
+  }
+  @media (max-width: 700px) {
+    .permission-toast { grid-template-columns: 1fr; }
+    .permission-toast-actions { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; }
+  }
   #doctorProgressBanner > div:last-child { display: none; }
   @media (prefers-reduced-transparency: reduce) { .modal-backdrop { backdrop-filter: none; } }
   @media (max-width: 1100px) {
@@ -2600,70 +2681,140 @@ function normalizeAggregated(agg) {
   };
 }
 
+// Squarified layout (Bruls/Huizing/van Wijk): keep tile aspect ratios useful
+// while preserving exact area. The same routine powers the outer map and the
+// small child previews inside each directory tile.
+function squarifyRects(items, width, height) {
+  const rects = new Map();
+  const total = items.reduce((sum, item) => sum + Math.max(0, Number(item.value) || 0), 0);
+  if (!(total > 0) || !(width > 0) || !(height > 0)) return rects;
+  const areaScale = width * height / total;
+  const queue = items
+    .map(item => ({ item, area: Math.max(0, Number(item.value) || 0) * areaScale }))
+    .filter(entry => entry.area > 0);
+  let x = 0, y = 0, w = width, h = height, row = [];
+
+  const worst = (entries, side) => {
+    const sum = entries.reduce((n, entry) => n + entry.area, 0);
+    const high = Math.max(...entries.map(entry => entry.area));
+    const low = Math.min(...entries.map(entry => entry.area));
+    if (!(sum > 0) || !(low > 0) || !(side > 0)) return Infinity;
+    return Math.max(side * side * high / (sum * sum), sum * sum / (side * side * low));
+  };
+  const flush = () => {
+    if (!row.length) return;
+    const area = row.reduce((n, entry) => n + entry.area, 0);
+    if (w >= h) {
+      const columnWidth = Math.min(w, area / h);
+      let cursor = y;
+      row.forEach(entry => {
+        const entryHeight = columnWidth > 0 ? entry.area / columnWidth : 0;
+        rects.set(entry.item, { x, y: cursor, w: columnWidth, h: entryHeight });
+        cursor += entryHeight;
+      });
+      x += columnWidth;
+      w = Math.max(0, w - columnWidth);
+    } else {
+      const rowHeight = Math.min(h, area / w);
+      let cursor = x;
+      row.forEach(entry => {
+        const entryWidth = rowHeight > 0 ? entry.area / rowHeight : 0;
+        rects.set(entry.item, { x: cursor, y, w: entryWidth, h: rowHeight });
+        cursor += entryWidth;
+      });
+      y += rowHeight;
+      h = Math.max(0, h - rowHeight);
+    }
+    row = [];
+  };
+
+  while (queue.length && w > 0 && h > 0) {
+    const side = Math.min(w, h);
+    if (!row.length || worst(row.concat(queue[0]), side) <= worst(row, side)) row.push(queue.shift());
+    else flush();
+  }
+  flush();
+  return rects;
+}
+
 // 参数：当前层级的 tiles。返回条目带 idx（在原数组里的下标，供选中/下钻用）。
-// MinTileSize：任一边 < 3px 的矩形不生成 DOM，体积并入一个不可点的「其它」块。
+// 小于 46px 的方块会并进「其它」：画一张可读的地图，不是给每个碎片生成 DOM。
 function layoutTreemap(tiles, aggregate) {
   const stage = document.querySelector('.treemap-stage');
-  const W = Math.max(300, (stage ? stage.clientWidth : 720) - 8), H = stage && stage.clientHeight > 100 ? stage.clientHeight - 8 : 296;
-  // 小于这个尺寸的方块放不下任何标签，合并成「其它」比画一堆看不清的碎片更有用
+  const W = Math.max(300, (stage ? stage.clientWidth : 720) - 8);
+  const H = stage && stage.clientHeight > 100 ? stage.clientHeight - 8 : 296;
   const MIN_TILE_PX = 46;
-  const squarify = (items) => {
-    const total = items.reduce((n, x) => n + x.v, 0);
-    items.forEach(it => { it.a = it.v / total * W * H; });
-    const out = new Map();
-    let x = 0, y = 0, w = W, h = H, row = [];
-    const worst = (r, side) => {
-      const sum = r.reduce((n, q) => n + q.a, 0);
-      const hi = Math.max(...r.map(q => q.a)), lo = Math.min(...r.map(q => q.a));
-      return Math.max(side * side * hi / (sum * sum), sum * sum / (side * side * lo));
-    };
-    const flush = () => {
-      const sum = row.reduce((n, q) => n + q.a, 0);
-      if (w >= h) {
-        const cw = sum / h; let yy = y;
-        row.forEach(q => { const rh = q.a / cw; out.set(q, { x, y: yy, w: cw, h: rh }); yy += rh; });
-        x += cw; w -= cw;
-      } else {
-        const rh = sum / w; let xx = x;
-        row.forEach(q => { const rw = q.a / rh; out.set(q, { x: xx, y, w: rw, h: rh }); xx += rw; });
-        y += rh; h -= rh;
-      }
-      row = [];
-    };
-    const queue = items.slice();
-    while (queue.length) {
-      const side = Math.min(w, h);
-      if (!row.length || worst(row.concat(queue[0]), side) <= worst(row, side)) row.push(queue.shift());
-      else flush();
-    }
-    if (row.length) flush();
-    return out;
-  };
-  const toPct = (o) => ({
-    x: +(o.x / W * 100).toFixed(3), y: +(o.y / H * 100).toFixed(3),
-    w: +(o.w / W * 100).toFixed(3), h: +(o.h / H * 100).toFixed(3)
-  });
-  const all = tiles.map((t, i) => ({ i, t, v: diskGbOf(t) })).filter(q => q.v > 0);
-  if (aggregate && aggregate.sizeGb > 0) all.push({ i: -1, t: { name: '其它', path: '', sizeGb: aggregate.sizeGb, count: aggregate.count, __others: true }, v: aggregate.sizeGb });
-  all.sort((a, b) => b.v - a.v);
-  if (!all.length) return [];
-  let pos = squarify(all);
-  const keep = [], tiny = [];
-  all.forEach(q => {
-    const o = pos.get(q);
-    if (!q.t.__others && o && Math.min(o.w, o.h) >= MIN_TILE_PX) keep.push(q); else tiny.push(q);
-  });
-  const out = keep.map(q => Object.assign({}, q.t, toPct(pos.get(q)), { idx: q.i }));
-  if (tiny.length) {
-    // 小块合成一个「其它」条目：仍占面积，但不可点、不可下钻，避免为每个小项生成 DOM。
-    const othersSizeGb = tiny.reduce((n, q) => n + (Number(q.t.sizeGb) || 0), 0);
-    const count = tiny.reduce((n, q) => n + (q.t.count || 1), 0);
-    const others = { i: -1, t: { name: '其它', path: '', isDir: true, sizeGb: othersSizeGb, count }, v: tiny.reduce((n, q) => n + q.v, 0) };
-    pos = squarify(keep.concat([others]));
-    const o = pos.get(others);
-    if (o) out.push(Object.assign({}, others.t, toPct(o), { idx: -1, __others: true, mergedCount: count }));
+  const all = (tiles || []).map((tile, idx) => ({ idx, tile, value: diskGbOf(tile) })).filter(entry => entry.value > 0);
+  if (aggregate && aggregate.sizeGb > 0) {
+    all.push({
+      idx: -1,
+      tile: { name: '其它', path: '', sizeGb: aggregate.sizeGb, count: aggregate.count, __others: true },
+      value: aggregate.sizeGb
+    });
   }
-  return out;
+  all.sort((a, b) => b.value - a.value);
+  if (!all.length) return [];
+
+  const first = squarifyRects(all, W, H);
+  const keep = [], folded = [];
+  all.forEach(entry => {
+    const rect = first.get(entry);
+    if (!entry.tile.__others && rect && Math.min(rect.w, rect.h) >= MIN_TILE_PX) keep.push(entry);
+    else folded.push(entry);
+  });
+
+  let laidItems = all;
+  if (folded.length) {
+    const foldedValue = folded.reduce((sum, entry) => sum + entry.value, 0);
+    const foldedSize = folded.reduce((sum, entry) => sum + diskGbOf(entry.tile), 0);
+    const foldedCount = folded.reduce((sum, entry) => sum + (entry.tile.mergedCount || entry.tile.count || 1), 0);
+    const others = {
+      idx: -1,
+      tile: { name: '其它', path: '', isDir: true, sizeGb: foldedSize, count: foldedCount, __others: true },
+      value: foldedValue
+    };
+    laidItems = keep.concat([others]);
+  }
+
+  const positions = squarifyRects(laidItems, W, H);
+  return laidItems.map(entry => {
+    const rect = positions.get(entry);
+    if (!rect) return null;
+    return Object.assign({}, entry.tile, {
+      x: +(rect.x / W * 100).toFixed(3),
+      y: +(rect.y / H * 100).toFixed(3),
+      w: +(rect.w / W * 100).toFixed(3),
+      h: +(rect.h / H * 100).toFixed(3),
+      idx: entry.idx,
+      mergedCount: entry.tile.__others ? (entry.tile.count || 1) : undefined
+    });
+  }).filter(Boolean);
+}
+
+// Nested material inside a directory tile: one bounded level, never a click
+// target, so the outer tile keeps one predictable action model.
+function treemapPreviewHTML(tile) {
+  const preview = Array.isArray(tile && tile.preview) ? tile.preview.filter(item => diskGbOf(item) > 0) : [];
+  if (!preview.length) return '';
+  const stage = document.querySelector('.treemap-stage');
+  const stageW = stage ? stage.clientWidth : 720;
+  const stageH = stage ? stage.clientHeight : 300;
+  const tileW = stageW * (Number(tile.w) || 0) / 100;
+  const tileH = stageH * (Number(tile.h) || 0) / 100;
+  if (tileW < 92 || tileH < 68) return '';
+  const entries = preview.map((item, idx) => ({ item, idx, value: diskGbOf(item) }));
+  const rects = squarifyRects(entries, 100, 100);
+  return `<div class="tt-preview" aria-hidden="true">${entries.map(entry => {
+    const rect = rects.get(entry);
+    if (!rect) return '';
+    const kind = entry.item.path ? (entry.item.isDir === false ? 'file' : 'dir') : 'other';
+    const gap = 0.45;
+    const x = rect.x + gap, y = rect.y + gap;
+    const w = Math.max(0, rect.w - gap * 2), h = Math.max(0, rect.h - gap * 2);
+    if (!(w > 0 && h > 0)) return '';
+    const showLabel = entry.idx < 2 && tileW * w / 100 >= 88 && tileH * h / 100 >= 54;
+    return `<span class="tt-preview-cell ${kind}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%;width:${w.toFixed(2)}%;height:${h.toFixed(2)}%">${showLabel ? `<span class="tt-preview-label">${escHtml(entry.item.name)}</span>` : ''}</span>`;
+  }).join('')}</div>`;
 }
 
 // 颜色只承担一件事：让「大 / 中 / 小」在同一张图里一眼分得开。同一个色系，
@@ -2898,6 +3049,100 @@ function toggleAppKeepPersonal(idx, ev) {
   updateSidebarBadges();
   renderModule();
   showToast(app.name + (app.keepPersonal ? ': 已切换为「标准卸载（保留配置）」' : ': 已切换为「彻底卸载 (含全部残留)」'));
+}
+
+function revealCurrentApp() {
+  sendNativeBridge({ action: 'revealAppBundle' });
+}
+
+function openPrivacySettingsForPane(pane) {
+  sendNativeBridge({ action: 'openPrivacySettings', pane: pane === 'filesAndFolders' ? 'filesAndFolders' : 'fullDiskAccess' });
+}
+
+function permissionPaneForPath(rawPath) {
+  const shown = displayPath(rawPath || '');
+  return /^~\/(Desktop|Documents|Downloads)(\/|$)/.test(shown) ||
+    /^\/Users\/[^/]+\/(Desktop|Documents|Downloads)(\/|$)/.test(shown)
+    ? 'filesAndFolders'
+    : 'fullDiskAccess';
+}
+
+function permissionPaneLabel(pane) {
+  return pane === 'filesAndFolders' ? '文件与文件夹' : '完全磁盘访问权限';
+}
+
+// Keep 590 restrictions inspectable without printing 590 rows: group by the
+// directory the user would actually open in Finder or grant in System Settings.
+function groupRestrictedPaths(items) {
+  const groups = new Map();
+  (Array.isArray(items) ? items : []).forEach((item, index) => {
+    if (!item || typeof item.path !== 'string' || !item.path) return;
+    const shown = displayPath(item.path);
+    const parts = shown.split('/').filter(Boolean);
+    let label = shown;
+    if (shown.startsWith('~/') && parts.length > 1) {
+      const take = parts[1] === 'Library' ? 3 : 2;
+      label = '~/' + parts.slice(1, Math.min(take, parts.length)).join('/');
+    } else if (shown.startsWith('/Users/') && parts.length > 2) {
+      const take = parts[2] === 'Library' ? 4 : 3;
+      label = '/' + parts.slice(0, Math.min(take, parts.length)).join('/');
+    } else if (shown.startsWith('/') && parts.length > 3) {
+      label = '/' + parts.slice(0, 3).join('/');
+    }
+    const key = label || shown;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        label: key,
+        path: absolutePath(key),
+        count: 0,
+        pane: permissionPaneForPath(item.path),
+        reason: typeof item.reason === 'string' ? item.reason : '',
+        firstIndex: index
+      });
+    }
+    const group = groups.get(key);
+    group.count += 1;
+    if (!group.reason && typeof item.reason === 'string') group.reason = item.reason;
+  });
+  return Array.from(groups.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'));
+}
+
+function restrictedRecoveryHTML(items, rescanPath) {
+  const groups = groupRestrictedPaths(items);
+  if (!groups.length) return '';
+  const primaryPane = groups.some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : 'filesAndFolders';
+  const secondaryPane = primaryPane === 'fullDiskAccess' ? 'filesAndFolders' : 'fullDiskAccess';
+  return `
+    <div class="permission-recovery" role="region" aria-label="读取权限与受限路径">
+      <div class="permission-recovery-head">
+        <span class="permission-recovery-icon">${UI_ICON('lock')}</span>
+        <div>
+          <strong>${(Array.isArray(items) ? items.length : 0)} 个路径未读取，当前体积只是已测量下限</strong>
+          <p>授权后回到 orbit 点「重新扫描」。若设置列表里没有当前应用，先在访达中显示它，再用“+”添加。</p>
+          <small>当前构建使用临时签名；重新打包后，macOS 可能再次要求授权。</small>
+        </div>
+      </div>
+      <div class="permission-recovery-actions">
+        <button class="btn btn-primary" onclick="openPrivacySettingsForPane('${primaryPane}')">打开${permissionPaneLabel(primaryPane)}</button>
+        <button class="btn" onclick="openPrivacySettingsForPane('${secondaryPane}')">打开${permissionPaneLabel(secondaryPane)}</button>
+        <button class="btn" onclick="revealCurrentApp()">在访达中显示当前应用</button>
+        <button class="btn btn-quiet" onclick="requestDiskAnalyze('${jsq(rescanPath || '')}', true)">重新扫描</button>
+      </div>
+      <details class="permission-groups">
+        <summary>按目录定位受限项 · ${groups.length} 组</summary>
+        <div class="permission-group-list">
+          ${groups.map(group => `
+            <div class="permission-group-row">
+              <button class="permission-group-path" onclick="revealInFinder('${jsq(group.path)}')" title="在访达中显示 ${escHtml(group.path)}">
+                ${UI_ICON('folder')}
+                <span><b>${escHtml(group.label)}</b><small>${group.count} 个路径${group.reason ? ' · ' + escHtml(group.reason) : ''}</small></span>
+              </button>
+              <button class="btn permission-group-pane" onclick="openPrivacySettingsForPane('${group.pane}')" title="打开推荐权限面板">${permissionPaneLabel(group.pane)}</button>
+            </div>`).join('')}
+        </div>
+      </details>
+    </div>`;
 }
 
 // Interactive Handlers for Analyze (Real file deletion + persistent state)
@@ -4057,16 +4302,9 @@ function renderModule() {
     const restrictedBtn = restricted.length
       ? `<button class="btn" style="padding:1px 8px;font-size:10.5px;" onclick="STATE.analyzeRestrictedOpen = !STATE.analyzeRestrictedOpen; renderModule();">${restricted.length} 个路径读取受限${STATE.analyzeRestrictedOpen ? ' ▴' : ' ▾'}</button>`
       : '';
-    const restrictedPanel = STATE.analyzeRestrictedOpen && restricted.length ? `
-      <div style="padding:2px 12px 10px;font-size:11px;color:var(--text-secondary);">
-        <div style="margin-bottom:4px;">这些路径未读取的部分没有计入；已读内容可能已经计入，未读体积未知：</div>
-        ${restricted.slice(0, 10).map(r => `
-          <div style="display:flex;gap:10px;padding:1.5px 0;font-family:var(--font-mono);font-size:10.5px;">
-            <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(displayPath(r.path) || '（路径未提供）')}</span>
-            <span style="color:var(--text-tertiary);white-space:nowrap;">${escHtml(r.reason || '未知原因')}</span>
-          </div>`).join('')}
-        ${restricted.length > 10 ? `<div style="margin-top:3px;color:var(--text-tertiary);">仅显示前 10 条，共 ${restricted.length} 条</div>` : ''}
-      </div>` : '';
+    const restrictedPanel = STATE.analyzeRestrictedOpen && restricted.length
+      ? restrictedRecoveryHTML(restricted, STATE.analyzeRoot || '')
+      : '';
     const otherOpen = STATE.analyzeOtherOpen;
     const otherPanel = showAggregate ? `
       <div class="analysis-other" id="analysisOtherPanel">
@@ -4216,6 +4454,7 @@ function renderModule() {
               return `
             <div class="treemap-tile ${sel ? 'active-tile' : ''}${isOthers ? ' tt-others' : ''}" ${isOthers ? `tabindex="0" role="button" aria-label="查看折叠小项" onclick="toggleAnalyzeOtherItems(true)"` : `tabindex="0" role="button" data-idx="${r.idx}" aria-label="${escHtml(r.name)} ${rGb.toFixed(2)} GB"`} data-tip="${escHtml(tip)}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${tint}">
               ${rPartial ? `<span class="tt-flag">受限</span>` : ''}
+              ${isOthers ? '' : treemapPreviewHTML(r)}
               <div class="tt-head">
                 <div class="tt-name">${isOthers ? '其它' : escHtml(r.name)}</div>
                 <div class="tt-path">${isOthers ? `${r.mergedCount || r.count || 0} 个小项` : escHtml(displayPath(r.path || ''))}</div>
@@ -5082,12 +5321,26 @@ document.addEventListener('keydown', (e) => {
     document.getElementById('scanSourceBadge').textContent = T(scanning ? '正在读取本机' : scanError ? '扫描未完成' : STATE.scanReadWarnings.length ? '部分测量受限' : STATE.scanCompleted ? STATE.module === 'ai_moon' ? '本地 AI 目录审查 · 不等于 CLI 清理' : '本机扫描已返回' : '等待本机数据', scanning ? 'Scanning locally' : STATE.scanReadWarnings.length ? 'Some measurements are incomplete' : STATE.scanCompleted ? 'Local results' : 'Waiting for data');
     if (STATE.module === 'analyze') document.getElementById('scanSourceBadge').textContent = STATE.analyzeLoading ? '正在读取本地目录' : STATE.analyzeError ? '扫描未完成，旧结果保留' : STATE.analyzeStatus ? 'orbit 本地扫描 · 仅此范围' : '等待目录扫描';
     if (STATE.scanReadWarnings.length && ['clean', 'ai_moon', 'software', 'purge'].includes(STATE.module)) {
+      const warningGroups = groupRestrictedPaths(STATE.scanReadWarnings);
+      const recommendedPane = warningGroups.some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : 'filesAndFolders';
       const hint = document.createElement('details');
       hint.className = 'panel-card';
       hint.style.cssText = 'flex:none;padding:12px 16px;font-size:12px;line-height:1.6;';
-      hint.innerHTML = `<summary style="cursor:pointer;color:var(--accent-amber);">${STATE.scanReadWarnings.length} 个路径未完成测量，查看原因</summary>` +
-        STATE.scanReadWarnings.map(w => `<div class="confirm-path">${escHtml(displayPath(w.path))}：${escHtml(w.reason)} <button class="btn btn-quiet" onclick="revealInFinder('${jsq(w.path)}')">在访达中显示</button></div>`).join('') +
-        `<button class="btn" style="margin-top:8px;" onclick="sendNativeBridge({action:'openPrivacySettings',pane:'filesAndFolders'})">查看访问权限</button>`;
+      hint.innerHTML = `<summary style="cursor:pointer;color:var(--accent-amber);">${STATE.scanReadWarnings.length} 个路径未完成测量，按目录查看原因</summary>
+        <div class="permission-group-list">
+          ${warningGroups.map(group => `
+            <div class="permission-group-row">
+              <button class="permission-group-path" onclick="revealInFinder('${jsq(group.path)}')" title="在访达中显示 ${escHtml(group.path)}">
+                ${UI_ICON('folder')}
+                <span><b>${escHtml(group.label)}</b><small>${group.count} 个路径${group.reason ? ' · ' + escHtml(group.reason) : ''}</small></span>
+              </button>
+              <button class="btn permission-group-pane" onclick="openPrivacySettingsForPane('${group.pane}')">${permissionPaneLabel(group.pane)}</button>
+            </div>`).join('')}
+        </div>
+        <div class="permission-recovery-actions">
+          <button class="btn" onclick="revealCurrentApp()">在访达中显示当前应用</button>
+          <button class="btn" onclick="openPrivacySettingsForPane('${recommendedPane}')">打开${permissionPaneLabel(recommendedPane)}</button>
+        </div>`;
       stage.appendChild(hint);
     }
     // 右侧检查栏没有内容时不要留一整块空白：给一行说明。
@@ -5251,7 +5504,7 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
   };
 
   function postPane(pane) {
-    if (typeof sendNativeBridge === 'function') sendNativeBridge({ action: 'openPrivacySettings', pane: pane });
+    openPrivacySettingsForPane(pane);
   }
 
   function dismiss() {
@@ -5259,44 +5512,43 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
     if (el) el.remove();
   }
 
-  function showPermissionHint(panes) {
+  function showPermissionHint(panes, failedPaths) {
     dismiss();
+    const toast = document.getElementById('toastBanner');
+    if (toast) toast.style.display = 'none';
     const pane = panes.find(p => PANE_TEXT[p]) || 'fullDiskAccess';
     const [title, why] = PANE_TEXT[pane];
+    const firstPath = failedPaths && failedPaths[0] && failedPaths[0].path ? displayPath(failedPaths[0].path) : '';
     const el = document.createElement('div');
     el.id = 'permHint';
-    el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;' +
-      'display:flex;align-items:center;gap:12px;max-width:560px;padding:12px 14px;border-radius:12px;' +
-      'background:var(--surface-raised,#1c1c1e);color:var(--text-primary,#fff);' +
-      'box-shadow:0 12px 32px rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.12);font-size:12.5px;line-height:1.45;';
-    el.innerHTML = '<div style="flex:1;min-width:0;">' +
-      '<div style="font-weight:800;margin-bottom:2px;">系统拒绝了这次操作：缺少「' + title + '」</div>' +
-      '<div style="color:var(--text-secondary,#a1a1aa);">' + why + '。授权后重试即可，已经移入废纸篓的条目不受影响。</div>' +
-      '</div>';
-    const open = document.createElement('button');
-    open.textContent = '去系统设置';
-    open.style.cssText = 'flex:none;padding:7px 12px;border-radius:9px;border:0;cursor:pointer;' +
-      'background:var(--accent-emerald,#10b981);color:#04180f;font-weight:800;font-size:12px;';
-    open.onclick = () => { postPane(pane); dismiss(); };
-    const close = document.createElement('button');
-    close.textContent = '×';
-    close.style.cssText = 'flex:none;width:26px;height:26px;border-radius:8px;border:0;cursor:pointer;' +
-      'background:rgba(255,255,255,.08);color:inherit;font-size:15px;line-height:1;';
-    close.onclick = dismiss;
-    el.appendChild(open);
-    el.appendChild(close);
+    el.className = 'permission-toast';
+    el.setAttribute('role', 'alert');
+    el.innerHTML = `<div>
+      <strong>系统拒绝了这次操作：缺少「${escHtml(title)}」</strong>
+      <p>${escHtml(why)}。授权后返回 orbit 重试；已经移入废纸篓的条目不受影响。系统设置列表没有当前应用时，先在访达中显示它，再用“+”添加。</p>
+      ${firstPath ? `<div class="permission-toast-path" title="${escHtml(firstPath)}">${escHtml(firstPath)}${failedPaths.length > 1 ? ` · 另 ${failedPaths.length - 1} 项` : ''}</div>` : ''}
+    </div>
+    <div class="permission-toast-actions">
+      <button class="btn btn-primary" data-perm-open>打开${escHtml(title)}</button>
+      <button class="btn" data-perm-reveal>在访达中显示当前应用</button>
+      <button class="permission-toast-close" data-perm-close aria-label="关闭权限提示">关闭</button>
+    </div>`;
+    el.querySelector('[data-perm-open]').onclick = () => { postPane(pane); dismiss(); };
+    el.querySelector('[data-perm-reveal]').onclick = () => { revealCurrentApp(); };
+    el.querySelector('[data-perm-close]').onclick = dismiss;
     document.body.appendChild(el);
-    window.setTimeout(dismiss, 15000);
+    window.setTimeout(dismiss, 20000);
   }
 
   window.resolveTrash = function (res) {
     const out = prevResolveTrash.apply(this, arguments);
     try {
       const panes = [];
-      (res && Array.isArray(res.failed) ? res.failed : []).forEach(f => {
+      const failedPaths = (res && Array.isArray(res.failed) ? res.failed : []).filter(f => f && f.path);
+      failedPaths.forEach(f => {
         if (f && f.pane && panes.indexOf(String(f.pane)) < 0) panes.push(String(f.pane));
       });
-      if (panes.length) showPermissionHint(panes);
+      if (panes.length) showPermissionHint(panes, failedPaths);
       else if (panes.length === 0 && !(res && res.failed && res.failed.length)) dismiss();
     } catch (e) {}
     return out;

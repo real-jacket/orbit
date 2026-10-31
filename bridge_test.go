@@ -64,3 +64,14 @@ func TestPrivacyPaneURLKnowsFilesAndFolders(t *testing.T) {
 		t.Fatalf("filesAndFolders URL = %q", got)
 	}
 }
+
+func TestAppBundleFromExecutableFindsTheOuterBundle(t *testing.T) {
+	got := appBundleFromExecutable("/Applications/orbit.app/Contents/MacOS/orbit")
+	if got != "/Applications/orbit.app" {
+		t.Fatalf("bundle path = %q", got)
+	}
+	plain := appBundleFromExecutable("/tmp/go-build/orbit")
+	if plain != "/tmp/go-build/orbit" {
+		t.Fatalf("plain executable path = %q", plain)
+	}
+}
