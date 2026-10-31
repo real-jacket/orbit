@@ -37,6 +37,12 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 			return Protection{Pattern: path, Reason: "用户核心目录不能整体移除"}, true
 		}
 	}
+	// Version entries under an AI tool's version root are individually
+	// evaluated by CleanupReason. Let them through here so the active-version
+	// guard, not a blanket app-data rule, decides.
+	if isAIVersionEntry(path, home) {
+		return Protection{}, false
+	}
 	for _, rule := range []struct{ path, reason string }{
 		{".ssh", "密钥与凭据保持原状"}, {".gnupg", "密钥与凭据保持原状"},
 		{".config", "个人配置与凭据保持原状"}, {".aws", "云服务凭据保持原状"},
@@ -65,6 +71,16 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 		}
 	}
 	return Protection{}, false
+}
+
+func isAIVersionEntry(path, home string) bool {
+	for _, spec := range aiVersionSpecs {
+		root := filepath.Join(home, spec.root)
+		if strings.EqualFold(filepath.Dir(path), root) && validAIVersionName(filepath.Base(path)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Scanner) cleanupProcesses() (string, error) {
@@ -121,7 +137,17 @@ func (s *Scanner) CleanupReason(raw string) string {
 		}
 		for _, version := range s.versionInventory(spec) {
 			if version.path == path {
-				return version.reason
+				if version.reason != "" {
+					return version.reason
+				}
+				open, err := s.aiVersionHasOpenHandle(path)
+				if err != nil {
+					return "无法确认旧版本是否仍被打开，保持原状"
+				}
+				if open {
+					return "仍有进程打开这个版本，保持原状"
+				}
+				return ""
 			}
 		}
 		return "版本状态无法核验，保持原状"
@@ -129,12 +155,21 @@ func (s *Scanner) CleanupReason(raw string) string {
 	for _, rule := range []struct{ roots, owners []string }{
 		{[]string{"Library/Caches/com.apple.Safari"}, []string{"Safari"}},
 		{[]string{"Library/Caches/Google"}, []string{"Google Chrome"}},
+		{[]string{"Library/Caches/Firefox"}, []string{"Firefox"}},
 		{[]string{"Library/Developer/Xcode/DerivedData"}, []string{"Xcode", "xcodebuild", "swift-frontend"}},
 		{[]string{"Library/Developer/CoreSimulator/Caches"}, []string{"Simulator", "CoreSimulatorService"}},
 		{[]string{"Library/Caches/Cursor"}, []string{"Cursor", "cursor-agent"}},
 		{[]string{"Library/Logs/Claude"}, []string{"Claude", "claude"}},
+		{[]string{"Library/Caches/com.openai.chat"}, []string{"ChatGPT"}},
+		{[]string{"Library/Caches/com.anthropic.claudefordesktop"}, []string{"Claude"}},
+		{[]string{"Library/Caches/com.lmstudio.lmstudio"}, []string{"LM Studio", "LMStudio"}},
 		{[]string{".npm/_cacache"}, []string{"npm", "pnpm", "node"}},
+		{[]string{"Library/Caches/Yarn"}, []string{"yarn"}},
+		{[]string{".bun/install/cache"}, []string{"bun"}},
 		{[]string{"Library/Caches/pip"}, []string{"pip", "python", "python3"}},
+		{[]string{".cache/uv"}, []string{"uv"}},
+		{[]string{"go/pkg/mod/cache/download"}, []string{"go"}},
+		{[]string{".cargo/registry/cache"}, []string{"cargo", "rustc"}},
 		{[]string{"Library/Caches/Homebrew"}, []string{"brew", "ruby"}},
 	} {
 		for _, root := range rule.roots {
@@ -156,6 +191,28 @@ func (s *Scanner) CleanupReason(raw string) string {
 		}
 	}
 	return ""
+}
+
+func (s *Scanner) aiVersionHasOpenHandle(path string) (bool, error) {
+	if s.handleProbe != nil {
+		return s.handleProbe(path)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	args := []string{"-Fn"}
+	if isDir(path) {
+		args = append(args, "+D", path)
+	} else {
+		args = append(args, "--", path)
+	}
+	output, err := exec.CommandContext(ctx, "/usr/sbin/lsof", args...).CombinedOutput()
+	if err == nil {
+		return len(output) > 0, nil
+	}
+	if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 && len(output) == 0 {
+		return false, nil
+	}
+	return true, err
 }
 
 func (s *Scanner) applyCleanupProtection(row map[string]any) {

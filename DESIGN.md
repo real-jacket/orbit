@@ -109,3 +109,11 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 - Native maintenance needs a correlated command receipt; stale diagnostics cannot animate into a new result.
 - Light-mode action ink is `#fcfaf7` on `#a74426`; dark-mode action ink stays `#1a1613`.
 - Search is contextual; unsupported modules disable it explicitly.
+- Space analysis searches the current tree level only, never implies a full-disk search, and keeps the active
+  query visible until cleared. Below 960px the map comes before the duplicate list so the disk picture stays
+  in the first viewport.
+- Folded space is inspectable through a bounded sample, not an inert “其它” tile or an empty-list message.
+  A sample row names its exact path and size; remaining unreported children are sent to Finder instead of
+  pretending the sample is complete.
+- Space analysis shows allocated/logical size, file count and newest modification separately. One “查看折叠项”
+  intent exists per surface; the map, summary and tile must not sprout competing duplicate CTAs.

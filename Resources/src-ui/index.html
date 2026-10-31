@@ -890,7 +890,64 @@
     visibility: hidden;
   }
   .crumb-preview.show { visibility: visible; }
-  .crumb-sel { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
+  .crumb-sel {
+    max-width: 290px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;
+    overflow: hidden; font-family: var(--font-mono);
+  }
+  .crumb-sel > span, .crumb-sel > small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crumb-sel > small { font-family: var(--font-sans); font-size: 9.5px; color: var(--text-muted); font-weight: 500; }
+  .analysis-list-tools { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 10.5px; }
+  .analysis-sort {
+    border: 1px solid transparent; background: transparent; color: var(--text-muted);
+    font: inherit; padding: 2px 5px; border-radius: 5px; cursor: pointer;
+  }
+  .analysis-sort:hover { color: var(--text-primary); border-color: var(--border-subtle); }
+  .analysis-sort.active { color: var(--text-primary); background: var(--bg-surface); border-color: var(--border-subtle); }
+  .analysis-sort:focus-visible, .analysis-other-toggle:focus-visible, .analysis-other-path:focus-visible {
+    outline: 2px solid var(--accent-primary); outline-offset: 1px;
+  }
+  .analysis-aggregate-only {
+    min-height: 210px; padding: 24px 18px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; gap: 7px; color: var(--text-secondary);
+  }
+  .analysis-aggregate-only .ui-ico { width: 24px; height: 24px; color: var(--text-muted); }
+  .analysis-aggregate-only b { color: var(--text-primary); font-size: 13px; }
+  .analysis-aggregate-only span { font-size: 11px; line-height: 1.55; }
+  .analysis-other { border-top: 1px solid var(--border-subtle); flex: none; min-height: 0; }
+  .analysis-other-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    border: 0; background: transparent; color: var(--text-secondary); cursor: pointer;
+    padding: 7px 12px; font: 10.5px/1.35 var(--font-sans);
+  }
+  .analysis-other-toggle:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+  .analysis-other-toggle > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+  .analysis-other-toggle .ui-ico { width: 12px; height: 12px; }
+  .analysis-other-body { max-height: 168px; overflow-y: auto; border-top: 1px solid var(--border-subtle); }
+  .analysis-other-note { padding: 7px 12px; color: var(--text-muted); font-size: 9.5px; line-height: 1.5; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .analysis-other-note > span { min-width: 0; }
+  .analysis-other-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 7px;
+    padding: 6px 10px; border-top: 1px solid var(--border-subtle);
+  }
+  .analysis-other-path {
+    min-width: 0; border: 0; background: transparent; color: var(--text-primary);
+    display: flex; align-items: center; gap: 6px; text-align: left; cursor: pointer; padding: 0;
+  }
+  .analysis-other-path .ui-ico { width: 13px; height: 13px; flex: none; color: var(--text-secondary); }
+  .analysis-other-path span { min-width: 0; display: flex; flex-direction: column; }
+  .analysis-other-path b, .analysis-other-path small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .analysis-other-path b { font-size: 10.5px; font-weight: 600; }
+  .analysis-other-path small { font: 9px/1.4 var(--font-mono); color: var(--text-muted); }
+  .analysis-other-meta { display: flex; flex-direction: column; align-items: flex-end; font: 9.5px/1.35 var(--font-mono); color: var(--text-secondary); white-space: nowrap; }
+  .analysis-other-meta small { color: var(--text-muted); }
+  .analysis-no-match {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 22px;
+  }
+  .analysis-no-match > .ui-ico { width: 24px; height: 24px; color: var(--text-muted); }
+  .analysis-no-match > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .analysis-no-match b { font-size: 13px; color: var(--text-primary); }
+  .analysis-no-match span { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+  .tt-others { cursor: pointer; }
   .insights-box { border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
   .insights-box summary { padding: 7px 14px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
   .insights-box[open] { max-height: 140px; overflow-y: auto; }
@@ -968,6 +1025,13 @@
     .summary-right { max-width: 32%; }
     .header-controls .btn-glyph { margin: 0; }
     .row-right { gap: 8px; }
+    body[data-module="analyze"] .summary-banner { padding: 12px 16px; gap: 10px; }
+    body[data-module="analyze"] .semantic-hero-icon { width: 32px; height: 32px; border-radius: 9px; }
+    body[data-module="analyze"] .summary-headline { font-size: 16px; margin-bottom: 0; }
+    body[data-module="analyze"] .summary-desc { display: none; }
+    body[data-module="analyze"] .summary-right { min-width: 140px; }
+    body[data-module="analyze"] .stat-block-val { font-size: 20px; }
+    body[data-module="analyze"] .stat-block-sub { font-size: 10px; }
   }
   @media (max-width: 960px) {
     .breadcrumb-bar { flex-wrap: wrap; gap: 8px; }
@@ -988,6 +1052,12 @@
     .workspace-body { padding: 12px; }
     .telemetry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .proc-table th, .proc-table td { padding: 8px; }
+    body[data-module="analyze"] .treemap-split { gap: 8px; }
+    body[data-module="analyze"] .treemap-split > .treemap-stage { order: -1; }
+    body[data-module="analyze"] .crumb-actions { gap: 5px; }
+    body[data-module="analyze"] .crumb-sel { flex: 1 1 190px; max-width: none; }
+    body[data-module="analyze"] .analysis-no-match { grid-template-columns: auto minmax(0, 1fr); }
+    body[data-module="analyze"] .analysis-no-match > .btn { grid-column: 1 / -1; justify-self: start; }
   }
 </style>
 </head>
@@ -1595,6 +1665,8 @@ const DEFAULT_STATE = {
   analyzeRequestId: '',
   analyzeLargeFiles: [],
   analyzeStale: false,
+  analyzeSort: 'size',
+  analyzeOtherOpen: false,
   // 自研扫描器（Go internal/analyze）随载荷下发的扫描元信息：不持久化；缺失=老载荷/未扫描，界面按「未知」降级，不补 0。
   analyzeStatus: '',
   analyzeScanId: '',
@@ -2510,6 +2582,23 @@ function fmtDiskSizeGb(value, digits = 2) {
   if (bytes < 1e6) return (bytes / 1000).toFixed(1) + ' KB';
   return (bytes / 1e6).toFixed(1) + ' MB';
 }
+function normalizeAggregated(agg) {
+  if (!agg || typeof agg !== 'object' || Array.isArray(agg)) return null;
+  return {
+    count: hasNum(agg.count) ? agg.count : null,
+    sizeGb: hasNum(agg.sizeGb) ? agg.sizeGb : null,
+    items: (Array.isArray(agg.items) ? agg.items : []).filter(item => item && typeof item.path === 'string').map(item => ({
+      name: typeof item.name === 'string' ? item.name : displayPath(item.path).split('/').filter(Boolean).slice(-1)[0] || '未命名项目',
+      path: item.path,
+      sizeGb: hasNum(item.sizeGb) ? item.sizeGb : null,
+      fileCount: hasNum(item.fileCount) ? item.fileCount : null,
+      isDir: item.isDir === true,
+      modified: hasNum(item.modified) ? item.modified : null,
+      partial: item.partial === true,
+      protectionReason: typeof item.protectionReason === 'string' ? item.protectionReason : ''
+    }))
+  };
+}
 
 // 参数：当前层级的 tiles。返回条目带 idx（在原数组里的下标，供选中/下钻用）。
 // MinTileSize：任一边 < 3px 的矩形不生成 DOM，体积并入一个不可点的「其它」块。
@@ -2819,6 +2908,7 @@ function requestDiskAnalyze(path, refresh = false) {
   STATE.analyzeProgress = null;
   STATE.analyzeError = '';
   STATE.analyzeRestrictedOpen = false;
+  STATE.analyzeOtherOpen = false;
   STATE.analyzePath = path || '';
   STATE.analyzeRequestId = nextRequestId('analyze');
   sendNativeBridge({ action: 'requestDiskAnalyze', path: path || '', refresh, requestId: STATE.analyzeRequestId });
@@ -2909,6 +2999,7 @@ window.onNativeDiskAnalyze = function(payload) {
     STATE.analyzeRoot = payload.root || payload.path || '~';
     STATE.analyzeStatus = payload.scanStatus || 'ok';
     STATE.analyzeStale = false;
+    STATE.analyzeOtherOpen = false;
     const vol = payload.volume;
     STATE.analyzeVolume = vol && typeof vol === 'object' && !Array.isArray(vol) ? {
       totalGb: hasNum(vol.totalGb) ? vol.totalGb : null,
@@ -2918,11 +3009,7 @@ window.onNativeDiskAnalyze = function(payload) {
     STATE.analyzeAllocGb = hasNum(payload.totalSizeGb) ? payload.totalSizeGb : (hasNum(payload.totalGb) ? payload.totalGb : null);
     STATE.analyzeLogicalGb = hasNum(payload.totalLogicalGb) ? payload.totalLogicalGb : null;
     STATE.analyzeFileCount = hasNum(payload.fileCount) ? payload.fileCount : null;
-    const agg = payload.aggregated;
-    STATE.analyzeAggregated = agg && typeof agg === 'object' && !Array.isArray(agg) ? {
-      count: hasNum(agg.count) ? agg.count : null,
-      sizeGb: hasNum(agg.sizeGb) ? agg.sizeGb : null
-    } : null;
+    STATE.analyzeAggregated = normalizeAggregated(payload.aggregated);
     if (Array.isArray(payload.insights)) STATE.analyzeInsights = payload.insights;
     STATE.analyzeRestricted = pickRestrictions(payload.restricted);
     STATE.analyzeExcluded = pickRestrictions(payload.excluded);
@@ -2943,7 +3030,7 @@ window.onNativeDiskAnalyze = function(payload) {
         sizeGb: hasNum(payload.totalSizeGb) ? payload.totalSizeGb : payload.totalGb,
         logicalGb: hasNum(payload.totalLogicalGb) ? payload.totalLogicalGb : null,
         files: hasNum(payload.fileCount) ? payload.fileCount : null,
-        aggregated: payload.aggregated || null, restricted: pickRestrictions(payload.restricted),
+        aggregated: normalizeAggregated(payload.aggregated), restricted: pickRestrictions(payload.restricted),
         excluded: pickRestrictions(payload.excluded), scanStatus: payload.scanStatus || 'ok',
         largeFiles: scanRowsWithFailures(payload.largeFiles || [], match.largeFiles || []),
         volume: payload.volume || null, partial: payload.partial === true
@@ -2984,8 +3071,7 @@ function protectionReason(tile) {
   return '';
 }
 function isCollected(tile) { return STATE.collected.some(c => c.path === displayPath(tile.path)); }
-function toggleCollect(idx) {
-  const tile = currentTiles()[idx];
+function toggleCollectedObject(tile) {
   if (!tile) return;
   const reason = protectionReason(tile);
   if (reason) { showToast(reason); return; }
@@ -2998,6 +3084,14 @@ function toggleCollect(idx) {
   }
   cancelTrash();
   renderModule();
+}
+function toggleCollect(idx) {
+  toggleCollectedObject(STATE.module === 'analyze' ? analysisVisibleTiles()[idx] : currentTiles()[idx]);
+}
+function toggleOtherCollect(idx) {
+  const agg = currentAggregated();
+  const item = agg && (agg.items || [])[idx];
+  if (item) toggleCollectedObject({ ...item, diskGb: item.sizeGb });
 }
 function collectedGb() { return STATE.collected.reduce((n, c) => n + c.sizeGb, 0); }
 function clearCollected() { STATE.collected = []; cancelTrash(); renderModule(); }
@@ -3115,10 +3209,67 @@ function currentTiles() {
   const st = STATE.drillStack || [];
   return st.length ? (st[st.length - 1].children || []) : STATE.treemap2D;
 }
+function currentAggregated() {
+  const parent = (STATE.drillStack || []).slice(-1)[0];
+  return parent ? parent.aggregated || null : STATE.analyzeAggregated;
+}
+function analyzeScopeTotal() {
+  const parent = (STATE.drillStack || []).slice(-1)[0];
+  return parent ? diskGbOf(parent) : STATE.totalAnalyzedGb;
+}
+function analysisVisibleTiles() {
+  const all = currentTiles() || [];
+  const q = STATE.searchQuery.trim().toLowerCase();
+  let rows = q ? all.filter(matchesSearch) : all.slice();
+  if (q) {
+    const agg = currentAggregated();
+    const basis = analyzeScopeTotal();
+    (agg && agg.items || []).forEach(item => {
+      if (!matchesSearch(item)) return;
+      rows.push({
+        ...item, diskGb: item.sizeGb,
+        pct: basis > 0 && hasNum(item.sizeGb) ? +((item.sizeGb / basis) * 100).toFixed(1) : null,
+        files: item.fileCount,
+        fromOther: true
+      });
+    });
+  }
+  rows.sort(STATE.analyzeSort === 'name'
+    ? (a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hans-CN')
+    : (a, b) => diskGbOf(b) - diskGbOf(a));
+  return rows;
+}
+function setAnalyzeSort(key) {
+  STATE.analyzeSort = key === 'name' ? 'name' : 'size';
+  STATE.analyzeSel = 0;
+  renderModule();
+}
+function toggleAnalyzeOtherItems(force) {
+  STATE.analyzeOtherOpen = typeof force === 'boolean' ? force : !STATE.analyzeOtherOpen;
+  renderModule();
+  if (STATE.analyzeOtherOpen) {
+    const panel = document.getElementById('analysisOtherPanel');
+    if (panel) panel.scrollIntoView({ block: 'nearest' });
+  }
+}
+function clearAnalysisSearch() {
+  STATE.searchQuery = '';
+  STATE.analyzeSel = 0;
+  const input = document.getElementById('searchInput');
+  if (input) input.value = '';
+  renderModule();
+}
+function fmtModified(unix) {
+  if (!hasNum(unix) || unix <= 0) return '未知';
+  const date = new Date(unix * 1000);
+  if (Number.isNaN(date.getTime())) return '未知';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+}
 function currentLargeFiles() {
   const parent = (STATE.drillStack || []).slice(-1)[0];
   const files = parent && Array.isArray(parent.largeFiles) ? parent.largeFiles : STATE.analyzeLargeFiles || STATE.largeFiles || [];
-  return parent ? files.filter(f => normalizeComparePath(f.path).startsWith(normalizeComparePath(parent.path) + '/')) : files;
+  const scoped = parent ? files.filter(f => normalizeComparePath(f.path).startsWith(normalizeComparePath(parent.path) + '/')) : files;
+  return STATE.searchQuery.trim() ? scoped.filter(matchesSearch) : scoped;
 }
 function selectTile(idx) {
   STATE.analyzeSel = idx;
@@ -3128,7 +3279,7 @@ function selectTile(idx) {
   if (row) row.scrollIntoView({ block: 'nearest' });
 }
 function drillTile(idx) {
-  const tile = currentTiles()[idx];
+  const tile = analysisVisibleTiles()[idx];
   if (!tile || tile.isDir === false) { selectTile(idx); return; }
   pushTrail();
   STATE.drillStack = (STATE.drillStack || []).concat([tile]);
@@ -3337,6 +3488,7 @@ function handlePrimaryAction() {
 
 function renderModule() {
   try {
+  document.body.dataset.module = STATE.module;
   const mod = STATE.module;
   const topTitle = document.getElementById('topTitle');
   const primaryBtnText = document.getElementById('primaryBtnText');
@@ -3830,9 +3982,13 @@ function renderModule() {
     const isDrilled = stack.length > 0;
     const rootName = !STATE.analyzeRoot || displayPath(STATE.analyzeRoot) === '~' ? '用户目录' : displayPath(STATE.analyzeRoot);
     const parentDir = isDrilled ? stack[stack.length - 1] : { name: rootName, path: STATE.analyzeRoot || '~', sizeGb: STATE.totalAnalyzedGb, children: [] };
-    const activeTiles = isDrilled ? (Array.isArray(parentDir.children) ? parentDir.children : []) : STATE.treemap2D;
+    const activeTiles = analysisVisibleTiles();
     const activeIdx = Math.min(Math.max(0, STATE.analyzeSel || 0), Math.max(0, activeTiles.length - 1));
-    const curSelectedTile = activeTiles[activeIdx] || { name: '无可展开条目', path: '', isDir: false, sizeGb: 0 };
+    const agg = isDrilled ? parentDir.aggregated : STATE.analyzeAggregated;
+    const otherItems = agg && Array.isArray(agg.items) ? agg.items : [];
+    const showAggregate = !q && !!agg && (hasNum(agg.sizeGb) || otherItems.length > 0);
+    const curSelectedTile = activeTiles[activeIdx] ||
+      (showAggregate ? { name: '折叠小项', path: '', isDir: false, sizeGb: agg.sizeGb, files: agg.count } : { name: '无可展开条目', path: '', isDir: false, sizeGb: 0 });
     const largeFiles = currentLargeFiles();
     const totalLfGb = largeFiles.reduce((s, f) => s + (Number(f.sizeGb) || 0), 0);
     const drillGb = isDrilled ? diskGbOf(parentDir) : STATE.totalAnalyzedGb;
@@ -3842,7 +3998,6 @@ function renderModule() {
     const inScope = r => normalizeComparePath(r.path) === scopePath || normalizeComparePath(r.path).startsWith(scopePath + '/');
     const restricted = isDrilled ? parentDir.restricted || (STATE.analyzeRestricted || []).filter(inScope) : STATE.analyzeRestricted || [];
     const excluded = isDrilled ? parentDir.excluded || (STATE.analyzeExcluded || []).filter(inScope) : STATE.analyzeExcluded || [];
-    const agg = isDrilled ? parentDir.aggregated : STATE.analyzeAggregated;
     const logicalGb = isDrilled ? parentDir.logicalGb : STATE.analyzeLogicalGb;
     const fileCount = isDrilled ? parentDir.files : STATE.analyzeFileCount;
     const viewStatus = isDrilled ? parentDir.scanStatus : STATE.analyzeStatus;
@@ -3864,7 +4019,11 @@ function renderModule() {
       heroDesc.textContent = bits.length ? bits.join(' · ') : '正在遍历本机目录；点「取消扫描」可随时中止，已扫描的部分会保留。';
     } else if (isDrilled) {
       heroHeadline.textContent = `${parentDir.path} · ${fmtDiskSizeGb(drillGb)}`;
-      heroDesc.textContent = `${activeTiles.length} 项。单击选中，双击或回车进入目录，退格返回上一级。`;
+      heroDesc.textContent = q
+        ? `当前层级匹配 ${activeTiles.length} 项。清空搜索可查看完整目录。`
+        : showAggregate && !activeTiles.length
+          ? `本层项目已全部折叠；可展开最大的 ${otherItems.length} 项继续检查。`
+          : `${activeTiles.length} 项。单击选中，双击或回车进入目录，退格返回上一级。`;
     } else {
       heroHeadline.textContent = `${rootName} · ${fmtDiskSizeGb(STATE.totalAnalyzedGb)}`;
       heroDesc.textContent = STATE.analyzeStatus === 'partial'
@@ -3890,6 +4049,11 @@ function renderModule() {
       if (hasNum(agg.sizeGb)) ab.push(`共 ${fmtDiskSizeGb(agg.sizeGb)}`);
       factBits.push(`合并 ${ab.join(' · ')}`);
     }
+    if (!isDrilled && vol && hasNum(vol.usedGb) && hasNum(STATE.totalAnalyzedGb)) {
+      const outside = Math.max(0, vol.usedGb - STATE.totalAnalyzedGb);
+      if (outside >= 0.01) factBits.push(`范围外约 ${fmtDiskSizeGb(outside)}`);
+    }
+    if (q) factBits.push(`搜索匹配 ${activeTiles.length} 项`);
     const restrictedBtn = restricted.length
       ? `<button class="btn" style="padding:1px 8px;font-size:10.5px;" onclick="STATE.analyzeRestrictedOpen = !STATE.analyzeRestrictedOpen; renderModule();">${restricted.length} 个路径读取受限${STATE.analyzeRestrictedOpen ? ' ▴' : ' ▾'}</button>`
       : '';
@@ -3903,6 +4067,26 @@ function renderModule() {
           </div>`).join('')}
         ${restricted.length > 10 ? `<div style="margin-top:3px;color:var(--text-tertiary);">仅显示前 10 条，共 ${restricted.length} 条</div>` : ''}
       </div>` : '';
+    const otherOpen = STATE.analyzeOtherOpen;
+    const otherPanel = showAggregate ? `
+      <div class="analysis-other" id="analysisOtherPanel">
+        <button class="analysis-other-toggle" onclick="toggleAnalyzeOtherItems()" aria-expanded="${otherOpen ? 'true' : 'false'}">
+          <span>${UI_ICON('search')} 折叠小项</span>
+          <span>${hasNum(agg.count) ? fmtNum(agg.count, 0) + ' 项' : '其它'} · ${hasNum(agg.sizeGb) ? fmtDiskSizeGb(agg.sizeGb) : '体积未知'} ${otherOpen ? '▴' : '▾'}</span>
+        </button>
+        ${otherOpen ? `<div class="analysis-other-body">
+          <div class="analysis-other-note"><span>显示最大的 ${otherItems.length} 项${hasNum(agg.count) && agg.count > otherItems.length ? `；其余 ${fmtNum(agg.count - otherItems.length, 0)} 项未保留可操作路径。` : '。'}</span><button class="btn" style="padding:1px 6px;font-size:9.5px;" onclick="revealInFinder('${jsq(parentDir.path)}')">访达查看本层</button></div>
+          ${otherItems.length ? otherItems.map((item, itemIdx) => `
+            <div class="analysis-other-row">
+              <button class="analysis-other-path" onclick="revealInFinder('${jsq(item.path)}')" title="${escHtml(item.path)}">
+                ${UI_ICON(item.isDir ? 'folder' : 'file')}
+                <span><b>${escHtml(item.name)}</b><small>${escHtml(item.path)}</small></span>
+              </button>
+              <span class="analysis-other-meta">${fmtDiskSizeGb(item.sizeGb)}${item.modified ? '<small>' + escHtml(fmtModified(item.modified)) + '</small>' : ''}</span>
+              <button class="btn" style="padding:2px 7px;font-size:10px;" aria-label="${isCollected(item) ? '移出待清理' : '加入待清理'}：${escHtml(item.name)}" ${item.protectionReason || item.partial ? 'disabled title="' + escHtml(item.protectionReason || '测量未完成，保持原状') + '"' : ''} onclick="toggleOtherCollect(${itemIdx})">${isCollected(item) ? '移出' : '加入'}</button>
+            </div>`).join('') : '<div class="analysis-other-note">这批折叠项没有可展开的路径样本；使用访达查看完整目录。</div>'}
+        </div>` : ''}
+      </div>` : '';
     const excludedNote = excluded.length
       ? `<span style="color:var(--text-tertiary);" title="${escHtml(excluded.slice(0, 6).map(r => displayPath(r.path)).join('、'))}">已跳过 ${excluded.length} 项（系统或跨卷）</span>`
       : '';
@@ -3912,7 +4096,8 @@ function renderModule() {
       </div>${STATE.analyzeLoading ? '' : restrictedPanel}`;
 
     // 结果区的三种「非图表」状态：错误 > 无数据提示；有数据或扫描中时走正常布局（不显示 0 字节空图）。
-    const hasAnyTiles = activeTiles.length > 0 || !!(agg && agg.sizeGb > 0);
+    const hasAnyTiles = activeTiles.length > 0 || showAggregate;
+    const noSearchMatches = q && !STATE.analyzeLoading && !activeTiles.length;
     const errorPanel = STATE.analyzeError ? `
       <div class="panel-card" style="padding:36px 20px;text-align:center;">
         <div style="font-size:16px;font-weight:700;margin-bottom:8px;">磁盘分析未完成</div>
@@ -3923,7 +4108,13 @@ function renderModule() {
       <div class="panel-card" style="padding:32px 20px;text-align:center;color:var(--text-secondary);font-size:12.5px;">
         ${STATE.analyzeStatus ? '本次扫描未发现可展开的分配空间。空目录、零分配文件与未计入路径不等于整机没有占用。' : '还没有扫描结果。点右上角「重新扫描」开始分析用户目录。'}
       </div>` : '';
-    const emptyBody = errorPanel || (hintPanel ? factsBar + hintPanel : '');
+    const noMatchPanel = noSearchMatches ? `
+      <div class="panel-card analysis-no-match">
+        ${UI_ICON('search')}
+        <div><b>当前层级没有匹配“${escHtml(STATE.searchQuery)}”的路径</b><span>搜索只覆盖这一层已加载条目；清空搜索后可继续沿目录下钻。</span></div>
+        <button class="btn" onclick="clearAnalysisSearch()">清空搜索</button>
+      </div>` : '';
+    const emptyBody = errorPanel || (noMatchPanel ? factsBar + noMatchPanel : '') || (hintPanel ? factsBar + hintPanel : '');
     // 扫描中：不摆一屏骨架条，只留一块安静的进度面板（信息用真实计数，不假装有数据）。
     const scanAmt = fmtScanAmt(progress.bytes);
     const scanBits = [];
@@ -3952,7 +4143,10 @@ function renderModule() {
         </div>
         <span id="tilePreview" class="crumb-preview" aria-live="polite"></span>
         <div class="crumb-actions">
-          <span class="crumb-sel">${escHtml(curSelectedTile.name)} · ${fmtDiskSizeGb(diskGbOf(curSelectedTile), 1)}${hasNum(curSelectedTile.pct) ? ' · ' + curSelectedTile.pct + '%' : ''}</span>
+          <span class="crumb-sel" title="${escHtml(curSelectedTile.path || curSelectedTile.name)}">
+            <span>${escHtml(curSelectedTile.name)} · ${fmtDiskSizeGb(diskGbOf(curSelectedTile), 1)}${hasNum(curSelectedTile.pct) ? ' · ' + curSelectedTile.pct + '%' : ''}</span>
+            ${hasNum(curSelectedTile.files) || curSelectedTile.modified ? `<small>${hasNum(curSelectedTile.files) ? fmtNum(curSelectedTile.files, 0) + ' 个文件' : ''}${hasNum(curSelectedTile.files) && curSelectedTile.modified ? ' · ' : ''}${curSelectedTile.modified ? '修改于 ' + escHtml(fmtModified(curSelectedTile.modified)) : ''}</small>` : ''}
+          </span>
           ${curSelectedTile.isDir === false ? '' : `<button class="btn btn-primary" style="padding:2px 9px;font-size:10.5px;" onclick="drillTile(${activeIdx})">进入</button>`}
           <button class="btn" style="padding:2px 9px;font-size:10.5px;" ${curSelectedTile.path ? '' : 'disabled'} onclick="revealInFinder('${jsq(curSelectedTile.path)}')">在访达中显示</button>
           <button class="btn" style="padding:2px 9px;font-size:10.5px;" ${curSelectedTile.path ? '' : 'disabled'} onclick="copyPath('${jsq(curSelectedTile.path)}')">复制路径</button>
@@ -3963,26 +4157,37 @@ function renderModule() {
       <div class="treemap-split">
         <div class="panel-card">
           <div class="panel-header">
-            <span>${isDrilled ? parentDir.name + ' · 按大小排序' : '顶层目录 · 按大小排序'}</span>
-            <span style="font-size:11px;color:var(--text-secondary);">${activeTiles.length} 项</span>
+            <span>${isDrilled ? parentDir.name : '顶层目录'}</span>
+            <div class="analysis-list-tools">
+              <button class="analysis-sort ${STATE.analyzeSort !== 'name' ? 'active' : ''}" onclick="setAnalyzeSort('size')" aria-pressed="${STATE.analyzeSort !== 'name'}">大小</button>
+              <button class="analysis-sort ${STATE.analyzeSort === 'name' ? 'active' : ''}" onclick="setAnalyzeSort('name')" aria-pressed="${STATE.analyzeSort === 'name'}">名称</button>
+              <span>${activeTiles.length} 项</span>
+            </div>
           </div>
           <div class="list-body">
-            ${activeTiles.map((d, idx) => {
+            ${!activeTiles.length && showAggregate ? `
+              <div class="analysis-aggregate-only">
+                ${UI_ICON('search')}
+                <b>此层项目都已折叠</b>
+                <span>${hasNum(agg.count) ? fmtNum(agg.count, 0) + ' 项' : '小项'} · ${fmtDiskSizeGb(agg.sizeGb)}<br>展开下方折叠项可查看最大的 ${otherItems.length} 项。</span>
+                <button class="btn" onclick="toggleAnalyzeOtherItems(true)">查看折叠项</button>
+              </div>` : activeTiles.map((d, idx) => {
               const dGb = diskGbOf(d);
               const dPartial = d.partial === true || d.scanStatus === 'partial';
               return `
               <div class="list-row ${idx === activeIdx ? 'selected' : ''}" style="padding:5px 14px;" data-idx="${idx}" title="${escHtml(d.path || d.name)}" onclick="selectTile(${idx})" ondblclick="drillTile(${idx})">
                 <div class="row-left">
-                  ${pickControl(d, idx)}<span class="rank-dot" style="background:${tileTint(idx, activeTiles.length)};"></span>
+                  ${pickControl(d, idx)}
                   <div style="min-width:0;">
                     <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI_ICON(d.isDir === false ? 'file' : 'folder')} ${escHtml(d.name)}</div>
-                    <div class="row-sub pct-line"><span class="pct-bar"><i style="width:${Math.min(100, Number(d.pct) || 0)}%;background:${d.color || '#475569'}"></i></span>${hasNum(d.pct) ? d.pct + '%' : '-'}${dPartial ? ' · 受限' : ''}${d.cleanable ? ' · 可清理' : ''}</div>
+                    <div class="row-sub pct-line"><span class="pct-bar"><i style="width:${Math.min(100, Number(d.pct) || 0)}%;background:${d.color || '#475569'}"></i></span>${hasNum(d.pct) ? d.pct + '%' : '-'}${hasNum(d.files) ? ' · ' + fmtNum(d.files, 0) + ' 个文件' : ''}${d.fromOther ? ' · 折叠项' : ''}${dPartial ? ' · 受限' : ''}${d.cleanable ? ' · 可清理' : ''}</div>
                   </div>
                 </div>
                 <span class="size-cell">${fmtDiskSizeGb(dGb, 1)}</span>
               </div>`;
             }).join('')}
           </div>
+          ${otherPanel}
           ${!isDrilled && STATE.analyzeInsights.length ? `
             <details class="insights-box" ${STATE.insightsOpen ? 'open' : ''} ontoggle="STATE.insightsOpen = this.open">
               <summary>系统洞察 · ${STATE.analyzeInsights.length} 项（不计入面积图）</summary>
@@ -3997,7 +4202,7 @@ function renderModule() {
 
         <div class="treemap-stage" role="group" aria-label="磁盘占用方块图：面积表示占用空间，方向键移动，Enter 进入目录，F 在访达中显示">
           ${(function () {
-            const laid = layoutTreemap(activeTiles, agg);
+            const laid = layoutTreemap(activeTiles, showAggregate ? agg : null);
             const total = laid.filter(r => !r.__others).length;
             return laid.map((r, rank) => {
               const isOthers = !!r.__others;
@@ -4006,10 +4211,10 @@ function renderModule() {
               const sel = !isOthers && r.idx === activeIdx;
               const tint = isOthers ? '#2a2926' : tileTint(rank, total);
               const tip = isOthers
-                ? `其它 · ${r.mergedCount || r.count || 0} 个小项`
+                ? `其它 · ${r.mergedCount || r.count || 0} 个小项\n点击查看最大的 ${otherItems.length} 项`
                 : `${escHtml(r.name)}\n${escHtml(displayPath(r.path || r.name))}\n${rGb.toFixed(2)} GB${hasNum(r.pct) ? ' · ' + r.pct + '%' : ''}${r.files ? ' · ' + r.files + ' 个文件' : ''}${rPartial ? '\n受限：有子目录未读取，体积未计入' : ''}`;
               return `
-            <div class="treemap-tile ${sel ? 'active-tile' : ''}${isOthers ? ' tt-others' : ''}" ${isOthers ? '' : `tabindex="0" role="button" data-idx="${r.idx}" aria-label="${escHtml(r.name)} ${rGb.toFixed(2)} GB"`} data-tip="${escHtml(tip)}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${tint};${isOthers ? 'pointer-events:none;' : ''}">
+            <div class="treemap-tile ${sel ? 'active-tile' : ''}${isOthers ? ' tt-others' : ''}" ${isOthers ? `tabindex="0" role="button" aria-label="查看折叠小项" onclick="toggleAnalyzeOtherItems(true)"` : `tabindex="0" role="button" data-idx="${r.idx}" aria-label="${escHtml(r.name)} ${rGb.toFixed(2)} GB"`} data-tip="${escHtml(tip)}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;background:${tint}">
               ${rPartial ? `<span class="tt-flag">受限</span>` : ''}
               <div class="tt-head">
                 <div class="tt-name">${isOthers ? '其它' : escHtml(r.name)}</div>
@@ -4019,8 +4224,11 @@ function renderModule() {
                 <span class="tt-size">${rGb >= 10 ? rGb.toFixed(1) : rGb.toFixed(2)}<em>GB</em></span>
                 <span class="tt-pct">${hasNum(r.pct) ? r.pct + '%' : ''}</span>
               </div>
-              ${isOthers || r.isDir === false ? '' : '<span class="tt-chevron" aria-hidden="true">›</span>'}
-              ${isOthers ? '' : `
+              ${isOthers || r.isDir !== false ? '<span class="tt-chevron" aria-hidden="true">›</span>' : ''}
+              ${isOthers ? `
+              <div class="tt-actions">
+                <button class="tt-btn" title="查看折叠小项" onclick="event.stopPropagation();toggleAnalyzeOtherItems(true)"><span class="tt-label">查看</span>${UI_ICON('search')}</button>
+              </div>` : `
               <div class="tt-actions">
                 ${r.isDir === false ? '' : `<button class="tt-btn" title="进入目录（双击同样可以）" onclick="event.stopPropagation();drillTile(${r.idx})"><span class="tt-label">进入</span>${UI_ICON('fwd')}</button>`}
                 <button class="tt-btn" title="在访达中显示" onclick="event.stopPropagation();revealInFinder('${jsq(r.path)}')"><span class="tt-label">访达</span>${UI_ICON('folder')}</button>
@@ -4037,7 +4245,7 @@ function renderModule() {
           <span style="font-size:11px;color:var(--text-secondary);">${largeFiles.length} 项 · ${fmtDiskSizeGb(totalLfGb)} · 分配超过 100 MB，最多 50 项</span>
         </div>
         <div>
-          ${largeFiles.length === 0 ? `<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;">当前范围已读取的部分没有符合条件的大文件；未读取路径不在此结论内。</div>` : largeFiles.map((lf, idx) => `
+          ${largeFiles.length === 0 ? `<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;">${q ? '当前搜索没有匹配的大文件；清空搜索可查看本层全部结果。' : '当前范围已读取的部分没有符合条件的大文件；未读取路径不在此结论内。'}</div>` : largeFiles.map((lf, idx) => `
             <div class="list-row" style="padding:7.5px 14px;">
               <div class="row-left">
                 <span class="row-glyph">${get_skeuo_svg('purge', 'lf' + idx)}</span>
@@ -4293,6 +4501,7 @@ function handleSearch(val) {
       if (idx >= 0) STATE[selected] = idx;
     }
   }
+  if (STATE.module === 'analyze') STATE.analyzeSel = 0;
   renderModule();
 }
 window.toggleTheme = function() {
@@ -4847,9 +5056,9 @@ document.addEventListener('keydown', (e) => {
     const english = { clean: 'Deep Clean', ai_moon: 'AI Care', software: 'Uninstaller', optimize: 'Optimize', analyze: 'Disk Analyzer', status: 'Live Status', history: 'History', purge: 'Build Cleanup' };
     document.getElementById('topTitle').textContent = T(names[STATE.module], english[STATE.module]);
     const search = document.getElementById('searchInput');
-    const searchable = ['clean', 'ai_moon', 'software', 'status', 'purge'].includes(STATE.module);
+    const searchable = ['clean', 'ai_moon', 'software', 'status', 'purge', 'analyze'].includes(STATE.module);
     search.disabled = !searchable;
-    search.placeholder = T(searchable ? (STATE.module === 'status' ? '搜索进程或 PID' : '搜索当前列表') : '此模块无需搜索', searchable ? 'Search this list' : 'Search unavailable');
+    search.placeholder = T(searchable ? (STATE.module === 'status' ? '搜索进程或 PID' : STATE.module === 'analyze' ? '搜索当前层' : '搜索当前列表') : '此模块无需搜索', searchable ? 'Search this list' : 'Search unavailable');
     search.setAttribute('aria-label', search.placeholder);
     const pbt = document.getElementById('primaryBtnText');
     const pbtn = pbt.closest('button');
@@ -4913,7 +5122,7 @@ document.addEventListener('keydown', (e) => {
       if (!bar) { bar = document.createElement('div'); bar.id = 'basketBar'; bar.className = 'basket-bar'; }
       stage.appendChild(bar);
       renderBasket();
-      const tiles = currentTiles();
+      const tiles = analysisVisibleTiles();
       stage.querySelectorAll('[data-idx]').forEach(n => { const t = tiles[Number(n.dataset.idx)]; n.classList.toggle('picked', !!t && isCollected(t)); });
     }
 

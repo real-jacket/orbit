@@ -129,6 +129,12 @@ func pushDiskAnalyze(path string, refresh bool, requestID string) {
 				file := &payload.LargeFiles[i]
 				file.ProtectionReason = scanner.Shared.CleanupReason(file.Path)
 			}
+			if payload.Aggregated != nil {
+				for i := range payload.Aggregated.Items {
+					item := &payload.Aggregated.Items[i]
+					item.ProtectionReason = scanner.Shared.CleanupReason(item.Path)
+				}
+			}
 			evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
 
 			analyzeQueue.mu.Lock()

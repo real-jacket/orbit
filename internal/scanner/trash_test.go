@@ -127,6 +127,21 @@ func TestCleanupRechecksAnActiveCacheAfterInspection(t *testing.T) {
 	}
 }
 
+func TestCleanupProtectsAIChatCachesAndPackageDownloadsWhileInUse(t *testing.T) {
+	s := newTestScanner(t)
+	chatGPT := filepath.Join(s.home, "Library/Caches/com.openai.chat")
+	goCache := filepath.Join(s.home, "go/pkg/mod/cache/download")
+	writeFile(t, filepath.Join(chatGPT, "cache.bin"), "cache")
+	writeFile(t, filepath.Join(goCache, "module.zip"), "cache")
+	s.processProbe = func() (string, error) { return "ChatGPT\ngo\n", nil }
+	if reason := s.CleanupReason(chatGPT); !strings.Contains(reason, "ChatGPT") {
+		t.Fatalf("active ChatGPT cache was offered: %q", reason)
+	}
+	if reason := s.CleanupReason(goCache); !strings.Contains(reason, "go") {
+		t.Fatalf("active Go download cache was offered: %q", reason)
+	}
+}
+
 func TestConcurrentTrashReceiptsAreNotLost(t *testing.T) {
 	s := newTestScanner(t)
 	const count = 20

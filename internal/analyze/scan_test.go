@@ -267,6 +267,14 @@ func TestScanTreeAggregatesSmallChildren(t *testing.T) {
 	if others.FileCount != 3 {
 		t.Fatalf("聚合节点 FileCount = %d, want 3", others.FileCount)
 	}
+	if len(node.OtherChildren) != 3 {
+		t.Fatalf("OtherChildren = %d, want 3 inspectable items", len(node.OtherChildren))
+	}
+	for i, name := range []string{"a.bin", "b.bin", "c.bin"} {
+		if node.OtherChildren[i].Name != name {
+			t.Fatalf("OtherChildren[%d] = %q, want %q", i, node.OtherChildren[i].Name, name)
+		}
+	}
 
 	wantDisk := scanTestDisk(t, bigPath) + scanTestDisk(t, smallPaths[0])*3
 	if node.DiskBytes != wantDisk {
@@ -274,6 +282,23 @@ func TestScanTreeAggregatesSmallChildren(t *testing.T) {
 	}
 	if wantOthers := scanTestDisk(t, smallPaths[0]) * 3; others.DiskBytes != wantOthers {
 		t.Fatalf("聚合节点 DiskBytes = %d, want %d", others.DiskBytes, wantOthers)
+	}
+}
+
+func TestScanTreeRetainsOnlyLargestInspectableOtherItems(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i < maxOtherItems+3; i++ {
+		scanTestWrite(t, filepath.Join(root, fmt.Sprintf("small-%02d.bin", i)), (i+1)*(1<<20))
+	}
+	node, _ := scanTestTree(t, root, 1<<30)
+	if len(node.OtherChildren) != maxOtherItems {
+		t.Fatalf("OtherChildren = %d, want %d", len(node.OtherChildren), maxOtherItems)
+	}
+	if node.OtherChildren[0].Name != "small-07.bin" || node.OtherChildren[maxOtherItems-1].Name != "small-03.bin" {
+		t.Fatalf("OtherChildren are not the largest direct items: %+v", node.OtherChildren)
+	}
+	if node.OtherChildren[0].Modified == 0 {
+		t.Fatal("inspectable child lost its modification time")
 	}
 }
 
@@ -581,6 +606,34 @@ func TestPayloadForNodeLeavesTheRootPathEmpty(t *testing.T) {
 	if drill.Path == "" {
 		t.Fatal("drill-down payload lost its path, so the page cannot place the tiles")
 	}
+}
+
+func TestPayloadExposesAggregatedItemsAndModificationTime(t *testing.T) {
+	root := t.TempDir()
+	childPath := filepath.Join(root, "small")
+	scanTestWrite(t, filepath.Join(childPath, "payload.bin"), 4096)
+	node := &Node{
+		Name: "fixture", Path: root, Dir: true, DiskBytes: 4096, LogBytes: 4096, FileCount: 1, Modified: 1_700_000_123,
+		Children:      []*Node{{Name: "…其它 1 项", DiskBytes: 4096, LogBytes: 4096, FileCount: 1}},
+		OtherChildren: []OtherChild{{Name: "small", Dir: true, DiskBytes: 4096, LogBytes: 4096, FileCount: 1, Modified: 1_700_000_123}},
+	}
+	payload := payloadForNode(node, &ScanStats{}, "scan-1", root, "")
+	if payload.Aggregated == nil || len(payload.Aggregated.Items) != 1 {
+		t.Fatalf("aggregated items missing: %+v", payload.Aggregated)
+	}
+	item := payload.Aggregated.Items[0]
+	if item.Path != relativize(childPath, mustHome(t)) || !item.IsDir || item.Modified != node.Modified {
+		t.Fatalf("aggregated item = %+v", item)
+	}
+}
+
+func mustHome(t *testing.T) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return home
 }
 
 func TestAnalyzerRefreshDoesNotReuseAnOldOrCanceledTree(t *testing.T) {

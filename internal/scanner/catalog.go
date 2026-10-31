@@ -259,6 +259,7 @@ func cleanGroupSpecs() []CatalogSpec {
 			Roots: []string{
 				"~/Library/Caches/com.apple.Safari",
 				"~/Library/Caches/Google",
+				"~/Library/Caches/Firefox",
 			},
 			Tier:    "safe",
 			Impact:  "浏览器缓存可以重建，不影响书签和登录状态。",
@@ -279,10 +280,15 @@ func cleanGroupSpecs() []CatalogSpec {
 		{
 			ID:       "package_caches",
 			Category: "包管理器缓存",
-			Name:     "npm / pip / Homebrew 下载缓存",
+			Name:     "开发包管理器下载缓存",
 			Roots: []string{
 				"~/.npm/_cacache",
+				"~/Library/Caches/Yarn",
+				"~/.bun/install/cache",
 				"~/Library/Caches/pip",
+				"~/.cache/uv",
+				"~/go/pkg/mod/cache/download",
+				"~/.cargo/registry/cache",
 				"~/Library/Caches/Homebrew",
 			},
 			Tier:    "review",
@@ -343,13 +349,29 @@ func aiCacheSpecs() []struct {
 			spec: CatalogSpec{
 				ID:       "ai_runtime_cache",
 				Category: "运行缓存",
-				Name:     "Cursor / Claude 运行缓存与日志",
-				Roots:    []string{"~/Library/Caches/Cursor", "~/Library/Logs/Claude"},
-				Tier:     "safe",
-				Impact:   "只处理已知缓存和日志路径。相关工具运行中或进程状态未知时保留，不包括对话、配置或凭据。",
-				Rebuild:  "闲置时可处理；下次启动按需重建",
+				Name:     "AI 工具运行缓存与日志",
+				Roots: []string{
+					"~/Library/Caches/Cursor", "~/Library/Logs/Claude",
+					"~/Library/Caches/com.openai.chat", "~/Library/Caches/com.anthropic.claudefordesktop",
+					"~/Library/Caches/com.lmstudio.lmstudio",
+				},
+				Tier:    "safe",
+				Impact:  "只处理已知缓存和日志路径。相关工具运行中或进程状态未知时保留，不包括对话、配置或凭据。",
+				Rebuild: "闲置时可处理；下次启动按需重建",
 			},
 			band: "运行缓存",
+		},
+		{
+			spec: CatalogSpec{
+				ID:       "ai_codex_runtime",
+				Category: "运行状态",
+				Name:     "Codex 运行缓存（仅检查）",
+				Roots:    []string{"~/Library/Caches/com.openai.codex", "~/Library/Application Support/Codex"},
+				Tier:     "protected",
+				Impact:   "Codex 运行缓存可能包含进行中的任务、VM、会话或索引。保持原状，避免把活跃状态当成缓存。",
+				Rebuild:  "由 Codex 自行管理",
+			},
+			band: "运行状态",
 		},
 		{
 			spec: CatalogSpec{
