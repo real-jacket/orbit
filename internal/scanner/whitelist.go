@@ -62,8 +62,9 @@ func WhitelistPath(home string) string {
 // Whitelist is the set of protection patterns in effect, plus whatever mole
 // refused to load so the UI can show it.
 type Whitelist struct {
-	Patterns []string
-	Warnings []string
+	Patterns  []string
+	Warnings  []string
+	LoadError string
 }
 
 // ProtectsFinderMetadata reports whether .DS_Store cleanup must be skipped.
@@ -95,6 +96,10 @@ func LoadWhitelist(home string) Whitelist {
 	whitelist := Whitelist{}
 	file, err := os.ReadFile(WhitelistPath(home))
 	if err != nil {
+		if !os.IsNotExist(err) {
+			whitelist.LoadError = "无法读取白名单，已停止清理：" + err.Error()
+			whitelist.Warnings = append(whitelist.Warnings, whitelist.LoadError)
+		}
 		for _, pattern := range whitelistDefaultPatterns {
 			whitelist.Patterns = append(whitelist.Patterns, expandWhitelistPattern(pattern, home))
 		}
@@ -210,12 +215,16 @@ type Protection struct {
 	// children is: the path itself may still be cleaned, one child at a time,
 	// but it may never be moved as a whole.
 	Descendant bool
+	Reason     string
 }
 
 // Protection reports whether path is covered by a pattern and how. Callers that
 // delete need this distinction: "protected because a child is" means the folder
 // must be cleaned by contents rather than moved as a whole.
 func (w Whitelist) Protection(path string) (Protection, bool) {
+	if w.LoadError != "" {
+		return Protection{Reason: w.LoadError}, true
+	}
 	if path == "" {
 		return Protection{}, false
 	}

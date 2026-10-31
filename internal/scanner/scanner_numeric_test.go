@@ -29,8 +29,8 @@ func TestFormatBytes(t *testing.T) {
 		bytes int64
 		want  string
 	}{
-		// gb = 0 < 0.1, so the MB branch runs; mb = 0, max(1, mb) => "1 MB".
-		{name: "zero floors to one megabyte", bytes: 0, want: "1 MB"},
+		{name: "zero stays zero", bytes: 0, want: "0 B"},
+		{name: "small allocations use kilobytes", bytes: 4096, want: "4.1 KB"},
 		{name: "fifty megabytes", bytes: 50_000_000, want: "50 MB"},
 		// 99.999999 MB is not a tie, so %.0f round-half-away-from-zero carries
 		// it to 100. The Swift String(format: "%.0f MB") did the same.
@@ -51,20 +51,18 @@ func TestFormatBytes(t *testing.T) {
 	}
 }
 
-// TestGB is a table-driven check of gb, the port of the Swift
-// RealMacSystemScanner.gb: two-decimal rounding with a hard 0.01 floor.
+// Measurement must not invent a minimum size or round before selection arithmetic.
 func TestGB(t *testing.T) {
 	tests := []struct {
 		name  string
 		bytes int64
 		want  float64
 	}{
-		{name: "zero is floored to the minimum", bytes: 0, want: 0.01},
+		{name: "zero stays zero", bytes: 0, want: 0},
 		{name: "one gigabyte", bytes: 1_000_000_000, want: 1.0},
-		// 0.004 rounds to 0.00, which is below the floor.
-		{name: "four megabytes rounds to zero then floors", bytes: 4_000_000, want: 0.01},
+		{name: "four megabytes remains measured", bytes: 4_000_000, want: 0.004},
 		{name: "ten megabytes rounds to the floor", bytes: 10_000_000, want: 0.01},
-		{name: "eleven megabytes rounds back to the floor", bytes: 11_000_000, want: 0.01},
+		{name: "eleven megabytes remains measured", bytes: 11_000_000, want: 0.011},
 		{name: "one hundred megabytes", bytes: 100_000_000, want: 0.1},
 		{name: "one and a quarter gigabytes", bytes: 1_250_000_000, want: 1.25},
 	}
@@ -77,15 +75,14 @@ func TestGB(t *testing.T) {
 	}
 }
 
-// TestPlainGB checks plainGB, which rounds like gb but has no floor: this is
-// what the analyze bridge reports and why it can legitimately return 0.
+// Subpaths and parent totals use the same unrounded unit conversion.
 func TestPlainGB(t *testing.T) {
 	tests := []struct {
 		name  string
 		bytes int64
 		want  float64
 	}{
-		{name: "four megabytes has no floor", bytes: 4_000_000, want: 0.0},
+		{name: "four megabytes has no floor", bytes: 4_000_000, want: 0.004},
 		{name: "zero", bytes: 0, want: 0.0},
 		{name: "one gigabyte", bytes: 1_000_000_000, want: 1.0},
 		{name: "one and a quarter gigabytes", bytes: 1_250_000_000, want: 1.25},

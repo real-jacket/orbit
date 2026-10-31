@@ -35,8 +35,8 @@ so you always run the upstream version you installed.
 
 | Module | Backed by | What it does |
 | --- | --- | --- |
-| **Deep Clean** | `internal/scanner` + native Trash | Measures caches and logs; previews selected paths before moving them |
-| **AI Care** | AI catalog + native Trash | Reviews AI tool packages, runtime caches and worktree directories; no age-based filtering |
+| **Deep Clean** | `internal/scanner` + native Trash | Measures cache/log children and real file facts; unknown, partial or active paths stay unselected |
+| **AI Care** | AI catalog + native Trash | Rechecks old agent versions against the active launcher/process; extensions, models and worktrees are inspect-only |
 | **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data |
 | **Optimize** | `qlmanage -r cache` | Resets Quick Look thumbnails, with a correlated success/failure receipt |
 | **Astrolabe** | `internal/analyze` | Allocated/logical size treemap; in-process scan and memory drill-down |
@@ -294,8 +294,9 @@ wired up:
   Mach-O executable, a valid `Info.plist`, `Contents/Resources/AppIcon.icns` that unpacks with
   `iconutil`, and the embedded frontend marker in the binary. A second job gates `gofmt`, `go vet`, and a
   clean `mygo generate` (so `mygo.ts` can never be stale in a PR).
-- **AI cleanup does not depend on aspirational CLI flags.** It scans the local AI catalog and submits
-  selected paths through the native Trash bridge. The unsupported 15/30/90-day retention selector is removed.
+- **AI cleanup does not depend on aspirational CLI flags.** Mole CLI has no AI-clean subcommand; orbit
+  scans a local, bounded catalog and submits only verified-old-version paths through native Trash.
+  Current/spare versions, active tools, extensions, models, sessions and worktrees are retained.
 - **Missing sensors remain missing.** CPU temperature comes from SMC when available, not from CPU load.
 - **Frontend regressions run in CI.** `node scripts/test-ui.cjs` checks selected paths, immutable confirmation,
   mode boundaries, request receipts and primary-button contrast in both themes. Node is development-only;

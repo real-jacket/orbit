@@ -66,7 +66,7 @@ final class Suite: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
           if(el.matches('.btn,.pref-btn') && el.scrollWidth > el.clientWidth+3)overflow.push(el.className+': label');
         }
         const content=document.getElementById('moduleStage').textContent;
-        if(STATE.module==='ai_moon')qaAssert(document.getElementById('heroDesc').textContent.includes('不按天数'),'AI cleanup cannot claim unsupported age filtering');
+        if(STATE.module==='ai_moon')qaAssert(document.getElementById('heroDesc').textContent.includes('不是 CLI'),'AI cleanup must identify the local scanner boundary');
         if(/undefined|NaN|\\[object Object\\]/.test(content))throw new Error('Invalid visible values');
         qaAssert([...document.querySelectorAll('input[type=checkbox]')].every(i=>i.getAttribute('aria-label')),'checkboxes have accessible names');
         qaAssert(document.querySelectorAll('.nav-item.active').length===1 && document.querySelector('.nav-item.active').dataset.mod===STATE.module,'sidebar selection matches current module');

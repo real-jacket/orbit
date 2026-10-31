@@ -76,12 +76,22 @@ func pushRealTelemetryNow() {
 var analyzeQueue struct {
 	mu      sync.Mutex
 	running bool
-	next    *string
+	current analyzeRequest
+	next    *analyzeRequest
+}
+
+type analyzeRequest struct {
+	path    string
+	refresh bool
+	id      string
 }
 
 // pushAnalyzeProgress forwards one scan progress tick to the page, which only
 // redraws the "已扫描 N 个文件" line: the treemap waits for the finished tree.
 func pushAnalyzeProgress(progress analyze.Progress) {
+	analyzeQueue.mu.Lock()
+	progress.RequestID = analyzeQueue.current.id
+	analyzeQueue.mu.Unlock()
 	evaluate("window.onNativeAnalyzeProgress ? window.onNativeAnalyzeProgress(" + jsonOf(progress) + ") : undefined")
 }
 
@@ -90,25 +100,34 @@ func pushAnalyzeProgress(progress analyze.Progress) {
 // and the page hangs the result under the tile it already has for it. A request
 // that arrives while one is running replaces the pending one, so the newest
 // click wins instead of every click being queued.
-func pushDiskAnalyze(path string) {
+func pushDiskAnalyze(path string, refresh bool, requestID string) {
+	request := analyzeRequest{path: path, refresh: refresh, id: requestID}
 	analyzeQueue.mu.Lock()
 	if analyzeQueue.running {
-		pending := path
-		analyzeQueue.next = &pending
+		analyzeQueue.next = &request
+		analyze.Shared.Cancel()
 		analyzeQueue.mu.Unlock()
 		return
 	}
 	analyzeQueue.running = true
+	analyzeQueue.current = request
 	analyzeQueue.mu.Unlock()
 
 	go func() {
-		current := path
+		current := request
 		for {
-			var payload analyze.Payload
-			if current == "" {
-				payload = analyze.Overview()
-			} else {
-				payload = analyze.Children(expandTilde(current))
+			payload := analyze.PayloadFor(expandTilde(current.path), current.refresh)
+			payload.RequestID = current.id
+			for i := range payload.Treemap2D {
+				tile := &payload.Treemap2D[i]
+				tile.ProtectionReason = scanner.Shared.CleanupReason(tile.Path)
+				if tile.Partial {
+					tile.ProtectionReason = "目录尚未完整读取，进入检查或重新扫描后再处理"
+				}
+			}
+			for i := range payload.LargeFiles {
+				file := &payload.LargeFiles[i]
+				file.ProtectionReason = scanner.Shared.CleanupReason(file.Path)
 			}
 			evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
 
@@ -119,10 +138,27 @@ func pushDiskAnalyze(path string) {
 				return
 			}
 			current = *analyzeQueue.next
+			analyzeQueue.current = current
 			analyzeQueue.next = nil
 			analyzeQueue.mu.Unlock()
 		}
 	}()
+}
+
+func cancelDiskAnalyze(requestID string) {
+	analyzeQueue.mu.Lock()
+	dropped := analyzeQueue.next != nil && analyzeQueue.next.id == requestID
+	if dropped {
+		analyzeQueue.next = nil
+	}
+	if requestID == "" || requestID == analyzeQueue.current.id {
+		analyze.Shared.Cancel()
+	}
+	analyzeQueue.mu.Unlock()
+	if dropped {
+		payload := analyze.Payload{RequestID: requestID, ScanStatus: "canceled", Error: "扫描请求已取消，尚未开始读取；旧结果保持原状"}
+		evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
+	}
 }
 
 // pushTrashResult sends the receipt for one trash request. The page only

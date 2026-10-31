@@ -55,7 +55,8 @@ type Payload struct {
 	Path       string  `json:"path,omitempty"`
 	// Error explains a failed run: unreadable directory, timeout, no `mo`.
 	// Without it every failure looked like the same "unavailable" label.
-	Error string `json:"error,omitempty"`
+	Error     string `json:"error,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
 
 	// The rest describes the scan itself rather than the rectangles: which
 	// volume the numbers came from, how much of the tree was readable, and
@@ -96,43 +97,45 @@ type RestrictionInfo struct {
 
 // LargeFileTile is one entry of the large-file list.
 type LargeFileTile struct {
-	Name   string  `json:"name"`
-	Path   string  `json:"path"`
-	SizeGb float64 `json:"sizeGb"`
+	Name             string  `json:"name"`
+	Path             string  `json:"path"`
+	SizeGb           float64 `json:"sizeGb"`
+	ProtectionReason string  `json:"protectionReason,omitempty"`
 }
 
 // Tile is one rectangle of the treemap.
 type Tile struct {
-	Name       string  `json:"name"`
-	Path       string  `json:"path"`
-	SizeGb     float64 `json:"sizeGb"`
-	DiskGb     float64 `json:"diskGb,omitempty"`
-	LogicalGb  float64 `json:"logicalGb,omitempty"`
-	Partial    bool    `json:"partial,omitempty"`
-	Pct        float64 `json:"pct"`
-	Color      string  `json:"color"`
-	Files      int     `json:"files"`
-	IsDir      bool    `json:"isDir"`
-	ScanStatus string  `json:"scanStatus"`
-	Cleanable  bool    `json:"cleanable"`
-	X          float64 `json:"x"`
-	Y          float64 `json:"y"`
-	W          float64 `json:"w"`
-	H          float64 `json:"h"`
-	Children   []Tile  `json:"children"`
+	Name             string  `json:"name"`
+	Path             string  `json:"path"`
+	SizeGb           float64 `json:"sizeGb"`
+	DiskGb           float64 `json:"diskGb,omitempty"`
+	LogicalGb        float64 `json:"logicalGb,omitempty"`
+	Partial          bool    `json:"partial,omitempty"`
+	Pct              float64 `json:"pct"`
+	Color            string  `json:"color"`
+	Files            int     `json:"files"`
+	IsDir            bool    `json:"isDir"`
+	ScanStatus       string  `json:"scanStatus"`
+	Cleanable        bool    `json:"cleanable"`
+	X                float64 `json:"x"`
+	Y                float64 `json:"y"`
+	W                float64 `json:"w"`
+	H                float64 `json:"h"`
+	Children         []Tile  `json:"children"`
+	ProtectionReason string  `json:"protectionReason,omitempty"`
 }
 
 // Overview analyzes the home directory.
-func Overview() Payload { return PayloadFor("") }
+func Overview() Payload { return PayloadFor("", false) }
 
 // Children analyzes one directory.
-func Children(path string) Payload { return PayloadFor(path) }
+func Children(path string) Payload { return PayloadFor(path, false) }
 
 // PayloadFor returns the treemap of path, scanning it when the in-memory tree
 // does not cover it yet. Drilling into a directory the tree already holds costs
 // a map lookup; the `mo` CLI is only consulted when the scan itself fails.
-func PayloadFor(path string) Payload {
-	node, stats, scanID, err := Shared.Tree(path)
+func PayloadFor(path string, refresh bool) Payload {
+	node, stats, scanID, err := Shared.Tree(path, refresh)
 	if err != nil {
 		stdout, source, failure := runAnalyze(path)
 		payload := buildPayload(stdout, source)
@@ -429,7 +432,7 @@ func toInt64(value any) int64 {
 
 // plainGB converts bytes to gigabytes, rounded to two decimals.
 func plainGB(bytes int64) float64 {
-	return round2(float64(bytes) / 1_000_000_000)
+	return float64(bytes) / 1_000_000_000
 }
 
 // round1 rounds v to one decimal place.
