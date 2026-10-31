@@ -25,6 +25,18 @@ var directoryReads = struct {
 }{failed: map[string]string{}}
 
 func readDir(dir string) []fileEntry {
+	entries, err := readDirEntries(dir)
+	if err != nil {
+		return nil
+	}
+	out := make([]fileEntry, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, fileEntry{name: entry.Name(), isDir: entry.IsDir()})
+	}
+	return out
+}
+
+func readDirEntries(dir string) ([]os.DirEntry, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	entries, err := fsread.ReadDir(ctx, dir)
@@ -37,14 +49,13 @@ func readDir(dir string) []fileEntry {
 		}
 	}
 	directoryReads.Unlock()
-	if err != nil {
-		return nil
-	}
-	out := make([]fileEntry, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, fileEntry{name: entry.Name(), isDir: entry.IsDir()})
-	}
-	return out
+	return entries, err
+}
+
+func recordReadWarning(path, reason string) {
+	directoryReads.Lock()
+	directoryReads.failed[path] = reason
+	directoryReads.Unlock()
 }
 
 func scanReadWarnings(home string) []map[string]any {
@@ -82,7 +93,7 @@ func walkFiles(dir string, maxFiles int, scanned *int, visit func(file string, b
 			})
 			continue
 		}
-		info, err := os.Stat(path)
+		info, err := os.Lstat(path)
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}

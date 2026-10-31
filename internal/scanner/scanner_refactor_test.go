@@ -94,8 +94,8 @@ func TestOrphanRowsCarryTheFieldsTheUIBinds(t *testing.T) {
 		sizeGb, ok := row["leftoverSizeGb"].(float64)
 		if !ok {
 			t.Errorf("row %d has leftoverSizeGb of type %T, want float64", i, row["leftoverSizeGb"])
-		} else if sizeGb < 0.01 {
-			t.Errorf("row %d has leftoverSizeGb = %v, want >= 0.01", i, sizeGb)
+		} else if sizeGb <= 0 {
+			t.Errorf("row %d has leftoverSizeGb = %v, want a positive measured size", i, sizeGb)
 		}
 
 		if _, isBool := row["checked"].(bool); !isBool {

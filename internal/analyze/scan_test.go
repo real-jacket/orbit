@@ -582,3 +582,47 @@ func TestPayloadForNodeLeavesTheRootPathEmpty(t *testing.T) {
 		t.Fatal("drill-down payload lost its path, so the page cannot place the tiles")
 	}
 }
+
+func TestAnalyzerRefreshDoesNotReuseAnOldOrCanceledTree(t *testing.T) {
+	root := t.TempDir()
+	scanTestWrite(t, filepath.Join(root, "first.bin"), 4096)
+	a := NewAnalyzer()
+	_, _, firstID, err := a.Tree(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scanTestWrite(t, filepath.Join(root, "second.bin"), 4096)
+	_, _, cachedID, err := a.Tree(root, false)
+	if err != nil || cachedID != firstID {
+		t.Fatalf("drill lookup should reuse the tree: %s, %v", cachedID, err)
+	}
+	node, _, freshID, err := a.Tree(root, true)
+	if err != nil || freshID == firstID || node.FileCount != 2 {
+		t.Fatalf("explicit refresh must walk the disk: %s, %v, %+v", freshID, err, node)
+	}
+	a.stats.Canceled = true
+	_, stats, retryID, err := a.Tree(root, false)
+	if err != nil || retryID == freshID || stats.Canceled {
+		t.Fatalf("a canceled result cannot masquerade as a complete cached scan: %s, %v", retryID, err)
+	}
+}
+
+func TestAnalysisDrillScopesFactsAndLargeFiles(t *testing.T) {
+	root := "/Users/me"
+	child := &Node{Path: root + "/Projects", Dir: true, DiskBytes: 3_000_000_000, LogBytes: 4_000_000_000}
+	stats := &ScanStats{Restricted: []Restriction{{Path: root + "/Documents", Reason: "denied"}}, LargeFiles: []LargeFile{
+		{Name: "in.bin", Path: child.Path + "/in.bin", SizeBytes: 2_000_000_000},
+		{Name: "outside.bin", Path: root + "/Projects-other/outside.bin", SizeBytes: 5_000_000_000},
+	}}
+	payload := payloadForNode(child, stats, "scan-1", root, child.Path)
+	if payload.TotalSizeGb != 3 || payload.TotalLogicalGb != 4 || len(payload.LargeFiles) != 1 || len(payload.Restricted) != 0 {
+		t.Fatalf("drill-down facts must describe this directory only: %+v", payload)
+	}
+	child.DiskBytes = 0
+	if got := payloadForNode(child, stats, "scan-1", root, child.Path); got.TotalGb != 0 {
+		t.Fatalf("zero allocation cannot fall back to logical bytes: %+v", got)
+	}
+	if !covers("/", "/Users/me") || covers(root, root+"-other") {
+		t.Fatal("root and sibling boundaries are not directory-prefix comparisons")
+	}
+}

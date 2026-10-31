@@ -69,7 +69,7 @@ func TestBuildPayloadSizesAgainstTotalSize(t *testing.T) {
 	if documents.Name != "Documents" {
 		t.Fatalf("first tile = %q", documents.Name)
 	}
-	if want := 526.15; documents.SizeGb != want {
+	if want := 526151707463.0 / 1_000_000_000; documents.SizeGb != want {
 		t.Errorf("size GB = %v, want %v", documents.SizeGb, want)
 	}
 	wantPct := 526151707463.0 / 709980057685.0 * 100

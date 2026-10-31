@@ -161,11 +161,10 @@ func forgetTrash(originals []string) error {
 // enforces the same protection `mo` does, because it does the deleting itself.
 func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 	outcome := TrashOutcome{Requested: len(rawPaths)}
-	policy := s.whitelist()
 	entries := make([]TrashEntry, 0, len(rawPaths))
 	for _, raw := range rawPaths {
-		path := strings.TrimSpace(raw)
-		if path == "" {
+		path := raw
+		if strings.TrimSpace(path) == "" {
 			continue
 		}
 		path = s.expand(path)
@@ -178,8 +177,8 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "拒绝整根移动废纸篓与家目录"})
 			continue
 		}
-		if policy.Protects(path) {
-			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "白名单保护"})
+		if reason := s.CleanupReason(path); reason != "" {
+			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: reason})
 			continue
 		}
 		if !exists(path) {

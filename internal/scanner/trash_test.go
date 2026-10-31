@@ -76,6 +76,57 @@ func TestTrashPathsMovesIntoTrashAndRecordsManifest(t *testing.T) {
 	}
 }
 
+func TestCleanupStopsWhenWhitelistCannotBeRead(t *testing.T) {
+	s := newTestScanner(t)
+	original := filepath.Join(s.home, "Library/Caches/Example/payload.bin")
+	writeFile(t, original, "keep this")
+	s.refreshWhitelist()
+	if err := os.MkdirAll(WhitelistPath(s.home), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outcome := s.TrashPaths([]string{original})
+	if len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 || !strings.Contains(outcome.Skipped[0].Reason, "白名单") || !exists(original) {
+		t.Fatalf("an unreadable whitelist must not revert to less restrictive defaults: %+v", outcome)
+	}
+}
+
+func TestCleanupProtectsCoreAIDataAndSymlinkAliases(t *testing.T) {
+	s := newTestScanner(t)
+	for _, relative := range []string{".ssh/key", ".codex/worktrees/a/project/source", ".claude/projects/session", ".cursor/extensions/installed/payload", ".cache/huggingface/hub/model"} {
+		original := filepath.Join(s.home, relative)
+		writeFile(t, original, "user data")
+		if outcome := s.TrashPaths([]string{original}); len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 || !exists(original) {
+			t.Fatalf("protected data %s was accepted: %+v", relative, outcome)
+		}
+	}
+	alias := filepath.Join(s.home, "alias")
+	if err := os.Symlink(filepath.Join(s.home, ".ssh"), alias); err != nil {
+		t.Fatal(err)
+	}
+	if outcome := s.TrashPaths([]string{filepath.Join(alias, "key")}); len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 {
+		t.Fatalf("an alias cannot bypass data protection: %+v", outcome)
+	}
+}
+
+func TestCleanupRechecksAnActiveCacheAfterInspection(t *testing.T) {
+	s := newTestScanner(t)
+	path := filepath.Join(s.home, "Library/Caches/Google")
+	writeFile(t, filepath.Join(path, "cache.bin"), "cache")
+	s.processProbe = func() (string, error) { return "launchd\n", nil }
+	if reason := s.CleanupReason(path); reason != "" {
+		t.Fatalf("idle cache unexpectedly refused: %s", reason)
+	}
+	s.processProbe = func() (string, error) { return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n", nil }
+	row := rowsByID(s.scanCleanGroups())["browser_caches"]
+	if row == nil || row["tier"] != "protected" || row["checked"] != false {
+		t.Fatalf("an active browser cache must stay visible but unselectable: %v", row)
+	}
+	outcome := s.TrashPaths([]string{path})
+	if len(outcome.Moved) != 0 || len(outcome.Skipped) != 1 || !strings.Contains(outcome.Skipped[0].Reason, "正在运行") {
+		t.Fatalf("a process that started after inspection must block execution: %+v", outcome)
+	}
+}
+
 func TestConcurrentTrashReceiptsAreNotLost(t *testing.T) {
 	s := newTestScanner(t)
 	const count = 20
