@@ -120,25 +120,29 @@ type LargeFileTile struct {
 
 // Tile is one rectangle of the treemap.
 type Tile struct {
-	Name             string  `json:"name"`
-	Path             string  `json:"path"`
-	SizeGb           float64 `json:"sizeGb"`
-	DiskGb           float64 `json:"diskGb,omitempty"`
-	LogicalGb        float64 `json:"logicalGb,omitempty"`
-	Partial          bool    `json:"partial,omitempty"`
-	Modified         int64   `json:"modified,omitempty"`
-	Pct              float64 `json:"pct"`
-	Color            string  `json:"color"`
-	Files            int     `json:"files"`
-	IsDir            bool    `json:"isDir"`
-	ScanStatus       string  `json:"scanStatus"`
-	Cleanable        bool    `json:"cleanable"`
-	X                float64 `json:"x"`
-	Y                float64 `json:"y"`
-	W                float64 `json:"w"`
-	H                float64 `json:"h"`
-	Children         []Tile  `json:"children"`
-	ProtectionReason string  `json:"protectionReason,omitempty"`
+	Name       string  `json:"name"`
+	Path       string  `json:"path"`
+	SizeGb     float64 `json:"sizeGb"`
+	DiskGb     float64 `json:"diskGb,omitempty"`
+	LogicalGb  float64 `json:"logicalGb,omitempty"`
+	Partial    bool    `json:"partial,omitempty"`
+	Modified   int64   `json:"modified,omitempty"`
+	Pct        float64 `json:"pct"`
+	Color      string  `json:"color"`
+	Files      int     `json:"files"`
+	IsDir      bool    `json:"isDir"`
+	ScanStatus string  `json:"scanStatus"`
+	Cleanable  bool    `json:"cleanable"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	W          float64 `json:"w"`
+	H          float64 `json:"h"`
+	Children   []Tile  `json:"children"`
+	// Preview is a bounded, non-interactive sample of this directory's direct
+	// children. The page draws it inside the tile so a large single block still
+	// reveals what is taking the space.
+	Preview          []Tile `json:"preview,omitempty"`
+	ProtectionReason string `json:"protectionReason,omitempty"`
 }
 
 // Overview analyzes the home directory.

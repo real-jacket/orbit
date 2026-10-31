@@ -302,6 +302,15 @@ func payloadForNode(node *Node, stats *ScanStats, scanID, scanRoot, requested st
 
 // tileFor converts one child node into a treemap rectangle.
 func tileFor(node *Node, basis int64, home string) Tile {
+	tile := tileForBase(node, basis, home)
+	if node.Dir {
+		tile.Preview = previewTiles(node, basis, home)
+	}
+	return tile
+}
+
+// tileForBase converts one node without recursively adding another preview.
+func tileForBase(node *Node, basis int64, home string) Tile {
 	var pct float64
 	if basis > 0 {
 		pct = float64(node.DiskBytes) / float64(basis) * 100
@@ -309,6 +318,10 @@ func tileFor(node *Node, basis int64, home string) Tile {
 	color := "linear-gradient(145deg, #0284c7, #0c4a6e)"
 	if node.Dir {
 		color = "linear-gradient(145deg, #d97706, #78350f)"
+	}
+	scanStatus := "complete"
+	if node.Partial {
+		scanStatus = "partial"
 	}
 	return Tile{
 		Name:       node.Name,
@@ -322,9 +335,51 @@ func tileFor(node *Node, basis int64, home string) Tile {
 		IsDir:      node.Dir,
 		Partial:    node.Partial,
 		Modified:   node.Modified,
-		ScanStatus: "complete",
+		ScanStatus: scanStatus,
 		Children:   []Tile{},
 	}
+}
+
+const maxTilePreview = 5
+
+// previewTiles keeps the largest direct children plus one synthetic remainder.
+// It is deliberately only one level deep: enough to show the shape of a large
+// folder without sending the whole scanned tree across the bridge.
+func previewTiles(node *Node, basis int64, home string) []Tile {
+	if node == nil || !node.Dir || node.DiskBytes <= 0 || len(node.Children) == 0 {
+		return nil
+	}
+	const maxNamed = maxTilePreview - 1
+	out := make([]Tile, 0, maxTilePreview)
+	var included int64
+	for _, child := range node.Children {
+		if child == nil || child.DiskBytes <= 0 || len(out) >= maxNamed {
+			break
+		}
+		out = append(out, tileForBase(child, basis, home))
+		included += child.DiskBytes
+	}
+	if remaining := node.DiskBytes - included; remaining > 0 && len(out) > 0 {
+		pct := 0.0
+		if basis > 0 {
+			pct = float64(remaining) / float64(basis) * 100
+		}
+		scanStatus := "complete"
+		if node.Partial {
+			scanStatus = "partial"
+		}
+		out = append(out, Tile{
+			Name:       "其它",
+			SizeGb:     plainGB(remaining),
+			DiskGb:     plainGB(remaining),
+			Pct:        round1(pct),
+			IsDir:      true,
+			Partial:    node.Partial,
+			ScanStatus: scanStatus,
+			Children:   []Tile{},
+		})
+	}
+	return out
 }
 
 // syntheticCount reads the "N" of a "…其它 N 项" node name, falling back to 1.

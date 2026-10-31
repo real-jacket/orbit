@@ -61,7 +61,9 @@
   "aggregated": { "count": 182, "sizeGb": 0.1 },
   "tiles": [{ "name": "Library", "path": "~/Library", "sizeGb": 44.38, "diskGb": 46.2,
               "logicalGb": 47.1, "pct": 56.1, "files": 128394, "isDir": true, "partial": true,
-              "x": 0, "y": 0, "w": 56.1, "h": 100 }],
+              "x": 0, "y": 0, "w": 56.1, "h": 100,
+              "preview": [{ "name": "Caches", "diskGb": 18.2, "pct": 22.1, "isDir": true },
+                          { "name": "Containers", "diskGb": 9.4, "pct": 11.4, "isDir": true }] }],
   "largeFiles": [{ "name": "x.bin", "path": "~/x.bin", "sizeGb": 1.23 }],
   "error": ""
 }
@@ -76,8 +78,9 @@
 - 扫描中：hero 显示「正在扫描… 已扫描 N 个文件 · X.Xs」，主按钮变「取消扫描」。
 - 结果：小字事实条「文件 N · 占用 X GB（实际）/ Y GB（逻辑）· 合并 Z 个小项」；
   `partial` 时多一个「N 个目录读取受限」入口（前 10 条 path + reason，注明这些目录体积未计入）。
-- treemap：主数字用 `diskGb`，宽度 < 3px 的矩形不产出 DOM，体积并成一个不可点的「其它」块；
-  `partial` 的块右上角有「受限」角标。
+- treemap：主数字用 `diskGb`；当前层和目录内预览共用 squarified 布局，短边 < 46px 的当前层方块并成
+  一个「其它」块；`preview` 只保存最多 4 个直接子项加 1 个余项，不递归，也不拦截点击。
+- `partial` 的块右上角有「受限」角标；展开后按目录聚合受限路径，每组可直接在访达中定位或打开推荐的权限面板。
 - 首次打开「空间分析」才扫描（启动即扫会让开 app 的第一秒就去啃 2.3M 文件）。
 - 下钻/面包屑沿用原有实现，只是数据来自内存树。
 
@@ -109,3 +112,12 @@ node /tmp/test_analyze.js Resources/src-ui/index.html   # 前端 49 项断言（
 - 内存 400 MB（`~` 全树聚合后）。下一步可以按目录做 LRU 裁剪，或把 `FileCount` 之外的信息丢掉。
 - 首次 `~` 扫描 17 s，仍是一次性成本；缓存落盘（mtime 签名）能把二次打开降到亚秒。
 - 顶部 60 个子项 + 1 MB 阈值是经验值，超大目录（如 `~/Library/Developer`）可能需要按层自适应。
+
+## 6. 参考
+
+- D3 hierarchy treemap：默认 squarified、按面积布局、内外 padding 的成熟交互模型：
+  <https://d3js.org/d3-hierarchy/treemap>。
+- Apple「控制对文件和文件夹的访问」：说明桌面、文稿、下载等授权入口：
+  <https://support.apple.com/en-ie/guide/mac-help/mchld5a35146/27/mac/27>。
+- Apple「允许 App 访问受保护文件」：说明完全磁盘访问权限需要由用户在系统设置中添加 App：
+  <https://support.apple.com/en-au/guide/mac-help/mchl211c911f/mac>。

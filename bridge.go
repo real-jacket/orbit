@@ -133,6 +133,10 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		// A failed clean or uninstall is usually a missing TCC grant, and the
 		// switch that fixes it lives two clicks deep in System Settings.
 		go openPrivacyPane(stringOf(payload["pane"]))
+	case "revealAppBundle":
+		// Full Disk Access has no path parameter. Showing the running bundle in
+		// Finder lets the user add that exact build with System Settings' "+".
+		revealAppBundle()
 	case "runDoctorReCheck":
 		// The 体检 page used to fake this: a random delay, a health score that
 		// only went up and seven hardcoded "通过" rows. The checks are now read
@@ -185,6 +189,24 @@ func privacyPaneURL(pane string) string {
 // openPrivacyPane asks the system to open the settings pane that grants pane.
 func openPrivacyPane(pane string) {
 	_ = exec.Command("/usr/bin/open", privacyPaneURL(pane)).Run()
+}
+
+func appBundleFromExecutable(executable string) string {
+	path := filepath.Clean(executable)
+	for current := path; current != "/" && current != "."; current = filepath.Dir(current) {
+		if strings.HasSuffix(strings.ToLower(current), ".app") {
+			return current
+		}
+	}
+	return path
+}
+
+func revealAppBundle() {
+	executable, err := os.Executable()
+	if err != nil || executable == "" {
+		return
+	}
+	mygo.Shell.ShowItemInFolder(appBundleFromExecutable(executable))
 }
 
 // revealInFinder shows path in the Finder. The Swift app cut the path at its

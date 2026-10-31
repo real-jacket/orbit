@@ -627,6 +627,38 @@ func TestPayloadExposesAggregatedItemsAndModificationTime(t *testing.T) {
 	}
 }
 
+func TestTilePreviewIsBoundedToDirectChildren(t *testing.T) {
+	sizes := []int64{100, 90, 80, 70, 60, 50}
+	parent := &Node{Name: "Large", Path: "/Users/me/Large", Dir: true}
+	var total int64
+	for i, size := range sizes {
+		total += size
+		parent.Children = append(parent.Children, &Node{
+			Name: fmt.Sprintf("child-%d", i), Path: filepath.Join(parent.Path, fmt.Sprintf("child-%d", i)),
+			Dir: i%2 == 0, DiskBytes: size, LogBytes: size,
+		})
+	}
+	parent.DiskBytes, parent.LogBytes = total, total
+
+	tile := tileFor(parent, total, mustHome(t))
+	if len(tile.Preview) != maxTilePreview {
+		t.Fatalf("preview = %d entries, want %d", len(tile.Preview), maxTilePreview)
+	}
+	var previewBytes float64
+	for i, child := range tile.Preview {
+		previewBytes += child.DiskGb * 1e9
+		if child.Preview != nil {
+			t.Fatalf("preview[%d] recursively included another preview", i)
+		}
+	}
+	if previewBytes < float64(total)-1000 || previewBytes > float64(total)+1000 {
+		t.Fatalf("preview bytes = %.0f, want approximately %d", previewBytes, total)
+	}
+	if last := tile.Preview[len(tile.Preview)-1]; last.Name != "其它" || last.Path != "" {
+		t.Fatalf("preview remainder = %+v, want a synthetic 其它 tile", last)
+	}
+}
+
 func mustHome(t *testing.T) string {
 	t.Helper()
 	home, err := os.UserHomeDir()

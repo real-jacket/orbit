@@ -294,9 +294,10 @@ const analysis = vm.createContext({
   showToast() {}, renderModule() {}, updateSidebarBadges() {}, renderAnalyzeProgress() {}, console,
 });
 analysis.window = analysis;
-['hasNum', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
+['hasNum', 'escHtml', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
   'currentTiles', 'currentAggregated', 'analyzeScopeTotal', 'matchesSearch', 'analysisVisibleTiles', 'currentLargeFiles', 'scanRowsWithFailures',
-  'normalizeAggregated', 'layoutTreemap', 'protectionReason'].forEach(name => load(name, analysis));
+  'normalizeAggregated', 'squarifyRects', 'layoutTreemap', 'treemapPreviewHTML', 'absolutePath', 'permissionPaneForPath',
+  'groupRestrictedPaths', 'protectionReason'].forEach(name => load(name, analysis));
 loadCallback('onNativeDiskAnalyze', analysis);
 loadCallback('onNativeAnalyzeProgress', analysis);
 analysis.onNativeDiskAnalyze({ requestId: 'root-1', root: '~', scanStatus: 'ok', totalGb: 8, totalSizeGb: 8, totalLogicalGb: 10, fileCount: 23,
@@ -324,6 +325,29 @@ const graph = vm.runInContext('layoutTreemap(STATE.treemap2D, STATE.analyzeAggre
 const others = graph.find(t => t.__others);
 assert.ok(others && Math.abs(others.w * others.h / 100 - 12.5) < 0.02, 'aggregated bytes keep their actual share of treemap area');
 assert.equal(vm.runInContext('layoutTreemap([{sizeGb:0}], null).length', analysis), 0, 'zero allocation cannot invent a visible minimum area');
+analysis.previewTile = {
+  name: 'Projects', path: '~/Projects', w: 52, h: 72,
+  preview: [
+    { name: 'Canvas', path: '~/Projects/Canvas', diskGb: 5, isDir: true },
+    { name: 'archive.bin', path: '~/Projects/archive.bin', diskGb: 3, isDir: false },
+  ]
+};
+const previewHTML = vm.runInContext('treemapPreviewHTML(previewTile)', analysis);
+assert.equal((previewHTML.match(/tt-preview-cell/g) || []).length, 2, 'large directory tiles carry a nested child map');
+assert.ok(previewHTML.includes('tt-preview-label') && previewHTML.includes('Canvas'), 'large nested cells keep readable child labels');
+analysis.previewTile.w = 4;
+assert.equal(vm.runInContext('treemapPreviewHTML(previewTile)', analysis), '', 'tiny tiles skip unreadable nested geometry');
+analysis.restrictedFixture = [
+  { path: '/Users/me/Library/Containers/com.a', reason: '权限不足' },
+  { path: '/Users/me/Library/Containers/com.b', reason: '权限不足' },
+  { path: '/Users/me/Documents/private', reason: '需要文件访问权限' },
+];
+const groups = vm.runInContext('groupRestrictedPaths(restrictedFixture)', analysis);
+assert.equal(groups.length, 2, 'restricted paths are grouped by the directory to inspect');
+assert.equal(groups[0].label, '~/Library/Containers');
+assert.equal(groups[0].count, 2);
+assert.equal(groups[0].pane, 'fullDiskAccess');
+assert.equal(groups[1].pane, 'filesAndFolders', 'documents permissions point at Files and Folders');
 assert.equal(vm.runInContext('fmtDiskSizeGb(0.000004096)', analysis), '4.1 KB', 'small real allocations never display as fictional GB');
 analysis.siblingPath = analysis.STATE.homePath + '-other/file';
 assert.equal(vm.runInContext('displayPath(siblingPath)', analysis), analysis.siblingPath);
