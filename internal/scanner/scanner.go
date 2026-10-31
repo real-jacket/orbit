@@ -16,6 +16,7 @@ import (
 type Scanner struct {
 	home         string
 	processProbe func() (string, error)
+	handleProbe  func(string) (bool, error)
 
 	// Telemetry is sampled on every tick, but not everything has to be measured
 	// that often: the process table costs a `ps` fork (~15 ms), so it is reused

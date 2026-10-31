@@ -85,8 +85,23 @@ type Volume struct {
 
 // Aggregated counts the children the scan folded into "…其它".
 type Aggregated struct {
-	Count  int     `json:"count"`
-	SizeGb float64 `json:"sizeGb"`
+	Count  int              `json:"count"`
+	SizeGb float64          `json:"sizeGb"`
+	Items  []AggregatedItem `json:"items,omitempty"`
+}
+
+// AggregatedItem is a bounded sample of the direct children folded into
+// "其它". It is meant for inspection and opt-in collection, not automatic
+// deletion.
+type AggregatedItem struct {
+	Name             string  `json:"name"`
+	Path             string  `json:"path"`
+	SizeGb           float64 `json:"sizeGb"`
+	FileCount        int64   `json:"fileCount,omitempty"`
+	IsDir            bool    `json:"isDir"`
+	Modified         int64   `json:"modified,omitempty"`
+	Partial          bool    `json:"partial,omitempty"`
+	ProtectionReason string  `json:"protectionReason,omitempty"`
 }
 
 // RestrictionInfo is one path the scan could not read or chose not to visit.
@@ -111,6 +126,7 @@ type Tile struct {
 	DiskGb           float64 `json:"diskGb,omitempty"`
 	LogicalGb        float64 `json:"logicalGb,omitempty"`
 	Partial          bool    `json:"partial,omitempty"`
+	Modified         int64   `json:"modified,omitempty"`
 	Pct              float64 `json:"pct"`
 	Color            string  `json:"color"`
 	Files            int     `json:"files"`

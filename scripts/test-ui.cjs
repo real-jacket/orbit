@@ -287,23 +287,39 @@ assert.equal(vm.runInContext('selectedSizeGb(STATE.aiMoonBands[0])', context), 1
 
 const analysis = vm.createContext({
   STATE: { homePath: '/Users/me', analyzeRequestId: 'root-1', analyzeLoading: true, treemap2D: [], drillStack: [], analyzeLargeFiles: [],
-    collected: [{ path: '~/draft' }, { path: '~/failed', failed: true }], totalDiskGb: 100, freeDiskGb: 50 },
+    analyzeAggregated: null, searchQuery: '', analyzeSort: 'size', collected: [{ path: '~/draft' }, { path: '~/failed', failed: true }],
+    totalDiskGb: 100, freeDiskGb: 50 },
   document: { getElementById() { return { style: {} }; }, querySelector() { return { clientWidth: 720, clientHeight: 300 }; } },
   PROTECTED_PATHS: new Set(['~', '/']),
   showToast() {}, renderModule() {}, updateSidebarBadges() {}, renderAnalyzeProgress() {}, console,
 });
 analysis.window = analysis;
-['hasNum', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath', 'currentLargeFiles', 'scanRowsWithFailures', 'layoutTreemap', 'protectionReason'].forEach(name => load(name, analysis));
+['hasNum', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
+  'currentTiles', 'currentAggregated', 'analyzeScopeTotal', 'matchesSearch', 'analysisVisibleTiles', 'currentLargeFiles', 'scanRowsWithFailures',
+  'normalizeAggregated', 'layoutTreemap', 'protectionReason'].forEach(name => load(name, analysis));
 loadCallback('onNativeDiskAnalyze', analysis);
 loadCallback('onNativeAnalyzeProgress', analysis);
 analysis.onNativeDiskAnalyze({ requestId: 'root-1', root: '~', scanStatus: 'ok', totalGb: 8, totalSizeGb: 8, totalLogicalGb: 10, fileCount: 23,
-  aggregated: { count: 3, sizeGb: 1 }, largeFiles: [{ path: '~/Projects/a.bin', sizeGb: 2 }, { path: '~/Projects-other/b.bin', sizeGb: 1 }],
+  aggregated: { count: 3, sizeGb: 1, items: [{ name: 'archive.zip', path: '~/Downloads/archive.zip', sizeGb: 0.8, isDir: false, modified: 1700000000 },
+    { name: 'notes', path: '~/Downloads/notes', sizeGb: 0.2, isDir: true, fileCount: 4 }] },
+  largeFiles: [{ path: '~/Projects/a.bin', sizeGb: 2 }, { path: '~/Projects-other/b.bin', sizeGb: 1 }],
   restricted: [{ path: '~/Downloads/private', reason: 'denied' }],
   treemap2D: [{ name: 'Projects', path: '~/Projects', isDir: true, diskGb: 5, sizeGb: 5, children: [] }, { name: 'Downloads', path: '~/Downloads', diskGb: 2, sizeGb: 2, children: [] }],
 });
 assert.equal(analysis.STATE.totalAnalyzedGb, 8);
 assert.equal(analysis.STATE.treemap2D[0].pct, 62.5, 'percentages include the backend aggregation, not only visible tiles');
 assert.equal(analysis.STATE.collected.length, 1, 'refresh preserves failed receipt paths, not unconfirmed draft selections');
+assert.equal(analysis.STATE.analyzeAggregated.items.length, 2, 'aggregated receipts retain a bounded inspectable sample');
+analysis.STATE.searchQuery = 'archive';
+let searchRows = vm.runInContext('analysisVisibleTiles()', analysis);
+assert.equal(searchRows.length, 1, 'search can reach an item folded into the aggregate');
+assert.equal(searchRows[0].path, '~/Downloads/archive.zip');
+assert.equal(searchRows[0].fromOther, true);
+analysis.STATE.searchQuery = '';
+analysis.STATE.analyzeSort = 'name';
+assert.deepEqual(Array.from(vm.runInContext('analysisVisibleTiles().map(x => x.name)', analysis)), ['Downloads', 'Projects']);
+analysis.STATE.analyzeSort = 'size';
+assert.match(vm.runInContext('fmtModified(1700000000)', analysis), /\d{2}\/\d{2}/, 'modification time is rendered from the captured timestamp');
 const graph = vm.runInContext('layoutTreemap(STATE.treemap2D, STATE.analyzeAggregated)', analysis);
 const others = graph.find(t => t.__others);
 assert.ok(others && Math.abs(others.w * others.h / 100 - 12.5) < 0.02, 'aggregated bytes keep their actual share of treemap area');

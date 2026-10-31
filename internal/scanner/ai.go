@@ -10,11 +10,24 @@ import (
 	"time"
 )
 
-type aiVersionSpec struct{ root, launcher, tool string }
+type aiVersionSpec struct {
+	root, launcher, marker, tool, processName string
+}
 
 var aiVersionSpecs = []aiVersionSpec{
-	{".local/share/claude/versions", ".local/bin/claude", "Claude Code"},
-	{".local/share/cursor-agent/versions", ".local/bin/cursor-agent", "Cursor Agent"},
+	{root: ".local/share/claude/versions", launcher: ".local/bin/claude", tool: "Claude Code"},
+	{root: ".local/share/cursor-agent/versions", launcher: ".local/bin/cursor-agent", tool: "Cursor Agent"},
+	{root: ".copilot/pkg/universal", launcher: ".local/bin/copilot", tool: "GitHub Copilot CLI"},
+	{
+		root:   "Library/Application Support/Claude/claude-code",
+		marker: "Library/Application Support/Claude/claude-code-vm/.sdk-version",
+		tool:   "Claude Desktop", processName: "Claude",
+	},
+	{
+		root:   "Library/Application Support/Claude/claude-code-vm",
+		marker: "Library/Application Support/Claude/claude-code-vm/.sdk-version",
+		tool:   "Claude Desktop", processName: "Claude",
+	},
 }
 
 type aiVersion struct {
@@ -29,12 +42,14 @@ func (s *Scanner) versionInventory(spec aiVersionSpec) []aiVersion {
 	if err != nil {
 		return nil
 	}
-	launcher := filepath.Join(s.home, spec.launcher)
-	active, activeErr := filepath.EvalSymlinks(launcher)
+	active, activeErr := s.activeAIVersion(spec)
 	processes, processErr := s.cleanupProcesses()
 	var versions []aiVersion
 	current := ""
 	for _, entry := range entries {
+		if !validAIVersionName(entry.Name()) {
+			continue
+		}
 		path := filepath.Join(root, entry.Name())
 		info, err := entry.Info()
 		version := aiVersion{path: path}
@@ -42,7 +57,7 @@ func (s *Scanner) versionInventory(spec aiVersionSpec) []aiVersion {
 			version.reason = "版本元数据无法读取，保持原状"
 		} else {
 			version.modified = info.ModTime().Unix()
-			if info.Mode()&os.ModeSymlink != 0 || entry.Name() == "" || entry.Name()[0] < '0' || entry.Name()[0] > '9' || strings.ContainsAny(entry.Name(), "\n\r\t") {
+			if info.Mode()&os.ModeSymlink != 0 {
 				version.reason = "不能证明是可替换的旧程序版本，保持原状"
 			}
 		}
@@ -59,7 +74,7 @@ func (s *Scanner) versionInventory(spec aiVersionSpec) []aiVersion {
 		}
 		return versions[i].path < versions[j].path
 	})
-	verified, verifyErr := filepath.EvalSymlinks(launcher)
+	verified, verifyErr := s.activeAIVersion(spec)
 	kept := false
 	for i := range versions {
 		version := &versions[i]
@@ -82,13 +97,43 @@ func (s *Scanner) versionInventory(spec aiVersionSpec) []aiVersion {
 		resolved, _ := filepath.EvalSymlinks(version.path)
 		for _, command := range strings.Split(processes, "\n") {
 			command = strings.TrimSpace(command)
-			if withinPath(command, version.path) || resolved != "" && withinPath(command, resolved) || filepath.Base(command) == filepath.Base(spec.launcher) {
+			if withinPath(command, version.path) || resolved != "" && withinPath(command, resolved) ||
+				spec.launcher != "" && filepath.Base(command) == filepath.Base(spec.launcher) ||
+				spec.processName != "" && (strings.EqualFold(filepath.Base(command), spec.processName) || strings.Contains(command, "/"+spec.processName+".app/")) {
 				version.reason = "程序仍在运行或版本占用不明，保持原状"
 				break
 			}
 		}
 	}
 	return versions
+}
+
+func (s *Scanner) activeAIVersion(spec aiVersionSpec) (string, error) {
+	if spec.marker != "" {
+		data, err := os.ReadFile(filepath.Join(s.home, spec.marker))
+		if err != nil {
+			return "", err
+		}
+		name := strings.TrimSpace(strings.SplitN(string(data), "\n", 2)[0])
+		if !validAIVersionName(name) {
+			return "", os.ErrInvalid
+		}
+		root := filepath.Join(s.home, spec.root)
+		path := filepath.Join(root, name)
+		if !exists(path) {
+			return "", os.ErrNotExist
+		}
+		return filepath.EvalSymlinks(path)
+	}
+	if spec.launcher == "" {
+		return "", os.ErrNotExist
+	}
+	return filepath.EvalSymlinks(filepath.Join(s.home, spec.launcher))
+}
+
+func validAIVersionName(name string) bool {
+	return name != "" && name[0] >= '0' && name[0] <= '9' &&
+		name != "." && name != ".." && !strings.ContainsAny(name, "/\n\r\t") && !strings.Contains(name, "..")
 }
 
 func (s *Scanner) scanAIVersions(claims *catalogClaims) []map[string]any {

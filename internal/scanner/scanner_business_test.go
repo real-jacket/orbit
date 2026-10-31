@@ -43,7 +43,7 @@ func TestAppSubpathsExposeUnroundedMeasuredSize(t *testing.T) {
 
 func TestAIKeepsUnidentifiedVersionsAndInstalledExtensions(t *testing.T) {
 	home := fixtureHome(t)
-	fixtureDir(t, home, ".local/share/claude/versions/current", 4096)
+	fixtureDir(t, home, ".local/share/claude/versions/2.0.0", 4096)
 	fixtureDir(t, home, ".cursor/extensions/vendor.extension", 4096)
 	s := &Scanner{home: home}
 	rows := s.scanAICaches()
@@ -59,7 +59,10 @@ func TestAIKeepsUnidentifiedVersionsAndInstalledExtensions(t *testing.T) {
 
 func TestAIVersionPlanRechecksLauncherAndRunningProcesses(t *testing.T) {
 	home := fixtureHome(t)
-	s := &Scanner{home: home, processProbe: func() (string, error) { return "launchd\n", nil }}
+	s := &Scanner{
+		home: home, processProbe: func() (string, error) { return "launchd\n", nil },
+		handleProbe: func(string) (bool, error) { return false, nil },
+	}
 	root := filepath.Join(home, aiVersionSpecs[0].root)
 	var paths []string
 	for i, name := range []string{"1.0.0", "1.1.0", "1.2.0", "1.3.0"} {
@@ -97,6 +100,11 @@ func TestAIVersionPlanRechecksLauncherAndRunningProcesses(t *testing.T) {
 		t.Fatalf("unknown process state must preserve versions: %q", reason)
 	}
 	s.processProbe = func() (string, error) { return "launchd\n", nil }
+	s.handleProbe = func(string) (bool, error) { return true, nil }
+	if reason := s.CleanupReason(paths[2]); !strings.Contains(reason, "打开") {
+		t.Fatalf("a version held open by a process must be kept: %q", reason)
+	}
+	s.handleProbe = func(string) (bool, error) { return false, nil }
 	if err := os.Remove(launcher); err != nil {
 		t.Fatal(err)
 	}
@@ -109,6 +117,58 @@ func TestAIVersionPlanRechecksLauncherAndRunningProcesses(t *testing.T) {
 	if len(outcome.Moved) != 0 || len(outcome.Skipped) != 2 || !exists(paths[0]) {
 		t.Fatalf("a launcher change after preview must invalidate deletion permission: %+v", outcome)
 	}
+}
+
+func TestClaudeDesktopMarkerDefinesCurrentVersion(t *testing.T) {
+	home := fixtureHome(t)
+	s := &Scanner{home: home, processProbe: func() (string, error) { return "launchd\n", nil }}
+	var spec aiVersionSpec
+	for _, candidate := range aiVersionSpecs {
+		if candidate.tool == "Claude Desktop" && strings.HasSuffix(candidate.root, "claude-code-vm") {
+			spec = candidate
+			break
+		}
+	}
+	if spec.root == "" {
+		t.Fatal("Claude Desktop version spec missing")
+	}
+	for i, version := range []string{"1.0.0", "1.1.0", "1.2.0"} {
+		path := fixtureDir(t, home, filepath.Join(spec.root, version), 4096)
+		modified := time.Unix(1_700_000_000+int64(i)*100, 0)
+		if err := os.Chtimes(path, modified, modified); err != nil {
+			t.Fatal(err)
+		}
+	}
+	marker := filepath.Join(home, spec.marker)
+	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(marker, []byte("1.2.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	versions := s.versionInventory(spec)
+	reasons := map[string]string{}
+	for _, version := range versions {
+		reasons[filepath.Base(version.path)] = version.reason
+	}
+	if !strings.Contains(reasons["1.2.0"], "当前") || !strings.Contains(reasons["1.1.0"], "备用") || reasons["1.0.0"] != "" {
+		t.Fatalf("Claude Desktop marker plan = %+v", reasons)
+	}
+	s.processProbe = func() (string, error) { return "/Applications/Claude.app/Contents/MacOS/Claude\n", nil }
+	for _, version := range s.versionInventory(spec) {
+		if version.reason == "" {
+			t.Fatalf("a running Claude Desktop must protect every bundled version: %+v", version)
+		}
+	}
+}
+
+func TestAIAgentSpecsIncludeCopilot(t *testing.T) {
+	for _, spec := range aiVersionSpecs {
+		if spec.tool == "GitHub Copilot CLI" && spec.root == ".copilot/pkg/universal" {
+			return
+		}
+	}
+	t.Fatal("GitHub Copilot CLI versions are not part of the AI inventory")
 }
 
 func TestCleanCatalogUsesPreciseSizesAndRealFileFacts(t *testing.T) {

@@ -35,11 +35,11 @@ so you always run the upstream version you installed.
 
 | Module | Backed by | What it does |
 | --- | --- | --- |
-| **Deep Clean** | `internal/scanner` + native Trash | Measures cache/log children and real file facts; unknown, partial or active paths stay unselected |
-| **AI Care** | AI catalog + native Trash | Rechecks old agent versions against the active launcher/process; extensions, models and worktrees are inspect-only |
+| **Deep Clean** | `internal/scanner` + native Trash | Measures cache/log children plus common browser and developer caches; unknown, partial or active paths stay unselected |
+| **AI Care** | AI catalog + native Trash | Rechecks Claude Code, Cursor Agent, Copilot CLI and Claude Desktop releases against launcher, process and open handles; models/worktrees are inspect-only |
 | **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data |
 | **Optimize** | `qlmanage -r cache` | Resets Quick Look thumbnails, with a correlated success/failure receipt |
-| **Astrolabe** | `internal/analyze` | Allocated/logical size treemap; in-process scan and memory drill-down |
+| **Astrolabe** | `internal/analyze` | Allocated/logical size map with current-layer search, inspectable folded items, file counts, mtimes and memory drill-down |
 | **Live Status** | Kernel + `ps` + hardware sensors | CPU, memory, network and supported sensor data; search processes by name/path/PID |
 | **Purge** | Build/installer scanner + native Trash | Reviews rebuildable artifacts and installer packages |
 | **History & Whitelist** | Native manifests + mole whitelist | Cleanup receipts, path restoration and protected-path management |
@@ -297,6 +297,10 @@ wired up:
 - **AI cleanup does not depend on aspirational CLI flags.** Mole CLI has no AI-clean subcommand; orbit
   scans a local, bounded catalog and submits only verified-old-version paths through native Trash.
   Current/spare versions, active tools, extensions, models, sessions and worktrees are retained.
+  See [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) for the exact, deliberately partial CLI comparison.
+- **Space analysis follows mature explorer patterns without a second rendering stack.** DaisyDisk's
+  inspectable "smaller objects", SpaceSniffer's current-scope filtering and GrandPerspective's
+  treemap navigation informed the bounded folded-item sample and small-window map-first layout.
 - **Missing sensors remain missing.** CPU temperature comes from SMC when available, not from CPU load.
 - **Frontend regressions run in CI.** `node scripts/test-ui.cjs` checks selected paths, immutable confirmation,
   mode boundaries, request receipts and primary-button contrast in both themes. Node is development-only;

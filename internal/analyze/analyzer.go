@@ -260,6 +260,14 @@ func payloadForNode(node *Node, stats *ScanStats, scanID, scanRoot, requested st
 
 	viewStats := *stats
 	viewStats.Partial = node.Partial
+	otherItems := make([]AggregatedItem, 0, len(node.OtherChildren))
+	for _, other := range node.OtherChildren {
+		otherItems = append(otherItems, AggregatedItem{
+			Name: other.Name, Path: relativize(filepath.Join(node.Path, other.Name), home),
+			SizeGb: plainGB(other.DiskBytes), FileCount: other.FileCount, IsDir: other.Dir,
+			Modified: other.Modified, Partial: other.Partial,
+		})
+	}
 	payload := Payload{
 		Treemap2D: tiles,
 		Tiles:     tiles,
@@ -278,7 +286,7 @@ func payloadForNode(node *Node, stats *ScanStats, scanID, scanRoot, requested st
 		Partial:        node.Partial,
 		Restricted:     restrictionInfos(stats.Restricted, home, node.Path),
 		Excluded:       restrictionInfos(stats.Excluded, home, node.Path),
-		Aggregated:     &Aggregated{Count: aggregatedCount, SizeGb: plainGB(aggregatedBytes)},
+		Aggregated:     &Aggregated{Count: aggregatedCount, SizeGb: plainGB(aggregatedBytes), Items: otherItems},
 		LargeFiles:     largeFiles,
 		Volume:         volumeInfo(node.Path),
 	}
@@ -313,6 +321,7 @@ func tileFor(node *Node, basis int64, home string) Tile {
 		Files:      int(node.FileCount),
 		IsDir:      node.Dir,
 		Partial:    node.Partial,
+		Modified:   node.Modified,
 		ScanStatus: "complete",
 		Children:   []Tile{},
 	}
