@@ -575,7 +575,7 @@
     overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); padding: 4px;
   }
   .treemap-tile {
-    position: absolute; border: 2px solid var(--bg-surface); border-radius: 9px;
+    position: absolute; border: 1px solid var(--bg-surface); border-radius: 5px;
     padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
     cursor: pointer; overflow: hidden; container-type: size; isolation: isolate;
     transition: box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.16s ease;
@@ -586,24 +586,28 @@
     box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
     z-index: 5;
   }
-  .treemap-tile.tt-others { opacity: 0.72; }
   .tt-preview {
-    position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: inherit;
-    pointer-events: none; opacity: 0.9;
+    position: absolute; inset: 46px 8px 37px; z-index: 0; overflow: hidden; border-radius: 4px;
+    pointer-events: none; background: rgba(15, 13, 12, 0.07);
   }
   .tt-preview-cell {
-    position: absolute; display: flex; align-items: center; justify-content: center;
-    border: 1px solid rgba(18, 16, 14, 0.34); border-radius: 2px; box-sizing: border-box;
-    padding: 8px;
+    position: absolute; display: flex; align-items: flex-start; justify-content: flex-start;
+    border: 1px solid rgba(18, 16, 14, 0.38); border-radius: 2px; box-sizing: border-box;
+    padding: 6px 7px; overflow: hidden;
   }
-  .tt-preview-cell.dir { background: rgba(255, 211, 169, 0.15); }
-  .tt-preview-cell.file { background: rgba(215, 210, 201, 0.16); }
-  .tt-preview-cell.other { background: rgba(255, 250, 240, 0.055); }
+  .tt-preview-cell.dir { background: rgba(255, 211, 169, 0.18); }
+  .tt-preview-cell.file { background: rgba(215, 210, 201, 0.2); }
+  .tt-preview-cell.other { background: rgba(21, 19, 17, 0.2); }
   .tt-preview-label {
-    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    color: rgba(255,255,255,0.78); font-size: 10.5px; font-weight: 650;
+    max-width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+    color: rgba(255,255,255,0.82);
     text-shadow: 0 1px 2px rgba(12, 10, 9, 0.55);
   }
+  .tt-preview-label b, .tt-preview-label small {
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .tt-preview-label b { font-size: 10.5px; line-height: 1.2; font-weight: 650; }
+  .tt-preview-label small { font: 10px/1.2 var(--font-mono); color: rgba(255,255,255,0.58); }
   .tt-head { min-width: 0; position: relative; z-index: 1; text-shadow: 0 1px 2px rgba(12, 10, 9, 0.46); }
   .tt-name {
     font-size: 13px; font-weight: 800; letter-spacing: -0.01em; color: #fff;
@@ -655,8 +659,8 @@
   @container (max-width: 74px) { .tt-actions .tt-btn ~ .tt-btn { display: none; } }
   @container (max-width: 39px) { .tt-actions { display: none; } }
   @container (max-height: 44px) { .tt-actions { display: none; } }
-  @container (max-width: 91px) { .tt-preview { display: none; } }
-  @container (max-height: 67px) { .tt-preview { display: none; } }
+  @container (max-width: 127px) { .tt-preview { display: none; } }
+  @container (max-height: 103px) { .tt-preview { display: none; } }
   /* 动作出现时给底部数字留出位置，避免压住体积与占比。 */
   .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 74px; }
   @container (max-width: 213px) { .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 52px; } }
@@ -902,7 +906,7 @@
   .drill-pill { cursor: pointer; }
   .crumb-sep { color: var(--text-muted); }
   .crumb-left { flex: 1 1 auto; min-width: 0; overflow: hidden; }
-  .crumb-actions { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); flex: 0 0 auto; }
+  .crumb-actions { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); flex: 0 0 auto; }
   .crumb-preview {
     flex: 0 0 auto; width: 300px; max-width: 34vw;
     margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border-subtle);
@@ -912,11 +916,22 @@
   }
   .crumb-preview.show { visibility: visible; }
   .crumb-sel {
-    max-width: 290px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;
+    max-width: 250px; min-width: 0; padding-right: 4px; display: flex; flex-direction: column; align-items: flex-start;
     overflow: hidden; font-family: var(--font-mono);
   }
   .crumb-sel > span, .crumb-sel > small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .crumb-sel > small { font-family: var(--font-sans); font-size: 9.5px; color: var(--text-muted); font-weight: 500; }
+  .crumb-sel > small { font-family: var(--font-sans); font-size: 10px; color: var(--text-muted); font-weight: 500; }
+  .crumb-icon-btn {
+    width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-secondary);
+  }
+  .crumb-icon-btn .ui-ico { width: 14px; height: 14px; }
+  .crumb-icon-btn:hover { color: var(--text-primary); }
+  .crumb-icon-btn.on {
+    color: var(--accent-primary); background: var(--accent-soft);
+    border-color: var(--border-selected);
+  }
+  .crumb-basket-btn { width: auto; padding: 0 8px; gap: 4px; font-size: 10.5px; font-weight: 650; }
   .analysis-list-tools { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 10.5px; }
   .analysis-sort {
     border: 1px solid transparent; background: transparent; color: var(--text-muted);
@@ -1452,7 +1467,9 @@ const UI_ICON_PATHS = {"shield": "<path d=\"M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5
 Object.assign(UI_ICON_PATHS, {
   back: '<path d="M15 6l-6 6 6 6"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
-  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  copy: '<rect x="8" y="8" width="11" height="11" rx="1.5"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>'
 });
 function UI_ICON(name) {
   return '<svg class="ui-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (UI_ICON_PATHS[name] || '') + '</svg>';
@@ -2801,7 +2818,7 @@ function treemapPreviewHTML(tile) {
   const stageH = stage ? stage.clientHeight : 300;
   const tileW = stageW * (Number(tile.w) || 0) / 100;
   const tileH = stageH * (Number(tile.h) || 0) / 100;
-  if (tileW < 92 || tileH < 68) return '';
+  if (tileW < 150 || tileH < 112) return '';
   const entries = preview.map((item, idx) => ({ item, idx, value: diskGbOf(item) }));
   const rects = squarifyRects(entries, 100, 100);
   return `<div class="tt-preview" aria-hidden="true">${entries.map(entry => {
@@ -2812,8 +2829,8 @@ function treemapPreviewHTML(tile) {
     const x = rect.x + gap, y = rect.y + gap;
     const w = Math.max(0, rect.w - gap * 2), h = Math.max(0, rect.h - gap * 2);
     if (!(w > 0 && h > 0)) return '';
-    const showLabel = entry.idx < 2 && tileW * w / 100 >= 88 && tileH * h / 100 >= 54;
-    return `<span class="tt-preview-cell ${kind}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%;width:${w.toFixed(2)}%;height:${h.toFixed(2)}%">${showLabel ? `<span class="tt-preview-label">${escHtml(entry.item.name)}</span>` : ''}</span>`;
+    const showLabel = entry.idx < 2 && tileW * w / 100 >= 104 && tileH * h / 100 >= 60;
+    return `<span class="tt-preview-cell ${kind}" style="left:${x.toFixed(2)}%;top:${y.toFixed(2)}%;width:${w.toFixed(2)}%;height:${h.toFixed(2)}%">${showLabel ? `<span class="tt-preview-label"><b>${escHtml(entry.item.name)}</b><small>${fmtDiskSizeGb(diskGbOf(entry.item), 1)}</small></span>` : ''}</span>`;
   }).join('')}</div>`;
 }
 
@@ -4386,9 +4403,9 @@ function renderModule() {
             ${hasNum(curSelectedTile.files) || curSelectedTile.modified ? `<small>${hasNum(curSelectedTile.files) ? fmtNum(curSelectedTile.files, 0) + ' 个文件' : ''}${hasNum(curSelectedTile.files) && curSelectedTile.modified ? ' · ' : ''}${curSelectedTile.modified ? '修改于 ' + escHtml(fmtModified(curSelectedTile.modified)) : ''}</small>` : ''}
           </span>
           ${curSelectedTile.isDir === false ? '' : `<button class="btn btn-primary" style="padding:2px 9px;font-size:10.5px;" onclick="drillTile(${activeIdx})">进入</button>`}
-          <button class="btn" style="padding:2px 9px;font-size:10.5px;" ${curSelectedTile.path ? '' : 'disabled'} onclick="revealInFinder('${jsq(curSelectedTile.path)}')">在访达中显示</button>
-          <button class="btn" style="padding:2px 9px;font-size:10.5px;" ${curSelectedTile.path ? '' : 'disabled'} onclick="copyPath('${jsq(curSelectedTile.path)}')">复制路径</button>
-          <button class="btn" style="padding:2px 9px;font-size:10.5px;" ${protectionReason(curSelectedTile) ? 'disabled title="' + escHtml(protectionReason(curSelectedTile)) + '"' : ''} onclick="toggleCollect(${activeIdx})">${isCollected(curSelectedTile) ? '移出待清理' : '加入待清理'}</button>
+          <button class="btn crumb-icon-btn" title="在访达中显示" aria-label="在访达中显示 ${escHtml(curSelectedTile.name)}" ${curSelectedTile.path ? '' : 'disabled'} onclick="revealInFinder('${jsq(curSelectedTile.path)}')">${UI_ICON('folder')}</button>
+          <button class="btn crumb-icon-btn" title="复制路径" aria-label="复制路径 ${escHtml(curSelectedTile.name)}" ${curSelectedTile.path ? '' : 'disabled'} onclick="copyPath('${jsq(curSelectedTile.path)}')">${UI_ICON('copy')}</button>
+          <button class="btn crumb-icon-btn crumb-basket-btn ${isCollected(curSelectedTile) ? 'on' : ''}" aria-label="${isCollected(curSelectedTile) ? '移出待清理' : '加入待清理'} ${escHtml(curSelectedTile.name)}" aria-pressed="${isCollected(curSelectedTile) ? 'true' : 'false'}" ${protectionReason(curSelectedTile) ? `disabled title="${escHtml(protectionReason(curSelectedTile))}"` : `title="${isCollected(curSelectedTile) ? '移出待清理' : '加入待清理'}"`} onclick="toggleCollect(${activeIdx})">${isCollected(curSelectedTile) ? UI_ICON('check') : UI_ICON('plus')}<span>${isCollected(curSelectedTile) ? '已加入' : '待清理'}</span></button>
         </div>
       </div>
 
@@ -4447,7 +4464,7 @@ function renderModule() {
               const rGb = diskGbOf(r);
               const rPartial = r.partial === true || r.scanStatus === 'partial';
               const sel = !isOthers && r.idx === activeIdx;
-              const tint = isOthers ? '#2a2926' : tileTint(rank, total);
+              const tint = isOthers ? '#35322d' : tileTint(rank, total);
               const tip = isOthers
                 ? `其它 · ${r.mergedCount || r.count || 0} 个小项\n点击查看最大的 ${otherItems.length} 项`
                 : `${escHtml(r.name)}\n${escHtml(displayPath(r.path || r.name))}\n${rGb.toFixed(2)} GB${hasNum(r.pct) ? ' · ' + r.pct + '%' : ''}${r.files ? ' · ' + r.files + ' 个文件' : ''}${rPartial ? '\n受限：有子目录未读取，体积未计入' : ''}`;
