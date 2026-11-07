@@ -94,7 +94,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 // process cache setting, plus one lazily taken system-wide open-file snapshot
 // for display-time checks. It is never used at the move boundary.
 func (s *Scanner) scanView() *Scanner {
-	view := &Scanner{home: s.home, processProbe: s.processProbe, handleProbe: s.handleProbe, installProbe: s.installProbe, aiUnits: s.aiUnits, processTTL: s.processTTL}
+	view := &Scanner{home: s.home, processProbe: s.processProbe, handleProbe: s.handleProbe, installProbe: s.installProbe, builderProbe: s.builderProbe, aiUnits: s.aiUnits, processTTL: s.processTTL}
 	snapshot := sync.OnceValue(openFileSnapshot)
 	view.openSnapshot = func(path string) (bool, error) { return snapshot()(path) }
 	return view

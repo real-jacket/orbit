@@ -226,6 +226,15 @@ func pushRestoreResult(requestID string, outcome scanner.RestoreOutcome) {
 	evaluate("window.onNativeRestoreResult ? window.onNativeRestoreResult(" + jsonOf(payload) + ") : undefined")
 }
 
+// pushMeasureResult sends the receipt for one on-demand full measurement.
+func pushMeasureResult(requestID string, outcome scanner.MeasureOutcome) {
+	payload := map[string]any{
+		"requestId": requestID, "path": outcome.Path, "ok": outcome.OK, "bytes": outcome.Bytes,
+		"sizeGb": outcome.SizeGb, "files": outcome.Files, "partial": outcome.Partial, "reason": outcome.Reason,
+	}
+	evaluate("window.onNativeMeasureResult ? window.onNativeMeasureResult(" + jsonOf(payload) + ") : undefined")
+}
+
 // pushDoctorReport sends the 体检 rows the page renders.
 func pushDoctorReport(requestID string, checks []map[string]any) {
 	if checks == nil {

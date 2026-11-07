@@ -126,8 +126,10 @@ func TestBuildAndSignatureCandidatesNeedExplicitSelection(t *testing.T) {
 			t.Fatalf("an absent bundle cannot pre-authorize its data: %+v", row)
 		}
 	}
-	s.processProbe = func() (string, error) { return "/opt/homebrew/bin/cargo\n", nil }
 	path := filepath.Join(home, "Projects/Example/target")
+	s.builderProbe = func() ([]builderProc, error) {
+		return []builderProc{{pid: 7, name: "cargo", cwd: filepath.Join(home, "Projects/Example")}}, nil
+	}
 	if reason := s.CleanupReason(path); !strings.Contains(reason, "正在运行") {
 		t.Fatalf("an active build bypassed the final cleanup gate: %q", reason)
 	}
