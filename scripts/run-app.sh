@@ -12,17 +12,25 @@ if [ "$platform" != "darwin" ]; then
 fi
 output_dir="${OUT_DIR:-build}"
 case "$output_dir" in
-  /*) bundle="$output_dir/darwin-$architecture/MoleStudio.app" ;;
-  *) bundle="$project_dir/$output_dir/darwin-$architecture/MoleStudio.app" ;;
+  /*) bundle="$output_dir/darwin-$architecture/orbit.app" ;;
+  *) bundle="$project_dir/$output_dir/darwin-$architecture/orbit.app" ;;
 esac
 if pgrep -f '/go-build[^/]*/b[0-9]+/exe/mole-studio$' >/dev/null 2>&1; then
   printf '检测到旧的 go run 临时实例。请在启动它的终端按 Ctrl-C，再执行 make run；不会自动终止该实例。\n' >&2
   exit 1
 fi
-for process_id in $(pgrep -f '/Contents/MacOS/MoleStudio$' || true); do
+# The bundle was called MoleStudio.app before the rename; a build of either name
+# in this output directory is the one `make run` replaces.
+legacy_bundle="${bundle%/orbit.app}/MoleStudio.app"
+for process_id in $(pgrep -f '/Contents/MacOS/(orbit|MoleStudio)$' || true); do
   command_path="$(ps -p "$process_id" -o command=)"
-  if [ "$command_path" = "$bundle/Contents/MacOS/MoleStudio" ]; then
-    osascript - "$bundle" <<'APPLESCRIPT'
+  running_bundle=""
+  case "$command_path" in
+    "$bundle/Contents/MacOS/orbit") running_bundle="$bundle" ;;
+    "$legacy_bundle/Contents/MacOS/MoleStudio") running_bundle="$legacy_bundle" ;;
+  esac
+  if [ -n "$running_bundle" ]; then
+    osascript - "$running_bundle" <<'APPLESCRIPT'
 on run arguments
   tell application (item 1 of arguments) to quit
 end run

@@ -22,8 +22,8 @@ try {
   assert.equal(launched.status, 0, launched.stderr);
   const commands = fs.readFileSync(log, 'utf8');
   assert.match(commands, /go run github\.com\/egoist\/mygo\/cmd\/mygo@v0\.6\.4 build -o build --skip-dmg/);
-  assert.match(commands, /codesign --verify --deep --strict .*build\/darwin-arm64\/MoleStudio\.app/);
-  assert.match(commands, /open -n .*build\/darwin-arm64\/MoleStudio\.app/);
+  assert.match(commands, /codesign --verify --deep --strict .*build\/darwin-arm64\/orbit\.app/);
+  assert.match(commands, /open -n .*build\/darwin-arm64\/orbit\.app/);
   assert.doesNotMatch(commands, /go run \.$|kill|tccutil/m);
   console.log('Run entry checks passed: stable bundle, pinned builder fallback, protected existing raw process.');
 } finally {

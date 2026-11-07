@@ -436,11 +436,11 @@ func humanizeTrashError(path string, err error) (string, string) {
 	switch {
 	case errors.Is(err, os.ErrPermission), errors.Is(err, syscall.EPERM), errors.Is(err, syscall.EACCES):
 		if isAppBundle(path) {
-			return "macOS 拒绝移动应用：需要在「系统设置 › 隐私与安全性 › App 管理」里允许 MoleStudio。" +
+			return "macOS 拒绝移动应用：需要在「系统设置 › 隐私与安全性 › App 管理」里允许 orbit。" +
 				"本地签名版本每次重新打包后系统会当成新应用，需要重新授权。", "appManagement"
 		}
 		if needsFolderAccess(path) {
-			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 MoleStudio 访问。", "filesAndFolders"
+			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 orbit 访问。", "filesAndFolders"
 		}
 		if needsAppDataAccess(path) {
 			// An uninstalled app's container belongs to another app. macOS keeps
@@ -450,7 +450,7 @@ func humanizeTrashError(path string, err error) (string, string) {
 				"授权后重试即可，已经移入废纸篓的条目不受影响。", "fullDiskAccess"
 		}
 		if needsFullDiskAccess(path) {
-			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 MoleStudio。", "fullDiskAccess"
+			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 orbit。", "fullDiskAccess"
 		}
 		return "权限不足，可能需要在系统设置里授予完全磁盘访问权限", "fullDiskAccess"
 	case errors.Is(err, syscall.EXDEV):
