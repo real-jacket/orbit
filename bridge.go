@@ -108,6 +108,9 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 			evaluate("window.onNativeProcessQuitResult ? window.onNativeProcessQuitResult(" + jsonOf(result) + ") : undefined")
 			pushRealTelemetryNow()
 		}()
+	case "measurePathFully":
+		path, requestID := stringOf(payload["path"]), stringOf(payload["requestId"])
+		go func() { pushMeasureResult(requestID, scanner.Shared.MeasurePathFully(path)) }()
 	case "requestRealSystemScan":
 		pushRealSystemScanNow()
 	case "requestDiskAnalyze":

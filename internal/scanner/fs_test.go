@@ -80,3 +80,23 @@ func TestDirectorySizeUsesAllocatedBytesForSparseFiles(t *testing.T) {
 		t.Fatalf("sparse file is not its logical length: %+v, logical=%d", got, info.Size())
 	}
 }
+
+func TestInstallerScanDoesNotDescendIntoBundles(t *testing.T) {
+	home := fixtureHome(t)
+	writeTestFile(t, filepath.Join(home, "Downloads/Real.dmg"), 21_000_000)
+	writeTestFile(t, filepath.Join(home, "Downloads/Folder/Nested.dmg"), 21_000_000)
+	for _, bundle := range []string{"Qoder Installer.app/Contents/Resources/Qoder.dmg", "Kit.framework/Versions/A/Kit.pkg", "Old.xcarchive/Products/Old.dmg", "Meta.pkg/Contents/Archive.dmg"} {
+		writeTestFile(t, filepath.Join(home, "Downloads", bundle), 21_000_000)
+	}
+	items := (&Scanner{home: home}).scanInstallerPackages()
+	var names []string
+	for _, item := range items {
+		names = append(names, item["name"].(string))
+		if strings.Contains(item["path"].(string), ".app/") || strings.Contains(item["path"].(string), "Contents") {
+			t.Fatalf("a file inside a bundle was offered as an installer: %v", item)
+		}
+	}
+	if len(names) != 2 {
+		t.Fatalf("installers = %v, want only Real.dmg and Nested.dmg", names)
+	}
+}

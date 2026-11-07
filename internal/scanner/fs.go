@@ -87,6 +87,9 @@ func walkFiles(dir string, maxFiles int, scanned *int, visit func(file string, b
 		*scanned++
 		path := dir + "/" + entry.name
 		if entry.isDir {
+			if isBundleDir(entry.name) {
+				continue // a bundle is one thing, never a folder of installer candidates
+			}
 			walkFiles(path, maxFiles, scanned, func(file string, bytes, modified int64) {
 				if !isHidden(baseName(file)) {
 					visit(file, bytes, modified)
@@ -100,6 +103,17 @@ func walkFiles(dir string, maxFiles int, scanned *int, visit func(file string, b
 		}
 		visit(path, allocatedSize(info), info.ModTime().Unix())
 	}
+}
+
+var bundleExtensions = map[string]bool{
+	"app": true, "pkg": true, "mpkg": true, "framework": true, "bundle": true, "xcarchive": true,
+	"plugin": true, "appex": true, "xpc": true, "kext": true, "prefpane": true, "saver": true,
+	"component": true, "dsym": true, "xcodeproj": true, "xcworkspace": true, "photoslibrary": true,
+}
+
+// isBundleDir reports whether a directory name is a macOS bundle or package.
+func isBundleDir(name string) bool {
+	return bundleExtensions[strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))]
 }
 
 // hasExtension reports whether file's extension is in extensions.
