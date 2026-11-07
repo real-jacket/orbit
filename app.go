@@ -56,8 +56,9 @@ var quitting atomic.Bool
 func run() {
 	// The update window is Sparkle-style and reads releases from the repo in
 	// mygo.json's updates block. Dev builds carry no key, so it only says that
-	// updates are unavailable. The UI is Chinese, so the window is too.
-	mygo.Use(updater.New(updater.Options{Language: "zh-Hans"}))
+	// updates are unavailable. No fixed Language: the window follows the app's
+	// locale, which initLanguage keeps on the interface language (see lang.go).
+	mygo.Use(updater.New(updater.Options{}))
 
 	mygo.Bind(&NativeBridge{})
 
@@ -114,6 +115,7 @@ func run() {
 // thread, right before the event loop starts.
 func buildUI() {
 	fillBuildInfo()
+	initLanguage()
 	createTray()
 
 	// Main window. The Swift app used a full-size content view with a
@@ -180,7 +182,7 @@ func createTray() {
 		ID:             appName,
 		Icon:           icon,
 		IconIsTemplate: true,
-		ToolTip:        "orbit · 点击展开系统状态栏",
+		ToolTip:        trayDefaultToolTip(),
 	})
 	if err != nil {
 		panic(err)
@@ -248,6 +250,7 @@ func ensureFlyout() (panel *mygo.Window, fresh bool) {
 		pushCachedSystemScan(panel.Page())
 		pushCaffeinateState(currentCaffeinateActive())
 		pushFlyoutTheme(loadSavedTheme())
+		pushFlyoutLanguage(language())
 	})
 	panel.OnClosed(func() {
 		flyoutWindow.CompareAndSwap(panel, nil)
@@ -292,43 +295,43 @@ func buildApplicationMenu() *mygo.Menu {
 		{
 			Role: mygo.RoleAppMenu,
 			Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleAbout, Label: "关于 " + appName},
+				{Role: mygo.RoleAbout, Label: L("关于 ", "About ") + appName},
 				updater.MenuItem(),
 				mygo.Separator(),
-				{Role: mygo.RoleHide, Label: "隐藏 " + appName},
-				{Role: mygo.RoleHideOthers, Label: "隐藏其他"},
-				{Role: mygo.RoleUnhide, Label: "全部显示"},
+				{Role: mygo.RoleHide, Label: L("隐藏 ", "Hide ") + appName},
+				{Role: mygo.RoleHideOthers, Label: L("隐藏其他", "Hide others")},
+				{Role: mygo.RoleUnhide, Label: L("全部显示", "Show all")},
 				mygo.Separator(),
-				{Role: mygo.RoleQuit, Label: "退出 " + appName},
+				{Role: mygo.RoleQuit, Label: L("退出 ", "Quit ") + appName},
 			},
 		},
 		{
 			Role:  mygo.RoleEditMenu,
-			Label: "编辑",
+			Label: L("编辑", "Edit"),
 			Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleUndo, Label: "撤销"},
-				{Role: mygo.RoleRedo, Label: "重做"},
+				{Role: mygo.RoleUndo, Label: L("撤销", "Undo")},
+				{Role: mygo.RoleRedo, Label: L("重做", "Redo")},
 				mygo.Separator(),
-				{Role: mygo.RoleCut, Label: "剪切"},
-				{Role: mygo.RoleCopy, Label: "拷贝"},
-				{Role: mygo.RolePaste, Label: "粘贴"},
-				{Role: mygo.RoleSelectAll, Label: "全选"},
+				{Role: mygo.RoleCut, Label: L("剪切", "Cut")},
+				{Role: mygo.RoleCopy, Label: L("拷贝", "Copy")},
+				{Role: mygo.RolePaste, Label: L("粘贴", "Paste")},
+				{Role: mygo.RoleSelectAll, Label: L("全选", "Select all")},
 			},
 		},
 		{
-			Label: "工具",
+			Label: L("工具", "Tools"),
 			Submenu: []*mygo.MenuItem{
-				{Label: "菜单栏工具", Click: func(*mygo.MenuItem, *mygo.Window) { showFlyout() }},
-				{Label: "运行与权限", Click: func(*mygo.MenuItem, *mygo.Window) { showMainWindow("openRuntimePanel();") }},
+				{Label: L("菜单栏工具", "Menu bar panel"), Click: func(*mygo.MenuItem, *mygo.Window) { showFlyout() }},
+				{Label: L("运行与权限", "Runtime and permissions"), Click: func(*mygo.MenuItem, *mygo.Window) { showMainWindow("openRuntimePanel();") }},
 			},
 		},
 		{
 			Role:  mygo.RoleWindowMenu,
-			Label: "窗口",
+			Label: L("窗口", "Window"),
 			Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleMinimize, Label: "最小化"},
-				{Role: mygo.RoleZoom, Label: "缩放"},
-				{Role: mygo.RoleClose, Label: "关闭"},
+				{Role: mygo.RoleMinimize, Label: L("最小化", "Minimize")},
+				{Role: mygo.RoleZoom, Label: L("缩放", "Zoom")},
+				{Role: mygo.RoleClose, Label: L("关闭", "Close")},
 			},
 		},
 	})

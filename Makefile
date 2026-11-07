@@ -63,6 +63,8 @@ test:
 	$(GO) test ./... -count=1
 	$(NODE) scripts/test-ui.cjs
 	$(NODE) scripts/test-run.cjs
+	$(NODE) scripts/test-i18n.cjs
+	$(NODE) scripts/test-i18n-go.cjs
 
 ## Render and verify isolated UI fixtures in macOS WebKit (requires the Xcode command-line tools).
 test-ui-webkit:
