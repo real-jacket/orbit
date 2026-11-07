@@ -291,19 +291,17 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 			}
 		}
 	}
-	// shortcut: ps lacks project ownership; add cwd/handle attribution if unrelated builders must not block cleanup.
-	if withinPath(path, s.home) && artifactKinds[filepath.Base(path)] != "" {
-		processes, err := s.processSnapshot(live)
-		if err != nil || strings.TrimSpace(processes) == "" {
+	if derived := inDerivedData(path); withinPath(path, s.home) && (derived || artifactKinds[filepath.Base(path)] != "") {
+		builders, err := s.builderSnapshot(live)
+		if err != nil {
 			return "无法确认构建工具闲置，保持原状"
 		}
-		for _, command := range strings.Split(processes, "\n") {
-			name := strings.ToLower(filepath.Base(strings.TrimSpace(command)))
-			for _, owner := range []string{"node", "npm", "pnpm", "yarn", "bun", "cargo", "rustc", "java", "gradle", "python", "python3", "uv", "xcodebuild", "swift-frontend"} {
-				if name == owner {
-					return "构建或依赖工具正在运行，不能证明目录闲置，暂缓清理"
-				}
+		if derived {
+			if name, busy := xcodeUsing(builders); busy {
+				return "Xcode 或其构建服务（" + name + "）正在运行，暂缓清理构建缓存"
 			}
+		} else if builder, busy := builderUsing(builders, filepath.Dir(path)); busy {
+			return "构建或依赖工具（" + builder + "）正在运行并使用这个项目，暂缓清理"
 		}
 	}
 	return ""
