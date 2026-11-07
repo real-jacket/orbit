@@ -2670,7 +2670,7 @@ function buildMenuBarTrayHTML() {
   const cpuTrend = trayTrend(STATE.cpuSeries, 'var(--accent-blue)', 'CPU', '%');
   const net = (STATE.hw || {}).net;
   const download = fmtBytesPerSec(net?.rx), upload = fmtBytesPerSec(net?.tx);
-  const networkTrend = trayTrend((STATE.hw || {}).netRxSeries, 'var(--accent-blue)', t('下载'), 'B/s', { points: (STATE.hw || {}).netTxSeries, color: 'var(--accent-emerald)', label: t('上传') });
+  const networkTrend = trayTrend((STATE.hw || {}).netRxSeries, 'var(--accent-blue)', netDownLabel(), 'B/s', { points: (STATE.hw || {}).netTxSeries, color: 'var(--accent-emerald)', label: t('上传') });
   const diskPct = diskUsedPercent();
   const diskGraph = diskPct === null ? `<span class="tray-chart-empty">${t('容量未知 · 等待本机采样')}</span>` : `<span class="tray-capacity" role="img" aria-label="${t('启动磁盘已用 {pct}%，可用 {free}', { pct: fmtNum(diskPct, 1), free: fmtDiskSizeGb(STATE.freeDiskGb) })}"><span class="tray-capacity-track"><span data-capacity-used style="width:${diskPct}%;background:var(--accent-blue);"></span></span><span class="tray-capacity-caption"><span>${t('已用 {pct}%', { pct: fmtNum(diskPct, 0) })}</span><span>${t('共 {total}', { total: fmtDiskSizeGb(STATE.totalDiskGb, 1) })}</span></span></span>`;
   const pending = STATE.caffeinatePending !== null;
@@ -2688,7 +2688,7 @@ function buildMenuBarTrayHTML() {
       ${metric('disk', 'disk', t('磁盘可用'), hasNum(STATE.freeDiskGb) ? fmtDiskSizeGb(STATE.freeDiskGb, 1) : t('未知'), t('启动磁盘'), 'menubarOpenAnalyze', 'var(--text-primary)', diskGraph)}
       <button class="tray-metric" data-tray-key="network" data-tray-metric="network" onclick="sendNativeBridge({action:'menubarOpenStatus'})" aria-label="${t('网络速率，下载 {down}，上传 {up}，点击查看详情', { down: escHtml(download || t('未知')), up: escHtml(upload || t('未知')) })}">
         <span class="tray-metric-head"><span>${UI_ICON('network')} ${t('网络')}</span><span aria-hidden="true">›</span></span>
-        <span class="tray-network-rates"><span><em style="color:var(--accent-blue);">${t('下载')}</em>${escHtml(download || t('未知'))}</span><span><em style="color:var(--accent-emerald);">${t('上传')}</em>${escHtml(upload || t('未知'))}</span></span>
+        <span class="tray-network-rates"><span><em style="color:var(--accent-blue);">${netDownLabel()}</em>${escHtml(download || t('未知'))}</span><span><em style="color:var(--accent-emerald);">${t('上传')}</em>${escHtml(upload || t('未知'))}</span></span>
         ${download || upload ? networkTrend : `<span class="tray-chart-empty">${STATE.telemetryReceivedAt ? t('本机不提供速率') : t('等待本机采样')}</span>`}
       </button>
     </div>
@@ -2709,6 +2709,8 @@ function buildMenuBarTrayHTML() {
   `;
 }
 
+// "下载" is also the Downloads folder; the network rate needs its own English word.
+function netDownLabel() { return I18N.lang === 'en' ? 'Down' : '下载'; }
 function trayTrend(points, color, label, unit, secondary) {
   const values = (points || []).filter(value => hasNum(value) && value >= 0);
   const other = (secondary?.points || []).filter(value => hasNum(value) && value >= 0);
@@ -3173,7 +3175,7 @@ function buildStatusCards() {
   const fanTxt = fmtFansRpm(hw.fans);
   cards.push(telemetryCard('network', t('网络 · 接口合计'), '',
     (rx || tx) ? `↓ ${rx || unsupported()}` : unsupported(), (rx || tx) ? 'var(--text-primary)' : 'var(--text-muted)',
-    (rx || tx) ? `↑ ${tx || unsupported()}` : t('本机不提供网络速率采样'), rx ? statusTrend(hw.netRxSeries, 'var(--accent-blue)', t('下载'), 'B/s', { points: hw.netTxSeries, color: 'var(--accent-emerald)', label: t('上传') }) : '', 'statusCardNet'));
+    (rx || tx) ? `↑ ${tx || unsupported()}` : t('本机不提供网络速率采样'), rx ? statusTrend(hw.netRxSeries, 'var(--accent-blue)', netDownLabel(), 'B/s', { points: hw.netTxSeries, color: 'var(--accent-emerald)', label: t('上传') }) : '', 'statusCardNet'));
   cards.push(telemetryCard('disk', t('磁盘 I/O · 读写'), '',
     (dioR || dioW) ? t('读 {v}', { v: dioR || unsupported() }) : unsupported(), (dioR || dioW) ? 'var(--text-primary)' : 'var(--text-muted)',
     (dioR || dioW) ? t('写 {v}', { v: dioW || unsupported() }) : t('本机不提供磁盘 I/O 采样'), dioR ? statusTrend(hw.ioReadSeries, 'var(--accent-primary)', t('读取'), 'B/s', { points: hw.ioWriteSeries, color: 'var(--accent-emerald)', label: t('写入') }) : '', 'statusCardDiskIo'));
