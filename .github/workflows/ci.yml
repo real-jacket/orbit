@@ -74,15 +74,15 @@ jobs:
       - name: Verify bundle layout
         run: |
           set -euo pipefail
-          bundle="build/$(go env GOOS)-$(go env GOARCH)/MoleStudio.app"
+          bundle="build/$(go env GOOS)-$(go env GOARCH)/orbit.app"
           test -d "$bundle"
-          test -x "$bundle/Contents/MacOS/MoleStudio"
+          test -x "$bundle/Contents/MacOS/orbit"
           test -f "$bundle/Contents/Info.plist"
           plutil -lint "$bundle/Contents/Info.plist"
 
           # The page is embedded in the binary rather than copied next to it,
           # so look for a marker only the frontend contains.
-          grep -aq "MOLE_STUDIO_STATE_V8" "$bundle/Contents/MacOS/MoleStudio"
+          grep -aq "MOLE_STUDIO_STATE_V8" "$bundle/Contents/MacOS/orbit"
 
           # The icon must ship and be wired up via CFBundleIconFile. MyGo writes
           # the key as "AppIcon.icns"; the extension is optional to Launch

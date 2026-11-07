@@ -16,7 +16,7 @@ func TestRuntimeIdentityDoesNotPresentGoRunAsAnApp(t *testing.T) {
 }
 
 func TestRuntimeIdentityReadsTheExactBundle(t *testing.T) {
-	bundle := filepath.Join(t.TempDir(), "MoleStudio.app")
+	bundle := filepath.Join(t.TempDir(), "orbit.app")
 	if err := os.MkdirAll(filepath.Join(bundle, "Contents"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func TestRuntimeIdentityReadsTheExactBundle(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bundle, "Contents", "Info.plist"), []byte(data), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	status := runtimeIdentity(filepath.Join(bundle, "Contents", "MacOS", "MoleStudio"))
+	status := runtimeIdentity(filepath.Join(bundle, "Contents", "MacOS", "orbit"))
 	if status["packaged"] != true || status["appPath"] != bundle {
 		t.Fatalf("packaged identity = %v", status)
 	}
