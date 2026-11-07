@@ -2361,6 +2361,81 @@ function resolveRestore(res) {
 window.onNativeTrashResult = function(res) { resolveTrash(res); };
 window.onNativeRestoreResult = function(res) { resolveRestore(res); };
 
+// 完整测量：扫描时每个目录有文件数与时间上限，超限的路径显示「测量未完成」且不可勾选。
+// 这里把单个路径交给 Go 无文件数上限地读取（Go 只接受家目录内、当前可处理的路径，拒绝时给出原因）。
+// 成功后只更新体积并解除「未完成」；是否勾选仍由用户决定，最终移入废纸篓前 Go 仍会再核验。
+const pendingMeasures = new Map();
+const measureNotes = new Map();
+const MEASURE_TIMEOUT_MS = 135000;
+function isMeasuring(path) {
+  for (const p of pendingMeasures.values()) if (p.path === path) return true;
+  return false;
+}
+function fullMeasureButton(sp) {
+  if (!sp.partial || sp.cleaned) return '';
+  const busy = isMeasuring(sp.path);
+  const note = measureNotes.get(sp.path);
+  return `<div class="row-sub" style="white-space:normal;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <button class="btn" data-measure-path="${escHtml(sp.path)}" ${busy ? 'disabled aria-busy="true"' : ''} onclick="measureSubpathFully('${jsq(sp.path)}')">${busy ? '测量中…' : '完整测量'}</button>
+    ${busy ? '<span>不限文件数读取，最长约 2 分钟。</span>' : note ? `<span data-measure-note>${escHtml(note)}</span>` : ''}
+  </div>`;
+}
+function measureSubpathFully(path) {
+  if (isMeasuring(path)) return;
+  const requestId = nextRequestId('measure');
+  pendingMeasures.set(requestId, {
+    path,
+    timer: setTimeout(() => {
+      pendingMeasures.delete(requestId);
+      measureNotes.set(path, '没有收到测量结果，路径保持原状。');
+      renderModule();
+    }, MEASURE_TIMEOUT_MS)
+  });
+  measureNotes.delete(path);
+  sendNativeBridge({ action: 'measurePathFully', path, requestId });
+  renderModule();
+}
+function applyMeasuredSubpath(path, res) {
+  const rows = [['app', STATE.appsList], ['orphan', STATE.orphanLeftoversList]];
+  for (const [type, list] of rows) for (const row of (list || [])) {
+    const sp = (row.subpaths || []).find(s => s.path === path && !s.cleaned);
+    if (!sp) continue;
+    const gb = Number(res.sizeGb);
+    if (res.bytes > 0 || !res.partial) { sp.sizeGb = gb; sp.size = fmtDiskSizeGb(gb); }
+    if (res.partial) { measureNotes.set(path, res.reason || '仍未测量完成，路径保持原状。'); return; }
+    measureNotes.delete(path);
+    sp.partial = false; sp.checked = false;
+    if (/测量未完成/.test(sp.reason || '')) { delete sp.tier; delete sp.reason; }
+    const subs = row.subpaths.filter(s => !s.cleaned);
+    const sum = pick => subs.filter(pick).reduce((total, s) => total + (Number(s.sizeGb) || 0), 0);
+    if (type === 'app') {
+      row.appSizeGb = sum(s => s.kind === 'app'); row.cacheSizeGb = sum(s => s.kind === 'cache'); row.configSizeGb = sum(s => s.kind === 'config');
+      row.leftoverSizeGb = row.cacheSizeGb + row.configSizeGb;
+      row.partial = subs.some(s => s.kind === 'app' && s.partial);
+    } else {
+      row.leftoverSizeGb = sum(() => true);
+      row.partial = subs.some(s => s.partial);
+    }
+    if (/测量未完成/.test(row.safetyReason || '')) {
+      const other = subs.find(s => s.tier === 'protected' && s.reason);
+      if (other) row.safetyReason = other.reason; else delete row.safetyReason;
+    }
+    if (row.tier === 'protected' && !row.safetyReason && subs.some(s => s.tier !== 'protected')) delete row.tier;
+    return;
+  }
+}
+window.onNativeMeasureResult = function(res) {
+  const pending = res && pendingMeasures.get(res.requestId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  pendingMeasures.delete(res.requestId);
+  if (!res.ok) measureNotes.set(pending.path, res.reason || '这个路径不能测量，保持原状。');
+  else applyMeasuredSubpath(pending.path, res);
+  persistState();
+  updateSidebarBadges();
+  renderModule();
+};
+
 // Go 侧白名单是唯一真相（~/.config/mole/whitelist）：页面只渲染它推过来的列表。
 window.onNativeWhitelistChanged = function(res) {
   if (!res) return;
@@ -4985,7 +5060,7 @@ function renderModule() {
                     </div>
                     <span class="subpath-right">${escHtml(sp.size)}</span>
                   </div>
-                  ${sp.reason ? `<div class="row-sub" style="white-space:normal;">${UI_ICON('lock')} ${escHtml(sp.reason)}</div>` : ''}
+                  ${sp.reason ? `<div class="row-sub" style="white-space:normal;">${UI_ICON('lock')} ${escHtml(sp.reason)}</div>` : ''}${fullMeasureButton(sp)}
                 `).join('')}
               </div>
 
@@ -5132,7 +5207,7 @@ function renderModule() {
                       <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${jsq(sp.path)}')">${escHtml(sp.path)}</span>
                     </div>
                     <span class="subpath-right">${sp.size}</span>
-                  </div>${sp.reason ? `<div class="row-sub">${UI_ICON('lock')} ${escHtml(sp.reason)}</div>` : ''}</div>
+                  </div>${sp.reason ? `<div class="row-sub">${UI_ICON('lock')} ${escHtml(sp.reason)}</div>` : ''}${fullMeasureButton(sp)}</div>
                 `).join('')}
               </div>
 
