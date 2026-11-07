@@ -73,7 +73,7 @@ add('apps-sort-keeps-selection', `switchModule('software');selectAppRow(4);const
   qaAssert(document.querySelector('.analysis-sort[onclick*="recent"]').getAttribute('aria-pressed')==='true','active sort is exposed');
   const subs=[...document.querySelectorAll('#moduleStage .list-row .row-sub')].map(n=>n.textContent);qaAssert(subs.some(t=>/^最近使用 [0-9]+ 个月前$/.test(t)),'rows show relative time');qaAssert([...document.querySelectorAll('#moduleStage .list-row .row-sub')].some(n=>n.textContent==='最近使用 未记录'),'rows show relative time, unknown as 未记录');
   setAppSort('name');const names=STATE.appsList.map(a=>a.name);qaAssert(names.every((n,k)=>k===0||names[k-1].localeCompare(n,'zh')<=0)&&STATE.appsList[STATE.selectedAppIdx].id===id,'name sort keeps selection');
-  STATE.appsList.find(a=>a.id==='fixture-app-5').appSizeGb=2.5;setAppSort('size');qaAssert(STATE.appsList[0].id==='fixture-app-5'&&STATE.appsList[STATE.selectedAppIdx].id===id,'size sort puts the biggest app first');
+  const big=STATE.appsList.find(a=>a.id==='fixture-app-5');big.appSizeGb=2.5;big.subpaths[0].sizeGb=2.5;setAppSort('size');qaAssert(STATE.appsList[0].id==='fixture-app-5'&&STATE.appsList[STATE.selectedAppIdx].id===id,'size sort puts the biggest app first');
   qaAssert(!__qa.actions.some(a=>['trashRealPaths','killProcess'].includes(a.action)),'sorting is read only');`);
 add('apps-running-blocked', `switchModule('software');const idx=STATE.appsList.findIndex(a=>a.running);selectAppRow(idx);
   const row=document.querySelectorAll('#moduleStage .list-row')[idx];
@@ -120,7 +120,7 @@ add('clean-unknown-small-allocation', `const row=structuredClone(qaFixture.clean
 add('clean-partial-path-protected', `const row=structuredClone(qaFixture.cleanGroups[0]);row.tier='protected';row.checked=false;row.partial=true;row.subpaths.forEach(sp=>{sp.tier='protected';sp.checked=false;sp.partial=true;sp.reason='达到文件测量上限；只计入已读取部分'});onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[row],readWarnings:[{path:row.path,reason:row.subpaths[0].reason}]});switchModule('clean');qaAssert(!document.querySelector('.inspector-content input'),'partial inventory cannot be selected');qaAssert(document.getElementById('moduleStage').textContent.includes('未完成测量'),'partial state does not claim complete totals');`);
 add('analyze-correlated-refresh', `switchModule('analyze');handlePrimaryAction();const request=__qa.actions.find(a=>a.action==='requestDiskAnalyze');qaAssert(request&&request.refresh===true&&request.requestId,'rescan explicitly requests a fresh correlated scan');const oldTotal=STATE.analyzeAllocGb;onNativeDiskAnalyze({requestId:'old',totalGb:999,treemap2D:[]});qaAssert(STATE.analyzeLoading&&STATE.analyzeAllocGb===oldTotal,'old result cannot replace the latest request');onNativeDiskAnalyze({requestId:request.requestId,root:'~',scanStatus:'ok',totalGb:2,totalSizeGb:2,totalLogicalGb:3,fileCount:4,treemap2D:[{name:'Fresh',path:'~/Fresh',sizeGb:2,diskGb:2,isDir:true}],largeFiles:[]});qaAssert(!STATE.analyzeLoading&&STATE.totalAnalyzedGb===2,'latest receipt supplies fresh totals');qaAssert(!document.getElementById('heroHeadline').textContent.includes('全机'),'home scope is not labeled whole machine');`);
 add('analyze-scoped-large-files', `switchModule('analyze');const parent=STATE.treemap2D[0];parent.logicalGb=9;parent.files=6;parent.childrenLoaded=true;parent.aggregated={count:3,sizeGb:1};parent.largeFiles=[{name:'Project archive',path:'~/Projects/a.zip',sizeGb:1},{name:'Outside',path:'~/Downloads/b.zip',sizeGb:2}];drillTile(0);qaAssert(document.querySelector('.facts-bar').textContent.includes('文件 6'),'drill-down reports its own file count');qaAssert(document.querySelector('.facts-bar').textContent.includes('9.00 GB'),'drill-down reports its own logical size');qaAssert(currentLargeFiles().length===1,'outside large files are not mixed into the current directory');qaAssert(!document.getElementById('moduleStage').textContent.includes('Outside'),'outside file is not displayed');`);
-add('analyze-aggregated-only', `switchModule('analyze');STATE.treemap2D=[];STATE.analyzeAllocGb=2;STATE.analyzeAggregated={count:14,sizeGb:2,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false,modified:1761739200},{name:'logs',path:'~/Library/Logs',sizeGb:0.6,fileCount:4,isDir:true}]};STATE.analyzeFileCount=14;renderModule();qaAssert(document.querySelector('.treemap-tile.tt-others'),'backend aggregation remains in the area map');qaAssert(document.querySelector('.analysis-aggregate-only'),'aggregate-only layer has a specific state');qaAssert(!document.getElementById('moduleStage').textContent.includes('未发现可清理项目'),'space analysis never claims there are no cleanable items');toggleAnalyzeOtherItems(true);qaAssert(document.querySelectorAll('.analysis-other-row').length===2,'aggregate exposes its bounded inspectable sample');const reveal=document.querySelector('.crumb-actions button[onclick^="revealInFinder"]');qaAssert(document.querySelector('.crumb-sel .insp-kind').textContent==='当前目录'&&!/Caches|Logs/.test(reveal.getAttribute('onclick')),'synthetic aggregate cannot reveal a fake path: the inspector locates the real current directory');`);
+add('analyze-aggregated-only', `switchModule('analyze');STATE.treemap2D=[];STATE.analyzeAllocGb=2;STATE.analyzeAggregated={count:14,sizeGb:2,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false,modified:1761739200},{name:'logs',path:'~/Library/Logs',sizeGb:0.6,fileCount:4,isDir:true}]};STATE.analyzeFileCount=14;renderModule();qaAssert(document.querySelector('.treemap-tile.tt-others'),'backend aggregation remains in the area map');qaAssert(document.querySelector('.analysis-aggregate-only'),'aggregate-only layer has a specific state');qaAssert(!document.getElementById('moduleStage').textContent.includes('未发现可清理项目'),'space analysis never claims there are no cleanable items');toggleAnalyzeOtherItems(true);qaAssert(document.querySelectorAll('.analysis-other-row').length===2,'aggregate exposes its bounded inspectable sample');qaAssert(document.querySelector('.crumb-sel .insp-kind').textContent==='折叠项'&&!document.querySelector('.crumb-actions button[onclick^="revealInFinder"]'),'synthetic aggregate cannot reveal a fake path: the inspector describes the folded group only');`);
 add('analyze-search-aggregated', `switchModule('analyze');STATE.analyzeAggregated={count:2,sizeGb:1.4,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false,reason:''},{name:'other.bin',path:'~/Library/Caches/other.bin',sizeGb:0.6,fileCount:1,isDir:false}]};STATE.searchQuery='cache-a';const input=document.getElementById('searchInput');input.value='cache-a';renderModule();qaAssert(document.querySelectorAll('.analysis-children .list-row').length===1,'search filters the current analysis layer');qaAssert(document.querySelector('.treemap-stage').textContent.includes('cache-a.bin'),'search can surface an aggregated child');qaAssert(document.querySelector('.tt-size').textContent==='800.0MB','matched child keeps its measured size');clearAnalysisSearch();qaAssert(STATE.searchQuery==='','search can be cleared without rescanning');input.value='cache-a';handleSearch('cache-a');`);
 add('analyze-no-match', `switchModule('analyze');handleSearch('no-such-path');qaAssert(document.querySelector('.analysis-no-match'),'empty search has a specific result state');qaAssert(document.querySelector('.analysis-no-match').textContent.includes('只覆盖这一层'),'search scope is explicit');document.querySelector('.analysis-no-match button[onclick="clearAnalysisSearch()"]').click();qaAssert(document.querySelectorAll('.analysis-children .list-row').length===3,'clearing search restores the current layer');document.getElementById('searchInput').value='no-such-path';handleSearch('no-such-path');`);
 add('analyze-modified-metadata', `switchModule('analyze');selectTile(0);qaAssert(document.querySelector('.crumb-sel small').textContent.includes('12 个文件'),'selection exposes its file count');qaAssert(document.querySelector('.crumb-sel small').textContent.includes('修改于'),'selection exposes its latest modification');qaAssert(!document.querySelector('.treemap-split .rank-dot'),'removed duplicate decorative rank dots');`);
@@ -197,18 +197,19 @@ const slimDirectoryScript=`
   const tiles=[...document.querySelectorAll('.treemap-tile')];const bin=tiles.find(t=>t.getAttribute('aria-label').startsWith('bin '));
   qaAssert(tiles.length===2&&bin,'few slim directories preserve their actual identity');
   qaAssert(!document.querySelector('.tt-others'),'empty backend aggregation does not create a false Others tile');
-  setAnalyzeTab('folded');
-  const detail=document.querySelector('.analysis-other-row[data-path="~/go/bin"]');
-  qaAssert(detail&&detail.querySelector('b').textContent==='bin'&&detail.textContent.includes('116.3 MB'),'small directory has a visible full-size name and measured size beside the map');
-  qaAssert(detail.querySelector('.btn').getBoundingClientRect().height>=28,'small directory has a usable enter target regardless of its area');
+  setAnalyzeTab('children');
+  const detail=document.querySelector('.analysis-children .list-row[data-path="~/go/bin"]');
+  qaAssert(detail&&detail.querySelector('.row-name').textContent.trim()==='bin'&&detail.textContent.includes('116.3 MB'),'small directory has a visible full-size name and measured size beside the map');
+  qaAssert(detail.getBoundingClientRect().height>=28,'small directory has a usable target regardless of its area');
+  qaAssert(document.querySelector('.insp-tab[data-tab="folded"]').getAttribute('aria-disabled')==='true','nothing folded: the folded tab is disabled instead of listing real tiles');
   const sizes=tiles.map(t=>{const r=t.getBoundingClientRect();return r.width*r.height});
   qaAssert(Math.abs(sizes[1]/(sizes[0]+sizes[1])-0.1163/2.2703)<0.001,'tile proportions match allocated bytes');
-  qaAssert(detail.querySelector('b').scrollWidth<=detail.querySelector('b').clientWidth+1,'bin label remains readable in its side detail');
+  qaAssert(detail.querySelector('.row-name').scrollWidth<=detail.querySelector('.row-name').clientWidth+1,'bin label remains readable in its side detail');
   {const m=document.querySelector('.analysis-map').getBoundingClientRect(),i=document.querySelector('.analysis-inspector').getBoundingClientRect();qaAssert(innerWidth>960?m.right<=i.left+1&&Math.abs(m.top-i.top)<2:m.bottom<=i.top+1,'inspector sits beside the map above 960px and below it on narrow windows');}
   qaAssert([...document.querySelectorAll('.breadcrumb-bar .btn')].every(b=>b.getBoundingClientRect().height===28),'navigation and inspection actions share one height');
   bin.click();qaAssert(document.querySelector('.crumb-sel').textContent.includes('bin')&&document.querySelector('.crumb-sel').textContent.includes('116.3 MB'),'slim directory has complete inspectable details');
   qaAssert(detail.classList.contains('selected'),'map selection highlights the matching small-item detail');
-  detail.querySelector('.analysis-other-path').click();
+  detail.click();
   qaAssert(detail.isConnected,'small-item selection preserves its double-click target');
 `;
 for(const width of [880,1060,1380])for(const theme of ['light','dark'])scenarios.push({name:width+'-'+theme+'-analyze-slim',width,height:width===880?620:860,script:'qaReset();document.documentElement.dataset.theme="'+theme+'";'+slimDirectoryScript});
@@ -279,12 +280,12 @@ for(const width of [880,1060,1380])for(const theme of ['light','dark'])scenarios
 const tinyDirectoryScript=`
   switchModule('analyze');
   STATE.treemap2D=[{name:'主目录',path:'~/main',diskGb:10,isDir:true,childrenLoaded:true,children:[]},{name:'很小的缓存目录',path:'~/tiny',diskGb:0.000002048,pct:0,isDir:true,childrenLoaded:true,children:[]}];
-  STATE.analyzeAllocGb=10.000002048;STATE.totalAnalyzedGb=10.000002048;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
-  const detail=document.querySelector('.analysis-other-row[data-path="~/tiny"]');
+  STATE.analyzeAllocGb=10.000002048;STATE.totalAnalyzedGb=10.000002048;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('children');
+  const detail=document.querySelector('.analysis-children .list-row[data-path="~/tiny"]');
   qaAssert(detail&&detail.textContent.includes('很小的缓存目录')&&detail.textContent.includes('2.0 KB'),'tiny directories remain visible without a minimum-area lie');
-  qaAssert(detail.querySelector('.btn').getBoundingClientRect().height>=28,'tiny directory has a usable navigation button');
-  detail.querySelector('.analysis-other-path').click();qaAssert(document.querySelector('.crumb-sel').textContent.includes('很小的缓存目录'),'tiny item selects the actual directory');
-  detail.querySelector('.btn').click();qaAssert(STATE.drillStack.at(-1).path==='~/tiny'&&!STATE.analyzeLoading,'tiny directory enters with the existing scan tree');
+  qaAssert(detail.getBoundingClientRect().height>=28,'tiny directory has a usable row target');
+  detail.click();qaAssert(document.querySelector('.crumb-sel').textContent.includes('很小的缓存目录'),'tiny item selects the actual directory');
+  detail.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));qaAssert(STATE.drillStack.at(-1).path==='~/tiny'&&!STATE.analyzeLoading,'tiny directory enters with the existing scan tree');
   drillUp();
 `;
 for(const width of [880,1060,1380])for(const theme of ['light','dark'])scenarios.push({name:width+'-'+theme+'-analyze-tiny',width,height:width===880?620:860,script:'qaReset();document.documentElement.dataset.theme="'+theme+'";'+tinyDirectoryScript});
@@ -389,7 +390,7 @@ add('analyze-small-directory-scroll-scope', `
   const row=document.querySelector('.analysis-other-row[data-path="~/small-29"]');
   row.querySelector('.analysis-other-actions .btn').click();
   qaAssert(STATE.drillStack.at(-1)?.path==='~/small-29'&&currentTiles().length===40,'small directory enters the child scope');
-  qaAssert(document.querySelector('.analysis-other-body').scrollTop===0,'a new directory starts its own small-item list at the top');
+  {const folded=document.querySelector('.analysis-other-body');qaAssert(!folded||folded.scrollTop===0,'a new directory starts its own small-item list at the top');}
   qaAssert(document.querySelector('.analysis-children .list-body').scrollTop===0,'parent detail scrolling cannot move the new directory list');
 `);
 scenarios[scenarios.length-1].width=880;scenarios[scenarios.length-1].height=620;
@@ -525,8 +526,9 @@ add('analyze-small-items-refold-focus-visible', smallItemRefoldSetup+`
 for(const width of [1380,880]){
 add('analyze-small-items-collapse-space-'+width, `
   qaReset();switchModule('analyze');
-  STATE.treemap2D=[{name:'主目录',path:'~/main',diskGb:10,isDir:true,childrenLoaded:true,children:[]},{name:'很小的缓存目录',path:'~/tiny',diskGb:0.000002048,isDir:true,childrenLoaded:true,children:[]}];
-  STATE.analyzeAllocGb=10.000002048;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.treemap2D=[{name:'主目录',path:'~/main',diskGb:10,isDir:true,childrenLoaded:true,children:[]}];
+  STATE.analyzeAggregated={count:1,sizeGb:0.000002048,items:[{name:'很小的缓存目录',path:'~/tiny',sizeGb:0.000002048,isDir:true}]};
+  STATE.analyzeAllocGb=10.000002048;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const mapBefore=document.querySelector('.treemap-stage').getBoundingClientRect();
   document.querySelector('.analysis-other-toggle').click();
   const map=document.querySelector('.treemap-stage').getBoundingClientRect();
@@ -534,7 +536,7 @@ add('analyze-small-items-collapse-space-'+width, `
   qaAssert(document.querySelector('.analysis-other-toggle').getAttribute('aria-expanded')==='false','details collapse');
   __qa.motionEvidence={beforeWidth:mapBefore.width,afterWidth:map.width,collapsedDetailsWidth:region.width,collapsedDetailsHeight:region.height};
   qaAssert(Math.abs(map.width-mapBefore.width)<2,'collapsing the folded list never reflows the map; actual '+mapBefore.width+'/'+map.width);
-  qaAssert(region.height<=48,'collapsed details remain a compact, reachable disclosure');
+  qaAssert(document.querySelector('.analysis-other-toggle').getBoundingClientRect().height<=48,'collapsed details remain a compact, reachable disclosure');
   document.querySelector('.analysis-other-toggle').click();
   qaAssert(document.querySelector('.analysis-other-row[data-path="~/tiny"]'),'reopening retains the actual tiny directory');
 `);
@@ -666,7 +668,7 @@ const renderedTinyAreaCheck=`
   const expected={width:map.clientWidth*parseFloat(tile.style.width)/100,height:map.clientHeight*parseFloat(tile.style.height)/100};
   __qa.motionEvidence={actual:{width:bounds.width,height:bounds.height},expected};
   qaAssert(Math.abs(bounds.width-expected.width)<1&&Math.abs(bounds.height-expected.height)<1,'rendered tile respects measured dimensions, not padding minima: actual '+bounds.width+'x'+bounds.height+', expected '+expected.width+'x'+expected.height);
-  qaAssert(document.querySelector('.analysis-other-row[data-path="~/tiny-rendered-area"] .analysis-other-path'),'a readable details target complements tiny honest map area');
+  qaAssert(document.querySelector('.analysis-children .list-row[data-path="~/tiny-rendered-area"] .row-name'),'a readable details target complements tiny honest map area');
 `;
 for(const width of [1380,880]){
   add(width===1380?'analyze-rendered-tiny-area':'analyze-rendered-narrow-area',renderedTinyAreaSetup+renderedTinyAreaCheck);
@@ -767,7 +769,7 @@ add('analyze-mixed-basket-measurements',`
 const microKeyboardSetup=`
   switchModule('analyze');
   STATE.treemap2D=[{name:'Main',path:'~/micro-main',diskGb:90,isDir:true,childrenLoaded:true,children:[]},{name:'Tiny',path:'~/micro-tiny',diskGb:0.000004096,isDir:true,childrenLoaded:true,children:[{name:'child.txt',path:'~/micro-tiny/child.txt',diskGb:0.000004096,isDir:false}]}];
-  STATE.analyzeAllocGb=90.000004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
+  STATE.analyzeAllocGb=90.000004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('children');
   const micro=document.querySelector('.treemap-tile[data-path="~/micro-tiny"]');
   const rect=micro.getBoundingClientRect();
   qaAssert(rect.width===0||rect.height===0,'the fixture really renders a zero-pixel micro map tile');
@@ -785,11 +787,11 @@ add('analyze-zero-pixel-map-keyboard-target',microKeyboardSetup+`
   qaAssert(micro.tabIndex<0&&targets.every(target=>target.path==='~/micro-tiny'&&target.width>=24&&target.height>=24),'zero-pixel map nodes leave Tab order and map keys reach the same readable path; tabindex '+micro.tabIndex+', actual '+JSON.stringify(targets));
 `);
 for(const mode of ['command-up','backspace'])add('analyze-micro-directory-return-'+mode,microKeyboardSetup+`
-  const button=document.querySelector('.analysis-other-row[data-path="~/micro-tiny"] .analysis-other-path');
+  const button=document.querySelector('.analysis-children .list-row[data-path="~/micro-tiny"]');
   button.focus();
   qaAssert(document.activeElement===button&&button.getBoundingClientRect().width>=24,'the readable tiny name really receives focus');
   button.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
-  qaAssert(STATE.drillStack.at(-1)?.path==='~/micro-tiny'&&document.activeElement.closest('.treemap-tile')?.dataset.path==='~/micro-tiny/child.txt','keyboard entry focuses the loaded child map');
+  qaAssert(STATE.drillStack.at(-1)?.path==='~/micro-tiny'&&document.activeElement.closest('[data-path]')?.dataset.path==='~/micro-tiny/child.txt','keyboard entry focuses the loaded child');
   document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'${mode==='command-up'?'ArrowUp':'Backspace'}',metaKey:${mode==='command-up'},bubbles:true,cancelable:true}));
   const focused=document.activeElement,bounds=focused.getBoundingClientRect();
   __qa.motionEvidence={path:focused.closest('[data-path]')?.dataset.path,action:focused.dataset.analyzeAction,width:bounds.width,height:bounds.height};
@@ -818,15 +820,15 @@ const smallReturnKeyboardSetup=`
   const path='~/return-small';
   const children=[{name:'Large child',path:path+'/large.bin',diskGb:0.004,isDir:false},{name:'Tiny note',path:path+'/note.txt',diskGb:0.000004096,isDir:false}];
   STATE.treemap2D=[{name:'Main',path:'~/return-main',diskGb:90,isDir:true,childrenLoaded:true,children:[]},{name:'Small parent',path,diskGb:0.004004096,isDir:true,childrenLoaded:true,children}];
-  STATE.analyzeAllocGb=90.004004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
-  const parent=document.querySelector('.analysis-other-row[data-path="'+path+'"] .analysis-other-path');
+  STATE.analyzeAllocGb=90.004004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('children');
+  const parent=document.querySelector('.analysis-children .list-row[data-path="'+path+'"]');
   parent.focus();qaAssert(document.activeElement===parent&&parent.getBoundingClientRect().width>=24,'the parent small directory has actual readable focus');
   parent.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
   qaAssert(STATE.drillStack.at(-1)?.path===path&&currentTiles().length===2,'keyboard entry loads the intended small directory');
   const input=document.getElementById('searchInput');input.focus();
   const edit=new KeyboardEvent('keydown',{key:'Backspace',bubbles:true,cancelable:true});input.dispatchEvent(edit);
   qaAssert(!edit.defaultPrevented&&STATE.drillStack.at(-1)?.path===path,'Backspace inside the search input stays native editing');
-  const note=document.querySelector('.analysis-other-row[data-path="'+path+'/note.txt"] .analysis-other-path');
+  const note=document.querySelector('.analysis-children .list-row[data-path="'+path+'/note.txt"]');
   note.click();note.focus();
   qaAssert(document.activeElement===note&&note.getBoundingClientRect().height>=24,'the loaded child small-item name really receives readable focus');
   for(const key of [' ','Enter']){
@@ -1117,7 +1119,7 @@ add('system-scan-native-startup', `
     switchModule(module);
     qaAssert(document.getElementById('moduleStage').getAttribute('aria-busy')==='true','native startup marks '+module+' as scanning');
     qaAssert(document.querySelector('#moduleStage .skel-row'),'native startup shows loading rows instead of an empty '+module+' feature');
-    qaAssert(document.getElementById('primaryBtnText').textContent==='正在扫描'&&document.getElementById('primaryBtnText').closest('button').disabled,'native startup cannot offer a second scan');
+    qaAssert(document.getElementById('primaryBtnText').textContent==='预览所选'&&document.getElementById('primaryBtnText').closest('button').disabled,'native startup cannot offer a second scan');
     qaAssert(document.getElementById('btnRescanText').closest('button').disabled,'native startup disables repeated refresh requests');
     qaAssert(document.getElementById('scanSourceBadge').textContent==='正在读取本机','native startup names the actual operation');
     if(module==='software'){
@@ -1208,10 +1210,17 @@ add('uninstaller-sidebar-unmeasured', `
   STATE=structuredClone(DEFAULT_STATE);switchModule('software');
   qaAssert(document.getElementById('navMetaSoftware').textContent==='待扫描','unmeasured installed applications are not presented as zero');
   onNativeRealScanStarted();
-  qaAssert(document.getElementById('navMetaSoftware').textContent==='待扫描','native startup keeps the application count unknown until its result');
+  qaAssert(document.getElementById('navMetaSoftware').textContent==='扫描中','native startup keeps the application count unknown until its result');
   onNativeRealScanComplete(structuredClone(qaFixture));
   qaAssert(document.getElementById('navMetaSoftware').textContent===qaFixture.appsList.length+' 应用','the actual result supplies the installed application count');
 `);
+add('analyze-folded-single-source', `switchModule('analyze');STATE.analyzeAggregated={count:14,sizeGb:2,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false},{name:'logs',path:'~/Library/Logs',sizeGb:0.6,fileCount:4,isDir:true}]};renderModule();const folded=STATE.analyzeMapFolded;qaAssert(folded&&folded.count>=14,'folded tile exists');const n=fmtCount(folded.count);const tab=document.querySelector('.insp-tab[data-tab="folded"]');qaAssert(tab.textContent.replace(/\\s/g,'')==='折叠项'+n,'folded tab count is the folded tile count: '+tab.textContent);qaAssert(document.querySelector('.tt-others').dataset.tip.includes(n+' 个小项'),'tile label uses the same count');qaAssert(document.querySelector('.facts-bar').textContent.includes('合并 '+n+' 个小项'),'summary uses the same count');qaAssert(document.querySelectorAll('#analysisOtherHost .analysis-other-row').length===folded.items.length,'folded tab lists exactly the folded items');qaAssert(!document.getElementById('analysisOtherHost').textContent.includes('窄方块'),'no narrow-tile copy remains');qaAssert(document.querySelector('.facts-bar').scrollWidth<=document.querySelector('.facts-bar').clientWidth+1,'summary does not truncate');`);
+add('analyze-others-inspector', `switchModule('analyze');STATE.analyzeAggregated={count:14,sizeGb:2,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false}]};renderModule();const folded=STATE.analyzeMapFolded;document.querySelector('.tt-others').click();const head=document.querySelector('.crumb-sel').textContent;qaAssert(head.includes('其它')&&head.includes(fmtCount(folded.count)+' 个小项')&&head.includes(fmtDiskSizeGb(folded.sizeGb,1)),'inspector header describes the folded group: '+head);qaAssert(STATE.analyzeGroupSel&&document.querySelector('.tt-others').classList.contains('active-tile'),'the others tile is the active selection');qaAssert(document.querySelector('.insp-tab[data-tab="folded"]').classList.contains('active')||document.querySelector('.insp-tab[data-tab="folded"]').getAttribute('aria-selected')==='true','folded tab opens');renderModule();qaAssert(document.querySelector('.crumb-sel').textContent.includes('其它'),'group selection survives a re-render');selectTile(0);qaAssert(!STATE.analyzeGroupSel&&!document.querySelector('.crumb-sel').textContent.includes('折叠项'),'selecting a tile leaves the group');`);
+add('ai-age-and-boundary-copy', `const row=structuredClone(qaFixture.aiMoonBands[2]);row.ageText='354–354 天前最后修改';const range=structuredClone(qaFixture.aiMoonBands[1]);range.ageText='3–9 天前最后修改';onNativeRealScanComplete({...structuredClone(qaFixture),aiMoonBands:[row,range]});switchModule('ai_moon');const text=document.getElementById('moduleStage').textContent;qaAssert(text.includes('354 天前最后修改')&&!/354\\s*[–-]\\s*354/.test(text),'equal bounds collapse to one number');qaAssert(text.includes('3–9 天前最后修改'),'real ranges are untouched');const box=document.querySelector('.inspector-box');qaAssert(box.textContent.split('当前启动器指向的版本，保持原状').length-1===1,'the boundary box says the reason once');const head=document.querySelector('.panel-header span:last-child').textContent.trim();qaAssert(document.querySelector('.inspector-content .subpath-right').textContent.trim()===fmtDiskSizeGb(row.subpaths[0].sizeGb),'path rows use the shared size formatter');qaAssert(/(MB|GB|KB| B)$/.test(head),'header keeps its size');`);
+add('uninstaller-sort-follows-preset', `const mk=(id,app,cache,config,running)=>({...structuredClone(qaFixture.appsList[0]),id,name:id,appPath:'/Applications/'+id+'.app',running:!!running,appSizeGb:app,leftoverSizeGb:cache+config,cacheSizeGb:cache,configSizeGb:config,checked:false,keepPersonal:true,subpaths:[Object.assign({path:'/Applications/'+id+'.app',kind:'app',sizeGb:app,size:app+' GB',checked:true},running?{tier:'protected',reason:'应用正在运行'}:{}),{path:'~/Library/Caches/'+id,kind:'cache',sizeGb:cache,size:cache+' GB',checked:true},{path:'~/Library/Application Support/'+id,kind:'config',sizeGb:config,size:config+' GB',checked:false}]});onNativeRealScanComplete({...structuredClone(qaFixture),appsList:[mk('A',3,0.1,0),mk('B',1,0.2,4),mk('C',10,0.00008,0,true)]});switchModule('software');setSoftwarePanelMode('apps');const order=()=>STATE.appsList.map(a=>a.id).join();qaAssert(order()==='C,A,B','standard sorts by the displayed removal size: '+order());selectAppRow(STATE.appsList.findIndex(a=>a.id==='B'));setUninstallMode('complete');qaAssert(order()==='C,B,A','complete re-sorts: '+order());qaAssert(STATE.appsList[STATE.selectedAppIdx].id==='B','selection follows the app id');setUninstallMode('cache_only');qaAssert(order()==='B,A,C','cache only re-sorts: '+order());setUninstallMode('standard');const first=document.querySelector('#moduleStage .list-row');qaAssert(first.textContent.includes('退出后可卸载')&&first.textContent.includes('应用 10.00 GB')&&!/(^|\\s)0 B|81\\.9 KB|80 B/.test(first.querySelector('.size-cell').textContent),'a running app is not shown with its leftover size: '+first.querySelector('.size-cell').textContent);`);
+add('uninstaller-caption-follows-preset', `onNativeRealScanComplete(structuredClone(qaFixture));switchModule('software');setSoftwarePanelMode('apps');const sub=()=>document.getElementById('heroStatSub').textContent;qaAssert(sub()==='移除应用 · 保留个人配置','standard caption: '+sub());setUninstallMode('cache_only');qaAssert(sub()==='只清理所选缓存，保留应用','cache caption: '+sub());setUninstallMode('complete');qaAssert(sub()==='移除应用及所选数据','complete caption: '+sub());const toast=document.getElementById('toastBanner');toast.style.display='none';setSoftwarePanelMode('leftovers');qaAssert(toast.style.display!=='block','switching tabs does not toast');qaAssert(sub().includes('移入废纸篓'),'leftover caption: '+sub());`);
+add('scan-state-single-message', `STATE=structuredClone(DEFAULT_STATE);switchModule('clean');onNativeRealScanStarted();const stage=document.getElementById('moduleStage');qaAssert(document.getElementById('primaryBtnText').textContent==='预览所选'&&document.getElementById('primaryBtnText').closest('button').disabled,'the CTA keeps the module action but is disabled');const refresh=document.getElementById('btnRescanText').closest('button');qaAssert(refresh.disabled&&refresh.classList.contains('busy')&&refresh.getAttribute('aria-busy')==='true','refresh shows a busy state');qaAssert(document.getElementById('navMetaClean').textContent==='扫描中','sidebar says scanning');qaAssert(!/\\(0\\)/.test(stage.textContent),'no zero counts while scanning');const visible=[...document.querySelectorAll('button,.summary-headline,.summary-eyebrow,#moduleStage')].map(e=>e.innerText||'').join('\\n');qaAssert((visible.match(/正在扫描/g)||[]).length===1,'one visible scanning message: '+(visible.match(/正在扫描/g)||[]).length);switchModule('history');qaAssert(document.getElementById('scanSourceBadge').parentElement.hidden,'history has no scan-source kicker');`);
+add('purge-rows-use-home-paths', `onNativeRealScanComplete({...structuredClone(qaFixture),purgeItems:[{...structuredClone(qaFixture.purgeItems[0]),project:'/Users/orbit-fixture/Projects/Canvas'}],installerFiles:[{...structuredClone(qaFixture.installerFiles[0]),location:'/Users/orbit-fixture/Downloads'}]});switchModule('purge');const title=document.querySelector('.row-title');qaAssert(title.textContent==='~/Projects/Canvas/node_modules','purge row shows a home-relative path: '+title.textContent);qaAssert(title.querySelector('span').textContent==='node_modules','artifact suffix keeps its own highlight');qaAssert(document.getElementById('moduleStage').textContent.includes('~/Downloads/Canvas Setup.dmg'),'installer row is home-relative');`);
 const largeFileScrollSetup=`
   STATE.analyzeLargeFiles=Array.from({length:50},(_,index)=>({id:'large-scroll-'+index,name:'大文件 '+String(index+1).padStart(2,'0')+'.bin',path:'~/Library/ScrollFixture/'+String(index+1).padStart(2,'0')+'.bin',sizeGb:0.25,kind:'文件',protectionReason:'隔离验收保留，不执行移除'}));
   switchModule('analyze');setAnalyzeTab('large');

@@ -310,7 +310,7 @@ const analysis = vm.createContext({
 analysis.window = analysis;
 ['hasNum', 'escHtml', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
   'currentTiles', 'currentAggregated', 'analyzeScopeTotal', 'matchesSearch', 'analysisSelectedSmallItem', 'analysisVisibleTiles', 'restoreAnalysisSelection', 'currentLargeFiles', 'scanRowsWithFailures',
-  'normalizeAggregated', 'squarifyRects', 'foldedTreemapTile', 'smallTreemapItems', 'layoutTreemap', 'treemapPreviewHTML', 'absolutePath', 'permissionPaneForPath',
+  'normalizeAggregated', 'squarifyRects', 'foldedTreemapTile', 'layoutTreemap', 'treemapPreviewHTML', 'absolutePath', 'permissionPaneForPath',
   'groupRestrictedPaths', 'protectionReason'].forEach(name => load(name, analysis));
 loadCallback('onNativeDiskAnalyze', analysis);
 loadCallback('onNativeAnalyzeProgress', analysis);
@@ -365,13 +365,12 @@ assert.equal(slimGraph.length, 2);
 assert.equal(slimGraph[1].name, 'bin', 'a few slim siblings keep their path instead of becoming synthetic Others');
 assert.ok(Math.abs(slimGraph[1].w * slimGraph[1].h / 100 - 5.1) < 0.02, 'slim siblings retain their exact share, without a minimum-area boost');
 analysis.slimGraph = slimGraph;
-const smallItems = vm.runInContext('smallTreemapItems(slimGraph)', analysis);
-assert.equal(smallItems.items[0].path, '~/go/bin', 'readable small-item details keep the original path');
-assert.equal(smallItems.sizeGb, 5.1, 'details report measured size rather than a boosted tile weight');
+assert.ok(!slimGraph.some(t => t.__others), 'slim siblings are not folded, so the folded tab has nothing to list');
+assert.equal(slimGraph[1].path, '~/go/bin', 'the slim tile keeps its original path');
 const tinyGraph = vm.runInContext('layoutTreemap([{name:"main",path:"~/main",sizeGb:10},{name:"tiny",path:"~/tiny",sizeGb:0.000001}],null)', analysis);
 analysis.tinyGraph = tinyGraph;
 assert.equal(tinyGraph.length, 2, 'extremely small siblings keep an identity even when they cannot carry a map label');
-assert.equal(vm.runInContext('smallTreemapItems(tinyGraph).items[0].path', analysis), '~/tiny');
+assert.ok(!tinyGraph.some(t => t.__others) && tinyGraph[1].path === '~/tiny', 'a tiny sibling keeps its own path instead of folding');
 analysis.denseTiles = [{ name: 'Main', path: '~/Main', diskGb: 90, isDir: true }, ...Array.from({ length: 20 }, (_, i) => ({ name: 'small-' + i, path: '~/small-' + i, diskGb: 0.2, isDir: true }))];
 let denseGraph = vm.runInContext('layoutTreemap(denseTiles, null)', analysis);
 let denseOther = denseGraph.find(tile => tile.__others);
@@ -387,11 +386,8 @@ assert.equal(denseOther.sampleCount, 1);
 assert.equal(denseOther.unreported, 29);
 assert.equal(denseOther.items.at(-1).path, '~/backend.bin');
 assert.ok(Math.abs(denseOther.w * denseOther.h / 100 - denseOther.sizeGb / 96 * 100) < 0.03, 'mixed folding preserves the sum represented by its area');
-analysis.denseGraph = denseGraph;
-const denseDetails = vm.runInContext('smallTreemapItems(denseGraph)', analysis);
-assert.equal(denseDetails.count, denseOther.count);
-assert.equal(denseDetails.items.length, denseOther.items.length, 'side details include the same folded and sampled identities exactly once');
-assert.equal(denseDetails.unreported, 29, 'small details do not pretend bounded samples are a complete directory');
+assert.equal(denseOther.items.length, denseOther.knownCount + denseOther.sampleCount, 'the folded tile lists its folded and sampled identities exactly once');
+assert.equal(denseOther.unreported, 29, 'the folded group does not pretend bounded samples are a complete directory');
 analysis.STATE.analyzeMapFolded = denseOther;
 analysis.STATE.collected = [];
 analysis.clearInterval = () => {};
