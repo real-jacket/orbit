@@ -7,49 +7,91 @@ import (
 	"strings"
 )
 
-// appendExisting appends a subpath entry for each candidate that exists, is not
-// empty, and is not protected by the whitelist, and reports how large they are
-// together.
+// appendExisting measures known app paths, keeping incomplete and protected
+// entries visible but out of the removal selection.
 func (s *Scanner) appendExisting(candidates []string, kind string, checked bool, into *[]map[string]any) int64 {
 	var total int64
+	seen := map[string]bool{}
 	for _, candidate := range candidates {
-		if !exists(candidate) {
+		if seen[candidate] {
 			continue
 		}
-		if _, protected := s.scanProtection(candidate); protected {
-			continue
-		}
+		seen[candidate] = true
 		size := s.fastDirectorySize(candidate, appLeftoverFileCap)
-		if size.bytes <= 0 {
+		if size.bytes <= 0 && !size.partial {
 			continue
+		}
+		reason := s.CleanupReason(candidate)
+		if size.partial {
+			reason = "测量未完成，体积只是已读取部分；重新扫描完整后再处理"
 		}
 		total += size.bytes
-		*into = append(*into, map[string]any{
+		entry := map[string]any{
 			"path":    s.relativize(candidate),
 			"size":    formatBytes(size.bytes),
 			"sizeGb":  plainGB(size.bytes),
 			"kind":    kind,
-			"checked": checked,
-		})
+			"checked": checked && reason == "",
+			"partial": size.partial,
+		}
+		if reason != "" {
+			entry["tier"], entry["reason"] = "protected", reason
+		}
+		if size.partial && size.bytes == 0 {
+			entry["size"], entry["sizeGb"] = "未读取", nil
+		}
+		*into = append(*into, entry)
 	}
 	return total
 }
 
-// scanInstalledApps lists the apps in /Applications and ~/Applications, with
-// what each one left behind in ~/Library.
-func (s *Scanner) scanInstalledApps() []map[string]any {
-	results := []map[string]any{}
-	appDirs := []string{"/Applications", filepath.Join(s.home, "Applications")}
-	home := s.home
+func (s *Scanner) appCacheCandidates(name, bundleID string) []string {
+	var paths []string
+	for _, component := range []string{bundleID, name} {
+		if appDataComponent(component) {
+			paths = append(paths, filepath.Join(s.home, "Library/Caches", component))
+		}
+	}
+	if bundleID == "com.google.Chrome" {
+		paths = append(paths, filepath.Join(s.home, "Library", "Caches", "Google", "Chrome"))
+	}
+	return paths
+}
 
+// Bundle metadata is not a filesystem path or permission to leave these roots.
+func appDataComponent(value string) bool {
+	return value != "" && value != "." && value != ".." && !filepath.IsAbs(value) && filepath.Base(value) == value && !strings.ContainsRune(value, 0)
+}
+
+func (s *Scanner) appConfigCandidates(name, bundleID string) []string {
+	var paths []string
+	for _, component := range []string{name, bundleID} {
+		if appDataComponent(component) {
+			paths = append(paths, filepath.Join(s.home, "Library/Application Support", component))
+		}
+	}
+	if appDataComponent(bundleID) {
+		paths = append(paths, filepath.Join(s.home, "Library/Containers", bundleID),
+			filepath.Join(s.home, "Library/Saved Application State", bundleID+".savedState"),
+			filepath.Join(s.home, "Library/Preferences", bundleID+".plist"))
+	}
+	return paths
+}
+
+// scanInstalledApps lists application bundles without truncating before sorting.
+func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
+	results := []map[string]any{}
+	if len(appDirs) == 0 {
+		appDirs = []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
+	}
 	for _, dir := range appDirs {
-		items, err := os.ReadDir(dir)
+		items, err := readDirEntries(dir)
 		if err != nil {
 			continue
 		}
 		for _, entry := range items {
 			item := entry.Name()
-			if !strings.HasSuffix(item, ".app") {
+			if !strings.EqualFold(filepath.Ext(item), ".app") {
 				continue
 			}
 			if strings.Contains(item, "MoleStudio") || item == "Safari.app" {
@@ -72,9 +114,6 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				bundleID = "local.app." + name
 			}
 			version := info.shortVersion
-			if version == "" {
-				version = "1.0"
-			}
 			size := s.fastDirectorySize(fullPath, appBundleFileCap)
 			appBytes := size.bytes
 
@@ -83,19 +122,20 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				"size":    formatBytes(appBytes),
 				"sizeGb":  plainGB(appBytes),
 				"kind":    "app",
-				"checked": true,
+				"checked": !size.partial,
+				"partial": size.partial,
 			}}
-			cacheCandidates := []string{
-				home + "/Library/Caches/" + bundleID,
-				home + "/Library/Caches/" + name,
+			if reason := s.CleanupReason(fullPath); reason != "" {
+				subpaths[0]["tier"], subpaths[0]["reason"], subpaths[0]["checked"] = "protected", reason, false
 			}
-			configCandidates := []string{
-				home + "/Library/Application Support/" + name,
-				home + "/Library/Application Support/" + bundleID,
-				home + "/Library/Containers/" + bundleID,
-				home + "/Library/Saved Application State/" + bundleID + ".savedState",
-				home + "/Library/Preferences/" + bundleID + ".plist",
+			if size.partial {
+				subpaths[0]["tier"], subpaths[0]["reason"] = "protected", "应用包测量未完成，体积只是已读取部分；完成测量后再处理"
+				if appBytes == 0 {
+					subpaths[0]["size"], subpaths[0]["sizeGb"] = "未读取", nil
+				}
 			}
+			cacheCandidates := s.appCacheCandidates(name, bundleID)
+			configCandidates := s.appConfigCandidates(name, bundleID)
 			// Report the measured cache and configuration sizes separately
 			// instead of splitting the leftover total with a made-up 80/20
 			// ratio; a group that was not found reports zero.
@@ -106,7 +146,7 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 			leftoverGB := cacheGB + configGB
 
 			results = append(results, map[string]any{
-				"id":       bundleID,
+				"id":       fullPath,
 				"name":     name,
 				"category": "Mac 应用",
 				"appPath":  fullPath,
@@ -115,6 +155,7 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				"icon":           appIconDataURL(fullPath),
 				"bundleId":       bundleID,
 				"version":        version,
+				"partial":        size.partial,
 				"lastUsed":       "本机已安装",
 				"appSizeGb":      plainGB(appBytes),
 				"leftoverSizeGb": leftoverGB,
@@ -124,16 +165,9 @@ func (s *Scanner) scanInstalledApps() []map[string]any {
 				// safe-by-default action.
 				"checked":      false,
 				"keepPersonal": true,
-				"impact": "卸载时将把 " + fullPath + " 及 " +
-					itoa64(int64(len(subpaths)-1)) + " 处 ~/Library 关联缓存移入废纸篓 (~/.Trash)。",
-				"subpaths": subpaths,
+				"impact":       "仅把勾选的应用、缓存或配置路径移入废纸篓；受保护或未完成测量的路径保留。",
+				"subpaths":     subpaths,
 			})
-			if len(results) >= 16 {
-				break
-			}
-		}
-		if len(results) >= 16 {
-			break
 		}
 	}
 

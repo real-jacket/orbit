@@ -63,7 +63,15 @@ func pushRealTelemetryNow() {
 	go func() {
 		snapshot := scanner.Shared.BuildTelemetry()
 		if trayItem != nil {
-			trayItem.SetToolTip(fmt.Sprintf("orbit · CPU %.1f%% · 剩余 %.1f GB", snapshot.CPU, snapshot.FreeDiskGb))
+			cpu := "未知"
+			if snapshot.CPU != nil {
+				cpu = fmt.Sprintf("%.1f%%", *snapshot.CPU)
+			}
+			pressure := map[string]string{"normal": "正常", "warn": "偏高", "critical": "很高"}[snapshot.Power.MemPressure]
+			if pressure == "" {
+				pressure = "未知"
+			}
+			trayItem.SetToolTip(fmt.Sprintf("orbit · 最近采样\nCPU %s · 内存压力%s\n启动磁盘可用 %.1f GB", cpu, pressure, snapshot.FreeDiskGb))
 		}
 		evaluate("window.onNativeRealTelemetry ? window.onNativeRealTelemetry(" + jsonOf(snapshot) + ") : undefined")
 	}()
@@ -184,12 +192,13 @@ func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
 		failed = append(failed, map[string]any{"path": entry.Path, "error": entry.Error, "pane": entry.Pane})
 	}
 	payload := map[string]any{
-		"requestId":  requestID,
-		"requested":  outcome.Requested,
-		"movedCount": len(outcome.Moved),
-		"moved":      moved,
-		"skipped":    skipped,
-		"failed":     failed,
+		"requestId":    requestID,
+		"requested":    outcome.Requested,
+		"movedCount":   len(outcome.Moved),
+		"moved":        moved,
+		"skipped":      skipped,
+		"failed":       failed,
+		"restoreError": outcome.RestoreError,
 	}
 	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult(" + jsonOf(payload) + ") : undefined")
 }
@@ -244,10 +253,61 @@ func pushWhitelistChanged(action, path string, policy scanner.Whitelist, err err
 
 // pushRealSystemScanNow scans installed apps, leftovers, large files, installer
 // packages and the clean groups, then sends the whole payload to the page.
+var systemScanQueue struct {
+	sync.Mutex
+	running    bool
+	again      bool
+	lastScript string
+}
+
+func pushCachedSystemScan(page *mygo.Page) {
+	systemScanQueue.Lock()
+	script := systemScanQueue.lastScript
+	systemScanQueue.Unlock()
+	if script != "" {
+		go func() { _, _ = page.Eval(script) }()
+	}
+}
+
+func queueSystemScan() bool {
+	systemScanQueue.Lock()
+	defer systemScanQueue.Unlock()
+	if systemScanQueue.running {
+		systemScanQueue.again = true
+		return false
+	}
+	systemScanQueue.running = true
+	return true
+}
+
+func nextSystemScan() bool {
+	systemScanQueue.Lock()
+	defer systemScanQueue.Unlock()
+	if systemScanQueue.again {
+		systemScanQueue.again = false
+		return true
+	}
+	systemScanQueue.running = false
+	return false
+}
+
 func pushRealSystemScanNow() {
+	if !queueSystemScan() {
+		return
+	}
 	go func() {
-		payload := scanner.Shared.BuildFullScanPayload()
-		evaluate("window.onNativeRealScanComplete ? window.onNativeRealScanComplete(" + jsonOf(payload) + ") : undefined")
+		for {
+			evaluate("window.onNativeRealScanStarted ? window.onNativeRealScanStarted() : undefined")
+			payload := scanner.Shared.BuildFullScanPayload()
+			script := "window.onNativeRealScanComplete ? window.onNativeRealScanComplete(" + jsonOf(payload) + ") : undefined"
+			systemScanQueue.Lock()
+			systemScanQueue.lastScript = script
+			systemScanQueue.Unlock()
+			evaluate(script)
+			if !nextSystemScan() {
+				return
+			}
+		}
 	}()
 }
 

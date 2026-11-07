@@ -82,7 +82,10 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 
 - Easing `cubic-bezier(0.16, 1, 0.3, 1)`, 120ms for state, 180ms for movement. Only `transform`, `opacity`,
   `background-color`, `border-color` animate. `transition: all` is banned.
-- One authored moment per surface: the panel/hero settles in on module switch (6px rise, 180ms). Nothing loops except
+- Pointer navigation into or out of a directory uses one 160ms map transition with an 8px horizontal offset;
+  opening small-item details uses 120ms. Keyboard navigation stays immediate and rapid navigation cancels the previous transition.
+  Collapsing small-item details returns their column to the map and keeps a compact disclosure below it.
+  Hidden windows present the final state; hiding a window, keyboard input, or enabling reduced motion cancels both map and detail movement. Nothing loops except
   the skeleton shimmer while a scan actually runs.
 - Every interactive element is keyboard reachable, shows a visible focus ring, and answers `Enter` with its primary
   action.
@@ -105,13 +108,29 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
 
 - Selection is separate from inspection: selecting a row does not authorize deleting it.
 - Confirmation lists exact paths and freezes the submitted set; background scans cannot expand it.
+- AI cleanup names the detected tool and data type, separates measured/reviewable/retained bytes within the current tool and keyword scope, and includes recognized whitelist-excluded caches in tool discovery without counting unmeasured bytes. Category counts and exclusion evidence use that same scope. Filtering never silently changes the global selection: hidden selected paths show their count and size before review, and clearing display filters retains the selection. Tool filtering keeps its native keyboard focus as controls change; removal previews only explicitly selected cache paths or eligible old diagnostic files.
+- AI diagnostic cleanup retains the last 30 days, newest file, `latest` target, active/open files and uncertain state. Session transcripts, credentials, task checkpoints, worktrees and models remain read-only; old diagnostic files are never described as recoverable caches or preselected.
 - Empty scans, absent data and failed scans are different states. A whitelist is not proof of why a list is empty.
+- Zero-allocation and unmeasured samples remain inspectable without drawn area; unmeasured sizes stay unknown, never 0 B.
+- Analysis focus follows the real path and action across sorting and folding, not array or button indices.
+- Micro tiles never gain area from padding or borders; readable names and actions stay in the details panel.
+- Responsive focus recovery only repairs layout-hidden targets in the same scope; explicit new focus or background clicks take precedence.
+- Search clearing preserves a still-present inspected path; small-item arrows update inspection as well as focus.
+- Draft cleanup sizes use readable B/KB/MB/GB units; unmeasured paths stay unknown and are separate from measured totals.
+- Micro map tiles leave Tab order; keyboard movement and directory return use the same path's readable details instead of an invisible focus target.
+- Loaded directory focus prefers its map, then its small-item disclosure, before ancestor controls, including aggregate-only layers.
+- Small-item names use Backspace and Left to return to the parent just like directory rows; search-field editing remains native.
+- The menu-bar overview shows CPU, native memory pressure, available storage and network rates; battery is conditional and detailed process actions stay in the main window.
+- Menu-bar CPU uses a fixed 0–100% trend; network directions share a rate scale and name their real sample count. Memory segments are application, wired, compressed and remaining capacity, with cached files included in the remainder rather than counted twice. The quick-clean entry opens the current selection's frozen path review; optional file-cache release explains administrator authorization and possible reloading slowdown before submission, and never reports invented freed application memory.
+- Runtime and permission guidance identifies the exact running bundle, separates readability from authorization, and never promises to grant Full Disk Access itself.
+- Runtime permission rows distinguish readable, denied, unchecked, missing and unknown outcomes with text as well as color. Desktop, Documents and Downloads are probed only by an explicit check and retain their observation times; App Management is confirmed in Settings, and administrator authorization is per operation. Long guidance is expandable and the modal footer stays visible while the results scroll.
 - Native maintenance needs a correlated command receipt; stale diagnostics cannot animate into a new result.
 - Light-mode action ink is `#fcfaf7` on `#a74426`; dark-mode action ink stays `#1a1613`.
 - Search is contextual; unsupported modules disable it explicitly.
 - Space analysis searches the current tree level only, never implies a full-disk search, and keeps the active
-  query visible until cleared. Below 960px the map comes before the duplicate list so the disk picture stays
-  in the first viewport.
+  query visible within that level. Changing directories clears the old scope's filter; changing sort order keeps
+  the inspected path. Below 960px the map comes before the duplicate list, keeps a useful height, and the summary
+  stays on one row so the disk picture remains in the first viewport.
 - Folded space is inspectable through a bounded sample, not an inert “其它” tile or an empty-list message.
   A sample row names its exact path and size; remaining unreported children are sent to Finder instead of
   pretending the sample is complete.
@@ -125,3 +144,15 @@ pure `#000000` / `#ffffff` fills, neon or outer glows, gradient text.
   the recovery panel names the exact permission pane; it never reduces the fix to a generic “go to Settings” button.
 - In the space-analysis context bar, reveal and copy are icon actions with accessible names; the cleanup action keeps
   its visible “待清理” label because its intent is not a native toolbar convention.
+- Space-analysis inspection updates in place: single click or Space inspects, double click or Enter enters a directory.
+  Map arrows move focus; list arrows inspect the focused row. Inner action buttons keep their native keyboard behavior,
+  and an asynchronous child result restores focus in its own map or list. Empty directories retain a return action.
+- Small-tile hover details sit below the map, never reserve breadcrumb width or cover adjacent tiles. Child previews
+  use their inset area's actual aspect ratio, and small allocated sizes use B/KB/MB rather than rounding to zero GB.
+- Sparse layers keep slim tiles with their real paths. Unreadable tiles and dense folded items share a normally sized,
+  initially expanded detail list beside the map, including exact paths, measured sizes and 28px navigation actions.
+  Areas retain their measured proportions; selection and list scrolling survive collection changes and resizing.
+- App and leftover icon plates stay 38px square in rows and 46px in the inspector. Text flexes independently;
+  fallback plates have no shadow, and real bundle artwork keeps its own shape.
+- Status trends show actual display samples with units and scales. Memory occupancy and native memory pressure remain
+  separate; occupancy alone does not reduce the reference score. Opening the tray reuses the latest scan snapshot.

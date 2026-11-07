@@ -323,6 +323,9 @@ func (s *Scanner) scanProtection(path string) (Protection, bool) {
 	if protection, protected := builtinCleanupProtection(path, s.home); protected {
 		return protection, true
 	}
+	if protection, protected := runtimeCleanupProtection(path); protected {
+		return protection, true
+	}
 	policy := s.whitelist()
 	if protection, protected := policy.Protection(path); protected {
 		return protection, true

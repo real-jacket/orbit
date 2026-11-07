@@ -1,6 +1,4 @@
-// Package analyze maps `mo analyze --json` onto the disk analyzer's treemap.
-// It runs the upstream `mo` CLI, which the app does not bundle: the user
-// installs it with Homebrew.
+// Package analyze maps the in-process directory tree onto the disk analyzer.
 package analyze
 
 import (
@@ -153,19 +151,15 @@ func Children(path string) Payload { return PayloadFor(path, false) }
 
 // PayloadFor returns the treemap of path, scanning it when the in-memory tree
 // does not cover it yet. Drilling into a directory the tree already holds costs
-// a map lookup; the `mo` CLI is only consulted when the scan itself fails.
+// a map lookup. Failure and cancellation never start a second CLI scan.
 func PayloadFor(path string, refresh bool) Payload {
 	node, stats, scanID, err := Shared.Tree(path, refresh)
 	if err != nil {
-		stdout, source, failure := runAnalyze(path)
-		payload := buildPayload(stdout, source)
-		payload.Path = absolutize(path)
-		payload.Overview = path == ""
-		if failure == "" {
-			failure = err.Error()
+		status := "error"
+		if errors.Is(err, context.Canceled) {
+			status = "canceled"
 		}
-		payload.Error = failure
-		return payload
+		return Payload{Path: absolutize(path), Overview: path == "", Source: "orbit 本地目录扫描", ScanID: scanID, ScanStatus: status, Error: err.Error()}
 	}
 	payload := payloadForNode(node, stats, scanID, Shared.Root(), absolutize(path))
 	payload.Overview = path == ""

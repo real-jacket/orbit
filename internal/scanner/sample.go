@@ -20,29 +20,24 @@ const processTableTTL = 5 * time.Second
 // telemetryState carries the sampling state that has to survive between ticks.
 type telemetryState struct {
 	mu          sync.Mutex
-	lastCPU     float64
 	processes   []map[string]any
 	processesAt time.Time
 }
 
-// cpuShare returns the busy share of all cores since the previous call. When the
-// kernel has no usable previous reading yet (first tick), the last published
-// value is repeated instead of flashing 0%.
-func (s *Scanner) cpuShare(host telemetry.Host) float64 {
-	s.sample.mu.Lock()
-	defer s.sample.mu.Unlock()
-	if host.CPUReady {
-		s.sample.lastCPU = host.CPUPercent
+// A baseline without a previous tick is unknown, not an idle measurement.
+func (s *Scanner) cpuShare(host telemetry.Host) *float64 {
+	if !host.CPUReady {
+		return nil
 	}
-	return s.sample.lastCPU
+	return &host.CPUPercent
 }
 
-// memoryUsage returns used and installed memory in GB. The mach path is exact;
+// memoryUsage returns used and installed memory in GiB. The mach path is exact;
 // the forked `vm_stat` reading stays as a fallback for the rare case where the
 // host statistics port cannot be opened.
-func (s *Scanner) memoryUsage(host telemetry.Host) (float64, float64) {
+func (s *Scanner) memoryUsage(host telemetry.Host) (*float64, float64) {
 	if host.MemReady && host.MemTotalGB > 0 {
-		return host.MemUsedGB, host.MemTotalGB
+		return &host.MemUsedGB, host.MemTotalGB
 	}
 	return s.queryMemoryUsage()
 }

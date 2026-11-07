@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -229,6 +230,7 @@ func (w Whitelist) Protection(path string) (Protection, bool) {
 		return Protection{}, false
 	}
 	target := normalizeWhitelistTarget(path)
+	descendant := Protection{}
 	for _, pattern := range w.Patterns {
 		if pattern == finderMetadataSentinel {
 			continue
@@ -241,13 +243,15 @@ func (w Whitelist) Protection(path string) (Protection, bool) {
 		// The target is a parent of a protected path: it may not be moved
 		// whole, because that would take the protected child with it.
 		if strings.HasPrefix(candidate, target+"/") {
-			return Protection{Pattern: pattern, Descendant: true}, true
+			if !descendant.Descendant {
+				descendant = Protection{Pattern: pattern, Descendant: true}
+			}
 		}
 		if !hasGlob && strings.HasPrefix(target, candidate+"/") {
 			return Protection{Pattern: pattern}, true
 		}
 	}
-	return Protection{}, false
+	return descendant, descendant.Descendant
 }
 
 // Protects reports whether path is covered by one of the patterns. It follows
@@ -265,12 +269,14 @@ func (w Whitelist) AllowsWhole(path string) bool {
 	return !protected || protection.Descendant == false
 }
 
-// normalizeWhitelistTarget trims a trailing slash and collapses runs of
-// slashes, exactly as mole does before comparing.
+// normalizeWhitelistTarget also folds case on macOS so APFS aliases cannot bypass protection.
 func normalizeWhitelistTarget(path string) string {
 	path = strings.TrimSuffix(path, "/")
 	for strings.Contains(path, "//") {
 		path = strings.ReplaceAll(path, "//", "/")
+	}
+	if runtime.GOOS == "darwin" {
+		path = strings.ToLower(path)
 	}
 	return path
 }

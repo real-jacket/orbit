@@ -60,7 +60,7 @@ func TestTrashPathsMovesIntoTrashAndRecordsManifest(t *testing.T) {
 	if _, err := os.Stat(trashed); err != nil {
 		t.Fatalf("trashed item missing: %v", err)
 	}
-	if manifest := readTrashManifest(); len(manifest.Entries) != 1 || manifest.Entries[0].Original != original {
+	if manifest, err := readTrashManifest(); err != nil || len(manifest.Entries) != 1 || manifest.Entries[0].Original != original {
 		t.Fatalf("manifest = %+v, want the receipt for %s", manifest, original)
 	}
 
@@ -71,7 +71,7 @@ func TestTrashPathsMovesIntoTrashAndRecordsManifest(t *testing.T) {
 	if content, err := os.ReadFile(original); err != nil || string(content) != "cached bytes" {
 		t.Fatalf("restored content = %q, err %v", content, err)
 	}
-	if manifest := readTrashManifest(); len(manifest.Entries) != 0 {
+	if manifest, err := readTrashManifest(); err != nil || len(manifest.Entries) != 0 {
 		t.Errorf("manifest still holds %+v after restoring", manifest.Entries)
 	}
 }
@@ -165,8 +165,8 @@ func TestConcurrentTrashReceiptsAreNotLost(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if got := len(readTrashManifest().Entries); got != count {
-		t.Fatalf("manifest has %d receipts, want %d", got, count)
+	if manifest, err := readTrashManifest(); err != nil || len(manifest.Entries) != count {
+		t.Fatalf("manifest = %+v, error %v, want %d receipts", manifest, err, count)
 	}
 }
 
@@ -248,51 +248,219 @@ func TestTrashPathsNeverOverwritesWhatIsAlreadyTrashed(t *testing.T) {
 	}
 }
 
-func TestRestoreTrashRenamesWhenTheOriginalPathIsOccupied(t *testing.T) {
+func TestRestoreTrashKeepsBothFilesWhenTheOriginalPathIsOccupied(t *testing.T) {
 	s := newTestScanner(t)
 	original := filepath.Join(s.home, "Library", "Caches", "app", "data.bin")
 	writeFile(t, original, "old")
-	if outcome := s.TrashPaths([]string{original}); len(outcome.Moved) != 1 {
-		t.Fatalf("trash failed: %+v", outcome)
+	trashed := s.TrashPaths([]string{original})
+	if len(trashed.Moved) != 1 {
+		t.Fatalf("trash failed: %+v", trashed)
 	}
 	// Something new took the old path while the item sat in the Trash.
 	writeFile(t, original, "new")
 
 	outcome := s.RestoreTrash([]string{original})
-	if len(outcome.Restored) != 1 {
-		t.Fatalf("restored = %v, failed %v", outcome.Restored, outcome.Failed)
+	if len(outcome.Restored) != 0 || len(outcome.Failed) != 1 || !strings.Contains(outcome.Failed[0].Error, "目标已存在") {
+		t.Fatalf("occupied destination must fail without claiming original-path restoration: %+v", outcome)
 	}
 	if content, err := os.ReadFile(original); err != nil || string(content) != "new" {
 		t.Fatalf("restore overwrote the occupant: %q %v", content, err)
 	}
-	restored := filepath.Join(s.home, "Library", "Caches", "app", "data 2.bin")
-	if content, err := os.ReadFile(restored); err != nil || string(content) != "old" {
-		t.Fatalf("restored copy = %q, err %v; want it beside the occupant", content, err)
+	if content, err := os.ReadFile(trashed.Moved[0].Trashed); err != nil || string(content) != "old" {
+		t.Fatalf("original Trash item changed: %q, err %v", content, err)
+	}
+	if exists(filepath.Join(filepath.Dir(original), "data 2.bin")) {
+		t.Fatal("restore created an unreported renamed copy")
+	}
+	if manifest, err := readTrashManifest(); err != nil || len(manifest.Entries) != 1 {
+		t.Fatalf("failed restoration discarded its retry receipt: %+v, %v", manifest, err)
 	}
 }
 
-func TestRestoreTrashWithoutAReceiptFallsBackToTheTrashName(t *testing.T) {
+func TestRestoreTrashWithoutAReceiptDoesNotGuessTheTrashName(t *testing.T) {
 	s := newTestScanner(t)
 	original := filepath.Join(s.home, "Documents", "report.pdf")
 	writeFile(t, filepath.Join(s.home, ".Trash", "report.pdf"), "pdf")
 
 	outcome := s.RestoreTrash([]string{original})
-	if len(outcome.Restored) != 1 {
-		t.Fatalf("restored = %v, failed %v", outcome.Restored, outcome.Failed)
+	if len(outcome.Restored) != 0 || len(outcome.Failed) != 1 || !strings.Contains(outcome.Failed[0].Error, "清单") {
+		t.Fatalf("restore must refuse a same-name guess: %+v", outcome)
 	}
-	if content, err := os.ReadFile(original); err != nil || string(content) != "pdf" {
-		t.Fatalf("content = %q, err %v", content, err)
+	if exists(original) || !exists(filepath.Join(s.home, ".Trash", "report.pdf")) {
+		t.Fatal("a missing receipt moved an unrelated Trash item")
+	}
+}
+
+func TestRestoreRefusesInvalidManifestSourcesAndPreservesCorruptReceipts(t *testing.T) {
+	s := newTestScanner(t)
+	original := filepath.Join(s.home, "Documents/report.txt")
+	unrelated := filepath.Join(s.home, "unrelated.txt")
+	writeFile(t, unrelated, "keep")
+	if err := recordTrash([]TrashEntry{{Original: original, Trashed: unrelated}}); err != nil {
+		t.Fatal(err)
+	}
+	result := s.RestoreTrash([]string{original})
+	if len(result.Restored) != 0 || len(result.Failed) != 1 || !exists(unrelated) || exists(original) {
+		t.Fatalf("restore accepted a source outside Trash: %+v", result)
+	}
+	for _, data := range []string{`{broken`, `{"version":999,"entries":[]}`} {
+		writeFile(t, trashManifestPath(), data)
+		if recordTrash([]TrashEntry{{Original: original, Trashed: unrelated}}) == nil {
+			t.Fatal("unreadable receipts were silently replaced")
+		}
+		if result := s.RestoreTrash([]string{original}); len(result.Restored) != 0 || len(result.Failed) != 1 {
+			t.Fatalf("unreadable manifest did not fail closed: %+v", result)
+		}
+		if after, _ := os.ReadFile(trashManifestPath()); string(after) != data {
+			t.Fatal("the failed operation changed corrupt evidence")
+		}
+	}
+}
+
+func TestTrashReceiptReportsWhenRestoreRecordingFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write the read-only state fixture")
+	}
+	s := newTestScanner(t)
+	if err := os.MkdirAll(StateDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(StateDir(), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(StateDir(), 0o755) })
+	path := filepath.Join(s.home, "Library/Caches/Example/cache.bin")
+	writeFile(t, path, "cache")
+	result := s.TrashPaths([]string{path})
+	if len(result.Moved) != 1 || result.RestoreError == "" || len(result.Failed) != 1 {
+		t.Fatalf("an unrecorded move must not promise restorability: %+v", result)
+	}
+}
+
+func TestCorruptTrashManifestStopsNewMovesBeforeMutation(t *testing.T) {
+	s := newTestScanner(t)
+	writeFile(t, trashManifestPath(), "{broken")
+	path := filepath.Join(s.home, "Library/Caches/Example/cache.bin")
+	writeFile(t, path, "keep")
+	result := s.TrashPaths([]string{path})
+	if len(result.Moved) != 0 || len(result.Failed) != 1 || !exists(path) {
+		t.Fatalf("corrupt restore evidence allowed another mutation: %+v", result)
+	}
+}
+
+func TestNativeFileOperationGateRejectsConcurrentRequests(t *testing.T) {
+	s := newTestScanner(t)
+	path := filepath.Join(s.home, "Library/Caches/Example/cache.bin")
+	writeFile(t, path, "keep")
+	trashOperationMu.Lock()
+	t.Cleanup(trashOperationMu.Unlock)
+	if result := s.TrashPaths([]string{path}); len(result.Moved) != 0 || len(result.Skipped) != 1 || !exists(path) {
+		t.Fatalf("an overlapping file move was accepted: %+v", result)
+	}
+	if result := s.RestoreTrash([]string{path}); len(result.Restored) != 0 || len(result.Failed) != 1 {
+		t.Fatalf("restore overlapped a pending move: %+v", result)
+	}
+}
+
+func TestCleanupKeepsItsOwnRestoreStateAndExecutable(t *testing.T) {
+	s := newTestScanner(t)
+	writeFile(t, filepath.Join(StateDir(), "receipt.txt"), "keep")
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{StateDir(), filepath.Join(StateDir(), "receipt.txt"), executable} {
+		if reason := s.CleanupReason(path); reason == "" {
+			t.Fatalf("the running app could remove its own state: %s", path)
+		}
 	}
 }
 
 func TestRestoreTrashReportsItemsThatAreAlreadyGone(t *testing.T) {
 	s := newTestScanner(t)
-	outcome := s.RestoreTrash([]string{filepath.Join(s.home, "Documents", "gone.txt")})
+	original := filepath.Join(s.home, "Documents", "gone.txt")
+	if err := recordTrash([]TrashEntry{{Original: original, Trashed: filepath.Join(s.home, ".Trash", "gone.txt")}}); err != nil {
+		t.Fatal(err)
+	}
+	outcome := s.RestoreTrash([]string{original})
 	if len(outcome.Restored) != 0 || len(outcome.Failed) != 1 {
 		t.Fatalf("outcome = %+v, want one failure", outcome)
 	}
 	if outcome.Failed[0].Error != "废纸篓中已找不到该项" {
 		t.Errorf("error = %q", outcome.Failed[0].Error)
+	}
+}
+
+func TestRestoreUsesTheExactReceiptWhenAPathWasTrashedTwice(t *testing.T) {
+	s := newTestScanner(t)
+	original := filepath.Join(s.home, "Library/Caches/Example/cache.bin")
+	writeFile(t, original, "first")
+	first := s.TrashPaths([]string{original})
+	writeFile(t, original, "second")
+	second := s.TrashPaths([]string{original})
+	if len(first.Moved) != 1 || len(second.Moved) != 1 {
+		t.Fatalf("fixture moves failed: %+v, %+v", first, second)
+	}
+	if result := s.RestoreTrash([]string{original}); len(result.Restored) != 0 || len(result.Failed) != 1 {
+		t.Fatalf("an ambiguous original path cannot pick the newest data: %+v", result)
+	}
+	result := s.RestoreTrash([]string{original}, map[string]string{original: first.Moved[0].Trashed})
+	if len(result.Restored) != 1 {
+		t.Fatalf("the exact first receipt could not be restored: %+v", result)
+	}
+	if content, _ := os.ReadFile(original); string(content) != "first" {
+		t.Fatalf("an old history record restored the wrong version: %q", content)
+	}
+	manifest, err := readTrashManifest()
+	if err != nil || len(manifest.Entries) != 1 || manifest.Entries[0].Trashed != second.Moved[0].Trashed {
+		t.Fatalf("restoring one version discarded another receipt: %+v, %v", manifest, err)
+	}
+}
+
+func TestRestoreRefusesAReusedTrashPath(t *testing.T) {
+	s := newTestScanner(t)
+	original := filepath.Join(s.home, "Library/Caches/Example/cache.bin")
+	writeFile(t, original, "old")
+	result := s.TrashPaths([]string{original})
+	if len(result.Moved) != 1 {
+		t.Fatalf("fixture move failed: %+v", result)
+	}
+	entry := result.Moved[0]
+	if err := os.Rename(entry.Trashed, entry.Trashed+".keep"); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, entry.Trashed, "unrelated")
+	restored := s.RestoreTrash([]string{original}, map[string]string{original: entry.Trashed})
+	if len(restored.Restored) != 0 || len(restored.Failed) != 1 || exists(original) {
+		t.Fatalf("a reused Trash name bypassed receipt identity: %+v", restored)
+	}
+	if content, _ := os.ReadFile(entry.Trashed); string(content) != "unrelated" {
+		t.Fatal("restore changed an unrelated Trash file")
+	}
+}
+
+func TestRestoreRefusesAChangedParentSymlink(t *testing.T) {
+	s := newTestScanner(t)
+	original := filepath.Join(s.home, "Library/Caches/Example/cache.bin")
+	writeFile(t, original, "keep")
+	trashed := s.TrashPaths([]string{original})
+	if len(trashed.Moved) != 1 {
+		t.Fatalf("fixture move failed: %+v", trashed)
+	}
+	parent := filepath.Dir(original)
+	if err := os.Rename(parent, parent+".before"); err != nil {
+		t.Fatal(err)
+	}
+	destination := t.TempDir()
+	if err := os.Symlink(destination, parent); err != nil {
+		t.Fatal(err)
+	}
+	outcome := s.RestoreTrash([]string{original})
+	if len(outcome.Restored) != 0 || len(outcome.Failed) != 1 || !strings.Contains(outcome.Failed[0].Error, "符号链接") {
+		t.Fatalf("changed parents cannot redirect restoration: %+v", outcome)
+	}
+	if exists(filepath.Join(destination, "cache.bin")) || !exists(trashed.Moved[0].Trashed) {
+		t.Fatal("restore moved data through a changed parent")
 	}
 }
 
@@ -494,10 +662,7 @@ func TestNeedsFolderAccessCoversTheGuardedFolders(t *testing.T) {
 	}
 }
 
-// A rename that never returns is what an unanswerable TCC prompt looks like, so
-// the move is bounded. The bound must not break ordinary moves, and the audit log
-// must record what happened even when nobody is watching the app.
-func TestMoveWithWatchdogMovesAFilePromptly(t *testing.T) {
+func TestMoveToTrashMovesAnIsolatedFilePromptly(t *testing.T) {
 	dir := t.TempDir()
 	trash := t.TempDir()
 	t.Setenv("MOLE_STUDIO_STATE_DIR", t.TempDir())
@@ -508,15 +673,12 @@ func TestMoveWithWatchdogMovesAFilePromptly(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trashed, err, timedOut := moveWithWatchdog(file)
-	if timedOut {
-		t.Fatal("moving a small file must not hit the watchdog")
-	}
+	trashed, err := moveToTrash(file)
 	if err != nil {
 		t.Fatalf("move failed: %v", err)
 	}
 	if elapsed := time.Since(started); elapsed > 3*time.Second {
-		t.Fatalf("move took %v, watchdog would fire on a slow disk", elapsed)
+		t.Fatalf("isolated file move took %v", elapsed)
 	}
 	if !exists(trashed) {
 		t.Fatalf("trashed path %q does not exist", trashed)

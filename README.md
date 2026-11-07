@@ -52,7 +52,8 @@ Beyond the module list:
 - **Pre-execution diff** — deletions are previewed as a structured sheet (paths, safety tier, Trash
   recovery checkpoint) before anything runs.
 - **Preview before removal** — the confirmation shows the exact paths and freezes the submitted selection.
-- **Menu bar presence** — an orbit-mark status item whose popover is the same tray UI (clean, health check, caffeinate, quit).
+- **Menu bar presence** — scaled CPU/network trends, native memory pressure and memory/storage capacity bars; conditional battery, read-only process links and a receipt-backed two-hour awake switch. Quick cleanup opens the frozen selected-path review in the main window; optional file-cache release requires macOS administrator authorization and never claims to clear application RAM. The main window also opens this panel directly.
+- **Runtime & permissions** — the header identifies the current app bundle or temporary executable, reports actual protected-directory readability, and links to the relevant macOS permission panes.
 - **Live local scan** — installed apps, leftover Library paths, and large files are sampled on the Mac and pushed into the UI over the JS bridge.
 - **Three uninstall modes** — Standard, Complete, and Cache-only, with per-path selection before anything moves to the Trash.
 - **Treemap drill-down** — disk tiles open into their child directories.
@@ -62,19 +63,13 @@ Beyond the module list:
 
 - macOS 13 (Ventura) or later
 - Go 1.27+ (the module declares `go 1.27.3`)
-- The [MyGo](https://github.com/egoist/mygo) CLI, for `make dev`, `make app` and
-  `make generate` only — `make build` / `make run` are plain Go and need no CLI:
+- The [MyGo](https://github.com/egoist/mygo) CLI for packaging and development. `make run` uses a pinned Go-run fallback when the CLI is not installed:
 
   ```bash
   go install github.com/egoist/mygo/cmd/mygo@v0.6.4
   ```
 
-- The `mo` CLI on `PATH`:
-
-  ```bash
-  brew install mole
-  mo --version
-  ```
+- The current scanner and cleanup paths run in-process and do not require the historical `mo` CLI.
 
 ## Build and run
 
@@ -83,7 +78,8 @@ git clone https://github.com/real-jacket/orbit.git
 cd orbit
 
 make             # go build -v -o mole-studio .
-make run         # build and launch straight from the checkout (no mygo CLI needed)
+make run         # build and launch a stable .app bundle for macOS permission identity
+make run-raw     # temporary go run executable, for bridge debugging only
 make test        # unit test suite
 make test-ui-webkit # isolated WebKit rendering + interaction checks
 make vet         # go vet
@@ -95,15 +91,13 @@ make doctor      # check the Go / MyGo / packaging toolchain
 make help        # list every target
 ```
 
-**Which one should I run?** `make run` for day-to-day work: it compiles the Go
-binary and points MyGo at `Resources/src-ui/` on disk, so edits to that file show
-up on the next launch with no packaging step. `make dev` additionally gives you a
+**Which one should I run?** `make run` for day-to-day work: it builds and opens `build/darwin-arm64/MoleStudio.app` (the architecture follows Go). It gives macOS a named bundle instead of a new `go-build` temporary executable on every launch. If an old `go run` instance is active, stop it with Ctrl-C in its original terminal first; the script will not kill it. `make run-raw` retains the old direct-executable path for narrow bridge debugging, but permissions may belong to its launching terminal. `make dev` additionally gives you a
 live-reload dev server, but needs the CLI installed. `make dev` builds a throwaway
 `MoleStudio Dev` bundle under `.mygo/dev/`, runs it, and then watches the tree:
 saving `Resources/src-ui/index.html` (or any Go file) rebuilds and relaunches it in
 about five seconds. `make app-nodmg` then
 `open build/darwin-arm64/MoleStudio.app` is what users get: the same frontend,
-embedded into the binary instead of read from disk.
+embedded into the binary. See [runtime and permissions](docs/runtime-permissions.md) for authorization and current feature boundaries.
 
 **The first build downloads a toolchain.** `go.mod` declares `go 1.27.3`. If the
 `go` on your `PATH` is older, `GOTOOLCHAIN=auto` (the default) fetches the Go
@@ -198,7 +192,7 @@ says which Swift file each Go file was written from, so the mapping stays useful
 | `internal/smc` | Reads AppleSMC over IOKit: CPU temperature and fan speeds, with the byte-order handling both Intel and Apple silicon need | — (new; the Swift build had no SMC reader) |
 | `internal/telemetry` | Network throughput from the routing `sysctl`, disk I/O and GPU utilisation from the IORegistry, sampled on independent cache intervals | — (new; the Swift build showed fixed placeholder numbers) |
 | `internal/scanner` | The local scan: installed apps, orphaned leftovers, large files, installer packages, clean catalogs, AI Care bands, the home treemap, the process table | `Engine/RealMacSystemScanner.swift`, `Engine/CatalogScanning.swift`, `Engine/OrphanScanning.swift`, `Engine/OrphanSignatures.swift` |
-| `internal/analyze` | Walks a directory tree in-process (allocated + logical sizes, hard-link dedupe, progress, cancellation) and shapes it into treemap tiles; falls back to `mo analyze --json` only if a walk fails | `Engine/MoleAnalyzeBridge.swift`, `Engine/MoleCLIRunner.swift` (the CLI resolution the fallback reuses) |
+| `internal/analyze` | Walks a directory tree in-process (allocated + logical sizes, hard-link dedupe, progress, cancellation) and shapes it into treemap tiles; errors and cancellation return directly | `Engine/MoleAnalyzeBridge.swift`, `Engine/MoleCLIRunner.swift` |
 | `internal/trayicon` | Draws the 18pt menu-bar template image from an analytic description instead of AppKit | `MoleStudioApp.swift` (`configureStatusItem`) |
 
 The app shell itself is a handful of files in `package main` at the repository root, because that is
@@ -278,12 +272,12 @@ This is an early-stage client, and the Go port is mid-flight. Being explicit abo
 wired up:
 
 - **The UI in `Resources/src-ui/index.html` is the shipping UI**, maintained as one dependency-free HTML file. In a
-  `mygo build` bundle MyGo embeds it; `make run` and `mygo dev` serve it from disk.
+  `mygo build` and `make run` bundle it; `make run-raw` and `mygo dev` use a development source path.
 - **The samplers are real and tested.** `internal/scanner` walks the disk for apps, leftovers, large
   files, installers and clean catalogs; `internal/power` reads thermal state, memory pressure and
   the battery from `sysctl`/`ioreg`; `internal/telemetry` reads network, disk I/O and GPU rates from
   the kernel and `internal/smc` reads temperatures and fan speeds; `internal/analyze` walks the disk
-  itself — `mo analyze --json` is only the fallback when a walk fails.
+  itself; failures and cancellation do not start a second CLI scan.
   `go test ./...` covers the numeric and payload-shape behaviour of all three.
 - **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles Finder reveal, clipboard,
   process termination, native Trash/restore, whitelist updates, diagnostics, Quick Look maintenance,

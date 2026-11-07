@@ -22,24 +22,24 @@ func (s *Scanner) queryDiskSpace() (freeGB, totalGB float64) {
 }
 
 // queryMemoryUsage reports how much memory is in use and how much the machine
-// has, in gigabytes.
-func (s *Scanner) queryMemoryUsage() (usedGB, totalGB float64) {
+// has, in gibibytes.
+func (s *Scanner) queryMemoryUsage() (usedGB *float64, totalGB float64) {
 	totalBytes := physicalMemory()
 	totalGB = float64(totalBytes) / 1_073_741_824
 	if totalGB <= 0 {
-		return 0, 0
+		return nil, 0
 	}
 	pageSize, usedPages, ok := vmStatistics()
 	if !ok {
 		// Report nothing rather than a made-up 55%: a fabricated figure is
 		// indistinguishable from a real one once it reaches the UI.
-		return 0, totalGB
+		return nil, totalGB
 	}
-	usedGB = float64(usedPages) * float64(pageSize) / 1_073_741_824
-	if cap := totalGB * 0.96; usedGB > cap {
-		usedGB = cap
+	used := float64(usedPages) * float64(pageSize) / 1_073_741_824
+	if used > totalGB {
+		return nil, totalGB
 	}
-	return usedGB, totalGB
+	return &used, totalGB
 }
 
 // physicalMemory is the machine's installed memory, in bytes.
@@ -58,17 +58,20 @@ func physicalMemory() int64 {
 	return total
 }
 
-// vmStatistics reports the virtual memory page size and how many pages are
-// active, wired, or held by the compressor: the pages the Swift app counted
-// as in use.
+// vmStatistics reports the page size and application + wired + compressed
+// pages, excluding reusable file-backed and purgeable pages.
 func vmStatistics() (pageSize, usedPages int, ok bool) {
 	out, err := exec.Command("vm_stat").Output()
 	if err != nil {
 		return 0, 0, false
 	}
+	return parseVMStatistics(string(out))
+}
+
+func parseVMStatistics(output string) (pageSize, usedPages int, ok bool) {
 	pageSize = 16384
-	active, wired, compressor := 0, 0, 0
-	for _, line := range strings.Split(string(out), "\n") {
+	active, inactive, speculative, wired, compressor, external, purgeable := 0, 0, 0, 0, 0, 0, 0
+	for _, line := range strings.Split(output, "\n") {
 		key, value, found := strings.Cut(line, ":")
 		if !found {
 			continue
@@ -94,16 +97,25 @@ func vmStatistics() (pageSize, usedPages int, ok bool) {
 		switch key {
 		case "Pages active":
 			active = pages
+		case "Pages inactive":
+			inactive = pages
+		case "Pages speculative":
+			speculative = pages
 		case "Pages wired down":
 			wired = pages
 		case "Pages occupied by compressor":
 			compressor = pages
+		case "File-backed pages":
+			external = pages
+		case "Pages purgeable":
+			purgeable = pages
 		}
 	}
 	if active == 0 && wired == 0 && compressor == 0 {
 		return 0, 0, false
 	}
-	return pageSize, active + wired + compressor, true
+	usedPages = active + inactive + speculative + wired + compressor - external - purgeable
+	return pageSize, usedPages, usedPages >= 0
 }
 
 // queryCPUModel names the processor, as the status page shows it.
@@ -157,9 +169,6 @@ func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[st
 			continue
 		}
 		cpuSum += cpu
-		if len(processes) >= 10 {
-			continue
-		}
 		memoryMB := int(rssKB / 1024)
 		if memoryMB < 1 {
 			memoryMB = 1

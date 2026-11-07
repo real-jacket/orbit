@@ -75,9 +75,9 @@ if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandl
 
 Swift 在 `MoleStudioApp.swift:46` 取 `dict["action"] as? String`，然后一个 16 个 `case` 分支、覆盖 18 个 action 字符串的 `switch`。Go 侧保留同样的"一个入口 + 按 action 分发"形状（而不是给每个 action 一个绑定方法），因为前端的 contract 就是 `{action, ...}` 这种无类型字典。
 
-`bridge.go` 的 `Dispatch(payload map[string]any)` 分支与 Swift 逐条对齐，其中 `case "trashRealPaths", "executeClean", "trashPath":` 三个字符串共用一个分支（`executeClean`/`trashPath` 在 `index.html` 里没有调用方）。`default` 记下页面仍会发的 4 个 action——`addWhitelist`、`restoreTrashSnapshot`、`runDoctorReCheck`、`setFanMode`——Swift 版同样没有处理，状态由页面自己持有。
+`bridge.go` 的 `Dispatch(payload map[string]any)` 保留单一 action 入口，其中 `case "trashRealPaths", "executeClean", "trashPath":` 三个字符串共用一个分支。白名单、按清单还原、体检和进程终止已经接入原生回执；风扇控制仍未接入。
 
-真正的实现（不是占位）：Finder 显示、剪贴板、`SIGTERM` → 400ms 后 `SIGKILL`、移到废纸篓、`qlmanage -r cache`、`caffeinate -d -i -t 7200`（持有一个 `*exec.Cmd`，再次调用时 `SIGTERM` 掉）、主题持久化、窗口缩放/拖拽、用 `Page().Eval` 执行 `switchModule('clean'); openConfirmSheet();` 这类菜单命令。
+真正的实现：Finder 显示、剪贴板、核验用户与进程身份后发送 `SIGTERM`（不会自动强制结束）、不覆盖目标的废纸篓移动与按清单还原、`qlmanage -r cache`、`caffeinate -d -i -t 7200`、主题持久化、窗口缩放/拖拽和菜单命令。还原目标存在、文件身份变化或父目录改成符号链接时保留原状并返回原因。
 
 ### 2.3 Go → 页面：事件必须手动转发到 `window.onNative*`
 

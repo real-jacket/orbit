@@ -38,6 +38,13 @@ type DiskIO struct {
 	WriteBytesPerSec float64 `json:"writeBytesPerSec"`
 }
 
+type Memory struct {
+	AppGB        float64 `json:"appGb"`
+	WiredGB      float64 `json:"wiredGb"`
+	CompressedGB float64 `json:"compressedGb"`
+	CacheGB      float64 `json:"cacheGb"`
+}
+
 // Sample is one reading of the machine. Every field is omitted when this
 // machine does not expose it, so the frontend can tell "no sensor" from "zero".
 type Sample struct {
@@ -57,9 +64,10 @@ type Sampler struct {
 	netPrevAt time.Time
 	netOK     bool
 
-	diskPrev   diskCounters
-	diskPrevAt time.Time
-	diskOK     bool
+	diskPrev      diskCounters
+	diskPrevAt    time.Time
+	diskOK        bool
+	diskRateCache *DiskIO
 
 	diskCache   diskCounters
 	diskCacheAt time.Time
@@ -79,8 +87,8 @@ type Sampler struct {
 }
 
 // New returns a sampler with no previous reading: the first Snapshot reports
-// temperatures, fan speeds and utilisation, but throughput rates start at zero
-// and become meaningful on the second call.
+// temperatures, fan speeds and utilisation, but throughput rates stay unknown
+// until two distinct counter readings are available.
 func New() *Sampler { return &Sampler{} }
 
 // Shared is the process-wide sampler, so consecutive telemetry ticks share the
@@ -114,6 +122,7 @@ func (s *Sampler) netRate(now time.Time) *Net {
 		return nil
 	}
 	net := &Net{}
+	ready := s.netOK && !s.netPrevAt.IsZero()
 	if s.netOK && !s.netPrevAt.IsZero() {
 		rx, tx := netDelta(s.netPrev, counters)
 		elapsed := now.Sub(s.netPrevAt)
@@ -121,6 +130,9 @@ func (s *Sampler) netRate(now time.Time) *Net {
 		net.TxBytesPerSec = rate(0, tx, elapsed)
 	}
 	s.netPrev, s.netPrevAt, s.netOK = counters, now, true
+	if !ready {
+		return nil
+	}
 	return net
 }
 
@@ -168,15 +180,24 @@ func (s *Sampler) diskRate(now time.Time) *DiskIO {
 	counter, sampledAt, ok := s.diskCounters(now)
 	if !ok {
 		s.diskOK = false
+		s.diskRateCache = nil
 		return nil
 	}
+	if s.diskOK && sampledAt.Equal(s.diskPrevAt) {
+		return s.diskRateCache
+	}
 	io := &DiskIO{}
+	ready := s.diskOK && !s.diskPrevAt.IsZero()
 	if s.diskOK && !s.diskPrevAt.IsZero() {
 		elapsed := sampledAt.Sub(s.diskPrevAt)
 		io.ReadBytesPerSec = rate(s.diskPrev.read, counter.read, elapsed)
 		io.WriteBytesPerSec = rate(s.diskPrev.write, counter.write, elapsed)
 	}
 	s.diskPrev, s.diskPrevAt, s.diskOK = counter, sampledAt, true
+	if !ready {
+		return nil
+	}
+	s.diskRateCache = io
 	return io
 }
 

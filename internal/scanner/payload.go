@@ -13,17 +13,19 @@ var fullScanMu sync.Mutex
 // FullScanPayload is what the frontend's onNativeRealScanComplete receives: the
 // state of the whole machine, as the Swift app's buildFullScanPayload sent it.
 type FullScanPayload struct {
-	FreeDiskGb      float64          `json:"freeDiskGb"`
-	TotalDiskGb     float64          `json:"totalDiskGb"`
-	MemTotalGb      float64          `json:"memTotalGb"`
-	CPUModel        string           `json:"cpuModel"`
-	AppsList        []map[string]any `json:"appsList"`
-	OrphanLeftovers []map[string]any `json:"orphanLeftoversList"`
-	LargeFiles      []map[string]any `json:"largeFiles"`
-	InstallerFiles  []map[string]any `json:"installerFiles"`
-	PurgeItems      []map[string]any `json:"purgeItems"`
-	CleanGroups     []map[string]any `json:"cleanGroups"`
-	AIMoonBands     []map[string]any `json:"aiMoonBands"`
+	FreeDiskGb         float64          `json:"freeDiskGb"`
+	TotalDiskGb        float64          `json:"totalDiskGb"`
+	MemTotalGb         float64          `json:"memTotalGb"`
+	CPUModel           string           `json:"cpuModel"`
+	AppsList           []map[string]any `json:"appsList"`
+	OrphanLeftovers    []map[string]any `json:"orphanLeftoversList"`
+	LargeFiles         []map[string]any `json:"largeFiles"`
+	InstallerFiles     []map[string]any `json:"installerFiles"`
+	PurgeItems         []map[string]any `json:"purgeItems"`
+	CleanGroups        []map[string]any `json:"cleanGroups"`
+	CleanExcludedRoots []map[string]any `json:"cleanExcludedRoots"`
+	AIMoonBands        []map[string]any `json:"aiMoonBands"`
+	AIExcludedRoots    []map[string]any `json:"aiExcludedRoots"`
 	// HomePath is the absolute home directory. The page cannot expand ~ on its
 	// own, so without it every "move to Trash" in the space analyzer failed.
 	HomePath string `json:"homePath"`
@@ -52,32 +54,36 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	freeGB, totalGB := s.queryDiskSpace()
 	_, memTotalGB := s.queryMemoryUsage()
 	return FullScanPayload{
-		FreeDiskGb:        round2(freeGB),
-		TotalDiskGb:       round2(totalGB),
-		MemTotalGb:        round2(memTotalGB),
-		CPUModel:          s.queryCPUModel(),
-		AppsList:          s.scanInstalledApps(),
-		OrphanLeftovers:   s.scanOrphanedLeftovers(),
-		LargeFiles:        s.scanLargeFiles(),
-		InstallerFiles:    s.scanInstallerPackages(),
-		PurgeItems:        s.scanBuildArtifacts(),
-		CleanGroups:       s.scanCleanGroups(),
-		AIMoonBands:       s.scanAICaches(),
-		HomePath:          s.home,
-		Whitelist:         s.UserWhitelistPaths(),
-		WhitelistWarnings: s.refreshWhitelist().Warnings,
-		ReadWarnings:      scanReadWarnings(s.home),
+		FreeDiskGb:         round2(freeGB),
+		TotalDiskGb:        round2(totalGB),
+		MemTotalGb:         round2(memTotalGB),
+		CPUModel:           s.queryCPUModel(),
+		AppsList:           s.scanInstalledApps(),
+		OrphanLeftovers:    s.scanOrphanedLeftovers(),
+		LargeFiles:         s.scanLargeFiles(),
+		InstallerFiles:     s.scanInstallerPackages(),
+		PurgeItems:         s.scanBuildArtifacts(),
+		CleanGroups:        s.scanCleanGroups(),
+		CleanExcludedRoots: s.cleanExcludedRoots(),
+		AIMoonBands:        s.scanAICaches(),
+		AIExcludedRoots:    s.aiExcludedRoots(),
+		HomePath:           s.home,
+		Whitelist:          s.UserWhitelistPaths(),
+		WhitelistWarnings:  s.refreshWhitelist().Warnings,
+		ReadWarnings:       scanReadWarnings(s.home),
 	}
 }
 
 // Telemetry is what the frontend's onNativeRealTelemetry receives.
 type Telemetry struct {
-	CPU        float64          `json:"cpu"`
-	FreeDiskGb float64          `json:"freeDiskGb"`
-	MemUsedGb  float64          `json:"memUsedGb"`
-	MemTotalGb float64          `json:"memTotalGb"`
-	Processes  []map[string]any `json:"processes"`
-	Power      PowerPayload     `json:"power"`
+	CPU         *float64          `json:"cpu"`
+	FreeDiskGb  float64           `json:"freeDiskGb"`
+	TotalDiskGb float64           `json:"totalDiskGb"`
+	MemUsedGb   *float64          `json:"memUsedGb"`
+	MemTotalGb  float64           `json:"memTotalGb"`
+	Memory      *telemetry.Memory `json:"memory"`
+	Processes   []map[string]any  `json:"processes"`
+	Power       PowerPayload      `json:"power"`
 
 	// Hardware counters beyond CPU/memory/disk. Each is omitted when this Mac
 	// does not expose it, so the page can say "no sensor" instead of zero.
@@ -130,7 +136,7 @@ func (s *Scanner) BuildTelemetry() Telemetry {
 	host := telemetry.HostSample()
 	cpu := s.cpuShare(host)
 	processes := s.cachedProcesses()
-	freeGB, _ := s.queryDiskSpace()
+	freeGB, totalDiskGB := s.queryDiskSpace()
 	usedGB, totalGB := s.memoryUsage(host)
 	snapshot := power.Take()
 	payload := PowerPayload{
@@ -142,17 +148,19 @@ func (s *Scanner) BuildTelemetry() Telemetry {
 	}
 	hardware := telemetry.Shared.Snapshot()
 	return Telemetry{
-		CPU:        round1(cpu),
-		FreeDiskGb: round2(freeGB),
-		MemUsedGb:  round2(usedGB),
-		MemTotalGb: round2(totalGB),
-		Processes:  processes,
-		Power:      payload,
-		Net:        hardware.Net,
-		DiskIO:     hardware.DiskIO,
-		GPUPct:     roundPtr(hardware.GPUPct, 0),
-		CPUTempC:   roundPtr(hardware.CPUTempC, 1),
-		Fans:       hardware.Fans,
+		CPU:         roundPtr(cpu, 1),
+		FreeDiskGb:  round2(freeGB),
+		TotalDiskGb: round2(totalDiskGB),
+		MemUsedGb:   roundPtr(usedGB, 2),
+		MemTotalGb:  round2(totalGB),
+		Memory:      host.Memory,
+		Processes:   processes,
+		Power:       payload,
+		Net:         hardware.Net,
+		DiskIO:      hardware.DiskIO,
+		GPUPct:      roundPtr(hardware.GPUPct, 0),
+		CPUTempC:    roundPtr(hardware.CPUTempC, 1),
+		Fans:        hardware.Fans,
 	}
 }
 
