@@ -588,15 +588,14 @@
 
   .treemap-split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-3); flex: 1; min-height: 0; }
   .treemap-split > * { min-width: 0; min-height: 0; }
-  .analysis-map { position: relative; display: flex; }
+  .analysis-map { position: relative; display: flex; flex-direction: column; gap: var(--space-1); }
   .treemap-stage {
     position: relative; flex: 1; min-width: 0; min-height: 0; border-radius: var(--radius-lg);
     overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle);
   }
-  /* 悬停详情浮在地图底边内侧，不占列高，两列上下沿才能对齐。 */
-  .analysis-map-note { position: absolute; z-index: 4; left: var(--space-2); right: var(--space-2); bottom: var(--space-2); display: flex; justify-content: flex-start; pointer-events: none; }
-  .analysis-map-note.end { justify-content: flex-end; }
-  .analysis-map-note .crumb-preview { flex: none; max-width: min(100%, 320px); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--border-subtle); text-align: left; }
+  /* 悬停详情放在地图下方固定一行：不遮挡任何方块，也不随悬停改变地图高度。 */
+  .analysis-map-note { flex: none; height: 18px; display: flex; align-items: center; pointer-events: none; }
+  .analysis-map-note .crumb-preview { text-align: left; padding: 0 var(--space-1); }
 
   .analysis-inspector { display: flex; flex-direction: column; overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
   .analysis-inspector .crumb-actions { flex: none; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border-bottom: 1px solid var(--border-subtle); }
@@ -1371,7 +1370,8 @@
     body[data-module="analyze"] .workspace-body { overflow-y: auto; padding: var(--space-3); }
     body[data-module="analyze"] #moduleStage { flex: none !important; }
     .treemap-split { display: flex; flex-direction: column; flex: none; }
-    .analysis-map { height: max(360px, 56vh); flex: none; }
+    .analysis-map { flex: none; }
+    .analysis-map .treemap-stage { height: max(360px, 56vh); flex: none; }
     .analysis-inspector { height: 440px; flex: none; }
     .as-vol { display: none; }
   }
@@ -2376,8 +2376,10 @@ function isMeasuring(path) {
   for (const p of pendingMeasures.values()) if (p.path === path) return true;
   return false;
 }
-function fullMeasureButton(sp) {
+// row 只在深度清理／AI 行传入：只有 Go 标明原本不是「保留」类的行才提供完整测量，保留类永远只读。
+function fullMeasureButton(sp, row) {
   if (!sp.partial || sp.cleaned) return '';
+  if (row && (!row.baseTier || row.baseTier === 'protected')) return '';
   const busy = isMeasuring(sp.path);
   const note = measureNotes.get(sp.path);
   return `<div class="row-sub" style="white-space:normal;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -2400,33 +2402,45 @@ function measureSubpathFully(path) {
   sendNativeBridge({ action: 'measurePathFully', path, requestId });
   renderModule();
 }
+// 同一路径可能出现在多个列表（应用缓存与深度清理等），每处都按各自的合计口径更新。
 function applyMeasuredSubpath(path, res) {
-  const rows = [['app', STATE.appsList], ['orphan', STATE.orphanLeftoversList]];
-  for (const [type, list] of rows) for (const row of (list || [])) {
+  const lists = [['app', STATE.appsList], ['orphan', STATE.orphanLeftoversList], ['clean', STATE.cleanGroups], ['ai', STATE.aiMoonBands], ['purge', STATE.purgeItems]];
+  for (const [type, list] of lists) for (const row of (list || [])) {
     const sp = (row.subpaths || []).find(s => s.path === path && !s.cleaned);
     if (!sp) continue;
+    const grouped = type === 'clean' || type === 'ai';
+    if (grouped && (!row.baseTier || row.baseTier === 'protected')) continue;
     const gb = Number(res.sizeGb);
     if (res.bytes > 0 || !res.partial) { sp.sizeGb = gb; sp.size = fmtDiskSizeGb(gb); }
-    if (res.partial) { measureNotes.set(path, res.reason || '仍未测量完成，路径保持原状。'); return; }
+    if (res.partial) { measureNotes.set(path, res.reason || '仍未测量完成，路径保持原状。'); continue; }
     measureNotes.delete(path);
     sp.partial = false; sp.checked = false;
-    if (/测量未完成/.test(sp.reason || '')) { delete sp.tier; delete sp.reason; }
+    const wasPartialReason = /测量未完成/.test(sp.reason || '');
+    if (wasPartialReason) { delete sp.reason; if (grouped || type === 'purge') sp.tier = row.baseTier || 'review'; else delete sp.tier; }
     const subs = row.subpaths.filter(s => !s.cleaned);
     const sum = pick => subs.filter(pick).reduce((total, s) => total + (Number(s.sizeGb) || 0), 0);
     if (type === 'app') {
       row.appSizeGb = sum(s => s.kind === 'app'); row.cacheSizeGb = sum(s => s.kind === 'cache'); row.configSizeGb = sum(s => s.kind === 'config');
       row.leftoverSizeGb = row.cacheSizeGb + row.configSizeGb;
       row.partial = subs.some(s => s.kind === 'app' && s.partial);
-    } else {
+    } else if (type === 'orphan') {
       row.leftoverSizeGb = sum(() => true);
       row.partial = subs.some(s => s.partial);
+    } else {
+      // 深度清理／AI／构建清理：行体积就是未清理子路径之和，与 Go 的 catalog 合计一致。
+      row.sizeGb = sum(() => true);
+      if (typeof row.origSizeGb === 'number') row.origSizeGb = row.sizeGb;
+      row.partial = subs.some(s => s.partial);
+      if (subs.length === 1 && /^\d+ 个文件 · /.test(row.filesCount || '')) row.filesCount = `${res.files} 个文件 · 1 个路径`;
     }
+    const selectable = subs.some(s => s.tier !== 'protected');
     if (/测量未完成/.test(row.safetyReason || '')) {
-      const other = subs.find(s => s.tier === 'protected' && s.reason);
+      const other = !selectable && subs.find(s => s.reason);
       if (other) row.safetyReason = other.reason; else delete row.safetyReason;
     }
-    if (row.tier === 'protected' && !row.safetyReason && subs.some(s => s.tier !== 'protected')) delete row.tier;
-    return;
+    if (row.tier === 'protected' && selectable) {
+      if (grouped || type === 'purge') row.tier = row.baseTier || 'review'; else delete row.tier;
+    }
   }
 }
 window.onNativeMeasureResult = function(res) {
@@ -4853,7 +4867,7 @@ function renderModule() {
                     ${selGroup.tier === 'protected' || sp.tier === 'protected' || sp.partial ? `<span class="lock-glyph" title="${escHtml(sp.reason || '保持原状')}">${UI_ICON('lock')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
                     <div style="min-width:0;">
                       <span style="overflow-wrap:anywhere;cursor:pointer;" onclick="revealInFinder('${jsq(sp.path)}')">${UI_ICON(sp.isDir === false ? 'file' : 'folder')} ${escHtml(sp.path)}</span>
-                      ${sp.reason ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(sp.reason)}</div>` : ''}
+                      ${sp.reason ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(sp.reason)}</div>` : ''}${fullMeasureButton(sp, selGroup)}
                     </div>
                   </div>
                   <div class="subpath-right">
@@ -4971,7 +4985,7 @@ function renderModule() {
                     ${selBand.tier === 'protected' || sp.tier === 'protected' || sp.partial ? `<span class="lock-glyph" title="${escHtml(sp.reason || '保持原状')}">${UI_ICON('lock')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleMoonSubpathCheck(${STATE.selectedMoonIdx}, ${subIdx})" />`}
                     <div style="min-width:0;">
                       <span style="cursor:pointer;overflow-wrap:anywhere;" onclick="revealInFinder('${jsq(sp.path)}')">${UI_ICON(sp.isDir === false ? 'file' : 'folder')} ${escHtml(sp.path)}</span>
-                      ${sp.reason && sp.reason !== selNote && sp.reason !== selBand.impact ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(sp.reason)}</div>` : ''}
+                      ${sp.reason && sp.reason !== selNote && sp.reason !== selBand.impact ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(sp.reason)}</div>` : ''}${fullMeasureButton(sp, selBand)}
                     </div>
                   </div>
                   <span class="subpath-right">${selBand.cleaned ? '0 MB' : spSizeText(sp)}</span>
@@ -5630,9 +5644,11 @@ function renderModule() {
               <div class="bento-cell"><div class="bento-label">版本库状态</div><div class="bento-val" style="color:var(--text-secondary);">${escHtml(selPurge.gitClean)}</div></div>
               <div class="bento-cell"><div class="bento-label">重建方式说明</div><div class="bento-val">${selPurge.rebuildNote}</div></div>
             </div>
+            ${selPurge.partial && selPurge.subpaths && selPurge.subpaths[0] ? fullMeasureButton(selPurge.subpaths[0]) : ''}
             ` : '<div class="row-sub">没有构建产物，仍可检查下方安装包。</div>'}
             <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-top:2px;">独立安装包 · 与当前工程无关（最多 20 项，可单独勾选）</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
+              ${!STATE.installerFiles.length ? `<div class="insp-empty" data-installer-empty>${STATE.scanCompleted ? '已检查 ~/Downloads 与 ~/Library/Caches/Homebrew/downloads，没有找到超过 20 MB 的 dmg、pkg、xip、iso 安装包，或名称含 install、setup、update 等字样的 zip。' : '扫描完成后，这里列出 ~/Downloads 与 ~/Library/Caches/Homebrew/downloads 中超过 20 MB 的安装包。'}</div>` : ''}
               ${STATE.installerFiles.map((inst, idx) => !matchesSearch(inst) ? '' : `
                 <div class="subpath-item">
                   <div class="subpath-left">
@@ -6448,13 +6464,21 @@ document.addEventListener('keydown', (e) => {
     }
     // 右侧检查栏没有内容时不要留一整块空白：给一行说明。
     stage.querySelectorAll('.panel-card').forEach(card => {
-      const kids = Array.from(card.children);
+      const kids = Array.from(card.children).filter(k => !k.classList.contains('panel-blank'));
       const headerOnly = kids.length === 1 && kids[0].classList.contains('panel-header');
       if (!headerOnly) return;
-      if (card.querySelector('.panel-blank')) return;
+      const old = card.querySelector('.panel-blank');
+      if (old) old.remove();
       const hint = document.createElement('div');
       hint.className = 'panel-blank';
-      hint.innerHTML = UI_ICON('search') + '<span>' + T('选择左侧任一项查看详情', 'Select an item on the left') + '</span>';
+      // 扫描中还没有可选的项：用骨架占位，而不是让人去「选择左侧任一项」。
+      if (scanning) {
+        hint.setAttribute('role', 'status');
+        hint.setAttribute('aria-label', T('正在扫描', 'Scanning'));
+        hint.setAttribute('data-inspector-scanning', '');
+        hint.style.cssText = 'display:block;width:100%;padding:14px 16px;';
+        hint.innerHTML = '<span class="skel skel-line" style="width:34%;height:12px"></span><span class="skel skel-line" style="width:82%"></span><span class="skel skel-line" style="width:64%"></span><span class="skel skel-line" style="width:72%"></span>';
+      } else hint.innerHTML = UI_ICON('search') + '<span>' + T('选择左侧任一项查看详情', 'Select an item on the left') + '</span>';
       card.appendChild(hint);
     });
     stage.querySelectorAll('.list-body').forEach(n => {
@@ -6743,7 +6767,7 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
   if (typeof STATE === 'undefined') return;
   let tipTimer = null;
 
-  // Small-tile details stay below the map, without covering tiles or crowding breadcrumbs.
+  // Small-tile details go to the fixed readout line under the map, never over a tile.
   function previewOf(tile) {
     const tip = (tile.getAttribute('data-tip') || '').split('\n');
     const name = tip[0] || '';
@@ -6752,24 +6776,6 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
     return { name, path, rest };
   }
 
-
-  // Bottom corner opposite the hovered tile; if that corner would still sit on another tile's label (name, size, %), try the other one.
-  function placePreview(el, tile) {
-    const note = el.parentElement, map = document.querySelector('.treemap-stage');
-    if (!note || !map) return;
-    const tr = tile.getBoundingClientRect(), mr = map.getBoundingClientRect();
-    const opposite = tr.left + tr.width / 2 > mr.left + mr.width / 2 ? 'start' : 'end';
-    const covers = side => {
-      note.classList.toggle('end', side === 'end');
-      const er = el.getBoundingClientRect();
-      return [...map.querySelectorAll('.treemap-tile')].some(other => other !== tile && [...other.querySelectorAll('.tt-name > span, .tt-size, .tt-pct')].some(label => {
-        const r = label.getBoundingClientRect();
-        return r.width > 0 && r.height > 0 && r.left < er.right && r.right > er.left && r.top < er.bottom && r.bottom > er.top;
-      }));
-    };
-    if (covers(opposite) && !covers(opposite === 'end' ? 'start' : 'end')) return;
-    note.classList.toggle('end', opposite === 'end');
-  }
 
   function showPreview(tile) {
     clearTimeout(tipTimer);
@@ -6782,7 +6788,6 @@ setInterval(() => { window.stepLiveTelemetry(); }, 1500);
       el.textContent = small && p.rest ? `${p.name} · ${p.rest}` : '';
       el.title = p.path;
       el.classList.toggle('show', !!el.textContent);
-      if (el.textContent) placePreview(el, tile);
     }, 120);
   }
 
