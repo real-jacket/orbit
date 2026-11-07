@@ -16,7 +16,7 @@ Go · MyGo · WKWebView — no Electron, no bundled runtime.
 </div>
 
 > The application is **orbit**. It is a standalone desktop app; it does not need `mo` installed.
-> The bundle is named `MoleStudio` on disk; "orbit" is the product name in the UI.
+> The bundle is `orbit.app`; the bundle identifier stays `com.mymoles.mole-studio`, so permissions and data from earlier `MoleStudio` builds carry over.
 
 ---
 
@@ -86,12 +86,12 @@ make doctor      # check the Go / MyGo / packaging toolchain
 make help        # list every target
 ```
 
-**Which one should I run?** `make run` for day-to-day work: it builds and opens `build/darwin-arm64/MoleStudio.app` (the architecture follows Go). It gives macOS a named bundle instead of a new `go-build` temporary executable on every launch. If an old `go run` instance is active, stop it with Ctrl-C in its original terminal first; the script will not kill it. `make run-raw` retains the old direct-executable path for narrow bridge debugging, but permissions may belong to its launching terminal. `make dev` additionally gives you a
+**Which one should I run?** `make run` for day-to-day work: it builds and opens `build/darwin-arm64/orbit.app` (the architecture follows Go). It gives macOS a named bundle instead of a new `go-build` temporary executable on every launch. If an old `go run` instance is active, stop it with Ctrl-C in its original terminal first; the script will not kill it. `make run-raw` retains the old direct-executable path for narrow bridge debugging, but permissions may belong to its launching terminal. `make dev` additionally gives you a
 live-reload dev server, but needs the CLI installed. `make dev` builds a throwaway
-`MoleStudio Dev` bundle under `.mygo/dev/`, runs it, and then watches the tree:
+`orbit Dev` bundle under `.mygo/dev/`, runs it, and then watches the tree:
 saving `Resources/src-ui/index.html` (or any Go file) rebuilds and relaunches it in
 about five seconds. `make app-nodmg` then
-`open build/darwin-arm64/MoleStudio.app` is what users get: the same frontend,
+`open build/darwin-arm64/orbit.app` is what users get: the same frontend,
 embedded into the binary. See [runtime and permissions](docs/runtime-permissions.md) for authorization and current feature boundaries.
 
 **The first build downloads a toolchain.** `go.mod` declares `go 1.27.3`. If the
@@ -104,7 +104,7 @@ there (`gvm install go1.27.3`).
 
 `make app` produces an ad-hoc-signed bundle whose UI is MyGo's embedded copy of
 `Resources/src-ui/`, plus a versioned `.dmg` beside it. Both land in a per-platform
-subdirectory — on Apple silicon `build/darwin-arm64/MoleStudio.app` — because `mygo build`
+subdirectory — on Apple silicon `build/darwin-arm64/orbit.app` — because `mygo build`
 always nests its output under `<goos>-<goarch>/`. Drag the bundle to `/Applications` to keep
 it around.
 
@@ -139,12 +139,18 @@ string verbatim, so a `-rc.1` suffix would ship a bundle that misreports itself,
 refuses it. Each release is one universal `.dmg` — Apple silicon and Intel in a single download —
 with the bundle inside:
 
-- `MoleStudio-<version>-universal.dmg` — drag `MoleStudio.app` to `/Applications`
-- `MoleStudio-<version>-universal.dmg.sha256` — `shasum -a 256 -c` it
+- `orbit-<version>-universal.dmg` — drag `orbit.app` to `/Applications`
+- `orbit-<version>-universal.dmg.sha256` — `shasum -a 256 -c` it
+- `orbit-<version>-darwin-universal.tar.gz`, `orbit-<old>-to-<version>-darwin-universal.delta` and
+  `update-darwin-universal.json` — the in-app update feed (below); leave them on the release
+
+`CHANGELOG.md` needs a `## <version>` section for every release: the update window shows it, and
+`mygo build` refuses to build a version the changelog does not mention.
 
 Before publishing, the workflow runs `make check` (the same gate CI enforces) and then checks what
 was actually built: both architectures via `lipo`, the bundle identifier, icon, embedded-page marker
-and ad-hoc `codesign --verify`, and it mounts the `.dmg` to confirm the app and the `/Applications`
+the `codesign --verify` signature and its certificate-pinned designated requirement, every URL in
+the update manifest against the files being uploaded, and it mounts the `.dmg` to confirm the app and the `/Applications`
 symlink are there. The run page carries the SHA-256 in its summary, and the staged assets stay
 attached to the run as an artifact for 14 days.
 
@@ -164,13 +170,25 @@ version falls back to `"dev"` only for plain `go run`. For a local `make app` bu
 make set-version VERSION=0.2.0
 ```
 
-**Signing.** Bundles are ad-hoc signed (`macos.signingIdentity` is `-` in `mygo.json`) and not
-notarized, so Gatekeeper asks once before the first launch — right-click the app → **Open**, or
-`xattr -dr com.apple.quarantine /Applications/MoleStudio.app`. No repository secrets are needed for
-that. To ship notarized builds, replace `-` with a Developer ID identity, add
-`macos.notarize.keychainProfile` to `mygo.json`, import the certificate and profile into the runner's
-keychain before the build step, and drop the ad-hoc comments in `release.yml`; MyGo then signs,
-submits the `.dmg` with `notarytool` and staples the ticket.
+**Updates.** `mygo.json`'s `updates` block (Ed25519 `publicKey`, `github: real-jacket/orbit`) turns on
+MyGo's updater plugin: ten seconds after launch and then daily, the app reads
+`releases/latest/download/update-darwin-universal.json`, verifies the signature, and shows a
+Sparkle-style window with the changelog (install, remind later, skip). **orbit → 检查更新…** and the
+menu-bar popover check by hand. The release job signs the feed with the `MYGO_UPDATER_PRIVATE_KEY`
+secret and fails without it. The matching private key also lives outside the repo; losing it means
+installed copies can never update again, so never regenerate it once a release has shipped. Local
+builds carry no key and say that updates are unavailable.
+
+**Signing.** Local builds are ad-hoc signed (`macos.signingIdentity` is `-` in `mygo.json`). Releases
+are signed with one fixed self-signed certificate, `orbit Self-Signed` (made once by
+`scripts/make-signing-cert.sh`, imported in CI from the `MACOS_SIGNING_P12` and
+`MACOS_SIGNING_P12_PASSWORD` secrets). An ad-hoc signature's designated requirement is the build's
+cdhash, so macOS would treat every update as a new app and drop Full Disk Access; the certificate's
+requirement is the same in every version. It is not notarized, so Gatekeeper still asks once before
+the first launch — right-click the app → **Open**, or
+`xattr -dr com.apple.quarantine /Applications/orbit.app`. To ship notarized builds, use a Developer
+ID identity instead, add `macos.notarize.keychainProfile` to `mygo.json`, and import the profile in
+`release.yml`; MyGo then signs, submits the `.dmg` with `notarytool` and staples the ticket.
 
 ## Architecture
 
