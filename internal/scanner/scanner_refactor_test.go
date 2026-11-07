@@ -51,7 +51,7 @@ func TestFullScanPayloadKeepsItsKeys(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(payload) failed: %v", err)
 	}
-	for _, key := range []string{"orphanLeftoversList", "cleanGroups", "appsList", "readWarnings"} {
+	for _, key := range []string{"orphanLeftoversList", "cleanGroups", "cleanExcludedRoots", "aiExcludedRoots", "appsList", "readWarnings"} {
 		if _, ok := decoded[key]; !ok {
 			t.Errorf("buildFullScanPayload must still emit %q", key)
 		}

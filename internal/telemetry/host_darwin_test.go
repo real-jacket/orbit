@@ -3,10 +3,54 @@
 package telemetry
 
 import (
+	"math"
 	"testing"
 	"time"
 	"unsafe"
 )
+
+func TestHostSampleMemoryAccounting(t *testing.T) {
+	if err := loadHostSymbols(); err != nil {
+		t.Fatal(err)
+	}
+	totalGB, pageSize, ok := loadMemInfo()
+	if !ok {
+		t.Fatal("installed memory is unavailable")
+	}
+	totalPages := totalGB * gibibyte / pageSize
+	original := hostStatistics64
+	t.Cleanup(func() { hostStatistics64 = original })
+	for _, test := range []struct {
+		name  string
+		stats vmStatistics64
+	}{
+		{"above 96 percent", vmStatistics64{activeCount: uint32(totalPages * 0.99)}},
+		{"inactive apps and reusable cache", vmStatistics64{
+			activeCount: uint32(totalPages * 0.20), inactiveCount: uint32(totalPages * 0.40),
+			speculativeCount: uint32(totalPages * 0.02), wireCount: uint32(totalPages * 0.10),
+			compressorPageCount: uint32(totalPages * 0.05), externalPageCount: uint32(totalPages * 0.25),
+			purgeableCount: uint32(totalPages * 0.05),
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			hostStatistics64 = func(_ uint32, _ int32, output unsafe.Pointer, _ *uint32) int32 {
+				*(*vmStatistics64)(output) = test.stats
+				return 0
+			}
+			stats := test.stats
+			pages := float64(stats.activeCount) + float64(stats.inactiveCount) + float64(stats.speculativeCount) +
+				float64(stats.wireCount) + float64(stats.compressorPageCount) - float64(stats.externalPageCount) - float64(stats.purgeableCount)
+			want := pages * pageSize / gibibyte
+			host := HostSample()
+			if !host.MemReady || math.Abs(host.MemUsedGB-want) > 0.000001 {
+				t.Fatalf("used memory = %v GiB, want %v GiB without a display cap or cached-file overlap", host.MemUsedGB, want)
+			}
+			if host.Memory == nil || math.Abs(host.Memory.AppGB+host.Memory.WiredGB+host.Memory.CompressedGB-host.MemUsedGB) > 0.000001 || math.Abs(host.MemUsedGB+host.MemAvailableGB-totalGB) > 0.000001 {
+				t.Fatal("memory components overlap or fail to account for installed capacity")
+			}
+		})
+	}
+}
 
 // TestVMStatistics64Layout pins the hand-written struct to the C layout in
 // <mach/vm_statistics.h>. host_statistics64 writes raw bytes into it, so a
@@ -71,9 +115,8 @@ func TestHostSampleMemorySane(t *testing.T) {
 	if host.MemAvailableGB <= 0 || host.MemAvailableGB > host.MemTotalGB {
 		t.Fatalf("MemAvailableGB = %v, want 0 < available <= %v", host.MemAvailableGB, host.MemTotalGB)
 	}
-	// The two views overlap (wired pages are neither free nor reclaimable, but
-	// both counters count the file cache differently), so the only invariant is
-	// that together they cannot describe more memory than is installed.
+	// Remaining capacity includes reusable file caches; it complements used
+	// memory instead of adding the cached pages to the occupied components.
 	if sum := host.MemUsedGB + host.MemAvailableGB; sum > host.MemTotalGB*1.05 {
 		t.Fatalf("used+available = %v GB > total %v GB", sum, host.MemTotalGB)
 	}

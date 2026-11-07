@@ -18,13 +18,32 @@ func withinPath(path, root string) bool {
 	return path == root || strings.HasPrefix(path, root+string(filepath.Separator))
 }
 
+func runtimeCleanupProtection(path string) (Protection, bool) {
+	roots := []string{StateDir()}
+	if executable, err := os.Executable(); err == nil {
+		for current := executable; current != "/" && current != "."; current = filepath.Dir(current) {
+			if strings.EqualFold(filepath.Ext(current), ".app") {
+				executable = current
+				break
+			}
+		}
+		roots = append(roots, executable)
+	}
+	for _, root := range roots {
+		if withinPath(path, root) || withinPath(root, path) {
+			return Protection{Pattern: root, Descendant: path != root && withinPath(root, path), Reason: "当前应用、恢复清单与运行状态保持原状"}, true
+		}
+	}
+	return Protection{}, false
+}
+
 func builtinCleanupProtection(path, home string) (Protection, bool) {
 	for _, root := range []string{"/System", "/usr", "/bin", "/sbin", "/etc", "/dev", "/private/var/db"} {
 		if withinPath(path, root) {
 			return Protection{Pattern: root, Reason: "系统文件不能清理"}, true
 		}
 	}
-	for _, root := range []string{"/", "/Library", "/Applications", "/Users", "/private", "/var", "/opt", "/Volumes", home} {
+	for _, root := range []string{"/", "/Library", "/Applications", "/Users", "/private", "/var", "/tmp", "/private/tmp", "/private/var", "/private/var/folders", "/opt", "/Volumes", home} {
 		if strings.EqualFold(path, root) {
 			return Protection{Pattern: root, Reason: "核心目录不能整体移除，请进入后检查子项"}, true
 		}
@@ -43,6 +62,20 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 	if isAIVersionEntry(path, home) {
 		return Protection{}, false
 	}
+	if _, _, known := aiCleanupData(path, home); known {
+		return Protection{}, false
+	}
+	for _, entry := range aiCacheSpecs() {
+		if !entry.logFiles {
+			continue
+		}
+		for _, raw := range entry.spec.Roots {
+			root := filepath.Join(home, strings.TrimPrefix(raw, "~/"))
+			if withinPath(path, root) {
+				return Protection{Pattern: root, Reason: "日志目录与未识别文件保持原状，只能选择核验后的旧诊断文件"}, true
+			}
+		}
+	}
 	for _, rule := range []struct{ path, reason string }{
 		{".ssh", "密钥与凭据保持原状"}, {".gnupg", "密钥与凭据保持原状"},
 		{".config", "个人配置与凭据保持原状"}, {".aws", "云服务凭据保持原状"},
@@ -50,6 +83,13 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 		{".codex", "Codex 工作成果、会话、配置与凭据只检查，不清理"},
 		{".claude", "Claude 会话、项目记录、配置与凭据保持原状"},
 		{".cursor", "Cursor 扩展、工作树和个人配置保持原状"},
+		{".copilot", "Copilot 会话、插件、配置与凭据保持原状"},
+		{".gemini", "Gemini 会话、项目资料与凭据保持原状"},
+		{".continue", "Continue 会话、索引与个人配置保持原状"},
+		{".codeium", "Windsurf 会话、工作成果与配置保持原状"},
+		{".local/share/opencode", "OpenCode 会话数据库、快照与工作成果保持原状"},
+		{".lmstudio", "LM Studio 模型与个人资料保持原状"},
+		{".cache/lm-studio/models", "本地模型与共享资源保持原状"},
 		{".cache/huggingface", "共享模型缓存只检查，请使用模型管理工具按修订处理"},
 		{".ollama", "本地模型与运行资料保持原状"},
 		{"Library/Application Support/Codex", "Codex 会话与运行资料保持原状"},
@@ -57,7 +97,14 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 		{"Library/Caches/com.openai.codex", "Codex 运行缓存可能包含活跃状态，保持原状"},
 		{"Library/Application Support/Claude", "Claude 会话与个人资料保持原状"},
 		{"Library/Application Support/Cursor", "Cursor 项目与个人资料保持原状"},
+		{"Library/Application Support/Windsurf", "Windsurf 项目与个人资料保持原状"},
+		{"Library/Application Support/LM Studio", "LM Studio 模型与个人资料保持原状"},
+		{"Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline", "Roo Code 任务与检查点保持原状"},
+		{"Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev", "Cline 任务与检查点保持原状"},
+		{"Library/Application Support/Code/User/globalStorage/continue.continue", "Continue 会话与索引保持原状"},
+		{"Library/Application Support/Code/User/globalStorage/github.copilot-chat", "Copilot Chat 会话与索引保持原状"},
 		{"Library/Application Support/ChatGPT", "对话与个人资料保持原状"},
+		{"Library/Application Support/orbit", "本应用的恢复清单与运行状态保持原状"},
 	} {
 		root := filepath.Join(home, rule.path)
 		if withinPath(path, root) || withinPath(root, path) {
@@ -119,12 +166,29 @@ func (s *Scanner) CleanupReason(raw string) string {
 		if protection, protected := builtinCleanupProtection(resolved, home); protected {
 			return protection.Reason
 		}
+		if protection, protected := runtimeCleanupProtection(resolved); protected {
+			return protection.Reason
+		}
 		if s.whitelist().Protects(resolved) {
 			return "白名单保护"
 		}
 		// macOS's /var and /tmp aliases are normal; arbitrary symlink parents are not cleanup roots.
 		if resolved != "/private"+path || !(withinPath(path, "/var") || withinPath(path, "/tmp")) {
 			return "路径经过符号链接，不能证明清理边界；请在访达中检查原始路径"
+		}
+	}
+	if entry, root, known := aiCleanupData(path, s.home); known {
+		return s.aiDataCleanupReason(path, root, entry)
+	}
+	if isAppBundle(path) {
+		processes, err := s.cleanupProcesses()
+		if err != nil || strings.TrimSpace(processes) == "" {
+			return "无法确认应用是否运行，保持原状"
+		}
+		for _, command := range strings.Split(processes, "\n") {
+			if withinPath(strings.TrimSpace(command), path) {
+				return "应用仍在运行，请先正常退出后重新扫描"
+			}
 		}
 	}
 	for _, spec := range aiVersionSpecs {
@@ -173,7 +237,7 @@ func (s *Scanner) CleanupReason(raw string) string {
 		{[]string{"Library/Caches/Homebrew"}, []string{"brew", "ruby"}},
 	} {
 		for _, root := range rule.roots {
-			if !withinPath(path, filepath.Join(s.home, root)) {
+			if !withinPath(path, filepath.Join(s.home, root)) && !withinPath(filepath.Join(s.home, root), path) {
 				continue
 			}
 			processes, err := s.cleanupProcesses()
@@ -186,6 +250,21 @@ func (s *Scanner) CleanupReason(raw string) string {
 					if filepath.Base(command) == owner || strings.HasPrefix(filepath.Base(command), owner+" ") || strings.HasPrefix(filepath.Base(command), owner+".") || strings.Contains(command, "/"+owner+".app/") {
 						return owner + " 正在运行，暂缓清理"
 					}
+				}
+			}
+		}
+	}
+	// shortcut: ps lacks project ownership; add cwd/handle attribution if unrelated builders must not block cleanup.
+	if withinPath(path, s.home) && artifactKinds[filepath.Base(path)] != "" {
+		processes, err := s.cleanupProcesses()
+		if err != nil || strings.TrimSpace(processes) == "" {
+			return "无法确认构建工具闲置，保持原状"
+		}
+		for _, command := range strings.Split(processes, "\n") {
+			name := strings.ToLower(filepath.Base(strings.TrimSpace(command)))
+			for _, owner := range []string{"node", "npm", "pnpm", "yarn", "bun", "cargo", "rustc", "java", "gradle", "python", "python3", "uv", "xcodebuild", "swift-frontend"} {
+				if name == owner {
+					return "构建或依赖工具正在运行，不能证明目录闲置，暂缓清理"
 				}
 			}
 		}

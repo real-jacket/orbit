@@ -26,8 +26,8 @@ type CatalogSpec struct {
 // files: ~/Library/Caches reported 0.89 GB of an actual 2.18 GB and
 // GarageBand.app reported 0.039 GB of an actual 1.13 GB.
 const (
-	catalogRootFileCap  = 25000
-	catalogChildFileCap = 25000
+	catalogRootFileCap  = 100000
+	catalogChildFileCap = 100000
 	appBundleFileCap    = 50000
 	appLeftoverFileCap  = 20000
 	orphanFileCap       = 20000
@@ -324,68 +324,47 @@ func (s *Scanner) scanCleanGroups() []map[string]any {
 	return groups
 }
 
-// aiCacheSpecs is the moon base module's list of rows, one per band.
-func aiCacheSpecs() []struct {
-	spec CatalogSpec
-	band string
-} {
-	return []struct {
-		spec CatalogSpec
-		band string
-	}{
-		{
-			spec: CatalogSpec{
-				ID:       "ai_extensions",
-				Category: "已安装扩展",
-				Name:     "Cursor 已安装扩展（仅检查）",
-				Roots:    []string{"~/.cursor/extensions"},
-				Tier:     "protected",
-				Impact:   "扩展目录可能正在使用，不以目录名或修改时间推断过期。请在 Cursor 扩展管理器中卸载。",
-				Rebuild:  "由工具自身管理，不在这里移除",
-			},
-			band: "已安装扩展",
-		},
-		{
-			spec: CatalogSpec{
-				ID:       "ai_runtime_cache",
-				Category: "运行缓存",
-				Name:     "AI 工具运行缓存与日志",
-				Roots: []string{
-					"~/Library/Caches/Cursor", "~/Library/Logs/Claude",
-					"~/Library/Caches/com.openai.chat", "~/Library/Caches/com.anthropic.claudefordesktop",
-					"~/Library/Caches/com.lmstudio.lmstudio",
-				},
-				Tier:    "safe",
-				Impact:  "只处理已知缓存和日志路径。相关工具运行中或进程状态未知时保留，不包括对话、配置或凭据。",
-				Rebuild: "闲置时可处理；下次启动按需重建",
-			},
-			band: "运行缓存",
-		},
-		{
-			spec: CatalogSpec{
-				ID:       "ai_codex_runtime",
-				Category: "运行状态",
-				Name:     "Codex 运行缓存（仅检查）",
-				Roots:    []string{"~/Library/Caches/com.openai.codex", "~/Library/Application Support/Codex"},
-				Tier:     "protected",
-				Impact:   "Codex 运行缓存可能包含进行中的任务、VM、会话或索引。保持原状，避免把活跃状态当成缓存。",
-				Rebuild:  "由 Codex 自行管理",
-			},
-			band: "运行状态",
-		},
-		{
-			spec: CatalogSpec{
-				ID:       "ai_models",
-				Category: "模型资源",
-				Name:     "Hugging Face / Ollama 模型（仅检查）",
-				Roots:    []string{"~/.cache/huggingface", "~/.ollama/models"},
-				Tier:     "protected",
-				Impact:   "模型缓存可被多个项目、修订和离线任务共享。需要模型管理工具确认引用关系，不整目录移除。",
-				Rebuild:  "离线模型与共享资源保持原状",
-			},
-			band: "模型资源",
-		},
+func (s *Scanner) cleanExcludedRoots() []map[string]any {
+	return s.excludedCatalogRoots(cleanGroupSpecs())
+}
+
+func (s *Scanner) aiExcludedRoots() []map[string]any {
+	var specs []CatalogSpec
+	for _, entry := range aiCacheSpecs() {
+		if !entry.logFiles && entry.spec.Tier != "protected" {
+			specs = append(specs, entry.spec)
+		}
 	}
+	return s.excludedCatalogRoots(specs)
+}
+
+func (s *Scanner) excludedCatalogRoots(specs []CatalogSpec) []map[string]any {
+	policy := s.whitelist()
+	policy.Patterns = append(splitCompositeWhitelistPatterns(policy.Patterns, s.home), policy.Patterns...)
+	claims := &catalogClaims{}
+	rows := []map[string]any{}
+	for _, spec := range specs {
+		for _, root := range spec.Roots {
+			path := s.expand(root)
+			if !exists(path) || claims.covers(path) {
+				continue
+			}
+			protection, protected := policy.Protection(path)
+			if !protected || protection.Descendant {
+				protection, protected = s.scanProtection(path)
+			}
+			if !protected || protection.Descendant {
+				continue
+			}
+			reason := protection.Reason
+			if reason == "" {
+				reason = "白名单排除：" + s.relativize(protection.Pattern)
+			}
+			claims.add(path, 0)
+			rows = append(rows, map[string]any{"path": s.relativize(path), "name": spec.Name, "reason": reason, "tool": spec.Category})
+		}
+	}
+	return rows
 }
 
 // scanAICaches lists the AI tool caches the moon base module offers to remove,
@@ -394,11 +373,16 @@ func (s *Scanner) scanAICaches() []map[string]any {
 	claims := &catalogClaims{}
 	items := s.scanAIVersions(claims)
 	for _, entry := range aiCacheSpecs() {
-		row := s.catalog(entry.spec, claims, nil)
+		var row map[string]any
+		if entry.logFiles {
+			row = s.scanAIDiagnosticFiles(entry, claims)
+		} else {
+			row = s.catalog(entry.spec, claims, nil)
+		}
 		if row == nil {
 			continue
 		}
-		row["band"] = entry.band
+		row["band"], row["tool"] = entry.band, entry.tool
 		items = append(items, row)
 	}
 	return append(items, s.scanAIWorktrees(claims)...)
@@ -553,8 +537,8 @@ var artifactKinds = map[string]string{
 func (s *Scanner) scanBuildArtifacts() []map[string]any {
 	roots := []string{"~/Projects", "~/GitHub", "~/Developer", "~/code", "~/src"}
 	var candidates []artifactCandidate
-	scanned := 0
 	for _, root := range roots {
+		scanned := 0
 		s.walkArtifacts(s.expand(root), 4000, &scanned, &candidates)
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
@@ -565,7 +549,7 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 	}
 	items := []map[string]any{}
 	for i, c := range candidates {
-		items = append(items, map[string]any{
+		row := map[string]any{
 			"id":          "artifact_" + itoa64(int64(i)),
 			"project":     dirName(c.path),
 			"artifact":    c.name,
@@ -576,9 +560,16 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 			"origSizeGb":  gb(c.bytes),
 			"age":         ageText(c.modified),
 			"rebuildNote": "删除后可重新安装或重新编译",
-			"gitClean":    "本机扫描",
-			"checked":     true,
-		})
+			"gitClean":    "未检查版本库",
+			"tier":        "review",
+			"partial":     c.partial,
+			"checked":     false,
+			"subpaths": []map[string]any{{
+				"path": s.relativize(c.path), "sizeGb": plainGB(c.bytes), "partial": c.partial, "tier": "review", "checked": false,
+			}},
+		}
+		s.applyCleanupProtection(row)
+		items = append(items, row)
 	}
 	return items
 }
@@ -590,14 +581,19 @@ type artifactCandidate struct {
 	kind     string
 	bytes    int64
 	modified int64
+	partial  bool
 }
 
 // walkArtifacts walks dir looking for build artifacts, and does not descend
 // into a directory it already counts as one.
-func (s *Scanner) walkArtifacts(dir string, maxFiles int, scanned *int, out *[]artifactCandidate) {
+func (s *Scanner) walkArtifacts(dir string, maxDirectories int, scanned *int, out *[]artifactCandidate) {
 	entries := readDir(dir)
 	for _, entry := range entries {
-		if *scanned > maxFiles {
+		if !entry.isDir {
+			continue
+		}
+		if *scanned >= maxDirectories {
+			recordReadWarning(dir, "构建目录遍历达到扫描上限；只统计已访问路径")
 			return
 		}
 		*scanned++
@@ -608,20 +604,21 @@ func (s *Scanner) walkArtifacts(dir string, maxFiles int, scanned *int, out *[]a
 			if _, protected := s.scanProtection(path); protected {
 				continue
 			}
-			size := s.fastDirectorySize(path, 1500)
-			if size.bytes >= 20_000_000 {
+			size := s.fastDirectorySize(path, catalogChildFileCap)
+			if size.bytes >= 20_000_000 || size.partial {
 				*out = append(*out, artifactCandidate{
 					path:     path,
 					name:     name,
 					kind:     kind,
 					bytes:    size.bytes,
 					modified: modifiedTime(path),
+					partial:  size.partial,
 				})
 			}
 			continue
 		}
-		if entry.isDir && !isHidden(name) {
-			s.walkArtifacts(path, maxFiles, scanned, out)
+		if !isHidden(name) {
+			s.walkArtifacts(path, maxDirectories, scanned, out)
 		}
 	}
 }

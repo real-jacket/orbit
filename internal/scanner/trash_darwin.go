@@ -3,6 +3,7 @@
 package scanner
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 )
@@ -21,8 +22,15 @@ func moveToTrash(path string) (string, error) {
 		// unique name instead, the way Finder does.
 		target = uniqueSibling(target)
 	}
-	if err := os.Rename(path, target); err != nil {
-		return "", err
+	for {
+		err := renameWithoutOverwrite(path, target)
+		if errors.Is(err, os.ErrExist) {
+			target = uniqueSibling(filepath.Join(trash, filepath.Base(path)))
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		return target, nil
 	}
-	return target, nil
 }

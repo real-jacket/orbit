@@ -125,6 +125,7 @@ func buildUI() {
 	mainWindow.Page().OnDidFinishLoad(func() {
 		pushRealTelemetryNow()
 		pushRealSystemScanNow()
+		pushRuntimeStatus("", false)
 	})
 
 	// The page's first paint should already sit on the right background,
@@ -174,15 +175,19 @@ func toggleFlyout() {
 			return
 		}
 	}
-	w = ensureFlyout()
+	showFlyout()
+}
+
+func showFlyout() {
+	w := ensureFlyout()
 	if w == nil {
 		return
 	}
 	w.Show()
-	// The Swift app refreshed both payloads when its popover opened, since
-	// the panel is a snapshot of the moment it was opened.
+	w.Focus()
 	pushRealTelemetryNow()
-	pushRealSystemScanNow()
+	pushCachedSystemScan(w.Page())
+	pushCaffeinateState(currentCaffeinateActive())
 }
 
 // ensureFlyout returns the menu-bar panel, creating it the first time. A
@@ -198,8 +203,8 @@ func ensureFlyout() *mygo.Window {
 	panel := mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:         trayItem,
 		URL:          "/?mode=menubar",
-		Width:        356,
-		Height:       480,
+		Width:        380,
+		Height:       568,
 		Placement:    mygo.PlacementBottom,
 		Popover:      true,
 		Focusable:    true,
@@ -211,7 +216,8 @@ func ensureFlyout() *mygo.Window {
 	})
 	panel.Page().OnDidFinishLoad(func() {
 		pushRealTelemetryNow()
-		pushRealSystemScanNow()
+		pushCachedSystemScan(panel.Page())
+		pushCaffeinateState(currentCaffeinateActive())
 	})
 	panel.OnClosed(func() {
 		flyoutWindow.CompareAndSwap(panel, nil)
@@ -276,6 +282,13 @@ func buildApplicationMenu() *mygo.Menu {
 				{Role: mygo.RoleCopy, Label: "拷贝"},
 				{Role: mygo.RolePaste, Label: "粘贴"},
 				{Role: mygo.RoleSelectAll, Label: "全选"},
+			},
+		},
+		{
+			Label: "工具",
+			Submenu: []*mygo.MenuItem{
+				{Label: "菜单栏工具", Click: func(*mygo.MenuItem, *mygo.Window) { showFlyout() }},
+				{Label: "运行与权限", Click: func(*mygo.MenuItem, *mygo.Window) { showMainWindow("openRuntimePanel();") }},
 			},
 		},
 		{

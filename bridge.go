@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -73,9 +74,10 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		// app ignored this action and the Go port inherited that. Restoring is
 		// now a real move-back through the app's own manifest.
 		originals := stringsOf(payload["paths"])
+		trashed := stringMapOf(payload["trashedPaths"])
 		requestID := stringOf(payload["requestId"])
 		go func() {
-			pushRestoreResult(requestID, scanner.Shared.RestoreTrash(originals))
+			pushRestoreResult(requestID, scanner.Shared.RestoreTrash(originals, trashed))
 			pushRealTelemetryNow()
 			pushRealSystemScanNow()
 		}()
@@ -97,7 +99,16 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 			pushRealSystemScanNow()
 		}()
 	case "killProcess":
-		killProcess(intOf(payload["pid"]))
+		pid, name, path, requestID := intOf(payload["pid"]), stringOf(payload["name"]), stringOf(payload["path"]), stringOf(payload["requestId"])
+		go func() {
+			err := quitProcess(pid, name, path)
+			result := map[string]any{"pid": pid, "requestId": requestID, "ok": err == nil}
+			if err != nil {
+				result["error"] = err.Error()
+			}
+			evaluate("window.onNativeProcessQuitResult ? window.onNativeProcessQuitResult(" + jsonOf(result) + ") : undefined")
+			pushRealTelemetryNow()
+		}()
 	case "requestRealSystemScan":
 		pushRealSystemScanNow()
 	case "requestDiskAnalyze":
@@ -106,6 +117,11 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		go cancelDiskAnalyze(stringOf(payload["requestId"]))
 	case "requestRealTelemetry":
 		pushRealTelemetryNow()
+	case "requestRuntimeStatus":
+		checkFolders, _ := payload["checkFolders"].(bool)
+		pushRuntimeStatus(stringOf(payload["requestId"]), checkFolders)
+	case "menubarShowTools":
+		showFlyout()
 	case "executeOptimize":
 		requestID := stringOf(payload["requestId"])
 		go func() {
@@ -115,10 +131,23 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 			result := optimizeOutcome(requestID, output, err)
 			evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(result) + ") : undefined")
 		}()
+	case "releaseFileCache":
+		requestID := stringOf(payload["requestId"])
+		confirmed, _ := payload["confirmed"].(bool)
+		started, err := beginFileCachePurge(requestID, confirmed)
+		if err != nil {
+			evaluate("window.onNativeCachePurgeResult ? window.onNativeCachePurgeResult(" + jsonOf(map[string]any{"requestId": requestID, "ok": false, "error": err.Error()}) + ") : undefined")
+			return nil
+		}
+		if started {
+			go executeFileCachePurge(requestID)
+		}
 	case "toggleCaffeinate":
 		setCaffeinate(boolOf(payload["active"]))
-	case "menubarOpenClean":
-		showMainWindow("switchModule('clean'); openConfirmSheet();")
+	case "menubarOpenClean", "menubarOpenMemory":
+		showMainWindow(menuBarNavigationScript(stringOf(payload["action"]), ""))
+	case "menubarOpenStatus", "menubarOpenAnalyze":
+		showMainWindow(menuBarNavigationScript(stringOf(payload["action"]), stringOf(payload["query"])))
 	case "menubarOpenDoctor":
 		showMainWindow("openDoctorModal(true);")
 	case "menubarShowMain":
@@ -161,6 +190,61 @@ func optimizeOutcome(requestID string, output []byte, err error) map[string]any 
 		result["error"] = fmt.Sprintf("%v: %s", err, message)
 	}
 	return result
+}
+
+const fileCachePurgeScript = `with timeout of 80 seconds
+do shell script "/usr/sbin/purge" with administrator privileges
+end timeout`
+
+var fileCachePurgeState struct {
+	sync.Mutex
+	requestID string
+	unknown   bool
+}
+
+func beginFileCachePurge(requestID string, confirmed bool) (bool, error) {
+	fileCachePurgeState.Lock()
+	defer fileCachePurgeState.Unlock()
+	if !confirmed || requestID == "" || len(requestID) > 128 {
+		return false, fmt.Errorf("需要明确确认和有效的请求标识，未执行文件缓存释放")
+	}
+	if fileCachePurgeState.requestID != "" {
+		if fileCachePurgeState.requestID == requestID {
+			return false, nil
+		}
+		return false, fmt.Errorf("已有文件缓存请求等待系统回执，未重复执行")
+	}
+	if fileCachePurgeState.unknown {
+		return false, fmt.Errorf("上次文件缓存命令状态未知，本次未重复执行；请先在活动监视器核对 purge 进程")
+	}
+	fileCachePurgeState.requestID = requestID
+	return true, nil
+}
+
+func fileCachePurgeCommand(ctx context.Context) *exec.Cmd {
+	return exec.CommandContext(ctx, "/usr/bin/osascript", "-e", fileCachePurgeScript)
+}
+
+func fileCachePurgeOutcome(requestID string, output []byte, err, contextErr error) map[string]any {
+	result := optimizeOutcome(requestID, output, err)
+	if err != nil {
+		result["cancelled"] = strings.Contains(string(output), "(-128)")
+		result["unknown"] = contextErr != nil || strings.Contains(string(output), "(-1712)")
+	}
+	return result
+}
+
+func executeFileCachePurge(requestID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	output, err := fileCachePurgeCommand(ctx).CombinedOutput()
+	result := fileCachePurgeOutcome(requestID, output, err, ctx.Err())
+	fileCachePurgeState.Lock()
+	fileCachePurgeState.requestID = ""
+	fileCachePurgeState.unknown = result["unknown"] == true
+	fileCachePurgeState.Unlock()
+	evaluate("window.onNativeCachePurgeResult ? window.onNativeCachePurgeResult(" + jsonOf(result) + ") : undefined")
+	pushRealTelemetryNow()
 }
 
 // privacyPaneURLs are the System Settings deep links for the three permissions
@@ -241,27 +325,52 @@ func revealCandidates(path string) []string {
 	return candidates
 }
 
-// killProcess asks a process to quit, then kills it if it is still there a
-// moment later. The Swift app did the same, with SIGTERM followed by SIGKILL.
-func killProcess(pid int) {
-	if pid <= 1 {
-		return
+// Recheck ownership and identity at the native boundary; never escalate to SIGKILL.
+func quitProcess(pid int, name, path string) error {
+	if reason := processQuitReason(pid, os.Getuid(), path, name, path); reason != "" {
+		return fmt.Errorf("%s", reason)
 	}
-	_ = syscall.Kill(pid, syscall.SIGTERM)
-	go func() {
-		time.Sleep(400 * time.Millisecond)
-		if processAlive(pid) {
-			_ = syscall.Kill(pid, syscall.SIGKILL)
-		}
-		pushRealTelemetryNow()
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "/bin/ps", "-p", strconv.Itoa(pid), "-o", "uid=,comm=").Output()
+	if err != nil {
+		return fmt.Errorf("进程已退出或状态无法读取，未发送指令")
+	}
+	line := strings.TrimSpace(string(output))
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return fmt.Errorf("进程身份无法核验，未发送指令")
+	}
+	uid, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return fmt.Errorf("进程所属用户无法核验，未发送指令")
+	}
+	if reason := processQuitReason(pid, uid, strings.TrimSpace(line[len(fields[0]):]), name, path); reason != "" {
+		return fmt.Errorf("%s", reason)
+	}
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("请求退出失败：%w", err)
+	}
+	return nil
 }
 
-// processAlive reports whether a process still exists. Signal 0 probes for it
-// without delivering anything.
-func processAlive(pid int) bool {
-	err := syscall.Kill(pid, 0)
-	return err == nil || err == syscall.EPERM
+func processQuitReason(pid, uid int, currentPath, expectedName, expectedPath string) string {
+	if pid <= 1 || pid == os.Getpid() || pid == os.Getppid() {
+		return "系统或当前应用进程已保护"
+	}
+	if uid != os.Getuid() {
+		return "其它用户或系统进程已保护"
+	}
+	name := filepath.Base(currentPath)
+	for _, protected := range []string{"kernel_task", "launchd", "WindowServer", "loginwindow", "Finder", "Dock", "SystemUIServer", "MoleStudio", "mole-studio", "orbit"} {
+		if strings.EqualFold(name, protected) {
+			return "系统关键进程或当前应用已保护"
+		}
+	}
+	if expectedName == "" || expectedPath == "" || name != expectedName || currentPath != expectedPath {
+		return "进程身份已变化，请刷新列表后重新确认"
+	}
+	return ""
 }
 
 // caffeinateProcess is the running caffeinate command, if any.
@@ -269,6 +378,25 @@ var (
 	caffeinateMu      sync.Mutex
 	caffeinateProcess *exec.Cmd
 )
+
+func currentCaffeinateActive() bool {
+	caffeinateMu.Lock()
+	defer caffeinateMu.Unlock()
+	return caffeinateProcess != nil && caffeinateProcess.Process != nil
+}
+
+func menuBarNavigationScript(action, query string) string {
+	if action == "menubarOpenClean" {
+		return "openQuickClean();"
+	}
+	if action == "menubarOpenMemory" {
+		return "openMemoryMaintenance();"
+	}
+	if action == "menubarOpenAnalyze" {
+		return "switchModule('analyze');"
+	}
+	return "switchModule('status'); handleSearch(" + jsonOf(query) + ");"
+}
 
 // setCaffeinate keeps the display and the system awake while active. Turning it
 // off stops the previous command, as the Swift app terminated its stored
@@ -381,4 +509,18 @@ func stringsOf(value any) []string {
 		return paths
 	}
 	return nil
+}
+
+func stringMapOf(value any) map[string]string {
+	if values, ok := value.(map[string]string); ok {
+		return values
+	}
+	values, _ := value.(map[string]any)
+	result := make(map[string]string, len(values))
+	for key, value := range values {
+		if value, ok := value.(string); ok {
+			result[key] = value
+		}
+	}
+	return result
 }

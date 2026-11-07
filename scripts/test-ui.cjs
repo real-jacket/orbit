@@ -10,7 +10,7 @@ const context = vm.createContext({
   STATE: { uninstallMode: 'standard', cleanGroups: [], appsList: [], orphanLeftoversList: [] },
   persistState() {}, updateSidebarBadges() {}, renderModule() {},
   absolutePath(value) { return value; }, showToast() {},
-  pendingTrashRequests: new Map(),
+  pendingTrashRequests: new Map(), pendingRestoreRequests: new Map(),
 });
 context.window = context;
 function load(name, target = context) {
@@ -149,6 +149,17 @@ function rgbLuminance(channels) {
 function tokens(block) {
   return Object.fromEntries([...block.matchAll(/--([\w-]+):\s*(#[0-9a-f]{6})/gi)].map(match => [match[1], match[2]]));
 }
+const health = vm.createContext({
+  STATE: { totalDiskGb: 100, freeDiskGb: 50, memUsedGb: 95, memTotalGb: 100, power: { thermal: 'nominal', memPressure: 'normal' } },
+});
+vm.runInContext(script.slice(script.indexOf('const THERMAL_TEXT ='), script.indexOf('const PROTECTED_PROCS =')), health);
+['hasNum', 'powerInfo', 'thermalInfo', 'pressureInfo', 'memPercent', 'diskUsedPercent', 'healthScoreNow'].forEach(name => load(name, health));
+assert.equal(vm.runInContext('healthScoreNow()', health), 100, 'high memory occupancy with normal pressure is not a health failure');
+health.STATE.power.memPressure = 'warn';
+assert.equal(vm.runInContext('healthScoreNow()', health), 94, 'native memory pressure still affects the reference score');
+health.STATE.power = {};
+health.STATE.totalDiskGb = null;
+assert.equal(vm.runInContext('healthScoreNow()', health), null, 'memory occupancy alone cannot fabricate a health reference');
 const dark = tokens(html.match(/:root\s*\{([^}]+)\}/)[1]);
 const light = { ...dark, ...tokens(html.match(/html\[data-theme="light"\]\s*\{([^}]+)\}/)[1]) };
 for (const theme of [dark, light]) {
@@ -186,12 +197,13 @@ assert.equal(vm.runInContext('matchesSearch({ pid: 8123 })', context), true);
 
 const receipts = vm.createContext({
   STATE: { module: 'clean', uninstallMode: 'standard', scanCompleted: true, homePath: '/Users/qa', collected: [], historyLogs: [], deletedPathsRegistry: [] },
-  pendingTrashRequests: new Map(), absolutePath: value => value, displayPath: value => value,
+  pendingTrashRequests: new Map(), pendingRestoreRequests: new Map(), absolutePath: value => value, displayPath: value => value,
   persistState() {}, updateSidebarBadges() {}, renderModule() {}, renderMenuBarTrayContent() {},
-  refreshAfterDestructive() {}, showToast() {},
+  refreshAfterDestructive() {}, showToast() {}, renderRuntimeBanner() {},
+  document: { getElementById() { return { classList: { contains() { return false; } } }; } },
 });
 receipts.window = receipts;
-['selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'resolveTrash'].forEach(name => load(name, receipts));
+['hasNum', 'fmtDiskSizeGb', 'selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'resolveTrash'].forEach(name => load(name, receipts));
 const partialGroup = { id: 'cache', name: 'Cache', path: '/tmp/cache', tier: 'safe', checked: true, sizeGb: 3, subpaths: [
   { path: '/tmp/cache/one', sizeGb: 1, checked: true },
   { path: '/tmp/cache/two', sizeGb: 2, checked: false },
@@ -209,6 +221,7 @@ vm.runInContext('let confirmedClean = buildCleanEntries(); window.executeConfirm
 receipts.resolveTrash({ requestId: 'partial', moved: [{ original: '/tmp/cache/one', trashed: '/trash/one' }], failed: [{ path: '/tmp/cache/two', error: 'Permission denied' }], movedCount: 1 });
 assert.equal(receipts.STATE.historyLogs.length, 1, 'every actual move has a restoration receipt, even on partial failure');
 assert.equal(receipts.STATE.historyLogs[0].restoreData.paths.join(','), '/tmp/cache/one');
+assert.equal(receipts.STATE.historyLogs[0].restoreData.trashedPaths['/tmp/cache/one'], '/trash/one', 'history retains the exact Trash target, not only the original basename');
 assert.equal(receipts.STATE.historyLogs[0].sizeGb, 1, 'partial receipt uses only known moved-path bytes');
 assert.equal(partialGroup.subpaths[1].cleaned, false);
 assert.equal(partialGroup.failed, true);
@@ -295,8 +308,8 @@ const analysis = vm.createContext({
 });
 analysis.window = analysis;
 ['hasNum', 'escHtml', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
-  'currentTiles', 'currentAggregated', 'analyzeScopeTotal', 'matchesSearch', 'analysisVisibleTiles', 'currentLargeFiles', 'scanRowsWithFailures',
-  'normalizeAggregated', 'squarifyRects', 'layoutTreemap', 'treemapPreviewHTML', 'absolutePath', 'permissionPaneForPath',
+  'currentTiles', 'currentAggregated', 'analyzeScopeTotal', 'matchesSearch', 'analysisSelectedSmallItem', 'analysisVisibleTiles', 'restoreAnalysisSelection', 'currentLargeFiles', 'scanRowsWithFailures',
+  'normalizeAggregated', 'squarifyRects', 'foldedTreemapTile', 'smallTreemapItems', 'layoutTreemap', 'treemapPreviewHTML', 'absolutePath', 'permissionPaneForPath',
   'groupRestrictedPaths', 'protectionReason'].forEach(name => load(name, analysis));
 loadCallback('onNativeDiskAnalyze', analysis);
 loadCallback('onNativeAnalyzeProgress', analysis);
@@ -320,11 +333,71 @@ analysis.STATE.searchQuery = '';
 analysis.STATE.analyzeSort = 'name';
 assert.deepEqual(Array.from(vm.runInContext('analysisVisibleTiles().map(x => x.name)', analysis)), ['Downloads', 'Projects']);
 analysis.STATE.analyzeSort = 'size';
+['pushTrail', 'goBack', 'goForward', 'setAnalyzeSort', 'drillTile', 'enterAnalyzeTile', 'drillUp', 'jumpToDepth', 'resetAnalysisScope'].forEach(name => load(name, analysis));
+analysis.STATE.analyzeSel = 0;
+analysis.STATE.treemap2D[0].childrenLoaded = true;
+analysis.STATE.treemap2D[0].children = [{ name: 'Canvas', path: '~/Projects/Canvas', diskGb: 2, isDir: true, childrenLoaded: true }];
+vm.runInContext('setAnalyzeSort("name")', analysis);
+assert.equal(vm.runInContext('analysisVisibleTiles()[STATE.analyzeSel].name', analysis), 'Projects', 'sorting preserves the inspected path');
+analysis.STATE.searchQuery = 'Projects';
+analysis.STATE.analyzeSel = 0;
+vm.runInContext('drillTile(0)', analysis);
+assert.equal(analysis.STATE.searchQuery, '', 'a parent filter does not hide a child directory');
+assert.equal(vm.runInContext('analysisVisibleTiles()[0].name', analysis), 'Canvas');
+vm.runInContext('drillUp()', analysis);
+assert.equal(vm.runInContext('analysisVisibleTiles()[STATE.analyzeSel].name', analysis), 'Projects', 'going up selects the sorted directory just left');
+vm.runInContext('goBack()', analysis);
+assert.equal(analysis.STATE.drillStack[0].name, 'Projects');
+analysis.STATE.searchQuery = 'no match';
+vm.runInContext('goForward()', analysis);
+assert.equal(analysis.STATE.drillStack.length, 0);
+assert.equal(analysis.STATE.searchQuery, '', 'history navigation resets the old scope filter');
+analysis.STATE.analyzeSort = 'size';
+analysis.STATE.analyzeSel = 0;
 assert.match(vm.runInContext('fmtModified(1700000000)', analysis), /\d{2}\/\d{2}/, 'modification time is rendered from the captured timestamp');
 const graph = vm.runInContext('layoutTreemap(STATE.treemap2D, STATE.analyzeAggregated)', analysis);
 const others = graph.find(t => t.__others);
 assert.ok(others && Math.abs(others.w * others.h / 100 - 12.5) < 0.02, 'aggregated bytes keep their actual share of treemap area');
 assert.equal(vm.runInContext('layoutTreemap([{sizeGb:0}], null).length', analysis), 0, 'zero allocation cannot invent a visible minimum area');
+const slimGraph = vm.runInContext('layoutTreemap([{name:"pkg",path:"~/go/pkg",sizeGb:94.9},{name:"bin",path:"~/go/bin",sizeGb:5.1}], null)', analysis);
+assert.equal(slimGraph.length, 2);
+assert.equal(slimGraph[1].name, 'bin', 'a few slim siblings keep their path instead of becoming synthetic Others');
+assert.ok(Math.abs(slimGraph[1].w * slimGraph[1].h / 100 - 5.1) < 0.02, 'slim siblings retain their exact share, without a minimum-area boost');
+analysis.slimGraph = slimGraph;
+const smallItems = vm.runInContext('smallTreemapItems(slimGraph)', analysis);
+assert.equal(smallItems.items[0].path, '~/go/bin', 'readable small-item details keep the original path');
+assert.equal(smallItems.sizeGb, 5.1, 'details report measured size rather than a boosted tile weight');
+const tinyGraph = vm.runInContext('layoutTreemap([{name:"main",path:"~/main",sizeGb:10},{name:"tiny",path:"~/tiny",sizeGb:0.000001}],null)', analysis);
+analysis.tinyGraph = tinyGraph;
+assert.equal(tinyGraph.length, 2, 'extremely small siblings keep an identity even when they cannot carry a map label');
+assert.equal(vm.runInContext('smallTreemapItems(tinyGraph).items[0].path', analysis), '~/tiny');
+analysis.denseTiles = [{ name: 'Main', path: '~/Main', diskGb: 90, isDir: true }, ...Array.from({ length: 20 }, (_, i) => ({ name: 'small-' + i, path: '~/small-' + i, diskGb: 0.2, isDir: true }))];
+let denseGraph = vm.runInContext('layoutTreemap(denseTiles, null)', analysis);
+let denseOther = denseGraph.find(tile => tile.__others);
+assert.ok(denseOther && denseOther.items.length > 0, 'front-end pixel folding retains inspectable identities without a backend aggregate');
+assert.equal(denseOther.knownCount, denseOther.items.length);
+assert.equal(denseOther.count, denseOther.items.length);
+assert.ok(denseOther.items.every(tile => tile.path.startsWith('~/small-')));
+analysis.mixedAggregate = { count: 30, sizeGb: 2, items: [{ name: 'backend.bin', path: '~/backend.bin', sizeGb: 1, isDir: false }] };
+denseGraph = vm.runInContext('layoutTreemap(denseTiles, mixedAggregate)', analysis);
+denseOther = denseGraph.find(tile => tile.__others);
+assert.equal(denseOther.count, denseOther.knownCount + 30, 'folded count includes known nodes and backend children exactly once');
+assert.equal(denseOther.sampleCount, 1);
+assert.equal(denseOther.unreported, 29);
+assert.equal(denseOther.items.at(-1).path, '~/backend.bin');
+assert.ok(Math.abs(denseOther.w * denseOther.h / 100 - denseOther.sizeGb / 96 * 100) < 0.03, 'mixed folding preserves the sum represented by its area');
+analysis.denseGraph = denseGraph;
+const denseDetails = vm.runInContext('smallTreemapItems(denseGraph)', analysis);
+assert.equal(denseDetails.count, denseOther.count);
+assert.equal(denseDetails.items.length, denseOther.items.length, 'side details include the same folded and sampled identities exactly once');
+assert.equal(denseDetails.unreported, 29, 'small details do not pretend bounded samples are a complete directory');
+analysis.STATE.analyzeMapFolded = denseOther;
+analysis.STATE.collected = [];
+analysis.clearInterval = () => {};
+['isCollected', 'cancelTrash', 'toggleCollectedObject', 'toggleOtherCollect'].forEach(name => load(name, analysis));
+vm.runInContext('toggleOtherCollect(0)', analysis);
+assert.equal(analysis.STATE.collected[0].path, denseOther.items[0].path, 'folded panel indices resolve the displayed node, not a backend sample index');
+assert.equal(analysis.STATE.collected[0].sizeGb, denseOther.items[0].diskGb, 'collection retains allocated size even when sizeGb is absent');
 analysis.previewTile = {
   name: 'Projects', path: '~/Projects', w: 52, h: 72,
   preview: [
@@ -348,7 +421,24 @@ assert.equal(groups[0].label, '~/Library/Containers');
 assert.equal(groups[0].count, 2);
 assert.equal(groups[0].pane, 'fullDiskAccess');
 assert.equal(groups[1].pane, 'filesAndFolders', 'documents permissions point at Files and Folders');
+analysis.limitWarning = [{ path: '~/Projects/Example/target', reason: '达到文件测量上限；只计入已读取部分' }];
+assert.equal(vm.runInContext('groupRestrictedPaths(limitWarning)[0].pane', analysis), '', 'a file budget limit is not mislabeled as a missing OS permission');
 assert.equal(vm.runInContext('fmtDiskSizeGb(0.000004096)', analysis), '4.1 KB', 'small real allocations never display as fictional GB');
+assert.equal(vm.runInContext('fmtDiskSizeGb(0.04, 1)', analysis), '40.0 MB', 'one-decimal labels do not round a nonzero allocation to zero GB');
+assert.equal(vm.runInContext('fmtDiskSizeGb(1, 1)', analysis), '1.0 GB', 'gigabyte allocations retain their display unit');
+load('appCacheSummary', analysis);
+analysis.STATE.scanCompleted = true;
+assert.equal(vm.runInContext('appCacheSummary({subpaths:[]}).state', analysis), '未发现已识别缓存', 'missing recognized paths are not proof of no app cache');
+assert.equal(vm.runInContext('appCacheSummary({subpaths:[{kind:"cache",sizeGb:0.04,tier:"protected",reason:"正在运行"}]}).state', analysis), '安全保留');
+assert.equal(vm.runInContext('appCacheSummary({subpaths:[{kind:"cache",sizeGb:null,partial:true}]}).size', analysis), '未读取', 'unread cache bytes do not turn into zero');
+['svgSparkline', 'statusTrend', 'fmtBytesPerSec', 'numOrNull', 'fmtNum'].forEach(name => load(name, analysis));
+assert.equal(vm.runInContext('statusTrend([], "#d97757", "CPU")', analysis), '', 'missing measurements have no invented chart');
+assert.ok(!vm.runInContext('statusTrend([24], "#d97757", "CPU")', analysis).includes('<svg'), 'one measurement cannot invent a history');
+assert.ok(vm.runInContext('statusTrend([0,100], "#d97757", "CPU")', analysis).includes('100%'));
+const thermalTrend = vm.runInContext('statusTrend([52,61], "#d97757", "温度", "°C")', analysis);
+assert.ok(thermalTrend.includes('70°C</span>') && !thermalTrend.includes('100%</span>'), 'temperature uses degrees, not a percentage scale');
+const idleTrend = vm.runInContext('statusTrend([0,0], "#d97757", "下载", "B/s")', analysis);
+assert.ok(idleTrend.includes('<svg') && !/NaN|Infinity/.test(idleTrend), 'measured idle throughput has a valid zero line');
 analysis.siblingPath = analysis.STATE.homePath + '-other/file';
 assert.equal(vm.runInContext('displayPath(siblingPath)', analysis), analysis.siblingPath);
 analysis.STATE.analyzeRequestId = 'child-2';
@@ -367,4 +457,44 @@ assert.equal(analysis.STATE.drillStack[0].files, 6);
 assert.equal(vm.runInContext('currentLargeFiles().length', analysis), 1);
 assert.equal(vm.runInContext('protectionReason(currentLargeFiles()[0])', analysis), 'runtime protected');
 assert.equal(analysis.STATE.analyzeRestricted.length, 1, 'a complete child does not erase a root restriction');
+analysis.STATE.analyzeRequestId = 'folded-3';
+analysis.STATE.drillStack = [{ name: 'notes', path: '~/Downloads/notes', sizeGb: 0.2, fromOther: true }];
+analysis.onNativeDiskAnalyze({ requestId: 'folded-3', path: '~/Downloads/notes', scanStatus: 'ok', totalSizeGb: 0.2,
+  treemap2D: [{ name: 'note.txt', path: '~/Downloads/notes/note.txt', diskGb: 0.2, isDir: false }] });
+assert.equal(analysis.STATE.drillStack[0].children[0].name, 'note.txt', 'a folded search result receives its requested children even outside the main tile array');
+analysis.STATE.analyzeRequestId = 'tiny-new-root';
+analysis.STATE.analyzePath = '~/tiny';
+analysis.STATE.analyzeRequestChildPath = '~/tiny';
+analysis.STATE.drillStack = [{name:'parent',path:'~/parent',children:[]},{name:'tiny',path:'~/tiny',children:[]}];
+analysis.onNativeDiskAnalyze({requestId:'tiny-new-root',root:'~/tiny',scanStatus:'ok',totalSizeGb:0.000004096,treemap2D:[{name:'small.txt',path:'~/tiny/small.txt',diskGb:0.000004096,isDir:false}]});
+assert.equal(analysis.STATE.drillStack.length, 2, 'a new native scan root must not discard the requested child navigation');
+assert.equal(analysis.STATE.drillStack.at(-1).children[0].name, 'small.txt', 'a result without path still belongs to the requested small directory');
+const rootPathsBefore = analysis.STATE.treemap2D.map(tile => tile.path).join('|');
+const rootTotalBefore = analysis.STATE.totalAnalyzedGb;
+analysis.STATE.analyzePath = '';
+analysis.STATE.drillStack = [];
+analysis.onNativeDiskAnalyze({requestId:'tiny-new-root',root:'~/tiny',scanStatus:'ok',totalSizeGb:0.000004096,treemap2D:[{name:'small.txt',path:'~/tiny/small.txt',diskGb:0.000004096,isDir:false}]});
+assert.equal(analysis.STATE.treemap2D.map(tile => tile.path).join('|'), rootPathsBefore, 'navigation changes cannot reclassify a late result as the root');
+assert.equal(analysis.STATE.totalAnalyzedGb, rootTotalBefore, 'a late child receipt cannot replace the root size');
+
+const quits = vm.createContext({
+  STATE: { processes: [{ pid: 8123, name: 'Canvas', path: '/Applications/Canvas.app/Contents/MacOS/Canvas' }] },
+  PROTECTED_PROCS: new Set(['Finder']), pendingProcessQuits: new Map(),
+  requestSeq: 0, sent: [], nextRequestId: () => 'quit-' + ++quits.requestSeq,
+  sendNativeBridge: payload => quits.sent.push(payload), showToast() {}, renderModule() {}, renderMenuBarTrayContent() {},
+});
+quits.window = quits;
+load('killProcessByPid', quits);
+vm.runInContext('killProcessByPid(8123)', quits);
+assert.equal(quits.STATE.processes.length, 1, 'requesting termination does not optimistically erase a real process');
+assert.equal(quits.sent[0].path, quits.STATE.processes[0].path, 'native termination carries the identity the user confirmed');
+quits.onNativeProcessQuitResult({ requestId: 'other', pid: 8123, ok: true });
+assert.equal(quits.pendingProcessQuits.size, 1, 'an unrelated native receipt cannot settle a process request');
+quits.onNativeProcessQuitResult({ requestId: quits.sent[0].requestId, pid: 8123, ok: false, error: 'identity changed' });
+assert.equal(quits.STATE.processes[0].quitError, 'identity changed');
+assert.equal(quits.STATE.processes[0].quitRequested, false);
+vm.runInContext('killProcessByPid(8123)', quits);
+quits.onNativeProcessQuitResult({ requestId: quits.sent[1].requestId, pid: 8123, ok: true });
+assert.equal(quits.STATE.processes.length, 1, 'SIGTERM acknowledgement is not proof that the process exited');
+assert.equal(quits.STATE.processes[0].quitRequested, true);
 console.log('UI regression checks passed: frozen selections, protected AI paths, scoped scan receipts, real treemap areas and dual-theme contrast; inline JavaScript parses.');

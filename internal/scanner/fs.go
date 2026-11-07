@@ -80,7 +80,8 @@ func scanReadWarnings(home string) []map[string]any {
 func walkFiles(dir string, maxFiles int, scanned *int, visit func(file string, bytes, modified int64)) {
 	entries := readDir(dir)
 	for _, entry := range entries {
-		if maxFiles > 0 && *scanned > maxFiles {
+		if maxFiles > 0 && *scanned >= maxFiles {
+			recordReadWarning(dir, "安装包遍历达到扫描上限；只统计已访问路径")
 			return
 		}
 		*scanned++

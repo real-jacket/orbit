@@ -2,9 +2,18 @@ package analyze
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestNativeAnalysisFailureDoesNotLaunchTheCLI(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	payload := PayloadFor(missing, true)
+	if payload.Error == "" || payload.ScanStatus != "error" || strings.Contains(payload.Source, "mo analyze") || strings.Contains(payload.Error, "安装") {
+		t.Fatalf("native failure must return directly, not a CLI/install fallback: %+v", payload)
+	}
+}
 
 const sampleAnalyzeJSON = `{
   "scan_status": "partial",

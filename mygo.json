@@ -18,7 +18,12 @@
       "CFBundleIdentifier": "com.mymoles.mole-studio",
       "LSMinimumSystemVersion": "13.0",
       "NSHighResolutionCapable": true,
-      "NSHumanReadableCopyright": "Copyright © 2024 MoleStudio"
+      "NSHumanReadableCopyright": "Copyright © 2024 MoleStudio",
+      "NSDesktopFolderUsageDescription": "检查桌面中的文件占用；只有你预览并确认的路径才会移入废纸篓。",
+      "NSDocumentsFolderUsageDescription": "检查文稿中的构建产物和文件占用；不会自动删除个人文件。",
+      "NSDownloadsFolderUsageDescription": "检查下载目录中的安装包和大文件；移除前展示并确认具体路径。",
+      "NSAppDataUsageDescription": "检查应用缓存、配置和卸载残留；凭据、模型和受保护数据保持原状，移除前需确认。",
+      "NSSystemAdministrationUsageDescription": "仅在你确认后释放系统文件缓存或将选定卸载路径移入废纸篓；不读取管理员密码，不自动修改系统设置。"
     }
   }
 }

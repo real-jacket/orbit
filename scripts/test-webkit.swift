@@ -26,7 +26,7 @@ final class Suite: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         scenarios = try JSONDecoder().decode([Scenario].self, from: Data(contentsOf: directory.appendingPathComponent("suite.json")))
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
-        let bootstrap = "window.__qa={actions:[],errors:[]}; window.addEventListener('error',e=>__qa.errors.push(e.message)); window.addEventListener('unhandledrejection',e=>__qa.errors.push(String(e.reason))); const originalError=console.error; console.error=(...args)=>{__qa.errors.push(args.map(String).join(' ')); originalError(...args);};"
+        let bootstrap = "window.__qa={actions:[],errors:[],motionQueries:[]};const nativeMatchMedia=window.matchMedia.bind(window);window.matchMedia=query=>{const media=nativeMatchMedia(query);if(query==='(prefers-reduced-motion: reduce)')__qa.motionQueries.push(media);return media;}; window.addEventListener('error',e=>__qa.errors.push(e.message)); window.addEventListener('unhandledrejection',e=>__qa.errors.push(String(e.reason))); const originalError=console.error; console.error=(...args)=>{__qa.errors.push(args.map(String).join(' ')); originalError(...args);};"
         config.userContentController.addUserScript(WKUserScript(source: bootstrap, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         web = WKWebView(frame: NSRect(x: 0, y: 0, width: 1380, height: 860), configuration: config)
         window = NSWindow(contentRect: web.frame, styleMask: [.borderless], backing: .buffered, defer: false)
@@ -70,7 +70,7 @@ final class Suite: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         if(/undefined|NaN|\\[object Object\\]/.test(content))throw new Error('Invalid visible values');
         qaAssert([...document.querySelectorAll('input[type=checkbox]')].every(i=>i.getAttribute('aria-label')),'checkboxes have accessible names');
         qaAssert(document.querySelectorAll('.nav-item.active').length===1 && document.querySelector('.nav-item.active').dataset.mod===STATE.module,'sidebar selection matches current module');
-        const report={width:innerWidth,height:innerHeight,pageErrors:__qa.errors.slice(),overflow,primary:document.getElementById('primaryBtnText').textContent,disabled:document.getElementById('primaryBtnText').closest('button').disabled,module:STATE.module,theme:document.documentElement.dataset.theme};
+        const report={width:innerWidth,height:innerHeight,pageErrors:__qa.errors.slice(),overflow,primary:document.getElementById('primaryBtnText').textContent,disabled:document.getElementById('primaryBtnText').closest('button').disabled,module:STATE.module,theme:document.documentElement.dataset.theme,motionEvidence:__qa.motionEvidence||null};
         document.getElementById('scanSourceBadge').textContent='Isolated fixture data / not a live scan';
         return JSON.stringify(report);
         """

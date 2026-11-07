@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mymoles/mole-studio/internal/telemetry"
 )
 
 // fixtureHome builds a temporary home with no whitelist file, so the default
@@ -21,6 +23,180 @@ func fixtureHome(t *testing.T) string {
 		t.Fatalf("MkdirAll(.config/mole): %v", err)
 	}
 	return home
+}
+
+func TestCPUBaselineIsUnknownAndReadyMemoryIsNotCapped(t *testing.T) {
+	s := &Scanner{}
+	if s.cpuShare(telemetry.Host{}) != nil {
+		t.Fatal("a CPU baseline cannot pretend the machine was idle")
+	}
+	if value := s.cpuShare(telemetry.Host{CPUReady: true, CPUPercent: 12.5}); value == nil || *value != 12.5 {
+		t.Fatalf("ready CPU = %v", value)
+	}
+	used, total := s.memoryUsage(telemetry.Host{MemReady: true, MemUsedGB: 31.9, MemTotalGB: 32})
+	if used == nil || *used != 31.9 || total != 32 {
+		t.Fatal("a ready memory reading must not be forced under 96%")
+	}
+}
+
+func TestActiveCachesAlsoProtectTheirAncestorsAndRunningApps(t *testing.T) {
+	home := fixtureHome(t)
+	app := filepath.Join(home, "Applications/Example.app")
+	writeFile(t, filepath.Join(app, "Contents/MacOS/Example"), "fixture")
+	s := &Scanner{home: home, processProbe: func() (string, error) { return "/opt/homebrew/bin/go\n" + app + "/Contents/MacOS/Example\n", nil }}
+	for _, path := range []string{filepath.Join(home, "go/pkg"), app} {
+		if reason := s.CleanupReason(path); !strings.Contains(reason, "运行") {
+			t.Fatalf("a parent or running application bypassed activity protection: %s, %q", path, reason)
+		}
+	}
+}
+
+func TestInstalledAppsDoNotTruncateOrMergeDuplicateBundleIDs(t *testing.T) {
+	home := fixtureHome(t)
+	applications := filepath.Join(home, "Applications")
+	utilities := filepath.Join(applications, "Utilities")
+	for i := 0; i < 22; i++ {
+		path := filepath.Join(applications, "App"+itoa64(int64(i))+".app")
+		writeFile(t, filepath.Join(path, "Contents/Info.plist"), `<plist><dict><key>CFBundleIdentifier</key><string>com.example.shared</string></dict></plist>`)
+		writeFile(t, filepath.Join(path, "Contents/MacOS/payload"), "fixture")
+	}
+	writeFile(t, filepath.Join(utilities, "Utility.app/Contents/MacOS/payload"), "fixture")
+	rows := (&Scanner{home: home}).scanInstalledApps(applications, utilities)
+	if len(rows) != 23 {
+		t.Fatalf("got %d installed apps, want all 23", len(rows))
+	}
+	ids := map[string]bool{}
+	for _, row := range rows {
+		id := row["id"].(string)
+		if ids[id] || row["version"] != "" || row["checked"] != false {
+			t.Fatalf("app identity, unknown version, or selection was fabricated: %+v", row)
+		}
+		ids[id] = true
+	}
+}
+
+func TestOrphanClaimsIncludeTheExactPathAndAPFSAliases(t *testing.T) {
+	paths := map[string]struct{}{"/Users/me/Library/Caches/Example": {}}
+	for _, path := range []string{"/Users/me/Library/Caches/Example", "/users/ME/library/caches/example", "/Users/me/Library/Caches/Example/child", "/Users/me/Library/Caches"} {
+		if !claimed(paths, path) {
+			t.Fatalf("already claimed path was offered twice: %s", path)
+		}
+	}
+	if claimed(paths, "/Users/me/Library/Caches/Example-Other") {
+		t.Fatal("a similar name is not an ancestor or the same path")
+	}
+}
+
+func TestUnclaimedPartialContainersRemainUnselectable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read the denied fixture")
+	}
+	home := fixtureHome(t)
+	path := fixtureDir(t, home, "Library/Containers/com.example.unread", 4096)
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o755) })
+	s := &Scanner{home: home}
+	rows := s.scanUnclaimedContainers(home, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
+	if len(rows) != 1 || rows[0]["partial"] != true || rows[0]["tier"] != "protected" || rows[0]["checked"] != false {
+		t.Fatalf("incomplete container was hidden or authorized: %+v", rows)
+	}
+	sp := rows[0]["subpaths"].([]map[string]any)[0]
+	if sp["partial"] != true || sp["checked"] != false {
+		t.Fatalf("incomplete subpath lost its safety gate: %+v", sp)
+	}
+}
+
+func TestBuildAndSignatureCandidatesNeedExplicitSelection(t *testing.T) {
+	home := fixtureHome(t)
+	fixtureDir(t, home, "Projects/Example/target", 21_000_000)
+	fixtureDir(t, home, "Library/Containers/com.docker.docker", 4096)
+	s := &Scanner{home: home, processProbe: func() (string, error) { return "/sbin/launchd\n", nil }}
+	rows := s.scanBuildArtifacts()
+	if len(rows) != 1 || rows[0]["checked"] != false || rows[0]["tier"] != "review" || rows[0]["gitClean"] != "未检查版本库" {
+		t.Fatalf("directory names cannot authorize building cleanup: %+v", rows)
+	}
+	orphans := s.scanOrphanedLeftovers()
+	if len(orphans) == 0 {
+		t.Fatal("signature fixture was not inspected")
+	}
+	for _, row := range orphans {
+		if row["checked"] == true {
+			t.Fatalf("an absent bundle cannot pre-authorize its data: %+v", row)
+		}
+	}
+	s.processProbe = func() (string, error) { return "/opt/homebrew/bin/cargo\n", nil }
+	path := filepath.Join(home, "Projects/Example/target")
+	if reason := s.CleanupReason(path); !strings.Contains(reason, "正在运行") {
+		t.Fatalf("an active build bypassed the final cleanup gate: %q", reason)
+	}
+	if row := s.scanBuildArtifacts()[0]; row["tier"] != "protected" || row["checked"] != false {
+		t.Fatalf("active build protection was hidden from inspection: %+v", row)
+	}
+}
+
+func TestBuildDiscoveryDoesNotSpendDirectoryBudgetOnSourceFiles(t *testing.T) {
+	home := fixtureHome(t)
+	for index := 0; index < 12; index++ {
+		writeFile(t, filepath.Join(home, "code/aaa-source", "source-"+itoa64(int64(index))+".txt"), "fixture")
+	}
+	artifact := fixtureDir(t, home, "code/zzz-project/target", 21_000_000)
+	scanner := &Scanner{home: home}
+	var candidates []artifactCandidate
+	visited := 0
+	scanner.walkArtifacts(filepath.Join(home, "code"), 3, &visited, &candidates)
+	if visited > 3 || len(candidates) != 1 || candidates[0].path != artifact {
+		t.Fatalf("ordinary source files exhausted the directory budget: visited=%d candidates=%v", visited, candidates)
+	}
+}
+
+func TestBuildDiscoveryNeverTreatsANamedRegularFileAsAnArtifactDirectory(t *testing.T) {
+	home := fixtureHome(t)
+	project := filepath.Join(home, "code/Example")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "target"), make([]byte, 21_000_000), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rows := (&Scanner{home: home}).scanBuildArtifacts()
+	if len(rows) != 0 {
+		t.Fatalf("a source file named target is not a build directory: %v", rows)
+	}
+}
+
+func TestBuildDiscoveryKeepsAnIndependentBoundedBudgetForEachRoot(t *testing.T) {
+	home := fixtureHome(t)
+	for index := 0; index < 4000; index++ {
+		if err := os.MkdirAll(filepath.Join(home, "Projects", "source-"+itoa64(int64(index))), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	artifact := fixtureDir(t, home, "code/Example/target", 21_000_000)
+	scanner := &Scanner{home: home, processProbe: func() (string, error) { return "/sbin/launchd\n", nil }}
+	rows := scanner.scanBuildArtifacts()
+	if len(rows) != 1 || rows[0]["path"] != scanner.relativize(artifact) || rows[0]["checked"] != false || rows[0]["tier"] != "review" {
+		t.Fatalf("one root must not hide another root or pre-authorize its artifacts: %v", rows)
+	}
+}
+
+func TestBuildDiscoveryStillStopsAtItsDirectoryLimit(t *testing.T) {
+	home := fixtureHome(t)
+	for index := 0; index < 8; index++ {
+		if err := os.MkdirAll(filepath.Join(home, "code/aaa-source", "directory-"+itoa64(int64(index))), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fixtureDir(t, home, "code/zzz-project/target", 21_000_000)
+	scanner := &Scanner{home: home}
+	var candidates []artifactCandidate
+	visited := 0
+	scanner.walkArtifacts(filepath.Join(home, "code"), 3, &visited, &candidates)
+	warnings := scanReadWarnings(home)
+	if visited != 3 || len(candidates) != 0 || len(warnings) == 0 {
+		t.Fatalf("directory discovery must remain bounded: visited=%d candidates=%v warnings=%v", visited, candidates, warnings)
+	}
 }
 
 func TestAppSubpathsExposeUnroundedMeasuredSize(t *testing.T) {
@@ -38,6 +214,68 @@ func TestAppSubpathsExposeUnroundedMeasuredSize(t *testing.T) {
 	}
 	if len(paths) != 1 || paths[0]["sizeGb"] != plainGB(wantBytes) {
 		t.Fatalf("subpaths = %v", paths)
+	}
+}
+
+func TestAppCacheDiscoveryKeepsProtectedMeasurements(t *testing.T) {
+	home := fixtureHome(t)
+	chrome := fixtureDir(t, home, "Library/Caches/Google/Chrome", 4096)
+	codex := fixtureDir(t, home, "Library/Caches/com.openai.codex", 8192)
+	s := &Scanner{home: home, processProbe: func() (string, error) { return "/sbin/launchd\n", nil }}
+	var paths []map[string]any
+	if got := s.appendExisting(s.appCacheCandidates("Google Chrome", "com.google.Chrome"), "cache", true, &paths); got <= 0 {
+		t.Fatal("Chrome's vendor cache was not measured")
+	}
+	if len(paths) != 1 || paths[0]["path"] != s.relativize(chrome) || paths[0]["checked"] != true {
+		t.Fatalf("Chrome cache = %v", paths)
+	}
+	paths = nil
+	got := s.appendExisting([]string{codex, codex}, "cache", true, &paths)
+	if len(paths) != 1 || got <= 0 || paths[0]["checked"] != false || paths[0]["tier"] != "protected" {
+		t.Fatalf("protected cache must be measured once and remain unselected: %v", paths)
+	}
+	if s.CleanupReason(codex) == "" {
+		t.Fatal("inspection must not relax the cleanup boundary")
+	}
+	paths = nil
+	s.processProbe = func() (string, error) { return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\n", nil }
+	s.appendExisting(s.appCacheCandidates("Google Chrome", "com.google.Chrome"), "cache", true, &paths)
+	if len(paths) != 1 || paths[0]["checked"] != false || !strings.Contains(paths[0]["reason"].(string), "正在运行") {
+		t.Fatalf("active Chrome cache = %v", paths)
+	}
+}
+
+func TestAppMetadataCannotPointCacheOrConfigOutsideTheirRoots(t *testing.T) {
+	s := &Scanner{home: fixtureHome(t)}
+	for _, name := range []string{"", ".", "..", "../../Documents/Private", "/Users/other/data", "name/child", "app\x00ignored"} {
+		if appDataComponent(name) || len(s.appCacheCandidates(name, name)) != 0 || len(s.appConfigCandidates(name, name)) != 0 {
+			t.Fatalf("bundle metadata became an arbitrary path: %q", name)
+		}
+	}
+	for _, path := range s.appCacheCandidates("Owner's App", "com.example.app") {
+		if !withinPath(path, filepath.Join(s.home, "Library/Caches")) {
+			t.Fatalf("cache escaped its root: %s", path)
+		}
+	}
+}
+
+func TestAppCacheIncompleteMeasurementRemainsVisible(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read permission-denied fixture")
+	}
+	home := fixtureHome(t)
+	path := fixtureDir(t, home, "Library/Caches/Denied", 4096)
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o755) })
+	var paths []map[string]any
+	s := &Scanner{home: home}
+	if got := s.appendExisting([]string{path}, "cache", true, &paths); got != 0 {
+		t.Fatalf("unread bytes = %d", got)
+	}
+	if len(paths) != 1 || paths[0]["partial"] != true || paths[0]["checked"] != false || paths[0]["sizeGb"] != nil {
+		t.Fatalf("an unread cache must not be hidden or reported as zero: %v", paths)
 	}
 }
 

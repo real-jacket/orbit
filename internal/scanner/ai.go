@@ -188,7 +188,7 @@ func (s *Scanner) scanAIWorktrees(claims *catalogClaims) []map[string]any {
 					Rebuild: "工作成果不能按可重建缓存处理",
 				}, claims, nil)
 				if row != nil {
-					row["band"], row["gitState"] = "工作成果（仅检查）", state
+					row["band"], row["gitState"], row["tool"] = "工作成果（仅检查）", state, spec.tool
 					rows = append(rows, row)
 				}
 			}

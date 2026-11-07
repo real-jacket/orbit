@@ -1,7 +1,8 @@
-# orbit — native macOS client for the `mo` CLI.
+# orbit — native macOS storage and system tools.
 #
 #   make            build the Go executable
-#   make run        build and launch straight from the checkout
+#   make run        build and launch a permission-identifiable .app bundle
+#   make run-raw    launch a temporary executable for bridge debugging
 #   make test       run the unit test suite
 #   make vet        run the Go static checker
 #   make dev        run the MyGo dev server (live reload, needs the `mygo` CLI)
@@ -39,7 +40,7 @@ MYGO     ?= mygo
 GO       ?= go
 NODE     ?= node
 
-.PHONY: all build run test test-ui-webkit vet dev app app-nodmg generate set-version doctor check clean help
+.PHONY: all build run run-raw test test-ui-webkit vet dev app app-nodmg generate set-version doctor check clean help
 
 all: build
 
@@ -49,17 +50,19 @@ all: build
 build:
 	$(GO) build -v -o $(BIN) .
 
-## Build and launch the app straight from the checkout. No `mygo` CLI needed:
-## a plain `go run` has no embedded frontend (mygo_frontend_gen.go is only
-## written by `mygo build`, and it is gitignored), so point MyGo's dev fallback
-## at the files on disk. Without this the window shows its "No frontend" page.
+## Build and launch a stable macOS app bundle so permission ownership is explicit.
 run:
+	GO="$(GO)" MYGO="$(MYGO)" OUT_DIR="$(OUT_DIR)" bash scripts/run-app.sh
+
+## Temporary plain executable for bridge debugging; permissions belong to its launcher.
+run-raw:
 	MYGO_FRONTEND_DIST=Resources/src-ui $(GO) run .
 
 ## Run the unit test suite.
 test:
 	$(GO) test ./... -count=1
 	$(NODE) scripts/test-ui.cjs
+	$(NODE) scripts/test-run.cjs
 
 ## Render and verify isolated UI fixtures in macOS WebKit (requires the Xcode command-line tools).
 test-ui-webkit:
