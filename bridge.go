@@ -165,6 +165,10 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		if theme := stringOf(payload["theme"]); theme == themeDark || theme == themeLight || theme == themeSystem {
 			applyTheme(theme, true)
 		}
+	case "setLanguage":
+		// The page owns the choice (localStorage orbit_lang) and says whether the
+		// user made it; Go keeps it for the menu, tooltip and update window.
+		applyLanguage(stringOf(payload["language"]), payload["explicit"] == true)
 	case "openPrivacySettings":
 		// A failed clean or uninstall is usually a missing TCC grant, and the
 		// switch that fixes it lives two clicks deep in System Settings.
@@ -427,7 +431,7 @@ func setCaffeinate(active bool) {
 		pushCaffeinateState(false)
 		return
 	}
-	hold := &caffeinateAssertion{release: mygo.Power.KeepAwake("orbit 保持唤醒", true)}
+	hold := &caffeinateAssertion{release: mygo.Power.KeepAwake(L("orbit 保持唤醒", "orbit is keeping the Mac awake"), true)}
 	// The timer tells the page too, instead of leaving the switch on forever.
 	hold.timer = time.AfterFunc(2*time.Hour, func() {
 		caffeinateMu.Lock()

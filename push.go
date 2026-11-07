@@ -68,15 +68,7 @@ func pushRealTelemetry(withProcesses bool) {
 	go func() {
 		snapshot := scanner.Shared.BuildTelemetry(withProcesses)
 		if trayItem != nil {
-			cpu := "未知"
-			if snapshot.CPU != nil {
-				cpu = fmt.Sprintf("%.1f%%", *snapshot.CPU)
-			}
-			pressure := map[string]string{"normal": "正常", "warn": "偏高", "critical": "很高"}[snapshot.Power.MemPressure]
-			if pressure == "" {
-				pressure = "未知"
-			}
-			trayItem.SetToolTip(fmt.Sprintf("orbit · 最近采样\nCPU %s · 内存压力%s\n启动磁盘可用 %.1f GB", cpu, pressure, snapshot.FreeDiskGb))
+			trayItem.SetToolTip(telemetryToolTip(snapshot.CPU, snapshot.Power.MemPressure, snapshot.FreeDiskGb))
 		}
 		evaluate("window.onNativeRealTelemetry ? window.onNativeRealTelemetry(" + jsonOf(snapshot) + ") : undefined")
 	}()
@@ -250,6 +242,15 @@ func pushDoctorReport(requestID string, checks []map[string]any) {
 func pushFlyoutTheme(theme string) {
 	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
 		_, _ = w.Page().Eval("window.onNativeTheme ? window.onNativeTheme(" + jsonOf(theme) + ") : undefined")
+	}
+}
+
+// pushFlyoutLanguage tells the menu-bar panel which language the main window
+// chose, the way pushFlyoutTheme does: the panel is usually hidden, so it cannot
+// go through evaluate.
+func pushFlyoutLanguage(lang string) {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
+		_, _ = w.Page().Eval("window.onNativeLanguage ? window.onNativeLanguage(" + jsonOf(lang) + ") : undefined")
 	}
 }
 
