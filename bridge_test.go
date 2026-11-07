@@ -3,7 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -231,5 +236,51 @@ func TestAppBundleFromExecutableFindsTheOuterBundle(t *testing.T) {
 	plain := appBundleFromExecutable("/tmp/go-build/orbit")
 	if plain != "/tmp/go-build/orbit" {
 		t.Fatalf("plain executable path = %q", plain)
+	}
+}
+
+// Dispatch drops an action it does not know without a word, and the page's
+// sendNativeBridge swallows errors, so a typo on either side is invisible. This
+// ties the two together: every action the page can post must have a case.
+func TestDispatchHandlesEveryActionThePagePosts(t *testing.T) {
+	page, err := os.ReadFile("Resources/src-ui/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Literal actions, plus the menubar routes the page passes around by name.
+	posted := map[string]bool{}
+	for _, m := range regexp.MustCompile(`action:\s*['"](\w+)['"]|'(menubar(?:Open|Show)[A-Za-z]+|menubarQuit)'`).FindAllStringSubmatch(string(page), -1) {
+		posted[m[1]+m[2]] = true
+	}
+	if len(posted) < 20 {
+		t.Fatalf("found only %d page actions; the pattern no longer matches the page", len(posted))
+	}
+
+	file, err := parser.ParseFile(token.NewFileSet(), "bridge.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handled := map[string]bool{}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "Dispatch" {
+			continue
+		}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if clause, ok := n.(*ast.CaseClause); ok {
+				for _, expr := range clause.List {
+					if lit, ok := expr.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+						name, _ := strconv.Unquote(lit.Value)
+						handled[name] = true
+					}
+				}
+			}
+			return true
+		})
+	}
+	for action := range posted {
+		if !handled[action] {
+			t.Errorf("the page posts %q but Dispatch has no case for it", action)
+		}
 	}
 }

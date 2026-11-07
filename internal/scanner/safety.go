@@ -48,6 +48,11 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 			return Protection{Pattern: root, Reason: "核心目录不能整体移除，请进入后检查子项"}, true
 		}
 	}
+	for _, root := range []string{"/Library/LaunchAgents", "/Library/LaunchDaemons"} {
+		if withinPath(path, root) {
+			return Protection{Pattern: root, Reason: "需要管理员权限，仅列出"}, true
+		}
+	}
 	if strings.EqualFold(filepath.Dir(path), "/Volumes") {
 		return Protection{Pattern: path, Reason: "卷根目录不能整体移除，请进入后检查子项"}, true
 	}
@@ -62,7 +67,7 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 	if isAIVersionEntry(path, home) {
 		return Protection{}, false
 	}
-	if _, _, known := aiCleanupData(path, home); known {
+	if _, _, known := aiCleanupData(path, home); known || aiSessionShape(path, home) {
 		return Protection{}, false
 	}
 	for _, entry := range aiCacheSpecs() {
@@ -142,7 +147,11 @@ func (s *Scanner) cleanupProcesses() (string, error) {
 
 // CleanupReason is shared by candidate inspection and the final move boundary.
 // A cached scan never grants permission to remove newly active or protected data.
-func (s *Scanner) CleanupReason(raw string) string {
+func (s *Scanner) CleanupReason(raw string) string { return s.cleanupReason(raw, false) }
+
+// cleanupReason with live=true is the move boundary: it adds the per-path
+// process and open-file checks that display-only callers skip for session units.
+func (s *Scanner) cleanupReason(raw string, live bool) string {
 	if s.home == "" || s.home == "/" {
 		return "无法确定用户家目录，停止清理"
 	}
@@ -177,6 +186,9 @@ func (s *Scanner) CleanupReason(raw string) string {
 			return "路径经过符号链接，不能证明清理边界；请在访达中检查原始路径"
 		}
 	}
+	if reason, known := s.aiSessionCleanupReason(path, live); known {
+		return reason
+	}
 	if entry, root, known := aiCleanupData(path, s.home); known {
 		return s.aiDataCleanupReason(path, root, entry)
 	}
@@ -185,10 +197,8 @@ func (s *Scanner) CleanupReason(raw string) string {
 		if err != nil || strings.TrimSpace(processes) == "" {
 			return "无法确认应用是否运行，保持原状"
 		}
-		for _, command := range strings.Split(processes, "\n") {
-			if withinPath(strings.TrimSpace(command), path) {
-				return "应用仍在运行，请先正常退出后重新扫描"
-			}
+		if running, _ := appRunning(parseProcessLines(processes), path); running {
+			return "应用仍在运行，请先正常退出后重新扫描"
 		}
 	}
 	for _, spec := range aiVersionSpecs {

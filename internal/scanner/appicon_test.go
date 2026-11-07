@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -189,11 +190,38 @@ func TestExtractAppIconReadsTheBundlesOwnArtwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := extractAppIcon(app)
-	if !strings.HasPrefix(got, "data:image/png;base64,") {
-		t.Fatalf("expected a png data URL, got %q", got)
+	if !isPNG(got) {
+		t.Fatalf("expected png bytes, got %d bytes", len(got))
 	}
-	if len(got) <= len("data:image/png;base64,") {
-		t.Fatalf("data URL carries no payload: %q", got)
+}
+
+// TestIconHandlerServesOnlyExtractedIcons: the scheme serves the PNG behind an
+// issued URL and nothing else, so the page cannot read arbitrary files.
+func TestIconHandlerServesOnlyExtractedIcons(t *testing.T) {
+	app := t.TempDir()
+	resources := filepath.Join(app, "Contents", "Resources")
+	if err := os.MkdirAll(resources, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(resources, "a.icns"), testICNS([2]any{"ic08", testPNG(t, 12)}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	url := appIconURL(app)
+	if !strings.HasPrefix(url, IconScheme+"://localhost/") || len(url) > 64 {
+		t.Fatalf("expected a short icon URL, got %q", url)
+	}
+	get := func(target string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		IconHandler().ServeHTTP(rec, httptest.NewRequest("GET", target, nil))
+		return rec
+	}
+	if rec := get(url); rec.Code != 200 || !isPNG(rec.Body.Bytes()) {
+		t.Fatalf("issued URL: %d, %d bytes", rec.Code, rec.Body.Len())
+	}
+	for _, bad := range []string{"/etc/passwd", "/../../etc/passwd", "/" + filepath.Join(resources, "a.icns"), "/0000000000000000.png"} {
+		if rec := get(bad); rec.Code != 404 {
+			t.Errorf("%s: want 404, got %d", bad, rec.Code)
+		}
 	}
 }
 
@@ -211,15 +239,15 @@ func TestExtractAppIconFallsBackToAnyICNS(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(resources, "whatever.icns"), testICNS([2]any{"ic08", testPNG(t, 12)}), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := extractAppIcon(app); !strings.HasPrefix(got, "data:image/png;base64,") {
-		t.Fatalf("expected the fallback icon, got %q", got)
+	if got := extractAppIcon(app); !isPNG(got) {
+		t.Fatalf("expected the fallback icon, got %d bytes", len(got))
 	}
 }
 
-// TestAppIconDataURLIsEmptyForBareBundles keeps the page's fallback icon in play
+// TestAppIconURLIsEmptyForBareBundles keeps the page's fallback icon in play
 // when there is no artwork at all.
-func TestAppIconDataURLIsEmptyForBareBundles(t *testing.T) {
-	if got := appIconDataURL(t.TempDir()); got != "" {
+func TestAppIconURLIsEmptyForBareBundles(t *testing.T) {
+	if got := appIconURL(t.TempDir()); got != "" {
 		t.Fatalf("expected no icon for an empty directory, got %q", got)
 	}
 }

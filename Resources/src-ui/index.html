@@ -34,7 +34,6 @@
     --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.28);
     --accent-ink: #1a1613;
     --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
-    --analysis-list-width: 324px;
     --ease: cubic-bezier(0.16, 1, 0.3, 1); --dur-1: 120ms; --dur-2: 180ms;
     --ring: 0 0 0 2px var(--bg-window), 0 0 0 4px var(--accent-primary);
     --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.72);
@@ -486,7 +485,6 @@
   }
 
   .list-body { flex: 1; overflow-y: auto; }
-  .analysis-large-files { flex: none; max-height: 360px; }
   .list-row {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 16px; border-bottom: 1px solid var(--border-subtle);
@@ -546,81 +544,136 @@
   .subpath-left { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; display: flex; align-items: center; gap: 6px; }
   .subpath-right { font-weight: 700; color: var(--text-primary); white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
 
-  /* Analyze 2D Treemap & Breadcrumb Bar */
-  .breadcrumb-bar {
-    display: grid; grid-template-columns: calc(var(--analysis-list-width) - 1px) minmax(0, 1fr);
-    align-items: center; gap: var(--space-3); padding: var(--space-2) 0;
-    background: var(--bg-card); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md); font-size: 11.5px; flex-shrink: 0;
-    min-height: 40px; height: auto; overflow: hidden;
-  }
-  .breadcrumb-bar .btn { height: 28px; min-width: 28px; padding: 0 8px; font-size: 10.5px; flex: none; }
-  .breadcrumb-bar .icon-btn, .breadcrumb-bar .crumb-icon-btn:not(.crumb-basket-btn) { width: 28px; padding: 0; }
+  /* Analyze: summary row, toolbar, map + inspector */
+  .breadcrumb-bar { display: flex; align-items: center; gap: var(--space-2); font-size: 12px; flex: none; min-height: 28px; min-width: 0; overflow: hidden; }
+  .breadcrumb-bar .btn { height: 28px; min-width: 28px; padding: 0 8px; font-size: 11px; flex: none; }
+  .breadcrumb-bar .icon-btn { width: 28px; padding: 0; justify-content: center; }
   .crumb-item {
-    padding: 2px 7px; border: 0; background: transparent; font: inherit; border-radius: 4px;
+    padding: 2px 8px; border: 0; background: transparent; font: inherit; border-radius: var(--radius-sm);
     cursor: pointer; color: var(--text-secondary); font-weight: 500; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .crumb-item:hover { color: var(--text-primary); }
-  .crumb-item.active { background: var(--accent-soft); color: var(--accent-primary); font-weight: 700; }
+  .crumb-item.active { color: var(--text-primary); font-size: 15px; font-weight: 700; }
 
+  .analysis-summary {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex: none;
+    padding: var(--space-3) var(--space-4); background: var(--bg-surface);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  }
+  .as-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: var(--space-1); }
+  .as-source { min-width: 0; font-size: 12px; color: var(--text-muted); }
+  .as-source { flex: none; }
+  .as-source:not(:empty)::before { content: "· "; }
   .facts-bar {
-    display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-height: 26px; overflow: hidden;
-    padding: 6px 12px; font-size: 11px; color: var(--text-secondary);
-    border-bottom: 1px solid var(--border-subtle); font-variant-numeric: tabular-nums;
+    display: flex; align-items: center; gap: var(--space-2); flex-wrap: nowrap; min-height: 18px; overflow: hidden;
+    font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
   }
   /* 统计条永远一行：扫描结束时它从占位文案换成真实数字，行数一变就会顶动下面的图表 */
   .facts-bar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .treemap-split { display: grid; grid-template-columns: var(--analysis-list-width) minmax(0, 1fr); gap: var(--space-3); height: 336px; flex-shrink: 0; }
-  /* 两栏高度固定：列表在自己的卡片里滚动，占位行不会溢到卡片外 */
-  .treemap-split { grid-template-rows: 100%; overflow: hidden; }
-  .treemap-split > * { min-width: 0; min-height: 0; overflow: hidden; }
-  .treemap-split > .panel-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  .treemap-split > .panel-card > .panel-header { flex: none; }
-  .treemap-split > .panel-card > .list-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-  .treemap-stage {
-    position: relative; width: 100%; height: 100%; min-height: 304px; border-radius: var(--radius-lg);
-    overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); padding: 4px;
+  .facts-bar > .as-note, .facts-bar > .as-link { flex: none; }
+  .as-note::before, .as-link::before { content: "· "; color: var(--text-muted); }
+  .as-link {
+    border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; white-space: nowrap;
+    color: var(--accent-primary); text-decoration: underline; text-underline-offset: 2px;
   }
-  .analysis-map { display: grid; grid-template-rows: minmax(0, 1fr) 24px; gap: 4px; }
-  .analysis-map > .treemap-stage { height: 100%; min-height: 0; }
-  .analysis-map.has-small-items { grid-template-columns: minmax(0, 1fr) minmax(192px, 30%); gap: 4px 8px; }
-  .analysis-map.has-small-items > .analysis-map-note { grid-column: 1 / -1; }
-  .analysis-map.has-small-items.small-items-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto 24px; }
-  .analysis-map.small-items-collapsed > .analysis-small-items { grid-column: 1; grid-row: 2; }
-  .analysis-small-items { display: none; min-height: 0; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
-  .has-small-items > .analysis-small-items { display: flex; grid-column: 2; grid-row: 1; }
-  .analysis-small-items .analysis-other { border-top: 0; width: 100%; display: flex; flex-direction: column; }
-  .analysis-small-items .analysis-other-toggle { padding: 8px; font-size: 11px; flex: none; align-items: flex-start; }
-  .analysis-small-items .analysis-other-toggle > span:last-child { font-size: 10.5px; text-align: right; }
-  .analysis-small-items .analysis-other-body { flex: 1; min-height: 0; max-height: none; }
-  .analysis-small-items .analysis-other-row { grid-template-columns: minmax(0, 1fr) auto; padding: 8px; gap: 6px; }
+  .as-link::before { text-decoration: none; display: inline-block; text-decoration-line: none; }
+  .as-vol { flex: none; width: 220px; display: flex; flex-direction: column; gap: var(--space-1); font-size: 12px; white-space: nowrap; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .as-vol b { color: var(--text-primary); font-family: var(--font-mono); font-weight: 700; }
+  .as-cap { height: 4px; border-radius: 2px; background: var(--bg-input); overflow: hidden; display: block; }
+  .as-cap i { display: block; height: 100%; background: var(--accent-primary); border-radius: 2px; }
+  .analysis-restricted { flex: none; max-height: 28vh; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); padding-top: var(--space-3); }
+
+  .treemap-split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-3); flex: 1; min-height: 0; }
+  .treemap-split > * { min-width: 0; min-height: 0; }
+  .analysis-map { position: relative; display: flex; }
+  .treemap-stage {
+    position: relative; flex: 1; min-width: 0; min-height: 0; border-radius: var(--radius-lg);
+    overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  }
+  /* 悬停详情浮在地图底边内侧，不占列高，两列上下沿才能对齐。 */
+  .analysis-map-note { position: absolute; z-index: 4; left: var(--space-2); right: var(--space-2); bottom: var(--space-2); display: flex; justify-content: flex-start; pointer-events: none; }
+  .analysis-map-note .crumb-preview { flex: none; max-width: 100%; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--border-subtle); text-align: left; }
+
+  .analysis-inspector { display: flex; flex-direction: column; overflow: hidden; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
+  .analysis-inspector .crumb-actions { flex: none; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+  .insp-tabs {
+    flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin: var(--space-3) var(--space-3) var(--space-2); padding: 2px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  }
+  .insp-tab {
+    height: 28px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary);
+    font: 600 12px/1 var(--font-sans); cursor: pointer; white-space: nowrap;
+    transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .insp-tab i { font: 11px var(--font-mono); font-style: normal; color: var(--text-muted); margin-left: 2px; font-variant-numeric: tabular-nums; }
+  .insp-tab:hover:not([aria-disabled="true"]) { color: var(--text-primary); }
+  .insp-tab.active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 0 0 1px var(--border-subtle); }
+  .insp-tab[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+  .insp-panes { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .insp-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .insp-pane > .list-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 0 var(--space-2) var(--space-2); }
+  .insp-pane .list-row { padding: var(--space-2); border-radius: calc(var(--radius-lg) - var(--space-2)); }
+  .insp-note { flex: none; padding: var(--space-1) var(--space-3) var(--space-2); font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .insp-empty { padding: var(--space-4) var(--space-3); font-size: 12px; line-height: 1.5; color: var(--text-secondary); text-align: center; }
+  .analysis-children > .analysis-list-tools { flex: none; padding: var(--space-1) var(--space-4) var(--space-2); }
+  .analysis-children > .analysis-list-tools > span { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .analysis-children .row-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .analysis-children .pct-line { flex-wrap: wrap; gap: 0 var(--space-2); white-space: normal; }
+  .analysis-children .pct-bar { flex-basis: 36px; }
+  .analysis-children .pct-bar i { background: var(--accent-primary); opacity: 0.8; }
+  .analysis-large-files .list-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+  .analysis-large-files .row-right { justify-content: flex-end; }
+  .analysis-large-files .row-right .btn { padding: 3px 9px; font-size: 11px; }
+  .analysis-small-items .analysis-other { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 0; }
+  .analysis-small-items .analysis-other-toggle { flex: none; padding: var(--space-1) var(--space-3) var(--space-2); font-size: 11px; }
+  .analysis-small-items .analysis-other-body { flex: 1; min-height: 0; max-height: none; padding: 0 var(--space-2) var(--space-2); }
+  .analysis-small-items .analysis-other-row { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-2); gap: var(--space-2); border-radius: calc(var(--radius-lg) - var(--space-2)); }
   .analysis-small-items .analysis-other-row.selected { background: var(--bg-card-selected); box-shadow: inset 0 0 0 1px var(--accent-primary); }
   .analysis-small-items .analysis-other-path b { font-size: 12px; }
   .analysis-small-items .analysis-other-actions { grid-column: 1 / -1; justify-content: flex-end; }
-  .analysis-small-items .analysis-other-note { font-size: 10.5px; padding: 8px; flex-wrap: wrap; }
-  .analysis-map-note { display: flex; align-items: center; gap: 8px; padding-inline: 4px; font-size: 10.5px; color: var(--text-muted); }
-  .analysis-map-note > span:first-child { flex: none; }
+  .analysis-small-items .analysis-other-note { font-size: 11px; padding: var(--space-2) var(--space-3); flex-wrap: wrap; }
+  /* 方块配色：目录偏强调色、文件偏中性，同色系按大小排名分 6 档明度；文字标签（图标 + ›）同样区分目录/文件，不只靠颜色。 */
   .treemap-tile {
-    position: absolute; border: 1px solid var(--bg-surface); border-radius: 5px;
+    --tt-fg: #fff; --tt-fg2: rgba(255,255,255,0.74); --tt-shadow: 0 1px 2px rgba(12, 10, 9, 0.46);
+    --tt-ring: #fff; --tt-ring-soft: rgba(255,255,255,0.34); --tt-bg: #6a3b1f;
+    position: absolute; border: 1px solid var(--bg-surface); border-radius: var(--radius-sm);
+    background: var(--tt-bg);
     padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
     cursor: pointer; overflow: hidden; container-type: size; isolation: isolate;
-    transition: box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.16s ease;
+    transition: box-shadow var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
   }
-  .treemap-tile:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.34); }
-  .treemap-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-primary); }
+  .tt-dir.tt-s0 { --tt-bg: #9a4519; } .tt-dir.tt-s1 { --tt-bg: #82401c; } .tt-dir.tt-s2 { --tt-bg: #6a3b1f; }
+  .tt-dir.tt-s3 { --tt-bg: #553322; } .tt-dir.tt-s4 { --tt-bg: #432c22; } .tt-dir.tt-s5 { --tt-bg: #35261f; }
+  .tt-file.tt-s0 { --tt-bg: #5a544c; } .tt-file.tt-s1 { --tt-bg: #4e4943; } .tt-file.tt-s2 { --tt-bg: #443f3a; }
+  .tt-file.tt-s3 { --tt-bg: #3b3733; } .tt-file.tt-s4 { --tt-bg: #34302d; } .tt-file.tt-s5 { --tt-bg: #2d2a27; }
+  .tt-fold { --tt-bg: #2b2824; }
+  .tt-fold::before { content: ""; position: absolute; inset: 3px; border: 1px dashed var(--tt-ring-soft); border-radius: 3px; pointer-events: none; opacity: 0.7; }
+  html[data-theme="light"] .treemap-tile {
+    --tt-fg: #2b1d15; --tt-fg2: rgba(43,29,21,0.74); --tt-shadow: none; --tt-ring: #a74426; --tt-ring-soft: rgba(43,29,21,0.34);
+  }
+  html[data-theme="light"] .tt-dir.tt-s0 { --tt-bg: #e0936b; } html[data-theme="light"] .tt-dir.tt-s1 { --tt-bg: #e8a98a; }
+  html[data-theme="light"] .tt-dir.tt-s2 { --tt-bg: #efbfa7; } html[data-theme="light"] .tt-dir.tt-s3 { --tt-bg: #f3d0be; }
+  html[data-theme="light"] .tt-dir.tt-s4 { --tt-bg: #f6ddd0; } html[data-theme="light"] .tt-dir.tt-s5 { --tt-bg: #f8e7de; }
+  html[data-theme="light"] .tt-file.tt-s0 { --tt-bg: #c9c2b8; } html[data-theme="light"] .tt-file.tt-s1 { --tt-bg: #d3ccc3; }
+  html[data-theme="light"] .tt-file.tt-s2 { --tt-bg: #dcd6cd; } html[data-theme="light"] .tt-file.tt-s3 { --tt-bg: #e4dfd7; }
+  html[data-theme="light"] .tt-file.tt-s4 { --tt-bg: #eae6df; } html[data-theme="light"] .tt-file.tt-s5 { --tt-bg: #efebe5; }
+  html[data-theme="light"] .tt-fold { --tt-bg: #e7e2d9; }
+  .treemap-tile:hover { box-shadow: inset 0 0 0 1px var(--tt-ring-soft); }
+  .treemap-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-primary), inset 0 0 0 4px var(--bg-window); }
   .treemap-tile.active-tile {
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
+    background: color-mix(in srgb, var(--tt-bg) 86%, var(--tt-ring));
+    box-shadow: inset 0 0 0 2px var(--tt-ring);
     z-index: 5;
   }
-  .treemap-tile.active-tile:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-primary); }
+  .treemap-tile.active-tile:focus-visible { box-shadow: inset 0 0 0 2px var(--tt-ring), inset 0 0 0 4px var(--bg-window); }
   .treemap-tile.tt-compact { padding: 8px 4px; }
   .treemap-tile.tt-micro { padding: 0; border: 0; }
   .treemap-tile.tt-micro > * { display: none; }
-  .tt-compact .tt-name { font-size: 11px; }
-  .tt-compact .tt-path, .tt-compact .tt-foot, .tt-compact .tt-actions, .tt-compact .tt-chevron { display: none; }
+  .tt-compact .tt-name { font-size: 12px; }
+  .tt-compact .tt-path, .tt-compact .tt-foot, .tt-compact .tt-chevron, .tt-compact .tt-name .ui-ico { display: none; }
   .tt-preview {
-    position: absolute; inset: 46px 8px 37px; z-index: 0; overflow: hidden; border-radius: 4px;
+    position: absolute; inset: 46px 8px 37px; z-index: 0; overflow: hidden; border-radius: var(--radius-sm);
     pointer-events: none; background: rgba(15, 13, 12, 0.07);
   }
   .tt-preview-cell {
@@ -631,72 +684,57 @@
   .tt-preview-cell.dir { background: rgba(255, 211, 169, 0.18); }
   .tt-preview-cell.file { background: rgba(215, 210, 201, 0.2); }
   .tt-preview-cell.other { background: rgba(21, 19, 17, 0.2); }
+  html[data-theme="light"] .tt-preview { background: rgba(43, 29, 21, 0.05); }
+  html[data-theme="light"] .tt-preview-cell { border-color: rgba(43, 29, 21, 0.28); }
+  html[data-theme="light"] .tt-preview-cell.dir { background: rgba(167, 68, 38, 0.14); }
+  html[data-theme="light"] .tt-preview-cell.file { background: rgba(43, 29, 21, 0.09); }
+  html[data-theme="light"] .tt-preview-cell.other { background: rgba(43, 29, 21, 0.12); }
   .tt-preview-label {
     max-width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 1px;
-    color: rgba(255,255,255,0.82);
-    text-shadow: 0 1px 2px rgba(12, 10, 9, 0.55);
+    color: var(--tt-fg); text-shadow: var(--tt-shadow);
   }
   .tt-preview-label b, .tt-preview-label small {
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .tt-preview-label b { font-size: 10.5px; line-height: 1.2; font-weight: 650; }
-  .tt-preview-label small { font: 10px/1.2 var(--font-mono); color: rgba(255,255,255,0.58); }
-  .tt-head { min-width: 0; position: relative; z-index: 1; text-shadow: 0 1px 2px rgba(12, 10, 9, 0.46); }
+  .tt-preview-label b { font-size: 11px; line-height: 1.2; font-weight: 650; }
+  .tt-preview-label small { font: 11px/1.2 var(--font-mono); color: var(--tt-fg2); }
+  .tt-head { min-width: 0; position: relative; z-index: 1; text-shadow: var(--tt-shadow); }
   .tt-name {
-    font-size: 13px; font-weight: 800; letter-spacing: -0.01em; color: #fff;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: var(--tt-fg);
   }
+  .tt-name > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tt-name .ui-ico { width: 12px; height: 12px; opacity: 0.8; }
   .tt-path {
-    margin-top: 2px; font-size: 10px; color: rgba(255,255,255,0.74);
+    margin-top: 2px; font-size: 11px; color: var(--tt-fg2);
     font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .tt-foot {
     position: relative; z-index: 1; display: flex; align-items: baseline; gap: 6px; white-space: nowrap;
-    text-shadow: 0 1px 2px rgba(12, 10, 9, 0.46);
+    text-shadow: var(--tt-shadow);
   }
-  .tt-size { font-family: var(--font-mono); font-size: 12.5px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
-  .tt-size em { font-style: normal; font-size: 9.5px; font-weight: 700; margin-left: 2px; color: rgba(255,255,255,0.72); }
-  .tt-pct { font-family: var(--font-mono); font-size: 10.5px; color: rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
+  .tt-size { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--tt-fg); font-variant-numeric: tabular-nums; }
+  .tt-size em { font-style: normal; font-size: 11px; font-weight: 600; margin-left: 2px; color: var(--tt-fg2); }
+  .tt-pct { font-family: var(--font-mono); font-size: 11px; color: var(--tt-fg2); font-variant-numeric: tabular-nums; }
   .tt-flag {
-    position: absolute; z-index: 2; top: 5px; right: 5px; font-size: 9px; line-height: 1; font-weight: 700;
+    position: absolute; z-index: 2; top: 5px; right: 5px; font-size: 10px; line-height: 1; font-weight: 700;
     background: rgba(180, 83, 9, 0.96); color: #fff; padding: 3px 5px; border-radius: 4px;
   }
-  /* 静止态的可见提示：目录方块右下角一个 chevron，悬停后被真按钮替换。 */
+  /* 已加入待清理：虚线内框 + 文字标签（不靠颜色、不用渐变）。 */
+  .treemap-tile.picked { outline: 1px dashed var(--tt-fg); outline-offset: -5px; }
+  .treemap-tile.picked::after {
+    content: "待清理"; position: absolute; z-index: 2; top: 5px; right: 5px; font-size: 10px; line-height: 1; font-weight: 700;
+    padding: 3px 5px; border-radius: 4px; background: var(--tt-fg); color: var(--tt-bg);
+  }
+  .treemap-tile.picked .tt-flag { top: 24px; }
+  @container (max-width: 104px) { .treemap-tile.picked::after { display: none; } }
+  /* 目录方块右下角的 chevron：只是「可进入」的提示，不可聚焦；动作在检查器里。 */
   .tt-chevron {
     position: absolute; z-index: 2; right: 9px; bottom: 7px; font-size: 13px; line-height: 1;
-    color: rgba(255,255,255,0.55); pointer-events: none;
-    transition: opacity 0.12s ease;
+    color: var(--tt-fg2); pointer-events: none;
+    transition: opacity var(--dur-1) var(--ease);
   }
-  .treemap-tile:hover .tt-chevron, .treemap-tile:focus-within .tt-chevron,
-  .treemap-tile.active-tile .tt-chevron { opacity: 0; }
-  /* 方块自带动作：悬停/聚焦/选中才出现，窄了收成图标，再窄就交给面包屑栏。 */
-  .tt-actions {
-    position: absolute; z-index: 3; right: 8px; bottom: 8px; display: flex; gap: 4px;
-    opacity: 0; pointer-events: none;
-    transition: opacity 0.12s ease;
-  }
-  .treemap-tile:hover .tt-actions,
-  .treemap-tile:focus-within .tt-actions,
-  .treemap-tile.active-tile .tt-actions { opacity: 1; pointer-events: auto; }
-  .tt-btn {
-    display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap;
-    font: inherit; font-size: 10px; font-weight: 700; line-height: 1; padding: 4px 7px;
-    border-radius: 6px; cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.26); background: rgba(0,0,0,0.52); color: #fff;
-  }
-  .tt-btn .ui-ico { width: 11px; height: 11px; }
-  .tt-btn:hover { background: rgba(0,0,0,0.7); border-color: rgba(255,255,255,0.4); }
-  /* 容器查询量的是内容盒：阈值按 内容宽 ≈ offsetWidth − 26（边框 + 内边距）折算。 */
-  @container (max-width: 213px) { .tt-btn .tt-label { display: none; } .tt-btn { padding: 4px 5px; } }
-  /* 更窄时只保留第一个动作（目录是「进入」，文件是「访达」），再窄才彻底交给面包屑。 */
-  @container (max-width: 74px) { .tt-actions .tt-btn ~ .tt-btn { display: none; } }
-  @container (max-width: 39px) { .tt-actions { display: none; } }
-  @container (max-height: 44px) { .tt-actions { display: none; } }
   @container (max-width: 127px) { .tt-preview { display: none; } }
   @container (max-height: 103px) { .tt-preview { display: none; } }
-  /* 动作出现时给底部数字留出位置，避免压住体积与占比。 */
-  .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 74px; }
-  @container (max-width: 213px) { .treemap-tile:hover .tt-foot, .treemap-tile.active-tile .tt-foot { padding-right: 52px; } }
   /* 尺寸分档：放不下就少写，不硬塞 */
   @container (max-width: 104px) {
     .tt-flag { font-size: 0; width: 7px; height: 7px; padding: 0; border-radius: 99px; overflow: hidden; }
@@ -704,18 +742,15 @@
   @container (max-width: 168px) { .tt-path { display: none; } }
   @container (max-width: 128px) { .tt-pct { display: none; } }
   @container (max-height: 54px) { .tt-foot { display: none; } }
-  @container (max-height: 58px) { .tt-name { font-size: 11.5px; } }
-  @container (max-width: 86px) { .tt-name { font-size: 11px; } .tt-size em { font-size: 8.5px; } }
+  @container (max-height: 58px) { .tt-name { font-size: 12px; } }
+  @container (max-width: 86px) { .tt-name { font-size: 12px; } .tt-name .ui-ico { display: none; } .tt-size em { font-size: 10px; } }
   @container (max-width: 30px) { .tt-head { visibility: hidden; } }
-  .treemap-split .list-body { scrollbar-width: thin; }
-  .treemap-split .pct-line { flex-wrap: wrap; gap: 4px 8px; white-space: normal; }
-  .treemap-split .pct-bar { flex-basis: 32px; }
-  .treemap-split .list-body::-webkit-scrollbar { width: 9px; }
-  .treemap-split .list-body::-webkit-scrollbar-thumb {
+  .insp-pane .list-body::-webkit-scrollbar { width: 9px; }
+  .insp-pane .list-body::-webkit-scrollbar-thumb {
     background: var(--border-strong, rgba(255,255,255,0.22)); border-radius: 99px;
     border: 2px solid transparent; background-clip: content-box;
   }
-  .treemap-split .list-body::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: content-box; }
+  .insp-pane .list-body::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: content-box; }
   .drill-pill {
     font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 99px;
     background: rgba(0,0,0,0.28); color: rgba(255,255,255,0.92); backdrop-filter: blur(4px);
@@ -789,7 +824,6 @@
 
   /* Responsive Breakpoints */
   @media (max-width: 1160px) {
-    :root { --analysis-list-width: 225px; }
     .telemetry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .sidebar { width: 206px; }
     .prop-bar-wrap { display: none; }
@@ -798,8 +832,6 @@
   @media (max-width: 960px) {
     .sidebar { width: 188px; padding: 10px 8px; }
     .master-detail-grid { grid-template-columns: 1fr; overflow: visible; }
-    .treemap-split { grid-template-columns: 1fr; height: auto; grid-template-rows: auto; }
-    .treemap-stage { height: 304px; min-height: 304px; }
     .summary-right { align-items: flex-start; width: 100%; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
   }
 
@@ -1073,35 +1105,43 @@
   .list-row.hl { background: var(--bg-card-hover); }
   .drill-pill { cursor: pointer; }
   .crumb-sep { color: var(--text-muted); }
-  .crumb-left { display: flex; align-items: center; gap: var(--space-1); padding-inline: var(--space-3); min-width: 0; overflow: hidden; white-space: nowrap; }
+  .crumb-left { display: flex; align-items: center; gap: var(--space-1); flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
   .crumb-location { display: flex; flex: 1; align-items: center; gap: var(--space-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .crumb-location .crumb-item { flex: none; max-width: 160px; }
   .crumb-location .crumb-item.active { flex: none; max-width: 100%; }
-  .crumb-actions { display: flex; align-items: center; gap: var(--space-1); padding-right: var(--space-3); min-width: 0; font-size: 11px; color: var(--text-secondary); }
+  .crumb-actions { min-width: 0; font-size: 12px; color: var(--text-secondary); }
   .crumb-preview {
     flex: 1; min-width: 0; text-align: right;
-    font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary);
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     visibility: hidden;
   }
   .crumb-preview.show { visibility: visible; }
-  .crumb-sel {
-    flex: 1; min-width: 0; padding-right: 4px; display: flex; flex-direction: column; align-items: flex-start;
-    overflow: hidden; font-family: var(--font-mono);
-  }
-  .crumb-sel > span, .crumb-sel > small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .crumb-sel > small { font-family: var(--font-sans); font-size: 10px; color: var(--text-muted); font-weight: 500; }
+  .crumb-sel { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
+  .crumb-sel > * { max-width: 100%; min-width: 0; }
+  .insp-kind { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+  .insp-name { display: flex; align-items: center; gap: var(--space-2); font-size: 16px; line-height: 1.3; font-weight: 700; color: var(--text-primary); }
+  .insp-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .insp-name .ui-ico { width: 15px; height: 15px; color: var(--text-secondary); }
+  .insp-path { font: 11px/1.4 var(--font-mono); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .insp-size { font: 12px/1.4 var(--font-mono); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .insp-size strong { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+  .crumb-sel > small { font-size: 11px; color: var(--text-muted); }
+  .insp-reason { display: flex; align-items: flex-start; gap: var(--space-1); font-size: 11px; line-height: 1.45; color: var(--accent-amber); }
+  .insp-reason .ui-ico { margin-top: 2px; }
+  .insp-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  .insp-actions .btn { height: 30px; }
   .crumb-icon-btn {
-    width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
     color: var(--text-secondary);
   }
   .crumb-icon-btn .ui-ico { width: 14px; height: 14px; }
   .crumb-icon-btn:hover { color: var(--text-primary); }
-  .crumb-icon-btn.on {
+  .crumb-icon-btn.on, .crumb-basket-btn.on {
     color: var(--accent-primary); background: var(--accent-soft);
     border-color: var(--border-selected);
   }
-  .crumb-basket-btn { width: auto; padding: 0 8px; gap: 4px; font-size: 10.5px; font-weight: 650; }
+  .crumb-basket-btn { width: auto; margin-left: auto; padding: 0 var(--space-3); gap: var(--space-1); display: inline-flex; align-items: center; font-size: 12px; font-weight: 650; }
   .analysis-list-tools { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 10.5px; }
   .analysis-sort {
     border: 1px solid transparent; background: transparent; color: var(--text-muted);
@@ -1113,7 +1153,7 @@
     outline: 2px solid var(--accent-primary); outline-offset: 1px;
   }
   .analysis-aggregate-only {
-    min-height: 210px; padding: 24px 18px; display: flex; flex-direction: column;
+    min-height: 160px; padding: var(--space-5) var(--space-4); display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; gap: 7px; color: var(--text-secondary);
   }
   .analysis-aggregate-only .ui-ico { width: 24px; height: 24px; color: var(--text-muted); }
@@ -1199,7 +1239,6 @@
   .insights-box summary { padding: 7px 14px; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
   .insights-box[open] { max-height: 140px; overflow-y: auto; }
   .insights-box .subpath-item { margin: 0 14px 6px; }
-  @media (min-width: 1000px) { .treemap-split { height: 340px; } }
   .pick { flex: none; width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border-strong, var(--text-muted)); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; margin-right: 8px; }
   .pick .ui-ico { width: 11px; height: 11px; }
   .pick.on { background: var(--accent-primary); border-color: var(--accent-primary); }
@@ -1208,9 +1247,8 @@
     background: var(--bg-card-selected);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 42%, transparent);
   }
-  .treemap-tile.picked::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(135deg, rgba(0,0,0,0.28) 0 6px, rgba(0,0,0,0.12) 6px 12px); pointer-events: none; border-radius: inherit; }
   .icon-btn { padding: 2px 6px; display: inline-flex; align-items: center; }
-  .basket-bar { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 12px; margin-top: 10px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-surface); box-shadow: 0 -6px 18px rgba(0,0,0,0.12); }
+  .basket-bar { position: sticky; bottom: 0; z-index: 5; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 12px; margin-top: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); }
   .basket-hint { font-size: 11px; color: var(--text-secondary); }
   .basket-list { flex: 1; min-width: 200px; }
   .basket-list summary { font-size: 12px; font-weight: 700; cursor: pointer; color: var(--text-primary); }
@@ -1295,18 +1333,8 @@
     .summary-right { max-width: 32%; }
     .header-controls .btn-glyph { margin: 0; }
     .row-right { gap: 8px; }
-    body[data-module="analyze"] .summary-banner { padding: 12px 16px; gap: 10px; }
-    body[data-module="analyze"] .semantic-hero-icon { width: 32px; height: 32px; border-radius: 9px; }
-    body[data-module="analyze"] .summary-headline { font-size: 16px; margin-bottom: 0; }
-    body[data-module="analyze"] .summary-desc { display: none; }
-    body[data-module="analyze"] .summary-right { min-width: 140px; }
-    body[data-module="analyze"] .stat-block-val { font-size: 20px; }
-    body[data-module="analyze"] .stat-block-sub { font-size: 10px; }
   }
   @media (max-width: 960px) {
-    .breadcrumb-bar { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
-    .crumb-left { min-height: 28px; }
-    .crumb-actions { padding-inline: var(--space-3); }
     .pref-grid { gap: 4px; }
     .pref-btn { padding-inline: 2px; font-size: 10.5px; }
     .disk-mini-bar > div:first-child { flex-wrap: wrap; gap: 4px; }
@@ -1320,18 +1348,28 @@
     .workspace-body { padding: 12px; }
     .telemetry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .proc-table th, .proc-table td { padding: 8px; }
-    body[data-module="analyze"] .treemap-split { gap: 8px; }
-    body[data-module="analyze"] .analysis-map { height: 304px; }
-    body[data-module="analyze"] .summary-banner { flex-wrap: nowrap; gap: 12px; }
-    body[data-module="analyze"] .summary-right { width: auto; max-width: 42%; flex-direction: column; align-items: flex-end; gap: 0; border-top: 0; padding-top: 0; }
-    body[data-module="analyze"] .crumb-actions { gap: 5px; }
-    body[data-module="analyze"] .crumb-sel { flex: 1; }
     body[data-module="analyze"] .analysis-no-match { grid-template-columns: auto minmax(0, 1fr); }
     body[data-module="analyze"] .analysis-no-match > .analysis-empty-actions { grid-column: 1 / -1; justify-self: start; }
     body[data-module="status"] .summary-banner { flex-wrap: nowrap; gap: var(--space-3); }
     body[data-module="status"] .summary-right { width: auto; max-width: 38%; flex-direction: column; align-items: flex-end; gap: var(--space-1); border-top: 0; padding-top: 0; }
     .proc-table th:nth-child(6), .proc-table td:nth-child(6) { display: none; }
     .proc-name { max-width: 140px; }
+  }
+  /* Analyze: map first + right inspector. The hero is replaced by .analysis-summary; the page itself does not scroll. */
+  body[data-module="analyze"] .summary-banner { display: none; }
+  body[data-module="analyze"] .workspace-body { overflow: hidden; padding: var(--space-3) var(--space-4); gap: var(--space-2); }
+  body[data-module="analyze"] #moduleStage { gap: var(--space-2) !important; }
+  @media (max-width: 1100px) {
+    .treemap-split { grid-template-columns: minmax(0, 1fr) 300px; }
+    .as-vol { width: 200px; }
+  }
+  @media (max-width: 960px) {
+    body[data-module="analyze"] .workspace-body { overflow-y: auto; padding: var(--space-3); }
+    body[data-module="analyze"] #moduleStage { flex: none !important; }
+    .treemap-split { display: flex; flex-direction: column; flex: none; }
+    .analysis-map { height: max(360px, 56vh); flex: none; }
+    .analysis-inspector { height: 440px; flex: none; }
+    .as-vol { display: none; }
   }
 </style>
 </head>
@@ -1906,6 +1944,7 @@ const DEFAULT_STATE = {
   selectedMoonIdx: 0,
   aiFilter: 'all',
   selectedAppIdx: 0,
+  appSort: 'size',
   softwarePanelMode: 'apps',
   uninstallMode: 'standard',
   selectedPurgeIdx: 0,
@@ -1979,6 +2018,7 @@ const DEFAULT_STATE = {
   analyzeStale: false,
   analyzeSort: 'size',
   analyzeOtherOpen: null,
+  analyzeTab: 'children',
   analyzeMapFolded: null,
   analyzeSmallItems: null,
   analyzeSmallPath: '',
@@ -2084,15 +2124,26 @@ if (window.location.search.includes('mode=menubar') || window.isMenuBarPopover) 
   document.body.classList.add('menubar-mode');
 }
 
-// 原生处理器由 preload 在页面加载后补挂，早发一步的请求会被静默丢掉。这里先排队，
-// 处理器出现后立刻补发，避免「点了没反应」这种不可见的失败。
+// 原生桥：Go 的 NativeBridge.Dispatch 经 MyGo 的 window.mygo.call 直达（window.mygo 在文档开头定义且不会被 WebKit 替换）。
+// 浏览器预览与测试夹具里没有 window.mygo，退回可被模拟的 webkit.messageHandlers.moleNative。
+// 入口暂时不可用时先排队，出现后补发，避免「点了没反应」这种不可见的失败。
+function nativePost() {
+  const runtime = window.mygo;
+  if (runtime && typeof runtime.call === 'function') {
+    return payload => {
+      const pending = runtime.call('NativeBridge.Dispatch', payload);
+      if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+    };
+  }
+  const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.moleNative;
+  return handler ? payload => handler.postMessage(payload) : null;
+}
 const __bridgeQueue = [];
 let __bridgeFlushing = false;
 function sendNativeBridge(payload) {
-  const handlers = window.webkit && window.webkit.messageHandlers;
-  const native = handlers && handlers.moleNative;
-  if (native) {
-    try { native.postMessage(payload); } catch (e) {}
+  const post = nativePost();
+  if (post) {
+    try { post(payload); } catch (e) {}
     return;
   }
   __bridgeQueue.push(payload);
@@ -2100,11 +2151,11 @@ function sendNativeBridge(payload) {
   if (!__bridgeFlushing) {
     __bridgeFlushing = true;
     const flush = () => {
-      const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.moleNative;
-      if (h) {
+      const send = nativePost();
+      if (send) {
         while (__bridgeQueue.length) {
           const next = __bridgeQueue.shift();
-          try { h.postMessage(next); } catch (e) { break; }
+          try { send(next); } catch (e) { break; }
         }
         __bridgeFlushing = false;
         return;
@@ -2145,9 +2196,9 @@ function firstFailureText(failedByPath, paths) {
 
 // entries: [{ label, sizeGb, paths:[绝对路径], commit(okPaths), onFail(failed), regKey }]
 // opts: { title, onDone(movedEntries, failedEntries, res), emptyHint, mountFailedBasket }
-// 破坏性操作成功后的刷新：列表类模块走真实重扫，空间分析模块重拉 treemap（不再手改下标猜体积）。
+// 破坏性操作成功后的刷新：真实重扫由 Go 在回执之后自己发起（主窗口与菜单栏面板共用，页面再请求会变成两次全盘扫描），
+// 这里只让空间分析模块重拉 treemap（不再手改下标猜体积）。
 function refreshAfterDestructive() {
-  sendNativeBridge({ action: 'requestRealSystemScan' });
   STATE.analyzeStale = !!STATE.analyzeStatus;
   if (STATE.module === 'analyze') requestDiskAnalyze(STATE.analyzeRoot || '', true);
 }
@@ -2327,7 +2378,6 @@ window.onNativeWhitelistChanged = function(res) {
     showToast('白名单已更新（' + STATE.whitelist.length + ' 条）');
   }
   if (STATE.whitelistWarnings.length) console.warn('[whitelist]', STATE.whitelistWarnings.join('; '));
-  if (res.ok !== false) sendNativeBridge({ action: 'requestRealSystemScan' });
 };
 
 window.onNativeAnalyzeError = function(res) {
@@ -2381,6 +2431,7 @@ window.onNativeRealScanComplete = function(payload) {
   }
   if (payload.appsList === null || Array.isArray(payload.appsList)) {
     STATE.appsList = scanRowsWithFailures(payload.appsList || [], STATE.appsList);
+    applyAppSort();
     STATE.selectedAppIdx = 0;
   }
   if (payload.largeFiles === null || Array.isArray(payload.largeFiles)) {
@@ -2861,6 +2912,7 @@ function healthScoreText() {
   return hasNum(STATE.healthScore) ? `${Math.round(STATE.healthScore)} / 100` : '未知';
 }
 function hasNum(v) { return typeof v === 'number' && isFinite(v); }
+function fmtCount(v) { return hasNum(v) ? Number(v).toLocaleString('en-US') : '-'; }
 function fmtNum(v, digits, fallback) { return hasNum(v) ? Number(v).toFixed(digits == null ? 1 : digits) : (fallback == null ? '-' : fallback); }
 function fmtPct(v, digits) { return hasNum(v) ? Number(v).toFixed(digits == null ? 1 : digits) + '%' : '未知'; }
 function numOrNull(v) {
@@ -3191,8 +3243,8 @@ function smallTreemapItems(laid, fallback) {
 // Dense maps fold tiny fragments; a few slim siblings keep their real path and area.
 function layoutTreemap(tiles, aggregate) {
   const stage = document.querySelector('.treemap-stage');
-  const W = Math.max(300, (stage ? stage.clientWidth : 720) - 8);
-  const H = stage && stage.clientHeight > 100 ? stage.clientHeight - 8 : 296;
+  const W = Math.max(300, stage ? stage.clientWidth : 720);
+  const H = stage && stage.clientHeight > 100 ? stage.clientHeight : 296;
   const MIN_TILE_PX = 46;
   const all = (tiles || []).map((tile, idx) => ({ idx, tile, value: diskGbOf(tile) })).filter(entry => entry.value > 0);
   if (aggregate && aggregate.sizeGb > 0) {
@@ -3271,11 +3323,10 @@ function treemapPreviewHTML(tile) {
 
 // 颜色只承担一件事：让「大 / 中 / 小」在同一张图里一眼分得开。同一个色系，
 // 由深到浅随排名变化，避免 60 个方块全是一片橙色。
-const TILE_TINTS = ['#8a3f18', '#7a3f1c', '#68401f', '#553a22', '#463224', '#38291f'];
-function tileTint(rank, total) {
-  if (!total || total <= 0) return TILE_TINTS[0];
-  const step = Math.min(TILE_TINTS.length - 1, Math.floor((rank / total) * TILE_TINTS.length));
-  return TILE_TINTS[step];
+// 实际颜色在 CSS（.tt-s0..5 × .tt-dir/.tt-file，随主题切换）；目录偏强调色、文件偏中性，文字标签同样区分。
+function tileStep(rank, total) {
+  if (!total || total <= 0) return 0;
+  return Math.min(5, Math.floor((rank / total) * 6));
 }
 
 function analysisMapHTML(tiles, aggregate, activeIdx, laid = layoutTreemap(tiles, aggregate)) {
@@ -3291,22 +3342,18 @@ function analysisMapHTML(tiles, aggregate, activeIdx, laid = layoutTreemap(tiles
     const compact = stage && stage.clientWidth * tile.w / 100 < 72;
     const micro = stage && (stage.clientWidth * tile.w / 100 < 26 || stage.clientHeight * tile.h / 100 < 24);
     const tip = others
-      ? `其它 · ${hasNum(tile.count) ? tile.count + ' 个小项' : '数量未知'}\n${size}\n查看 ${tile.knownCount} 个图中折叠节点与 ${tile.sampleCount} 个扫描样本`
-      : `${tile.name}\n${displayPath(tile.path || tile.name)}\n${size}${hasNum(tile.pct) ? ' · ' + tile.pct + '%' : ''}${hasNum(tile.files) ? ' · ' + tile.files + ' 个文件' : ''}${partial ? '\n受限：有子目录未读取，体积未计入' : ''}`;
-    return `<div class="treemap-tile ${selected ? 'active-tile' : ''}${others ? ' tt-others' : ''}${compact ? ' tt-compact' : ''}${micro ? ' tt-micro' : ''}" tabindex="${micro ? '-1' : '0'}" role="button"
+      ? `其它 · ${hasNum(tile.count) ? fmtCount(tile.count) + ' 个小项' : '数量未知'}\n${size}\n查看 ${tile.knownCount} 个图中折叠节点与 ${tile.sampleCount} 个扫描样本`
+      : `${tile.name}\n${displayPath(tile.path || tile.name)}\n${size}${hasNum(tile.pct) ? ' · ' + tile.pct + '%' : ''}${hasNum(tile.files) ? ' · ' + fmtCount(tile.files) + ' 个文件' : ''}${partial ? '\n受限：有子目录未读取，体积未计入' : ''}`;
+    const kindClass = others ? ' tt-fold' : ` tt-s${tileStep(rank, total)} ${tile.isDir === false ? 'tt-file' : 'tt-dir'}`;
+    return `<div class="treemap-tile ${selected ? 'active-tile' : ''}${kindClass}${others ? ' tt-others' : ''}${compact ? ' tt-compact' : ''}${micro ? ' tt-micro' : ''}" tabindex="${micro ? '-1' : '0'}" role="button"
       aria-pressed="${selected}" ${others ? 'aria-label="查看折叠小项" onclick="toggleAnalyzeOtherItems(true)"' : `data-idx="${tile.idx}" data-path="${escHtml(tile.path)}" data-analyze-action="inspect" aria-label="${escHtml(tile.name)} ${size}" onclick="selectTile(${tile.idx})" ondblclick="drillTile(${tile.idx})"`}
-      data-tip="${escHtml(tip)}" style="left:${tile.x}%;top:${tile.y}%;width:${tile.w}%;height:${tile.h}%;background:${others ? '#35322d' : tileTint(rank, total)}">
+      data-tip="${escHtml(tip)}" style="left:${tile.x}%;top:${tile.y}%;width:${tile.w}%;height:${tile.h}%">
       ${partial ? '<span class="tt-flag">受限</span>' : ''}
       ${others ? '' : treemapPreviewHTML(tile)}
-      <div class="tt-head"><div class="tt-name">${others ? '其它' : escHtml(tile.name)}</div>
-        <div class="tt-path">${others ? hasNum(tile.count) ? `${tile.count} 个小项` : '数量未知' : escHtml(displayPath(tile.path || ''))}</div></div>
+      <div class="tt-head"><div class="tt-name">${others ? '' : UI_ICON(tile.isDir === false ? 'file' : 'folder')}<span>${others ? '其它' : escHtml(tile.name)}</span></div>
+        <div class="tt-path">${others ? hasNum(tile.count) ? `${fmtCount(tile.count)} 个小项` : '数量未知' : escHtml(displayPath(tile.path || ''))}</div></div>
       <div class="tt-foot"><span class="tt-size">${amount}<em>${unit}</em></span><span class="tt-pct">${hasNum(tile.pct) ? tile.pct + '%' : ''}</span></div>
-      ${others || tile.isDir !== false ? '<span class="tt-chevron" aria-hidden="true">›</span>' : ''}
-      <div class="tt-actions">${others
-        ? ''
-        : `${tile.isDir === false ? '' : `<button class="tt-btn" data-analyze-action="enter" title="进入目录（双击同样可以）" aria-label="进入 ${escHtml(tile.name)}" onclick="event.stopPropagation();drillTile(${tile.idx})"><span class="tt-label">进入</span>${UI_ICON('fwd')}</button>`}
-          <button class="tt-btn" data-analyze-action="reveal" title="在访达中显示" aria-label="在访达中显示 ${escHtml(tile.name)}" ${tile.path ? '' : 'disabled'} onclick="event.stopPropagation();revealInFinder('${jsq(tile.path)}')"><span class="tt-label">访达</span>${UI_ICON('folder')}</button>`}
-      </div></div>`;
+      ${others || tile.isDir !== false ? '<span class="tt-chevron" aria-hidden="true">›</span>' : ''}</div>`;
   }).join('');
 }
 
@@ -3463,8 +3510,37 @@ function toggleMoonSubpathCheck(idx, subIdx) {
 
 // Interactive Handlers for Software Uninstaller
 function selectAppRow(idx) { STATE.selectedAppIdx = idx; renderModule(); }
+// 排序后按应用 id 找回选中项，而不是沿用旧下标。
+function applyAppSort() {
+  const selId = (STATE.appsList[STATE.selectedAppIdx] || {}).id;
+  const size = a => (Number(a.appSizeGb) || 0) + (Number(a.leftoverSizeGb) || 0);
+  const by = {
+    size: (a, b) => size(b) - size(a),
+    recent: (a, b) => (Number.isFinite(b.lastUsedAt) ? b.lastUsedAt : -1) - (Number.isFinite(a.lastUsedAt) ? a.lastUsedAt : -1),
+    name: (a, b) => String(a.name).localeCompare(String(b.name), 'zh')
+  }[STATE.appSort] || (() => 0);
+  STATE.appsList.sort(by);
+  STATE.selectedAppIdx = Math.max(0, STATE.appsList.findIndex(a => a.id === selId));
+}
+function setAppSort(key) { STATE.appSort = key; applyAppSort(); renderModule(); }
+// 只用 Spotlight 回传的时间换算；没有记录就写「未记录」，不猜。
+function appUsedText(app) {
+  if (!Number.isFinite(app.lastUsedAt)) return '最近使用 未记录';
+  const days = Math.floor((Date.now() / 1000 - app.lastUsedAt) / 86400);
+  return '最近使用 ' + (days < 1 ? '今天' : days < 30 ? days + ' 天前' : days < 365 ? Math.floor(days / 30) + ' 个月前' : Math.floor(days / 365) + ' 年前');
+}
+function quitApp(idx) {
+  const app = STATE.appsList[idx];
+  if (!app || !app.running || !app.runningPid || pendingProcessQuits.size) return;
+  const requestId = nextRequestId('quit'), path = app.runningPath, name = path.split('/').pop();
+  pendingProcessQuits.set(requestId, { pid: app.runningPid, name, path });
+  sendNativeBridge({ action: 'killProcess', pid: app.runningPid, name, path, requestId });
+  renderModule();
+  showToast(`正在请求 ${app.name} 退出，等待原生回执`);
+}
 function toggleAppCheck(idx, ev) {
   if (ev) ev.stopPropagation();
+  if (STATE.appsList[idx].running && STATE.uninstallMode !== 'cache_only') return;
   STATE.appsList[idx].checked = !STATE.appsList[idx].checked;
   STATE.selectedAppIdx = idx;
   persistState();
@@ -3515,7 +3591,7 @@ function setUninstallMode(mode) {
     if (Array.isArray(app.subpaths)) {
       app.subpaths.forEach(sp => {
         if (sp.tier === 'protected' || sp.partial) sp.checked = false;
-        else if (mode === 'standard') sp.checked = (sp.kind === 'app' || sp.kind === 'cache');
+        else if (mode === 'standard') sp.checked = (sp.kind === 'app' || sp.kind === 'cache' || sp.kind === 'launch');
         else if (mode === 'complete') sp.checked = true;
         else if (mode === 'cache_only') sp.checked = (sp.kind === 'cache');
       });
@@ -3806,12 +3882,12 @@ function renderAnalyzeProgress() {
   if (btn) btn.textContent = '取消扫描';
   if (head) {
     head.textContent = hasNum(p.files)
-      ? `正在扫描… 已扫描 ${fmtNum(p.files, 0)} 个文件${hasNum(p.seconds) ? ' · ' + fmtNum(p.seconds, 1) + 's' : ''}`
+      ? `正在扫描… 已扫描 ${fmtCount(p.files)} 个文件${hasNum(p.seconds) ? ' · ' + fmtNum(p.seconds, 1) + 's' : ''}`
       : '正在扫描…';
   }
   if (desc) {
     const bits = [];
-    if (hasNum(p.dirs)) bits.push(`${fmtNum(p.dirs, 0)} 个目录`);
+    if (hasNum(p.dirs)) bits.push(`${fmtCount(p.dirs)} 个目录`);
     const amt = fmtScanAmt(p.bytes);
     if (amt) bits.push(`已计入 ${amt}`);
     if (p.current) bits.push(`当前 ${displayPath(p.current)}`);
@@ -3821,8 +3897,8 @@ function renderAnalyzeProgress() {
   const sub = document.querySelector('.scan-sub');
   if (sub) {
     const sBits = [];
-    if (hasNum(p.files)) sBits.push(`已扫描 ${fmtNum(p.files, 0)} 个文件`);
-    if (hasNum(p.dirs)) sBits.push(`${fmtNum(p.dirs, 0)} 个目录`);
+    if (hasNum(p.files)) sBits.push(`已扫描 ${fmtCount(p.files)} 个文件`);
+    if (hasNum(p.dirs)) sBits.push(`${fmtCount(p.dirs)} 个目录`);
     const amt2 = fmtScanAmt(p.bytes);
     if (amt2) sBits.push(`已计入 ${amt2}`);
     if (hasNum(p.seconds)) sBits.push(`${fmtNum(p.seconds, 1)}s`);
@@ -4026,12 +4102,14 @@ function renderBasket() {
   const bar = document.getElementById('basketBar');
   if (!bar) return;
   const n = STATE.collected.length;
-  if (!n) { bar.innerHTML = '<span class="basket-hint">选中目录或文件（⌘⌫）加入待清理；移入前有 5 秒可撤销。废纸篓、APFS 共享块与快照会影响实际腾出的空间。</span>'; return; }
+  bar.hidden = !n; // 空篮子不占一行：地图要这块高度
+  if (!n) { bar.innerHTML = ''; return; }
   const secs = STATE.trashAt ? Math.max(0, Math.ceil((STATE.trashAt - Date.now()) / 1000)) : 0;
   const unknownCount = STATE.collected.filter(item => !hasNum(item.sizeGb)).length;
   const total = unknownCount === n ? '总量未知' : unknownCount ? `已测 ${fmtDiskSizeGb(collectedGb())} · ${unknownCount} 项未测量` : fmtDiskSizeGb(collectedGb());
   const list = STATE.collected.map(c => `<div class="basket-item"${c.failed ? ' style="border-color:var(--accent-rose);"' : ''}><span class="basket-name">${UI_ICON(c.isDir ? 'folder' : 'file')} ${escHtml(c.name)}</span><span class="basket-path">${escHtml(c.path)}</span>${c.failed ? `<span style="color:var(--accent-rose);font-size:10px;white-space:nowrap;">删除失败：${escHtml(c.error || '未知原因')}</span>` : `<b>${fmtDiskSizeGb(c.sizeGb)}</b>`}<button class="btn" style="padding:0 6px;" title="移出待清理" onclick="removeCollected('${jsq(c.path)}')">×</button></div>`).join('');
   bar.innerHTML = `<details class="basket-list" ${STATE.basketOpen ? 'open' : ''} ontoggle="STATE.basketOpen = this.open"><summary>待清理 ${n} 项 · ${total}</summary><div class="basket-items">${list}</div></details>` +
+    `<span class="basket-hint">移入前有 5 秒可撤销；废纸篓与 APFS 快照会影响实际腾出的空间</span>` +
     `<div class="basket-actions">${STATE.trashAt
       ? `<span class="basket-count">${secs} 秒后移入废纸篓</span><button class="btn btn-primary" onclick="cancelTrash()">撤销</button>`
       : `<button class="btn" onclick="clearCollected()">清空</button><button class="btn btn-danger-solid" onclick="startTrash()">移到废纸篓</button>`}</div>`;
@@ -4131,6 +4209,7 @@ function restoreAnalysisSelection(path) {
   STATE.analyzeSel = STATE.analyzeSmallPath ? -1 : Math.max(0, visibleIdx);
 }
 function toggleAnalyzeOtherItems(force) {
+  if (force === true) setAnalyzeTab('folded');
   if (force === true && STATE.analyzeOtherOpen !== false && document.querySelector('.analysis-other-body')) {
     STATE.analyzeOtherOpen = true;
     focusAnalyzeItem();
@@ -4167,7 +4246,7 @@ function analysisOtherHTML(tile, parentDir) {
   const selected = analysisSelectedSmallItem()?.path || analysisVisibleTiles()[STATE.analyzeSel]?.path;
   return `<div class="analysis-other" id="analysisOtherPanel">
     <button class="analysis-other-toggle" onclick="toggleAnalyzeOtherItems()" aria-expanded="${open}">
-      <span>${UI_ICON('search')} 小项目</span><span>${hasNum(tile.count) ? fmtNum(tile.count, 0) + ' 项' : '数量未知'} ${open ? '▴' : '▾'}</span>
+      <span>${UI_ICON('search')} 小项目</span><span>${hasNum(tile.count) ? fmtCount(tile.count) + ' 项' : '数量未知'} ${open ? '▴' : '▾'}</span>
     </button>
     ${open ? `<div class="analysis-other-body">
       ${tile.items.length ? tile.items.map((item, idx) => `<div class="analysis-other-row${item.path === selected ? ' selected' : ''}" data-path="${escHtml(item.path)}">
@@ -4177,7 +4256,7 @@ function analysisOtherHTML(tile, parentDir) {
         <span class="analysis-other-meta">${fmtDiskSizeGb(hasNum(item.diskGb) ? item.diskGb : item.sizeGb)}<small>${hasNum(item.pct) ? item.pct + '%' : item.fromOther ? '扫描样本' : '图中折叠'}</small></span>
         <span class="analysis-other-actions">${item.isDir === false ? '' : `<button class="btn" data-analyze-action="enter" onclick="drillFoldedItem(${idx})" aria-label="进入 ${escHtml(item.name)}">进入</button>`}<button class="btn" data-analyze-action="collect" aria-label="${isCollected(item) ? '移出待清理' : '加入待清理'} ${escHtml(item.name)}" ${protectionReason(item) ? `disabled title="${escHtml(protectionReason(item))}"` : ''} onclick="toggleOtherCollect(${idx})">${isCollected(item) ? '移出' : '加入'}</button></span>
       </div>`).join('') : '<div class="analysis-other-note">未保留可操作路径；使用访达查看完整目录。</div>'}
-      <div class="analysis-other-note"><span>共 ${fmtDiskSizeGb(tile.sizeGb)}。${parts.join('、')}${tile.unreported ? `；其余 ${fmtNum(tile.unreported, 0)} 项仅计总量` : ''}。面积仍按实际占用比例。</span><button class="btn" onclick="revealInFinder('${jsq(parentDir.path)}')">访达查看本层</button></div>
+      <div class="analysis-other-note"><span>共 ${fmtDiskSizeGb(tile.sizeGb)}。${parts.join('、')}${tile.unreported ? `；其余 ${fmtCount(tile.unreported)} 项仅计总量` : ''}。面积仍按实际占用比例。</span><button class="btn" onclick="revealInFinder('${jsq(parentDir.path)}')">访达查看本层</button></div>
     </div>` : ''}
   </div>`;
 }
@@ -4228,7 +4307,7 @@ function selectTile(idx, smallItem) {
   const actions = document.querySelector('.crumb-actions');
   if (actions) actions.innerHTML = analysisSelectionHTML(tile, idx);
   // Scroll only the list, so a narrow window does not move the map out from under a double-click.
-  const row = document.querySelector('.treemap-split .list-body .list-row.selected');
+  const row = document.querySelector('.analysis-children .list-row.selected');
   if (row) {
     const list = row.parentElement;
     const bounds = row.getBoundingClientRect(), viewport = list.getBoundingClientRect();
@@ -4277,24 +4356,52 @@ function resetAnalysisScope(path) {
   const input = document.getElementById('searchInput');
   if (input) input.value = '';
   restoreAnalysisSelection(path);
+  if (STATE.analyzeSmallPath) STATE.analyzeTab = 'folded';
 }
 function analysisSelectionHTML(tile, idx) {
-  const reason = protectionReason(tile), collected = isCollected(tile);
-  return `<span class="crumb-sel" title="${escHtml(tile.path || tile.name)}">
-    <span>${escHtml(tile.name)} · ${fmtDiskSizeGb(hasNum(tile.diskGb) ? tile.diskGb : tile.sizeGb, 1)}${hasNum(tile.pct) ? ' · ' + tile.pct + '%' : ''}</span>
-    ${hasNum(tile.files) || tile.modified ? `<small>${hasNum(tile.files) ? fmtNum(tile.files, 0) + ' 个文件' : ''}${hasNum(tile.files) && tile.modified ? ' · ' : ''}${tile.modified ? '修改于 ' + escHtml(fmtModified(tile.modified)) : ''}</small>` : ''}
-    </span>
-    ${tile.isDir === false ? '' : `<button class="btn btn-primary" style="padding:2px 9px;font-size:10.5px;" onclick="drillTile(${idx})">进入</button>`}
+  // __current = the directory itself (nothing selected): inspect and locate it, never enter or collect it from here.
+  const current = tile.__current === true;
+  const reason = current ? '' : protectionReason(tile), collected = !current && isCollected(tile);
+  const gb = hasNum(tile.diskGb) ? tile.diskGb : tile.sizeGb;
+  const meta = [hasNum(tile.files) ? fmtCount(tile.files) + ' 个文件' : '', tile.modified ? '修改于 ' + fmtModified(tile.modified) : ''].filter(Boolean).join(' · ');
+  return `<div class="crumb-sel" title="${escHtml(tile.path || tile.name)}">
+    <span class="insp-kind">${current ? '当前目录' : tile.isDir === false ? '文件' : '目录'}</span>
+    <b class="insp-name">${UI_ICON(tile.isDir === false ? 'file' : 'folder')}<span>${escHtml(tile.name)}</span></b>
+    ${tile.path ? `<span class="insp-path">${escHtml(displayPath(tile.path))}</span>` : ''}
+    <span class="insp-size"><strong>${fmtDiskSizeGb(gb, 1)}</strong> 分配${hasNum(tile.logicalGb) ? ' · ' + fmtDiskSizeGb(tile.logicalGb, 1) + ' 逻辑' : ''}${hasNum(tile.pct) ? ' · ' + tile.pct + '%' : ''}</span>
+    ${meta ? `<small>${meta}</small>` : ''}
+    ${reason ? `<span class="insp-reason">${UI_ICON('lock')}<span>${escHtml(reason)}</span></span>` : ''}
+  </div>
+  <div class="insp-actions">
+    ${tile.isDir === false || current ? '' : `<button class="btn btn-primary" onclick="drillTile(${idx})">进入</button>`}
     <button class="btn crumb-icon-btn" title="在访达中显示" aria-label="在访达中显示 ${escHtml(tile.name)}" ${tile.path ? '' : 'disabled'} onclick="revealInFinder('${jsq(tile.path)}')">${UI_ICON('folder')}</button>
     <button class="btn crumb-icon-btn" title="复制路径" aria-label="复制路径 ${escHtml(tile.name)}" ${tile.path ? '' : 'disabled'} onclick="copyPath('${jsq(tile.path)}')">${UI_ICON('copy')}</button>
-    <button class="btn crumb-icon-btn crumb-basket-btn ${collected ? 'on' : ''}" aria-label="${collected ? '移出待清理' : '加入待清理'} ${escHtml(tile.name)}" aria-pressed="${collected}" ${reason ? `disabled title="${escHtml(reason)}"` : `title="${collected ? '移出待清理' : '加入待清理'}"`} onclick="toggleCollect(${idx})">${collected ? UI_ICON('check') : UI_ICON('plus')}<span>${collected ? '已加入' : '待清理'}</span></button>`;
+    ${current ? '' : `<button class="btn crumb-basket-btn ${collected ? 'on' : ''}" aria-label="${collected ? '移出待清理' : '加入待清理'} ${escHtml(tile.name)}" aria-pressed="${collected}" ${reason ? `disabled title="${escHtml(reason)}"` : `title="${collected ? '移出待清理' : '加入待清理'}"`} onclick="toggleCollect(${idx})">${collected ? UI_ICON('check') : UI_ICON('plus')}<span>${collected ? '已加入' : '加入待清理'}</span></button>`}
+  </div>`;
+}
+// Inspector tabs only toggle visibility; the lists are built once per render so scroll and focus survive.
+function setAnalyzeTab(tab) {
+  STATE.analyzeTab = ['children', 'large', 'folded'].includes(tab) ? tab : 'children';
+  document.querySelectorAll('.analysis-inspector [data-tab]').forEach(button => {
+    const on = button.dataset.tab === STATE.analyzeTab;
+    button.classList.toggle('active', on);
+    button.setAttribute('aria-selected', String(on));
+  });
+  document.querySelectorAll('.analysis-inspector [data-pane]').forEach(pane => { pane.hidden = pane.dataset.pane !== STATE.analyzeTab; });
 }
 function readableAnalyzeTarget(target) {
-  if (!target?.matches('.treemap-tile.tt-micro')) return target;
+  if (!target?.matches('.treemap-tile.tt-micro')) {
+    const hidden = target?.closest('[data-pane]');
+    if (hidden?.hidden) setAnalyzeTab(hidden.dataset.pane);
+    return target;
+  }
   const path = target.dataset.path || (target.classList.contains('active-tile') ? analysisSelectedSmallItem()?.path : '');
   const selector = '[data-path="' + CSS.escape(path || '') + '"]';
-  return (path && (document.querySelector('.analysis-other-row' + selector + ' .analysis-other-path')
+  const readable = (path && (document.querySelector('.analysis-other-row' + selector + ' .analysis-other-path')
     || document.querySelector('.treemap-split .list-row' + selector))) || document.querySelector('.analysis-other-toggle');
+  const pane = readable?.closest('[data-pane]');
+  if (pane?.hidden) setAnalyzeTab(pane.dataset.pane);
+  return readable;
 }
 function focusAnalyzeItem() {
   if (!window._analyzeFocusSelector || STATE.module !== 'analyze' || STATE.analyzeLoading) return;
@@ -4383,6 +4490,8 @@ window.onNativeProcessQuitResult = function(result) {
     proc.quitRequested = result.ok === true;
     proc.quitError = result.ok ? '' : String(result.error || '未发送终止指令');
   }
+  const app = STATE.appsList.find(a => a.runningPid === request.pid && a.runningPath === request.path);
+  if (app) app.quitRequested = result.ok === true;
   showToast(result.ok ? `已向 ${request.name} 发送 SIGTERM；是否退出以系统采样为准，不会自动强制结束` : String(result.error || '请求终止失败，进程行已保留'));
   renderModule(); renderMenuBarTrayContent();
 };
@@ -4461,6 +4570,7 @@ function restoreSnapshotEntities(snap) {
     });
   } else if (rd.type === 'software') {
     (rd.removedApps || []).forEach(a => { if (a && !STATE.appsList.some(x => x.id === a.id)) STATE.appsList.unshift(a); });
+    applyAppSort();
     STATE.selectedAppIdx = 0;
   } else if (rd.type === 'orphan_leftovers') {
     (rd.removedOrphans || []).forEach(o => { if (o && !(STATE.orphanLeftoversList || []).some(x => x.id === o.id)) STATE.orphanLeftoversList.unshift(o); });
@@ -4652,6 +4762,7 @@ function renderModule() {
     const selectedGb = selectedBands.reduce((sum, band) => sum + selectedSizeGb(band), 0);
     const tools = [...new Set([...STATE.aiMoonBands.map(band => band.tool || '其他已识别资源'), ...STATE.aiExcludedRoots.map(root => root.tool).filter(Boolean)])].sort();
     if (STATE.aiToolFilter !== 'all' && !tools.includes(STATE.aiToolFilter)) STATE.aiToolFilter = 'all';
+    const uninstalledTools = new Set(STATE.aiMoonBands.filter(band => band.uninstalled).map(band => band.tool));
     const scopedBands = STATE.aiMoonBands.filter(band => matchesAITool(band) && matchesSearch(band));
     const scopedExclusions = STATE.aiExcludedRoots.filter(root => matchesAITool(root) && matchesSearch(root));
     const measuredGb = scopedBands.reduce((sum, band) => sum + (hasNum(band.sizeGb) ? band.sizeGb : 0), 0);
@@ -4661,7 +4772,7 @@ function renderModule() {
     heroHeadline.textContent = selectedGb > 0
       ? `已选 ${fmtDiskSizeGb(selectedGb)}，只处理经过核验的路径`
       : !STATE.aiMoonBands.length ? '还没有扫描结果' : '按工具审查缓存与旧日志，重要资料保留';
-    heroDesc.textContent = 'AI／Agent 本地专项扫描，不是 CLI AI 子命令。可重建缓存和旧诊断日志按路径处理；会话、凭据、模型与工作成果只读保留。';
+    heroDesc.textContent = 'AI／Agent 本地专项扫描，不是 CLI AI 子命令。可重建缓存、旧诊断日志与超过 90 天的过期会话按路径处理；近期会话、凭据、模型与工作成果只读保留。';
     heroStatLabel.textContent = '全部已选待移入废纸篓';
     heroStatValue.textContent = fmtDiskSizeGb(selectedGb);
     heroStatSub.textContent = selectedBands.length ? `共 ${selectedBands.reduce((sum, band) => sum + selectedSubpaths(band).length, 0)} 个已选路径 · 预览后确认` : `${scopedBands.filter(band => band.tier === 'review').length} 项需确认 · ${scopedBands.filter(band => band.tier === 'protected').length} 项保留`;
@@ -4673,7 +4784,7 @@ function renderModule() {
     stage.innerHTML = `
       ${STATE.scanCompleted ? `<div class="facts-bar clean-scan-coverage ai-scan-coverage" aria-label="当前工具与关键词范围的测量情况"><span data-ai-tools>已识别 ${tools.length} 个工具／资源类</span><span data-ai-scope>${STATE.aiToolFilter === 'all' && !q ? '全部结果' : '当前筛选'}</span><span data-ai-measured>已测量 ${fmtDiskSizeGb(measuredGb)}${scopedBands.some(band => band.partial) ? '（含不完整下限）' : ''}</span><span data-ai-reviewable>可审查 ${fmtDiskSizeGb(reviewableGb)}</span><span data-ai-retained>保留（已测）${fmtDiskSizeGb(Math.max(0, measuredGb - reviewableGb))}</span></div>` : ''}
       ${STATE.scanCompleted && scopedExclusions.length ? `<details class="runtime-evidence clean-exclusions ai-exclusions" ${STATE.aiExcludedOpen ? 'open' : ''} ontoggle="if(this.isConnected)STATE.aiExcludedOpen=this.open"><summary tabindex="0">${scopedExclusions.length} 个已识别 AI 缓存目录被保护排除 · 体积未测量</summary><p>已识别缓存仍须遵守白名单；不会为了增加清理容量而解除保护。这里只核对默认路径，未列出不代表工具没有数据。</p><div class="permission-group-list">${scopedExclusions.map(item => `<div class="permission-group-row"><button class="permission-group-path" onclick="revealInFinder('${jsq(item.path)}')" aria-label="在访达中显示 ${escHtml(item.path)}">${UI_ICON('lock')}<span><b>${escHtml(item.tool)} · ${escHtml(displayPath(item.path))}</b><small>${escHtml(item.reason)}</small></span></button><span class="row-sub">未测量</span></div>`).join('')}</div><div class="permission-recovery-actions"><button class="btn" onclick="switchModule('history')">查看白名单</button></div></details>` : ''}
-      <label class="ai-tool-filter">工具 <select tabindex="0" aria-label="筛选已识别 AI 工具" onchange="setAIToolFilter(this.value)"><option value="all">全部已识别工具</option>${tools.map(tool => `<option value="${escHtml(tool)}" ${STATE.aiToolFilter === tool ? 'selected' : ''}>${escHtml(tool)}</option>`).join('')}</select></label>
+      <label class="ai-tool-filter">工具 <select tabindex="0" aria-label="筛选已识别 AI 工具" onchange="setAIToolFilter(this.value)"><option value="all">全部已识别工具</option>${tools.map(tool => `<option value="${escHtml(tool)}" ${STATE.aiToolFilter === tool ? 'selected' : ''}>${escHtml(tool)}${uninstalledTools.has(tool) ? ' · 已卸载' : ''}</option>`).join('')}</select></label>
       ${hiddenSelection.length ? `<div class="permission-recovery-actions ai-selection-notice" role="status"><span style="font-size:11.5px;color:var(--accent-amber);">当前筛选外仍有 ${hiddenSelection.length} 个已选路径 · ${fmtDiskSizeGb(hiddenSelection.reduce((sum, path) => sum + (Number(path.sizeGb) || 0), 0))}；预览包含全部已选。</span><button class="btn" onclick="clearAIFilters()">显示全部</button></div>` : ''}
       <div class="master-detail-grid">
         <div class="panel-card">
@@ -4697,7 +4808,7 @@ function renderModule() {
                   }
                   <div style="min-width:0;">
                     <div class="row-title">${escHtml(b.name)}</div>
-                    <div class="row-sub">${escHtml(b.band)} · ${escHtml(b.path)}</div>
+                    <div class="row-sub">${escHtml(b.band)}${b.uninstalled ? ' · 已卸载' : ''}${b.ageText ? ' · ' + escHtml(b.ageText) : ''} · ${escHtml(b.path)}</div>
                     ${b.safetyReason || b.gitState ? `<div class="row-sub" style="color:var(--accent-amber);white-space:normal;">${escHtml(b.gitState || b.safetyReason)}</div>` : ''}
                     ${b.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(b.failedReason)}</div>` : ''}
                   </div>
@@ -4721,7 +4832,7 @@ function renderModule() {
           ${selBand ? `
           <div class="inspector-content">
             <div>
-              <div style="font-size:10px;font-weight:700;color:var(--text-muted);">${selBand.band}</div>
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);">${escHtml(selBand.band)}${selBand.uninstalled ? ' · 已卸载' : ''}${selBand.ageText ? ' · ' + escHtml(selBand.ageText) : ''}</div>
               <div style="font-size:14px;font-weight:700;margin-top:2px;">${escHtml(selBand.name)}</div>
             </div>
             <div class="bento-4">
@@ -4734,6 +4845,7 @@ function renderModule() {
               <div style="font-weight:700;margin-bottom:3px;font-size:11px;">${UI_ICON('shield')} AI 数据安全边界说明</div>
               ${selBand.safetyReason || selBand.gitState ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(selBand.safetyReason || selBand.gitState)}</div>` : ''}
               <div style="color:var(--text-secondary);font-size:11px;">${escHtml(selBand.impact)}</div>
+              ${selBand.uninstalled ? `<div style="color:var(--text-secondary);font-size:11px;margin-top:4px;">未检测到 ${escHtml(selBand.tool)} 的启动器或应用，按已卸载处理；其可重建缓存与日志照常审查。登录凭据、配置与每个项目最新的 5 个会话仍然保留，不会列入清理。</div>` : ''}
             </div>
             <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">关联本地路径明细</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
@@ -4935,6 +5047,9 @@ function renderModule() {
           <div class="panel-card">
             <div class="panel-header">
               <span title="扫描 /Applications（含 Utilities）与 ~/Applications；系统及受保护应用保留，不是全机应用索引">应用目录 · ${STATE.appsList.length} 款</span>
+              <div class="analysis-list-tools" role="group" aria-label="应用排序">
+                ${[['size', '大小'], ['recent', '最近使用'], ['name', '名称']].map(([key, label]) => `<button class="analysis-sort ${STATE.appSort === key ? 'active' : ''}" onclick="setAppSort('${key}')" aria-pressed="${STATE.appSort === key}">${label}</button>`).join('')}
+              </div>
               <div class="segmented-tabs">
                 <div class="seg-tab ${mode === 'standard' ? 'active' : ''}" onclick="setUninstallMode('standard')" title="移除应用，保留个人配置">标准卸载</div>
                 <div class="seg-tab ${mode === 'complete' ? 'active' : ''}" onclick="setUninstallMode('complete')" title="移除应用及全部 Library 数据">彻底卸载</div>
@@ -4946,7 +5061,7 @@ function renderModule() {
                 if (!matchesSearch(app)) return '';
                 const rowGb = calcAppGb(app);
                 const cache = appCacheSummary(app);
-                const selectable = app.subpaths.some(sp => !sp.cleaned && sp.tier !== 'protected' && !sp.partial
+                const selectable = !(app.running && mode !== 'cache_only') && app.subpaths.some(sp => !sp.cleaned && sp.tier !== 'protected' && !sp.partial
                   && (mode !== 'cache_only' || sp.kind === 'cache') && (mode !== 'standard' || sp.kind !== 'config' || !app.keepPersonal));
                 return `
                 <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
@@ -4961,8 +5076,10 @@ function renderModule() {
                       <div class="row-title has-meta">
                         <span class="row-name" title="${escHtml(app.name)}">${escHtml(app.name)}</span>
                         <span class="row-meta">${app.version ? 'v' + escHtml(app.version) : '版本未知'}</span>
+                        ${app.running ? '<span class="badge badge-review" title="应用正在运行，退出后才能卸载">运行中</span>' : ''}
                       </div>
-                      <div class="row-sub">应用 ${app.partial && !app.appSizeGb ? '未读取' : fmtDiskSizeGb(app.appSizeGb)}${app.partial ? '（已测）' : ''} · 缓存 ${cache.size}${cache.state === '已测量' ? '' : ' · ' + cache.state}</div>
+                      <div class="row-sub" title="${escHtml(app.lastUsed || '')}">应用 ${app.partial && !app.appSizeGb ? '未读取' : fmtDiskSizeGb(app.appSizeGb)}${app.partial ? '（已测）' : ''} · 缓存 ${cache.size}${cache.state === '已测量' ? '' : ' · ' + cache.state}</div>
+                      <div class="row-sub">${appUsedText(app)}</div>
                       ${app.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(app.failedReason)}</div>` : ''}
                     </div>
                   </div>
@@ -5009,8 +5126,8 @@ function renderModule() {
                   <div class="app-path-entry"><div class="subpath-item">
                     <div class="subpath-left">
                       <input type="checkbox" ${selectedSubpaths(selApp, mode).includes(sp) ? 'checked' : ''} ${sp.tier === 'protected' || sp.partial || mode === 'cache_only' && sp.kind !== 'cache' || mode === 'standard' && sp.kind === 'config' && selApp.keepPersonal ? 'disabled' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
-                      <span class="badge ${sp.kind === 'app' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
-                        ${sp.kind === 'app' ? '应用' : sp.kind === 'cache' ? '缓存' : '个人配置'}
+                      <span class="badge ${sp.kind === 'app' || sp.kind === 'launch' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
+                        ${sp.kind === 'app' ? '应用' : sp.kind === 'cache' ? '缓存' : sp.kind === 'launch' ? '启动项' : '个人配置'}
                       </span>
                       <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${jsq(sp.path)}')">${escHtml(sp.path)}</span>
                     </div>
@@ -5021,6 +5138,8 @@ function renderModule() {
 
               <div style="margin-top:auto;padding-top:8px;">
                 <button class="btn" onclick="revealInFinder('${jsq(selApp.appPath)}')">在访达中显示</button>
+                ${selApp.running ? `<button class="btn" data-quit-app ${selApp.runningPid && !selApp.quitRequested && !pendingProcessQuits.size ? '' : 'disabled'} onclick="quitApp(${STATE.selectedAppIdx})">${selApp.quitRequested ? '已请求退出' : '退出应用'}</button>
+                <div class="row-sub" style="white-space:normal;margin-top:8px;">${UI_ICON('lock')} ${selApp.quitRequested ? '已发出退出请求；是否真正退出以重新扫描为准。' : selApp.runningPid ? '应用正在运行，不能卸载。先正常退出，再重新扫描。' : '应用的辅助进程仍在运行，找不到可退出的主进程；请手动退出后重新扫描。'}</div>` : ''}
                 <div class="row-sub" style="white-space:normal;margin-top:8px;">勾选应用或路径后，使用右上角按钮预览。取消勾选的路径不会处理。</div>
               </div>
             </div>
@@ -5042,8 +5161,6 @@ function renderModule() {
     const agg = isDrilled ? parentDir.aggregated : STATE.analyzeAggregated;
     const otherItems = agg && Array.isArray(agg.items) ? agg.items : [];
     const showAggregate = !q && !!agg && (agg.sizeGb > 0 || agg.count > 0 || otherItems.length > 0);
-    const curSelectedTile = smallSelectedTile || activeTiles[activeIdx] ||
-      (showAggregate ? { name: '折叠小项', path: '', isDir: false, sizeGb: agg.sizeGb, files: agg.count } : { name: '无可展开条目', path: '', isDir: false, sizeGb: 0 });
     const largeFiles = currentLargeFiles();
     const totalLfGb = largeFiles.reduce((s, f) => s + (Number(f.sizeGb) || 0), 0);
     const drillGb = isDrilled ? diskGbOf(parentDir) : STATE.totalAnalyzedGb;
@@ -5056,6 +5173,9 @@ function renderModule() {
     const logicalGb = isDrilled ? parentDir.logicalGb : STATE.analyzeLogicalGb;
     const fileCount = isDrilled ? parentDir.files : STATE.analyzeFileCount;
     const viewStatus = isDrilled ? parentDir.scanStatus : STATE.analyzeStatus;
+    // Nothing selectable (empty or fully folded level): the inspector describes the directory itself.
+    const curSelectedTile = smallSelectedTile || activeTiles[activeIdx] ||
+      { __current: true, name: parentDir.name, path: parentDir.path, isDir: true, sizeGb: drillGb, diskGb: drillGb, logicalGb, files: fileCount, modified: parentDir.modified };
 
     topTitle.textContent = '磁盘空间分析 · 星图仪';
     primaryBtnText.textContent = STATE.analyzeLoading ? '取消扫描' : '重新扫描';
@@ -5064,10 +5184,10 @@ function renderModule() {
       heroDesc.textContent = '扫描器没有产出可用结果；页面不会把失败显示成 0 字节的空图。点「重试」重新扫描，或先用上方「刷新扫描」重扫本机。';
     } else if (STATE.analyzeLoading) {
       heroHeadline.textContent = hasNum(progress.files)
-        ? `正在扫描… 已扫描 ${fmtNum(progress.files, 0)} 个文件${hasNum(progress.seconds) ? ' · ' + fmtNum(progress.seconds, 1) + 's' : ''}`
+        ? `正在扫描… 已扫描 ${fmtCount(progress.files)} 个文件${hasNum(progress.seconds) ? ' · ' + fmtNum(progress.seconds, 1) + 's' : ''}`
         : '正在扫描…';
       const bits = [];
-      if (hasNum(progress.dirs)) bits.push(`${fmtNum(progress.dirs, 0)} 个目录`);
+      if (hasNum(progress.dirs)) bits.push(`${fmtCount(progress.dirs)} 个目录`);
       const amt = fmtScanAmt(progress.bytes);
       if (amt) bits.push(`已计入 ${amt}`);
       if (progress.current) bits.push(`当前 ${displayPath(progress.current)}`);
@@ -5096,11 +5216,11 @@ function renderModule() {
 
     // 事实条：只用扫描器真实回传的字段，缺哪个省哪个（不补 0、不猜）。
     const factBits = [];
-    if (hasNum(fileCount)) factBits.push(`文件 ${fmtNum(fileCount, 0)}`);
+    if (hasNum(fileCount)) factBits.push(`文件 ${fmtCount(fileCount)}`);
     factBits.push(`占用 ${fmtDiskSizeGb(drillGb)}（分配）${hasNum(logicalGb) ? ` / ${fmtDiskSizeGb(logicalGb)}（逻辑）` : ''}`);
     if (agg && (agg.count > 0 || agg.sizeGb > 0)) {
       const ab = [];
-      if (hasNum(agg.count)) ab.push(`${fmtNum(agg.count, 0)} 个小项`);
+      if (hasNum(agg.count)) ab.push(`${fmtCount(agg.count)} 个小项`);
       if (hasNum(agg.sizeGb)) ab.push(`共 ${fmtDiskSizeGb(agg.sizeGb)}`);
       factBits.push(`合并 ${ab.join(' · ')}`);
     }
@@ -5108,19 +5228,39 @@ function renderModule() {
       const outside = Math.max(0, vol.usedGb - STATE.totalAnalyzedGb);
       if (outside >= 0.01) factBits.push(`范围外约 ${fmtDiskSizeGb(outside)}`);
     }
-    if (q) factBits.push(`搜索匹配 ${activeTiles.length} 项`);
+    if (q) factBits.push(`搜索匹配 ${activeTiles.length} 项 · 面积只比较匹配项，百分比仍相对本层`);
     const restrictedBtn = restricted.length
-      ? `<button class="btn" style="padding:1px 8px;font-size:10.5px;" onclick="STATE.analyzeRestrictedOpen = !STATE.analyzeRestrictedOpen; renderModule();">${restricted.length} 个路径读取受限${STATE.analyzeRestrictedOpen ? ' ▴' : ' ▾'}</button>`
+      ? `<button class="as-link" aria-expanded="${!!STATE.analyzeRestrictedOpen}" onclick="STATE.analyzeRestrictedOpen = !STATE.analyzeRestrictedOpen; renderModule();">${restricted.length} 个路径读取受限${STATE.analyzeRestrictedOpen ? ' ▴' : ' ▾'}</button>`
       : '';
     const restrictedPanel = STATE.analyzeRestrictedOpen && restricted.length
-      ? restrictedRecoveryHTML(restricted, STATE.analyzeRoot || '')
+      ? `<div class="analysis-restricted">${restrictedRecoveryHTML(restricted, STATE.analyzeRoot || '')}</div>`
       : '';
     const excludedNote = excluded.length
-      ? `<span style="color:var(--text-tertiary);" title="${escHtml(excluded.slice(0, 6).map(r => displayPath(r.path)).join('、'))}">已跳过 ${excluded.length} 项（系统或跨卷）</span>`
+      ? `<span class="as-note" title="${escHtml(excluded.slice(0, 6).map(r => displayPath(r.path)).join('、'))}">已跳过 ${excluded.length} 项（系统或跨卷）</span>`
       : '';
     // 统计条在扫描期间也占位：否则结果一到、整块内容下移一次（就是「抖一下」）。
     const factsBar = `<div class="facts-bar">
-        <span>${STATE.analyzeLoading ? '扫描完成后显示统计口径（实际占用 / 逻辑占用 / 合并项）' : factBits.join(' · ')}</span>${STATE.analyzeLoading ? '' : (excludedNote ? '· ' + excludedNote : '')}${STATE.analyzeLoading ? '' : (restrictedBtn ? '<span>·</span>' + restrictedBtn : '')}
+        <span>${STATE.analyzeLoading ? '扫描完成后显示统计口径（实际占用 / 逻辑占用 / 合并项）' : factBits.join(' · ')}</span>${STATE.analyzeLoading ? '' : '<span class="as-source">仅此范围</span>' + excludedNote + restrictedBtn}
+      </div>`;
+    // 摘要行：路径标题 + 一行统计 + 所在卷可用空间（细容量条）。卷数字缺哪个省哪个，不补 0。
+    const volTotal = vol && hasNum(vol.totalGb) ? vol.totalGb : STATE.totalDiskGb > 0 ? STATE.totalDiskGb : null;
+    const volFree = vol && hasNum(vol.freeGb) ? vol.freeGb : hasNum(STATE.freeDiskGb) ? STATE.freeDiskGb : null;
+    const volUsedPct = hasNum(volTotal) && volTotal > 0 && hasNum(volFree) ? Math.min(100, Math.max(0, (volTotal - volFree) / volTotal * 100)) : null;
+    const summaryRow = `<div class="analysis-summary">
+        <div class="as-main">
+      <div class="breadcrumb-bar">
+        <div class="crumb-left">
+          <button class="btn icon-btn" ${STATE.trailBack.length ? '' : 'disabled'} title="后退" aria-label="后退" onclick="goBack()">${UI_ICON('back')}</button><button class="btn icon-btn" ${STATE.trailFwd.length ? '' : 'disabled'} title="前进" aria-label="前进" onclick="goForward()">${UI_ICON('fwd')}</button>
+          ${isDrilled ? `<button class="btn icon-btn" onclick="drillUp()" title="返回上一级" aria-label="返回上一级">${UI_ICON('up')}</button>` : ''}
+          <div class="crumb-location">${[rootName].concat(stack.map(n => n.name)).map((name, i, all) => `${i ? '<span class="crumb-sep" aria-hidden="true">/</span>' : ''}${i === all.length - 1 ? `<span class="crumb-item active" aria-current="location" title="${escHtml(parentDir.path)}">${escHtml(name)}</span>` : `<button class="crumb-item" onclick="jumpToDepth(${i})" title="返回 ${escHtml(name)}">${escHtml(name)}</button>`}`).join('')}</div>
+        </div>
+      </div>
+          ${factsBar}
+        </div>
+        <div class="as-vol" title="${escHtml(heroStatSub.textContent)}">
+          <span>所在卷可用 <b>${hasNum(volFree) ? volFree.toFixed(1) + ' GB' : '未知'}</b>${hasNum(volTotal) ? ` / ${volTotal.toFixed(1)} GB` : ''}</span>
+          ${volUsedPct === null ? '' : `<span class="as-cap" role="img" aria-label="所在卷已用 ${volUsedPct.toFixed(0)}%"><i style="width:${volUsedPct.toFixed(1)}%"></i></span>`}
+        </div>
       </div>${STATE.analyzeLoading ? '' : restrictedPanel}`;
 
     // 结果区的三种「非图表」状态：错误 > 无数据提示；有数据或扫描中时走正常布局（不显示 0 字节空图）。
@@ -5144,12 +5284,12 @@ function renderModule() {
         <div><b>当前层级没有匹配“${escHtml(STATE.searchQuery)}”的路径</b><span>搜索只覆盖这一层已加载条目；清空搜索后可继续沿目录下钻。</span></div>
         <div class="analysis-empty-actions">${isDrilled ? `<button class="btn" onclick="drillUp()">${UI_ICON('up')} 返回上一级</button>` : ''}<button class="btn" onclick="clearAnalysisSearch()">清空搜索</button></div>
       </div>` : '';
-    const emptyBody = errorPanel || (noMatchPanel ? factsBar + noMatchPanel : '') || (hintPanel ? factsBar + hintPanel : '');
+    const emptyBody = errorPanel || (noMatchPanel ? summaryRow + noMatchPanel : '') || (hintPanel ? summaryRow + hintPanel : '');
     // 扫描中：不摆一屏骨架条，只留一块安静的进度面板（信息用真实计数，不假装有数据）。
     const scanAmt = fmtScanAmt(progress.bytes);
     const scanBits = [];
-    if (hasNum(progress.files)) scanBits.push(`已扫描 ${fmtNum(progress.files, 0)} 个文件`);
-    if (hasNum(progress.dirs)) scanBits.push(`${fmtNum(progress.dirs, 0)} 个目录`);
+    if (hasNum(progress.files)) scanBits.push(`已扫描 ${fmtCount(progress.files)} 个文件`);
+    if (hasNum(progress.dirs)) scanBits.push(`${fmtCount(progress.dirs)} 个目录`);
     if (scanAmt) scanBits.push(`已计入 ${scanAmt}`);
     if (hasNum(progress.seconds)) scanBits.push(`${fmtNum(progress.seconds, 1)}s`);
     const scanningBody = (STATE.analyzeLoading && !hasAnyTiles) ? `
@@ -5163,113 +5303,108 @@ function renderModule() {
       </div>` : '';
 
     stage.innerHTML = emptyBody ? emptyBody : (scanningBody || `
-      ${factsBar}
-      <div class="breadcrumb-bar">
-        <div class="crumb-left">
-          <button class="btn icon-btn" ${STATE.trailBack.length ? '' : 'disabled'} title="后退" onclick="goBack()">${UI_ICON('back')}</button><button class="btn icon-btn" ${STATE.trailFwd.length ? '' : 'disabled'} title="前进" onclick="goForward()">${UI_ICON('fwd')}</button>
-          ${isDrilled ? `<button class="btn icon-btn" onclick="drillUp()" title="返回上一级" aria-label="返回上一级">${UI_ICON('up')}</button>` : ''}
-          <div class="crumb-location">${[rootName].concat(stack.map(n => n.name)).map((name, i, all) => `${i ? '<span class="crumb-sep" aria-hidden="true">/</span>' : ''}${i === all.length - 1 ? `<span class="crumb-item active" aria-current="location" title="${escHtml(parentDir.path)}">${escHtml(name)}</span>` : `<button class="crumb-item" onclick="jumpToDepth(${i})" title="返回 ${escHtml(name)}">${escHtml(name)}</button>`}`).join('')}</div>
-        </div>
-        <div class="crumb-actions">${analysisSelectionHTML(curSelectedTile, activeIdx)}</div>
-      </div>
+      ${summaryRow}
 
       <div class="treemap-split">
-        <div class="panel-card">
-          <div class="panel-header">
-            <span>${isDrilled ? escHtml(parentDir.name) : '顶层目录'}</span>
-            <div class="analysis-list-tools">
-              <button class="analysis-sort ${STATE.analyzeSort !== 'name' ? 'active' : ''}" onclick="setAnalyzeSort('size')" aria-pressed="${STATE.analyzeSort !== 'name'}">大小</button>
-              <button class="analysis-sort ${STATE.analyzeSort === 'name' ? 'active' : ''}" onclick="setAnalyzeSort('name')" aria-pressed="${STATE.analyzeSort === 'name'}">名称</button>
-              <span>${activeTiles.length} 项</span>
-            </div>
-          </div>
-          <div class="list-body">
-            ${!activeTiles.length && showAggregate ? `
-              <div class="analysis-aggregate-only">
-                ${UI_ICON('search')}
-                <b>此层项目都已折叠</b>
-                <span>${hasNum(agg.count) ? fmtNum(agg.count, 0) + ' 项' : '小项'} · ${fmtDiskSizeGb(agg.sizeGb)}<br>展开下方折叠项可查看最大的 ${otherItems.length} 项。</span>
-                <button class="btn" onclick="toggleAnalyzeOtherItems(true)">查看折叠项</button>
-              </div>` : activeTiles.map((d, idx) => {
-              const dGb = diskGbOf(d);
-              const dPartial = d.partial === true || d.scanStatus === 'partial';
-              return `
-              <div class="list-row ${idx === activeIdx ? 'selected' : ''}" style="padding:5px 14px;" data-idx="${idx}" data-path="${escHtml(d.path)}" data-analyze-action="inspect" title="${escHtml(d.path || d.name)}" onclick="selectTile(${idx})" ondblclick="drillTile(${idx})">
-                <div class="row-left">
-                  ${pickControl(d, idx)}
-                  <div style="min-width:0;">
-                    <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI_ICON(d.isDir === false ? 'file' : 'folder')} ${escHtml(d.name)}</div>
-                    <div class="row-sub pct-line"><span class="pct-bar"><i style="width:${Math.min(100, Number(d.pct) || 0)}%;background:${d.color || '#475569'}"></i></span><span>${hasNum(d.pct) ? d.pct + '%' : '-'}</span>${hasNum(d.files) ? '<span>' + fmtNum(d.files, 0) + ' 个文件</span>' : ''}${d.fromOther ? '<span>折叠项</span>' : ''}${dPartial ? '<span>受限</span>' : ''}${d.cleanable ? '<span>可清理</span>' : ''}</div>
-                  </div>
-                </div>
-                <span class="size-cell">${fmtDiskSizeGb(dGb, 1)}</span>
-              </div>`;
-            }).join('')}
-          </div>
-          ${!isDrilled && STATE.analyzeInsights.length ? `
-            <details class="insights-box" ${STATE.insightsOpen ? 'open' : ''} ontoggle="STATE.insightsOpen = this.open">
-              <summary>系统洞察 · ${STATE.analyzeInsights.length} 项（不计入面积图）</summary>
-              ${STATE.analyzeInsights.map(item => `
-                <div class="subpath-item">
-                  <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${jsq(item.path)}')">${UI_ICON(item.cleanable ? 'trash' : 'search')} ${item.name}</span>
-                  <span class="subpath-right">${fmtNum(item.diskGb, 2, fmtNum(item.sizeGb, 2, '未知'))} GB</span>
-                </div>
-              `).join('')}
-            </details>` : ''}
-        </div>
-
         <div class="analysis-map">
           <div class="treemap-stage" role="group" aria-label="磁盘占用方块图：单击查看，双击或 Enter 进入目录，方向键移动，F 在访达中显示"></div>
-          <div id="analysisOtherHost" class="analysis-small-items" role="region" aria-label="地图中的小项目明细"></div>
-          <div class="analysis-map-note"><span>${q ? '面积仅比较匹配项；百分比仍相对当前目录' : '单击查看 · 双击或 Enter 进入 · 空格检视'}</span><span id="tilePreview" class="crumb-preview" aria-live="polite"></span></div>
+          <div class="analysis-map-note"><span id="tilePreview" class="crumb-preview" aria-live="polite"></span></div>
         </div>
-      </div>
 
-      <div class="panel-card analysis-large-files">
-        <div class="panel-header">
-          <span>当前范围的大文件</span>
-          <span style="font-size:11px;color:var(--text-secondary);">${largeFiles.length} 项 · ${fmtDiskSizeGb(totalLfGb)} · 分配超过 100 MB，最多 50 项</span>
-        </div>
-        <div class="list-body" role="region" aria-label="当前范围的大文件列表" tabindex="0">
-          ${largeFiles.length === 0 ? `<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;">${q ? '当前搜索没有匹配的大文件；清空搜索可查看本层全部结果。' : '当前范围已读取的部分没有符合条件的大文件；未读取路径不在此结论内。'}</div>` : largeFiles.map((lf, idx) => `
-            <div class="list-row" style="padding:7.5px 14px;">
-              <div class="row-left">
-                <span class="row-glyph">${get_skeuo_svg('purge', 'lf' + idx)}</span>
-                <div style="min-width:0;">
-                  <div class="row-title">${escHtml(lf.name)}</div>
-                  <div class="row-sub" style="cursor:pointer;" onclick="revealInFinder('${jsq(lf.path)}')">${escHtml(lf.path)}</div>
-                  ${lf.protectionReason ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(lf.protectionReason)}</div>` : ''}
-                  ${lf.failed ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;line-height:1.5;margin-top:2px;">${escHtml(lf.failedReason || '未能移入废纸篓')}${finderFallbackLink(lf.path)}</div>` : ''}
-                </div>
+        <aside class="analysis-inspector" aria-label="选中项检查器">
+          <div class="crumb-actions">${analysisSelectionHTML(curSelectedTile, activeIdx)}</div>
+          <div class="insp-tabs" role="tablist" aria-label="本层明细"></div>
+          <div class="insp-panes">
+            <div class="insp-pane analysis-children" data-pane="children" role="tabpanel" aria-label="子项">
+              <div class="analysis-list-tools">
+                <button class="analysis-sort ${STATE.analyzeSort !== 'name' ? 'active' : ''}" onclick="setAnalyzeSort('size')" aria-pressed="${STATE.analyzeSort !== 'name'}">大小</button>
+                <button class="analysis-sort ${STATE.analyzeSort === 'name' ? 'active' : ''}" onclick="setAnalyzeSort('name')" aria-pressed="${STATE.analyzeSort === 'name'}">名称</button>
+                <span>${activeTiles.length} 项</span>
               </div>
-              <div class="row-right">
-                ${lf.failed ? `<span class="badge" style="background:rgba(244,63,94,.14);color:var(--accent-rose);border:1px solid rgba(244,63,94,.35);">删除失败</span>` : `<span class="badge badge-review">${escHtml(lf.kind || '文件')}</span>`}
-                <span class="size-cell">${(Number(lf.sizeGb) || 0).toFixed(2)} GB</span>
-                <button class="btn" style="padding:3px 9px;font-size:11px;" ${protectionReason(lf) ? 'disabled' : ''} onclick="removeLargeFile(${idx})">${protectionReason(lf) ? '保留' : lf.failed ? '重试' : '预览移除'}</button>
+              <div class="list-body">
+                ${!activeTiles.length && showAggregate ? `
+                  <div class="analysis-aggregate-only">
+                    ${UI_ICON('search')}
+                    <b>此层项目都已折叠</b>
+                    <span>${hasNum(agg.count) ? fmtCount(agg.count) + ' 项' : '小项'} · ${fmtDiskSizeGb(agg.sizeGb)}<br>在「折叠项」标签可查看最大的 ${otherItems.length} 项。</span>
+                    <button class="btn" onclick="toggleAnalyzeOtherItems(true)">查看折叠项</button>
+                  </div>` : activeTiles.map((d, idx) => {
+                  const dGb = diskGbOf(d);
+                  const dPartial = d.partial === true || d.scanStatus === 'partial';
+                  return `
+                  <div class="list-row ${idx === activeIdx ? 'selected' : ''}" data-idx="${idx}" data-path="${escHtml(d.path)}" data-analyze-action="inspect" title="${escHtml(d.path || d.name)}" onclick="selectTile(${idx})" ondblclick="drillTile(${idx})">
+                    <div class="row-left">
+                      ${pickControl(d, idx)}
+                      <div style="min-width:0;">
+                        <div class="row-name">${UI_ICON(d.isDir === false ? 'file' : 'folder')} ${escHtml(d.name)}</div>
+                        <div class="row-sub pct-line"><span class="pct-bar"><i style="width:${Math.min(100, Number(d.pct) || 0)}%"></i></span><span>${hasNum(d.pct) ? d.pct + '%' : '-'}</span>${hasNum(d.files) ? '<span>' + fmtCount(d.files) + ' 个文件</span>' : ''}${d.fromOther ? '<span>折叠项</span>' : ''}${dPartial ? '<span>受限</span>' : ''}${d.cleanable ? '<span>可清理</span>' : ''}</div>
+                      </div>
+                    </div>
+                    <span class="size-cell">${fmtDiskSizeGb(dGb, 1)}</span>
+                  </div>`;
+                }).join('')}
+                ${!isDrilled && STATE.analyzeInsights.length ? `
+                <details class="insights-box" ${STATE.insightsOpen ? 'open' : ''} ontoggle="STATE.insightsOpen = this.open">
+                  <summary>系统洞察 · ${STATE.analyzeInsights.length} 项（不计入面积图）</summary>
+                  ${STATE.analyzeInsights.map(item => `
+                    <div class="subpath-item">
+                      <span class="subpath-left" style="cursor:pointer;" onclick="revealInFinder('${jsq(item.path)}')">${UI_ICON(item.cleanable ? 'trash' : 'search')} ${escHtml(item.name)}</span>
+                      <span class="subpath-right">${fmtNum(item.diskGb, 2, fmtNum(item.sizeGb, 2, '未知'))} GB</span>
+                    </div>
+                  `).join('')}
+                </details>` : ''}
               </div>
             </div>
-          `).join('')}
-        </div>
+
+            <div class="insp-pane analysis-large-files" data-pane="large" role="tabpanel" aria-label="大文件" hidden>
+              <div class="insp-note">${largeFiles.length} 项 · ${fmtDiskSizeGb(totalLfGb)} · 分配超过 100 MB，最多 50 项</div>
+              <div class="list-body" role="region" aria-label="当前范围的大文件列表" tabindex="0">
+                ${largeFiles.length === 0 ? `<div class="insp-empty">${q ? '当前搜索没有匹配的大文件；清空搜索可查看本层全部结果。' : '当前范围已读取的部分没有符合条件的大文件；未读取路径不在此结论内。'}</div>` : largeFiles.map((lf, idx) => `
+                <div class="list-row">
+                  <div class="row-left">
+                    <span class="row-glyph">${get_skeuo_svg('purge', 'lf' + idx)}</span>
+                    <div style="min-width:0;">
+                      <div class="row-title">${escHtml(lf.name)}</div>
+                      <div class="row-sub" style="cursor:pointer;" onclick="revealInFinder('${jsq(lf.path)}')">${escHtml(lf.path)}</div>
+                      ${lf.protectionReason ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(lf.protectionReason)}</div>` : ''}
+                      ${lf.failed ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;line-height:1.5;margin-top:2px;">${escHtml(lf.failedReason || '未能移入废纸篓')}${finderFallbackLink(lf.path)}</div>` : ''}
+                    </div>
+                  </div>
+                  <div class="row-right">
+                    ${lf.failed ? `<span class="badge" style="background:rgba(244,63,94,.14);color:var(--accent-rose);border:1px solid rgba(244,63,94,.35);">删除失败</span>` : `<span class="badge badge-review">${escHtml(lf.kind || '文件')}</span>`}
+                    <span class="size-cell">${(Number(lf.sizeGb) || 0).toFixed(2)} GB</span>
+                    <button class="btn" ${protectionReason(lf) ? 'disabled' : ''} onclick="removeLargeFile(${idx})">${protectionReason(lf) ? '保留' : lf.failed ? '重试' : '预览移除'}</button>
+                  </div>
+                </div>
+              `).join('')}
+              </div>
+            </div>
+
+            <div id="analysisOtherHost" class="insp-pane analysis-small-items" data-pane="folded" role="tabpanel" aria-label="折叠项" hidden></div>
+          </div>
+        </aside>
       </div>
     `);
     const map = stage.querySelector('.treemap-stage');
     STATE.analyzeMapFolded = foldedTreemapTile([], showAggregate ? agg : null);
     STATE.analyzeSmallItems = null;
     if (map) {
-      const split = stage.querySelector('.treemap-split');
-      if (window.innerWidth <= 960) split.prepend(map.parentElement);
-      let laid = layoutTreemap(activeTiles, showAggregate ? agg : null);
-      if (smallTreemapItems(laid, STATE.analyzeMapFolded)) {
-        map.parentElement.classList.add('has-small-items');
-        map.parentElement.classList.toggle('small-items-collapsed', STATE.analyzeOtherOpen === false);
-        laid = layoutTreemap(activeTiles, showAggregate ? agg : null);
-      }
+      const laid = layoutTreemap(activeTiles, showAggregate ? agg : null);
       STATE.analyzeMapFolded = laid.find(tile => tile.__others) || STATE.analyzeMapFolded;
       STATE.analyzeSmallItems = smallTreemapItems(laid, STATE.analyzeMapFolded);
       map.innerHTML = analysisMapHTML(activeTiles, showAggregate ? agg : null, activeIdx, laid);
     }
+    const small = STATE.analyzeSmallItems;
     const otherHost = stage.querySelector('#analysisOtherHost');
-    if (otherHost) otherHost.innerHTML = analysisOtherHTML(STATE.analyzeSmallItems, parentDir);
+    if (otherHost) otherHost.innerHTML = analysisOtherHTML(small, parentDir);
+    const tabsEl = stage.querySelector('.insp-tabs');
+    if (tabsEl) {
+      if (!small && STATE.analyzeTab === 'folded') STATE.analyzeTab = 'children';
+      const count = n => hasNum(n) ? ` <i>${fmtCount(n)}</i>` : '';
+      tabsEl.innerHTML = [['children', '子项', activeTiles.length], ['large', '大文件', largeFiles.length], ['folded', '折叠项', small ? small.count : null]]
+        .map(([id, label, n]) => `<button class="insp-tab" role="tab" data-tab="${id}" ${id === 'folded' && !small ? 'aria-disabled="true" title="本层没有折叠项" onclick="return false"' : `onclick="setAnalyzeTab('${id}')"`}>${label}${count(n)}</button>`).join('');
+      setAnalyzeTab(STATE.analyzeTab);
+    }
     const crumbs = stage.querySelector('.crumb-location');
     if (crumbs) crumbs.scrollLeft = crumbs.scrollWidth;
   } else if (mod === 'status') {
@@ -5938,10 +6073,13 @@ document.addEventListener('keydown', (e) => {
     const aiToolFocus = sameScope && STATE.module === 'ai_moon' && document.activeElement.matches('.ai-tool-filter select');
     let idx = -1;
     let analysisFocus = null;
+    let inspIdx = -1;
     let scrolls = [];
     if (s && sameScope) {
       if (s.contains(document.activeElement)) idx = focusables().indexOf(document.activeElement);
       analysisFocus = analysisFocusOf(document.activeElement);
+      // The inspector sits after the map in DOM order, so a global index drifts whenever the map refolds; count inside it instead.
+      if (!analysisFocus) inspIdx = Array.from(s.querySelectorAll('.analysis-inspector [tabindex="0"], .analysis-inspector button, .analysis-inspector input')).indexOf(document.activeElement);
       if (!analysisFocus && document.activeElement === document.body && cachedAnalysisFocus?.scope === scope && cachedAnalysisFocus.node.isConnected && !cachedAnalysisFocus.node.getClientRects().length) {
         analysisFocus = cachedAnalysisFocus;
         idx = Math.max(0, focusables().indexOf(cachedAnalysisFocus.node));
@@ -5967,6 +6105,7 @@ document.addEventListener('keydown', (e) => {
             || s.querySelector('.treemap-stage .treemap-tile' + path + ', .treemap-split .list-row' + path);
           target ||= s.querySelector('.analysis-other-toggle, .analysis-sort');
         }
+        if (!target && inspIdx >= 0) target = Array.from(s.querySelectorAll('.analysis-inspector [tabindex="0"], .analysis-inspector button, .analysis-inspector input'))[inspIdx];
         target ||= list[Math.min(idx, list.length - 1)];
         target = readableAnalyzeTarget(target);
         if (target) {
@@ -6063,7 +6202,7 @@ document.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------------------
 (function () {
   const T = (zh, en) => (STATE.lang === 'en' ? en : zh);
-  const hasBridge = () => !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.moleNative);
+  const hasBridge = () => !!nativePost();
   let scanning = false, scanTimer = null;
   const endScan = () => { scanning = false; clearTimeout(scanTimer); };
   const beginScan = () => {
@@ -6149,7 +6288,9 @@ document.addEventListener('keydown', (e) => {
     rescan.closest('button').hidden = STATE.module === 'analyze';
     stage.setAttribute('aria-busy', scanning || pendingTrashRequests.size > 0 || STATE.module === 'analyze' && STATE.analyzeLoading ? 'true' : 'false');
     document.getElementById('scanSourceBadge').textContent = T(scanning ? '正在读取本机' : STATE.scanReadWarnings.length ? '部分测量受限' : STATE.scanCompleted ? STATE.module === 'ai_moon' ? '本地 AI 目录审查 · 不等于 CLI 清理' : '本机扫描已返回' : '等待本机数据', scanning ? 'Scanning locally' : STATE.scanReadWarnings.length ? 'Some measurements are incomplete' : STATE.scanCompleted ? 'Local results' : 'Waiting for data');
-    if (STATE.module === 'analyze') document.getElementById('scanSourceBadge').textContent = STATE.analyzeLoading ? '正在读取本地目录' : STATE.analyzeError ? '扫描未完成，旧结果保留' : STATE.analyzeStatus ? 'orbit 本地扫描 · 仅此范围' : '等待目录扫描';
+    if (STATE.module === 'analyze') {
+      document.getElementById('scanSourceBadge').textContent = STATE.analyzeLoading ? '正在读取本地目录' : STATE.analyzeError ? '扫描未完成，旧结果保留' : STATE.analyzeStatus ? 'orbit 本地扫描 · 仅此范围' : '等待目录扫描';
+    }
     if (STATE.scanReadWarnings.length && ['clean', 'ai_moon', 'software', 'purge'].includes(STATE.module)) {
       const warningGroups = groupRestrictedPaths(STATE.scanReadWarnings);
       const permissions = warningGroups.some(group => group.pane);
@@ -6309,7 +6450,7 @@ document.addEventListener('keydown', (e) => {
       }
       return;
     }
-    const row = t.closest ? t.closest('.treemap-stage .treemap-tile, .treemap-split .list-body .list-row') : null;
+    const row = t.closest ? t.closest('.treemap-stage .treemap-tile, .analysis-children .list-row') : null;
     if (!row || t !== row) return;
     const isMap = row.classList.contains('treemap-tile');
     const picked = analysisVisibleTiles()[Number(row.dataset.idx)];
@@ -6335,7 +6476,7 @@ document.addEventListener('keydown', (e) => {
     const forward = ['ArrowDown', 'j'].includes(e.key) || isMap && e.key === 'ArrowRight';
     const backward = ['ArrowUp', 'k'].includes(e.key) || isMap && e.key === 'ArrowLeft';
     if (forward || backward || e.key === 'Home' || e.key === 'End') {
-      const nodes = Array.from(document.querySelectorAll(isMap ? '.treemap-stage .treemap-tile' : '.treemap-split .list-body .list-row'));
+      const nodes = Array.from(document.querySelectorAll(isMap ? '.treemap-stage .treemap-tile' : '.analysis-children .list-row'));
       let next = e.key === 'Home' ? 0 : e.key === 'End' ? nodes.length - 1 : nodes.indexOf(row) + (forward ? 1 : -1);
       next = isMap ? (next + nodes.length) % nodes.length : Math.min(nodes.length - 1, Math.max(0, next));
       const target = nodes[next];

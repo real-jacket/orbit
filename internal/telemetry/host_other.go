@@ -27,3 +27,6 @@ type Host struct {
 // this app is built for. The zero Host has every Ready flag false, which the
 // caller reads as "no reading" rather than "zero usage".
 func HostSample() Host { return Host{} }
+
+// SysctlUint reports no value away from macOS.
+func SysctlUint(name string) (uint64, bool) { return 0, false }

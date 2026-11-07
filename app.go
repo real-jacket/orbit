@@ -57,6 +57,25 @@ func run() {
 
 	mygo.App.SetName(appName)
 
+	// A second launch (a double click while the menu-bar app is running) hands
+	// over to the first instance and exits, instead of showing two menu-bar
+	// items that each rescan the disk. The lock key comes from the name above.
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
+	}
+	mygo.App.OnSecondInstance(func([]string, string) {
+		if w := activeMainWindow(); w != nil {
+			w.Restore()
+		}
+		showMainWindow("")
+	})
+
+	// App icons are served from Go instead of being inlined as base64 in the
+	// scan payload. The scheme must exist before the first window is created.
+	if err := mygo.Protocol.Handle(scanner.IconScheme, scanner.IconHandler()); err != nil {
+		panic(err)
+	}
+
 	version := buildVersion()
 	mygo.App.SetVersion(version)
 	scanner.BuildVersion = version
@@ -179,12 +198,15 @@ func toggleFlyout() {
 }
 
 func showFlyout() {
-	w := ensureFlyout()
+	w, fresh := ensureFlyout()
 	if w == nil {
 		return
 	}
 	w.Show()
 	w.Focus()
+	if fresh {
+		return // the new page asks for its state in OnDidFinishLoad; pushing now would send the payload twice
+	}
 	pushRealTelemetryNow()
 	pushCachedSystemScan(w.Page())
 	pushCaffeinateState(currentCaffeinateActive())
@@ -192,15 +214,16 @@ func showFlyout() {
 
 // ensureFlyout returns the menu-bar panel, creating it the first time. A
 // popover that the system closed may take its window with it, so a destroyed
-// panel is replaced rather than reused.
-func ensureFlyout() *mygo.Window {
+// panel is replaced rather than reused. fresh reports a panel created by this
+// call, whose page has not loaded yet.
+func ensureFlyout() (panel *mygo.Window, fresh bool) {
 	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
-		return w
+		return w, false
 	}
 	if trayItem == nil {
-		return nil
+		return nil, false
 	}
-	panel := mygo.NewFlyout(mygo.FlyoutOptions{
+	panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:         trayItem,
 		URL:          "/?mode=menubar",
 		Width:        380,
@@ -223,7 +246,7 @@ func ensureFlyout() *mygo.Window {
 		flyoutWindow.CompareAndSwap(panel, nil)
 	})
 	flyoutWindow.Store(panel)
-	return panel
+	return panel, true
 }
 
 // startTelemetryTimer refreshes the live numbers every 1.5 seconds, the
@@ -233,12 +256,12 @@ func startTelemetryTimer() {
 		ticker := time.NewTicker(1500 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			// Sampling costs four subprocesses (ps, vm_stat, ioreg, sysctl) per
-			// tick, so it only runs while a window actually shows the numbers.
+			// Sampling still walks the process table and reads IOKit every tick,
+			// so it only runs while a window actually shows the numbers.
 			if !appVisible() {
 				continue
 			}
-			pushRealTelemetryNow()
+			pushRealTelemetry(false)
 		}
 	}()
 }

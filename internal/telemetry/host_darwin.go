@@ -132,6 +132,9 @@ func sysctlUint64(name string) (uint64, bool) {
 	return binary.LittleEndian.Uint64(buf[:]), true
 }
 
+// SysctlUint reads one integer sysctl without forking sysctl(8).
+func SysctlUint(name string) (uint64, bool) { return sysctlUint64(name) }
+
 // loadMemInfo reads the installed memory and the vm page size once. Both are
 // constants for the life of the machine, so paying a syscall per tick would be
 // pure waste.

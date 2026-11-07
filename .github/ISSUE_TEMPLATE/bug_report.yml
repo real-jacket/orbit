@@ -47,10 +47,10 @@ body:
       required: true
 
   - type: input
-    id: mo-version
+    id: orbit-version
     attributes:
-      label: "`mo --version` output"
-      placeholder: "e.g. Mole version 1.56.1"
+      label: orbit version
+      placeholder: "e.g. 0.3.0 (About orbit)"
     validations:
       required: true
 

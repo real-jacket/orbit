@@ -40,12 +40,21 @@ jobs:
       - name: Test
         run: go test ./... -count=1
 
+      - name: Race
+        run: go test -race -count=1 . ./internal/analyze ./internal/scanner
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
 
       - name: Frontend regression checks
         run: node scripts/test-ui.cjs
+
+      # The runner image turns Reduce Motion on (actions/runner-images
+      # configure-system.sh); the page then correctly skips its transitions and
+      # the motion scenarios, which check the default path, fail.
+      - name: Allow motion for WebKit checks
+        run: defaults write com.apple.universalaccess reduceMotion -bool false
 
       - name: WebKit layout and interaction checks
         run: make test-ui-webkit

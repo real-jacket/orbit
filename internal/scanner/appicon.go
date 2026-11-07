@@ -2,9 +2,11 @@ package scanner
 
 import (
 	"bytes"
-	"encoding/base64"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"image/png"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +18,9 @@ import (
 // letter, which made a list of real, installed apps look like sample data. The
 // bundle already ships the artwork, so extract it instead: pick the PNG entries
 // out of the .icns container (modern icons are PNG chunks, no decoding needed)
-// and hand the page a data: URL it can put straight into an <img>.
+// and serve it to the page over the orbit-icon:// scheme. Inlining the pixels as
+// data: URLs put ~2.6 MB of base64 into every scan payload, which was resent
+// after each trash, restore and whitelist change.
 //
 // Icons are cached per bundle path: they cannot change while the process runs,
 // and decoding sixteen bundles on every 90-second rescan would be pure waste.
@@ -42,30 +46,61 @@ var icnsPNGRank = map[string]int{
 	"icp4": 10, // 16×16
 }
 
+// IconScheme is the custom URL scheme the page loads app icons from.
+const IconScheme = "orbit-icon"
+
 var (
 	appIconMu    sync.Mutex
-	appIconCache = map[string]string{}
+	appIconCache = map[string]string{} // bundle path -> icon URL ("" when none)
+	appIconPNGs  = map[string][]byte{} // content hash -> PNG bytes
 )
 
-// appIconDataURL returns a data: URL holding the app's real icon, or "" when the
-// bundle ships nothing we can read.
-func appIconDataURL(appPath string) string {
+// appIconURL returns the URL of the app's real icon, or "" when the bundle ships
+// nothing we can read. The URL names the PNG by content hash, so IconHandler
+// only ever serves bytes this scan extracted: it never opens a path the page
+// names.
+func appIconURL(appPath string) string {
 	appIconMu.Lock()
 	cached, ok := appIconCache[appPath]
 	appIconMu.Unlock()
 	if ok {
 		return cached
 	}
-	icon := extractAppIcon(appPath)
+	var url string
+	if icon := extractAppIcon(appPath); icon != nil {
+		sum := sha256.Sum256(icon)
+		id := hex.EncodeToString(sum[:8])
+		url = IconScheme + "://localhost/" + id + ".png"
+		appIconMu.Lock()
+		appIconPNGs[id] = icon
+		appIconMu.Unlock()
+	}
 	appIconMu.Lock()
-	appIconCache[appPath] = icon
+	appIconCache[appPath] = url
 	appIconMu.Unlock()
-	return icon
+	return url
+}
+
+// IconHandler serves the icons appIconURL handed out.
+func IconHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/"), ".png")
+		appIconMu.Lock()
+		icon, ok := appIconPNGs[id]
+		appIconMu.Unlock()
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "max-age=31536000, immutable")
+		_, _ = w.Write(icon)
+	})
 }
 
 // extractAppIcon looks for the icon Info.plist names, then for any .icns the
-// bundle happens to ship.
-func extractAppIcon(appPath string) string {
+// bundle happens to ship, and returns its PNG bytes (nil when there is none).
+func extractAppIcon(appPath string) []byte {
 	resources := filepath.Join(appPath, "Contents", "Resources")
 	var names []string
 	if plist, err := parsePlistFile(filepath.Join(appPath, "Contents", "Info.plist")); err == nil {
@@ -82,15 +117,15 @@ func extractAppIcon(appPath string) string {
 		}
 		path := filepath.Join(resources, name)
 		if png := icnsPNG(path); png != nil && !pngLooksBlank(png) {
-			return pngDataURL(png)
+			return png
 		}
 		if png := icnsPNGViaSips(path); png != nil && !pngLooksBlank(png) {
-			return pngDataURL(png)
+			return png
 		}
 	}
 	entries, err := os.ReadDir(resources)
 	if err != nil {
-		return ""
+		return nil
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".icns") {
@@ -98,13 +133,13 @@ func extractAppIcon(appPath string) string {
 		}
 		path := filepath.Join(resources, entry.Name())
 		if png := icnsPNG(path); png != nil && !pngLooksBlank(png) {
-			return pngDataURL(png)
+			return png
 		}
 		if png := icnsPNGViaSips(path); png != nil && !pngLooksBlank(png) {
-			return pngDataURL(png)
+			return png
 		}
 	}
-	return ""
+	return nil
 }
 
 // icnsPNG walks an ICNS container and returns the best PNG payload it holds.
@@ -232,9 +267,4 @@ func icnsPNGViaSips(icnsPath string) []byte {
 // isPNG reports whether data starts with the PNG signature.
 func isPNG(data []byte) bool {
 	return len(data) > 8 && string(data[:8]) == "\x89PNG\r\n\x1a\n"
-}
-
-// pngDataURL wraps PNG bytes in the form an <img src> accepts.
-func pngDataURL(png []byte) string {
-	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
 }

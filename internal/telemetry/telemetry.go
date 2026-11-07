@@ -26,6 +26,19 @@ const (
 	smcEvery  = 5 * time.Second
 )
 
+// noSensorRetry is how long a source that failed is left alone. A Mac with no
+// GPU or storage driver entry answers ioreg with nothing every time, and
+// without this each 1.5 s tick forked it again.
+const noSensorRetry = 30 * time.Second
+
+// due reports whether a source read at `at` (successfully or not) must be read again.
+func due(at time.Time, ok bool, every time.Duration, now time.Time) bool {
+	if !ok && !at.IsZero() {
+		every = noSensorRetry
+	}
+	return at.IsZero() || now.Sub(at) >= every
+}
+
 // Net is bytes per second across all interfaces.
 type Net struct {
 	RxBytesPerSec float64 `json:"rxBytesPerSec"`
@@ -205,8 +218,8 @@ func (s *Sampler) diskRate(now time.Time) *DiskIO {
 // Each `ioreg` invocation costs ~25 ms, so serialising them would spend a third
 // of every 1.5 s telemetry tick waiting on the kernel to describe itself.
 func (s *Sampler) prefetchIOReg(now time.Time) {
-	needDisk := !s.diskCacheOK || now.Sub(s.diskCacheAt) >= diskEvery
-	needGPU := !s.gpuCacheOK || now.Sub(s.gpuCacheAt) >= gpuEvery
+	needDisk := due(s.diskCacheAt, s.diskCacheOK, diskEvery, now)
+	needGPU := due(s.gpuCacheAt, s.gpuCacheOK, gpuEvery, now)
 	if !needDisk && !needGPU {
 		return
 	}
@@ -232,8 +245,8 @@ func (s *Sampler) prefetchIOReg(now time.Time) {
 
 // diskCounters returns the latest counter reading and when it was taken.
 func (s *Sampler) diskCounters(now time.Time) (diskCounters, time.Time, bool) {
-	if s.diskCacheOK && now.Sub(s.diskCacheAt) < diskEvery {
-		return s.diskCache, s.diskCacheAt, true
+	if !due(s.diskCacheAt, s.diskCacheOK, diskEvery, now) {
+		return s.diskCache, s.diskCacheAt, s.diskCacheOK
 	}
 	counter, ok := readDiskCounters()
 	s.diskCache, s.diskCacheAt, s.diskCacheOK = counter, now, ok
@@ -241,7 +254,7 @@ func (s *Sampler) diskCounters(now time.Time) (diskCounters, time.Time, bool) {
 }
 
 func (s *Sampler) gpuPercent(now time.Time) (float64, bool) {
-	if !s.gpuCacheOK || now.Sub(s.gpuCacheAt) >= gpuEvery {
+	if due(s.gpuCacheAt, s.gpuCacheOK, gpuEvery, now) {
 		value, ok := readGPUPercent()
 		s.gpuCache, s.gpuCacheAt, s.gpuCacheOK = value, now, ok
 	}

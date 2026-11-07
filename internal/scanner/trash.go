@@ -202,7 +202,7 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "拒绝整根移动废纸篓与家目录"})
 			continue
 		}
-		if reason := s.CleanupReason(path); reason != "" {
+		if reason := s.cleanupReason(path, true); reason != "" {
 			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: reason})
 			continue
 		}
