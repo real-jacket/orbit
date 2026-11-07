@@ -37,7 +37,7 @@ permissions:
 
 env:
   MYGO_VERSION: v0.6.4
-  BUNDLE: MoleStudio.app
+  BUNDLE: orbit.app
   PLATFORM_DIR: build/darwin-universal
 
 jobs:
@@ -200,21 +200,61 @@ jobs:
         run: |
           echo "MYGO_LDFLAGS=-X github.com/mymoles/mole-studio/internal/scanner.BuildCommit=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_ENV"
 
-      # The bundle is ad-hoc signed (macos.signingIdentity "-" in mygo.json) and
-      # not notarized, so Gatekeeper asks once before the first launch. To ship
-      # notarized builds, put a Developer ID and macos.notarize.keychainProfile
-      # in mygo.json and import the certificate into the runner's keychain
-      # before this step.
-      - name: Build the app and the disk image
+      # Ad-hoc signatures ("-") are pinned to each build's cdhash, so every update
+      # would look like a new app to macOS and Full Disk Access would be lost.
+      # The release is signed with one fixed self-signed certificate instead (made
+      # once by scripts/make-signing-cert.sh): its designated requirement names
+      # the certificate, so it is the same in every version. Not notarized, so
+      # Gatekeeper still asks once before the first launch.
+      - name: Import the signing certificate
         if: steps.decide.outputs.skip != 'true'
-        run: mygo build --platform darwin/universal
+        env:
+          P12_BASE64: ${{ secrets.MACOS_SIGNING_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [[ -n "$P12_BASE64" ]] || { echo "::error::secret MACOS_SIGNING_P12 is empty; releases are signed with a fixed certificate so permissions survive updates"; exit 1; }
+          [[ -n "$P12_PASSWORD" ]] || { echo "::error::secret MACOS_SIGNING_P12_PASSWORD is empty"; exit 1; }
+
+          keychain="$RUNNER_TEMP/orbit-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          echo "::add-mask::$keychain_password"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/orbit-signing.p12"
+          security import "$RUNNER_TEMP/orbit-signing.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/orbit-signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+
+          # codesign finds identities through the search list: put this keychain
+          # in front, and keep login so nothing else on the runner changes.
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          security find-identity -p codesigning "$keychain" | grep -q "orbit Self-Signed" \
+            || { echo "::error::the imported certificate is not named 'orbit Self-Signed'"; exit 1; }
+
+      # -sign overrides macos.signingIdentity ("-" for local builds) in mygo.json.
+      # With updates configured and the key in MYGO_UPDATER_PRIVATE_KEY, mygo also
+      # writes the signed update archive, delta updates from the versions already
+      # published (it reads them through GH_TOKEN) and update-darwin-universal.json,
+      # next to the app and the disk image in $PLATFORM_DIR.
+      - name: Build the app, the disk image and the update files
+        if: steps.decide.outputs.skip != 'true'
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ -n "$MYGO_UPDATER_PRIVATE_KEY" ]] || { echo "::error::secret MYGO_UPDATER_PRIVATE_KEY is empty; without it mygo builds no update files and the app could never update"; exit 1; }
+          mygo build --platform darwin/universal -sign "orbit Self-Signed"
 
       - name: Verify the artifacts
         if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           app="$PLATFORM_DIR/$BUNDLE"
-          binary="$app/Contents/MacOS/MoleStudio"
+          binary="$app/Contents/MacOS/orbit"
           plist="$app/Contents/Info.plist"
 
           test -d "$app"
@@ -243,9 +283,14 @@ jobs:
           # The page is embedded in the binary, not copied next to it.
           grep -aq "MOLE_STUDIO_STATE_V8" "$binary"
 
-          # Ad-hoc signature: prove it is intact. spctl would reject it without
-          # a Developer ID, which is not what is being tested here.
+          # The signature is intact and certificate-based. A cdhash requirement
+          # (ad-hoc) would silently break permissions on every update. spctl would
+          # reject a self-signed app, which is not what is being tested here.
           codesign --verify --deep --strict "$app"
+          requirement="$(codesign -d -r- "$app" 2>&1)"
+          echo "$requirement"
+          [[ "$requirement" == *'identifier "com.mymoles.mole-studio" and certificate leaf = H"'* ]] \
+            || { echo "::error::the designated requirement is not tied to the signing certificate"; exit 1; }
 
           dmg=("$PLATFORM_DIR"/*.dmg)
           [[ ${#dmg[@]} -eq 1 ]] || { echo "::error::expected one .dmg, found ${#dmg[@]}"; exit 1; }
@@ -264,15 +309,45 @@ jobs:
           hdiutil detach "$mount" > /dev/null
           trap - EXIT
 
+          # The update feed: the manifest the installed apps read, the archive
+          # (and deltas) it points at. Every URL must end in a file that is
+          # uploaded under exactly that name, or updating 404s.
+          manifest="$PLATFORM_DIR/update-darwin-universal.json"
+          test -f "$manifest" || { echo "::error::mygo wrote no $manifest"; exit 1; }
+          got="$(jq -r .version "$manifest")"
+          [[ "$got" == "$VERSION" ]] || { echo "::error::the update manifest says $got, not $VERSION"; exit 1; }
+          base="https://github.com/real-jacket/orbit/releases/download/$TAG/"
+          urls="$(jq -r '[.url] + [.deltas[]?.url] | .[]' "$manifest")"
+          while IFS= read -r url; do
+            [[ "$url" == "$base"* ]] || { echo "::error::$url is not under $base"; exit 1; }
+            name="$(python3 -c 'import sys,urllib.parse as u; print(u.unquote(sys.argv[1].rsplit("/",1)[1]))' "$url")"
+            test -f "$PLATFORM_DIR/$name" || { echo "::error::manifest points at $name, which the build did not write"; exit 1; }
+          done <<< "$urls"
+          archives=("$PLATFORM_DIR"/*.tar.gz)
+          [[ ${#archives[@]} -eq 1 ]] || { echo "::error::expected one update archive, found ${#archives[@]}"; exit 1; }
+
       - name: Collect the release assets
         if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           dmg=("$PLATFORM_DIR"/*.dmg)
-          asset="MoleStudio-${VERSION}-universal.dmg"
+          asset="orbit-${VERSION}-universal.dmg"
           mkdir -p "$RUNNER_TEMP/release"
           cp "${dmg[0]}" "$RUNNER_TEMP/release/$asset"
           ( cd "$RUNNER_TEMP/release" && shasum -a 256 "$asset" > "$asset.sha256" )
+          # The update files keep the names mygo gave them: the manifest's URLs
+          # are those names under releases/download/$TAG/.
+          cp "$PLATFORM_DIR"/*.tar.gz "$PLATFORM_DIR"/update-darwin-universal.json "$RUNNER_TEMP/release/"
+          # The first release has no deltas; the glob then matches nothing.
+          shopt -s nullglob
+          for delta in "$PLATFORM_DIR"/*.delta; do
+            cp "$delta" "$RUNNER_TEMP/release/"
+          done
+          # Last guard: every manifest URL is an asset about to be uploaded.
+          jq -r '[.url] + [.deltas[]?.url] | .[]' "$PLATFORM_DIR/update-darwin-universal.json" | while IFS= read -r url; do
+            name="$(python3 -c 'import sys,urllib.parse as u; print(u.unquote(sys.argv[1].rsplit("/",1)[1]))' "$url")"
+            test -f "$RUNNER_TEMP/release/$name" || { echo "::error::$name is in the manifest but not in the release assets"; exit 1; }
+          done
 
       - name: Write the run summary
         if: steps.decide.outputs.skip != 'true'
@@ -285,7 +360,7 @@ jobs:
             echo
             echo "| Asset | SHA-256 |"
             echo "| --- | --- |"
-            for file in "$RUNNER_TEMP/release"/*.dmg; do
+            for file in "$RUNNER_TEMP/release"/*; do
               echo "| $(basename "$file") | \`$(shasum -a 256 "$file" | cut -d' ' -f1)\` |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
@@ -294,7 +369,7 @@ jobs:
         if: steps.decide.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: MoleStudio-${{ env.VERSION }}
+          name: orbit-${{ env.VERSION }}
           path: ${{ runner.temp }}/release/*
           if-no-files-found: error
           retention-days: 14
@@ -329,5 +404,5 @@ jobs:
             gh release upload "$TAG" "${assets[@]}" --clobber
             gh release edit "$TAG" --draft=false --latest
           else
-            gh release create "$TAG" "${assets[@]}" --title "orbit $TAG" --generate-notes
+            gh release create "$TAG" "${assets[@]}" --title "orbit $TAG" --generate-notes --latest
           fi
