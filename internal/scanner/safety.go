@@ -145,6 +145,33 @@ func (s *Scanner) cleanupProcesses() (string, error) {
 	return string(output), err
 }
 
+// processSnapshot is the process table for a safety check. Display callers may
+// get one up to processTTL old; the live move boundary always runs `ps` itself.
+func (s *Scanner) processSnapshot(live bool) (string, error) {
+	if live || s.processTTL <= 0 {
+		return s.cleanupProcesses()
+	}
+	s.psMu.Lock()
+	defer s.psMu.Unlock()
+	if s.psAt.IsZero() || time.Since(s.psAt) > s.processTTL {
+		output, err := s.cleanupProcesses()
+		if err != nil {
+			return output, err // a failure is never reused
+		}
+		s.psOutput, s.psAt = output, time.Now()
+	}
+	return s.psOutput, nil
+}
+
+// aiHandleOpen is aiVersionHasOpenHandle for a path: display callers on a scan
+// view share one system-wide lsof, the move boundary asks lsof about the path.
+func (s *Scanner) aiHandleOpen(path string, live bool) (bool, error) {
+	if !live && s.handleProbe == nil && s.openSnapshot != nil {
+		return s.openSnapshot(path)
+	}
+	return s.aiVersionHasOpenHandle(path)
+}
+
 // CleanupReason is shared by candidate inspection and the final move boundary.
 // A cached scan never grants permission to remove newly active or protected data.
 func (s *Scanner) CleanupReason(raw string) string { return s.cleanupReason(raw, false) }
@@ -190,10 +217,10 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 		return reason
 	}
 	if entry, root, known := aiCleanupData(path, s.home); known {
-		return s.aiDataCleanupReason(path, root, entry)
+		return s.aiDataCleanupReason(path, root, entry, live)
 	}
 	if isAppBundle(path) {
-		processes, err := s.cleanupProcesses()
+		processes, err := s.processSnapshot(live)
 		if err != nil || strings.TrimSpace(processes) == "" {
 			return "无法确认应用是否运行，保持原状"
 		}
@@ -209,12 +236,12 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 		if filepath.Dir(path) != root {
 			return "仅按完整旧版本处理，不单独移除版本内部文件"
 		}
-		for _, version := range s.versionInventory(spec) {
+		for _, version := range s.versionInventory(spec, live) {
 			if version.path == path {
 				if version.reason != "" {
 					return version.reason
 				}
-				open, err := s.aiVersionHasOpenHandle(path)
+				open, err := s.aiHandleOpen(path, live)
 				if err != nil {
 					return "无法确认旧版本是否仍被打开，保持原状"
 				}
@@ -250,7 +277,7 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 			if !withinPath(path, filepath.Join(s.home, root)) && !withinPath(filepath.Join(s.home, root), path) {
 				continue
 			}
-			processes, err := s.cleanupProcesses()
+			processes, err := s.processSnapshot(live)
 			if err != nil || strings.TrimSpace(processes) == "" {
 				return "进程状态读取失败，不能证明缓存闲置，保持原状"
 			}
@@ -266,7 +293,7 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 	}
 	// shortcut: ps lacks project ownership; add cwd/handle attribution if unrelated builders must not block cleanup.
 	if withinPath(path, s.home) && artifactKinds[filepath.Base(path)] != "" {
-		processes, err := s.cleanupProcesses()
+		processes, err := s.processSnapshot(live)
 		if err != nil || strings.TrimSpace(processes) == "" {
 			return "无法确认构建工具闲置，保持原状"
 		}

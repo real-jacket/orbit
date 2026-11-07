@@ -36,14 +36,14 @@ type aiVersion struct {
 }
 
 // Match the launcher, not the newest mtime: an updater can pre-download its next version.
-func (s *Scanner) versionInventory(spec aiVersionSpec) []aiVersion {
+func (s *Scanner) versionInventory(spec aiVersionSpec, live bool) []aiVersion {
 	root := filepath.Join(s.home, spec.root)
 	entries, err := readDirEntries(root)
 	if err != nil {
 		return nil
 	}
 	active, activeErr := s.activeAIVersion(spec)
-	processes, processErr := s.cleanupProcesses()
+	processes, processErr := s.processSnapshot(live)
 	var versions []aiVersion
 	current := ""
 	for _, entry := range entries {
@@ -139,7 +139,7 @@ func validAIVersionName(name string) bool {
 func (s *Scanner) scanAIVersions(claims *catalogClaims) []map[string]any {
 	var rows []map[string]any
 	for _, spec := range aiVersionSpecs {
-		for _, version := range s.versionInventory(spec) {
+		for _, version := range s.versionInventory(spec, false) {
 			tier, impact := "review", "已核验不是当前或备用版本。删除前会再次检查启动器和活跃进程；旧版本不会自动勾选。"
 			if version.reason != "" {
 				tier, impact = "protected", version.reason

@@ -21,6 +21,17 @@ type Scanner struct {
 	installProbe func(aiInstall) bool
 	aiUnits      []aiSessionUnit // set only on a scan-scoped view, never on Shared
 
+	// processTTL is how long display-time checks may reuse one `ps` table; zero
+	// means always ask. The move boundary (live) never reads the cached table.
+	processTTL time.Duration
+	psMu       sync.Mutex
+	psOutput   string
+	psAt       time.Time
+
+	// openSnapshot answers display-time open-file checks from one system-wide
+	// lsof taken on first use; set only on a scan-scoped view.
+	openSnapshot func(string) (bool, error)
+
 	unitMu    sync.Mutex // guards the short-lived session enumeration cache
 	unitCache []aiSessionUnit
 	unitAt    time.Time
@@ -32,7 +43,7 @@ type Scanner struct {
 }
 
 // Shared is the app's scanner.
-var Shared = &Scanner{home: homeDir()}
+var Shared = &Scanner{home: homeDir(), processTTL: 2 * time.Second}
 
 // homeDir returns the user's home directory.
 func homeDir() string {
@@ -237,6 +248,10 @@ type dirSize struct {
 	linked    map[[2]uint64]bool
 }
 
+// walkSlots bounds how many directory walks run at once. Walks are kernel bound,
+// and past two of them each slows the others toward the walk deadline.
+var walkSlots = make(chan struct{}, 2)
+
 // fastDirectorySize measures how large a directory is, walking at most
 // maxFiles regular files. A path that is not a directory reports its own size
 // and one entry, which is what the Swift app did.
@@ -259,6 +274,10 @@ func (s *Scanner) fastDirectorySize(path string, maxFiles int) dirSize {
 		}
 		return dirSize{bytes: allocatedSize(info), count: 1, files: 1, modified: info.ModTime().Unix()}
 	}
+	// The 5 s budget starts once a slot is free, so a full scan running its
+	// sections side by side spends it walking, not queueing.
+	walkSlots <- struct{}{}
+	defer func() { <-walkSlots }()
 	total := dirSize{modified: info.ModTime().Unix(), deadline: time.Now().Add(5 * time.Second), directory: true}
 	walkDir(path, maxFiles, &total)
 	return total

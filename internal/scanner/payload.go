@@ -53,25 +53,51 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	directoryReads.Unlock()
 	freeGB, totalGB := s.queryDiskSpace()
 	_, memTotalGB := s.queryMemoryUsage()
-	return FullScanPayload{
-		FreeDiskGb:         round2(freeGB),
-		TotalDiskGb:        round2(totalGB),
-		MemTotalGb:         round2(memTotalGB),
-		CPUModel:           s.queryCPUModel(),
-		AppsList:           s.scanInstalledApps(),
-		OrphanLeftovers:    s.scanOrphanedLeftovers(),
-		LargeFiles:         s.scanLargeFiles(),
-		InstallerFiles:     s.scanInstallerPackages(),
-		PurgeItems:         s.scanBuildArtifacts(),
-		CleanGroups:        s.scanCleanGroups(),
-		CleanExcludedRoots: s.cleanExcludedRoots(),
-		AIMoonBands:        s.scanAICaches(),
-		AIExcludedRoots:    s.aiExcludedRoots(),
-		HomePath:           s.home,
-		Whitelist:          s.UserWhitelistPaths(),
-		WhitelistWarnings:  policy.Warnings,
-		ReadWarnings:       scanReadWarnings(s.home),
+	payload := FullScanPayload{
+		FreeDiskGb:  round2(freeGB),
+		TotalDiskGb: round2(totalGB),
+		MemTotalGb:  round2(memTotalGB),
+		CPUModel:    s.queryCPUModel(),
+		HomePath:    s.home,
 	}
+	// The sections read the disk independently: each keeps its own claims and
+	// shares only locked state (whitelist, read warnings, icon cache), so they
+	// run side by side, slowest first. The view shares one `ps` table and one
+	// lsof snapshot between them.
+	view := s.scanView()
+	var wg sync.WaitGroup
+	for _, section := range []func(){
+		func() { payload.CleanGroups = view.scanCleanGroups() },
+		func() { payload.AppsList = view.scanInstalledApps() },
+		func() { payload.AIMoonBands = view.scanAICaches() },
+		func() { payload.PurgeItems = view.scanBuildArtifacts() },
+		func() { payload.OrphanLeftovers = view.scanOrphanedLeftovers() },
+		func() { payload.LargeFiles = view.scanLargeFiles() },
+		func() { payload.InstallerFiles = view.scanInstallerPackages() },
+		func() { payload.CleanExcludedRoots = view.cleanExcludedRoots() },
+		func() { payload.AIExcludedRoots = view.aiExcludedRoots() },
+	} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			section()
+		}()
+	}
+	wg.Wait()
+	payload.Whitelist = s.UserWhitelistPaths()
+	payload.WhitelistWarnings = policy.Warnings
+	payload.ReadWarnings = scanReadWarnings(s.home)
+	return payload
+}
+
+// scanView is the scanner a full scan runs its sections on: the same probes and
+// process cache setting, plus one lazily taken system-wide open-file snapshot
+// for display-time checks. It is never used at the move boundary.
+func (s *Scanner) scanView() *Scanner {
+	view := &Scanner{home: s.home, processProbe: s.processProbe, handleProbe: s.handleProbe, installProbe: s.installProbe, aiUnits: s.aiUnits, processTTL: s.processTTL}
+	snapshot := sync.OnceValue(openFileSnapshot)
+	view.openSnapshot = func(path string) (bool, error) { return snapshot()(path) }
+	return view
 }
 
 // Telemetry is what the frontend's onNativeRealTelemetry receives.
