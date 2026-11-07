@@ -151,7 +151,8 @@ for(const [width,height] of [[1380,860],[1060,760],[880,620]]){
     __qa.motionEvidence={map:Math.round(stageBox.width)+'x'+Math.round(stageBox.height),inspector:Math.round(panelBox.width)+'x'+Math.round(panelBox.height)};
     if(innerWidth>960){
       qaAssert(body.scrollHeight<=body.clientHeight+1,'map plus inspector fit the window without page scroll; '+body.scrollHeight+'/'+body.clientHeight);
-      qaAssert(Math.abs(panelBox.width-(innerWidth<=1100?300:340))<2&&stageBox.height>=360,'map takes the remaining space beside a fixed inspector; '+__qa.motionEvidence.map);
+      const gridWidth=document.querySelector('.treemap-split').getBoundingClientRect().width,expected=innerWidth<=1100?300:Math.min(500,Math.max(340,gridWidth*0.3));
+      qaAssert(Math.abs(panelBox.width-expected)<2&&stageBox.height>=360,'map takes the remaining space beside an inspector that scales with the window; '+__qa.motionEvidence.map+' '+__qa.motionEvidence.inspector);
     }else qaAssert(stageBox.height>=360&&stageBox.bottom<=panelBox.top,'narrow windows keep a useful map above the inspector');
     qaAssert(document.querySelectorAll('.analysis-inspector [data-tab]').length===3&&document.querySelectorAll('[onclick*="toggleAnalyzeOtherItems"]').length<=1,'tabs exist and the folded-items intent is not duplicated');
   `);
@@ -860,10 +861,12 @@ const trayGraphSetup=compactTraySetup+`
 for(const theme of ['dark','light'])add('tray-graphs-'+theme,trayGraphSetup+`
   document.documentElement.dataset.theme='${theme}';
   const cpu=tray.querySelector('[data-tray-metric="cpu"] .tray-chart');
-  qaAssert(cpu?.querySelector('svg')&&cpu.textContent.includes('100%'),'CPU has a readable, fixed 0–100% chart');
-  qaAssert(cpu.getBoundingClientRect().width>120&&cpu.getAttribute('aria-label').includes('4 次'),'the graph uses the card width and discloses real sample count');
+  qaAssert(cpu?.querySelector('svg')&&cpu.getAttribute('aria-label').includes('刻度 0 至 100%'),'CPU keeps a fixed 0–100% chart scale');
+  qaAssert(cpu.textContent.includes('峰值 65.0%')&&cpu.textContent.includes('4 次采样'),'CPU caption shows the real peak and sample count');
+  qaAssert(cpu.getBoundingClientRect().width>120&&cpu.getAttribute('aria-label').includes('最近 4 次采样'),'the graph uses the card width and discloses real sample count');
+  qaAssert([...tray.querySelectorAll('.tray-chart-caption')].every(caption=>caption.scrollWidth<=caption.clientWidth+1),'chart captions fit their card without clipping');
   const network=tray.querySelector('[data-tray-metric="network"] .tray-chart');
-  qaAssert(network?.querySelectorAll('svg').length===2&&network.textContent.includes('2.0 MB/s'),'upload and download share one honest throughput scale');
+  qaAssert(network?.querySelectorAll('svg').length===2&&network.textContent.includes('峰值 2.0 MB/s'),'upload and download share one honest throughput scale labelled by its real peak');
   const memory=tray.querySelector('[data-tray-metric="memory"] .tray-capacity');
   qaAssert(memory?.querySelectorAll('[data-memory-part]').length===4,'memory displays app, wired, compressed and remaining capacity without adding cached files twice');
   const widths=[...memory.querySelectorAll('[data-memory-part]')].map(part=>parseFloat(part.style.width));
@@ -1064,9 +1067,66 @@ add('tray-compact-height-scroll',compactTraySetup+`
   qaAssert(Math.abs(tray.scrollTop-before)<2&&document.activeElement===quit,'a shorter popup preserves scrolling and tool focus');
   const bounds=quit.getBoundingClientRect();qaAssert(bounds.top>=0&&bounds.bottom<=innerHeight+1,'footer tools stay reachable inside the smaller height');
 `);
-for(const scenario of scenarios.slice(trayScenarioStart))Object.assign(scenario,{width:380,height:568});
+const trayHeight=588;
+for(const scenario of scenarios.slice(trayScenarioStart))Object.assign(scenario,{width:380,height:trayHeight});
 Object.assign(scenarios.at(-1),{width:356,height:480});
 for(const scenario of scenarios.slice(trayScenarioStart).filter(item=>item.name.startsWith('memory-')||item.name.startsWith('modal-hidden-')||item.name==='tray-quick-clean-frozen-preview'))Object.assign(scenario,{width:880,height:620});
+const newTrayStart=scenarios.length;
+const trayThreeProcesses=compactTraySetup+`
+  const sample=structuredClone(qaTelemetry);sample.processes.push({pid:8333,name:'Canvas Renderer',cpu:8,memory_mb:2048,path:'/Applications/Canvas Renderer.app'});onNativeRealTelemetry(sample);
+`;
+for(const theme of ['light','dark'])add('tray-top-processes-'+theme,trayThreeProcesses+`
+  document.documentElement.dataset.theme='${theme}';
+  const head=tray.querySelector('.tray-proc-head span');
+  qaAssert(head.textContent==='CPU 占用最高的进程'&&!tray.textContent.includes('单核 100%')&&head.title.includes('单核 100%'),'the header is plain and keeps the per-core note as a hint');
+  qaAssert(tray.querySelector('.tray-proc-list').getAttribute('aria-label').includes('单核 100%'),'the per-core note is also available to assistive technology');
+  const rows=[...tray.querySelectorAll('.tray-proc')];
+  qaAssert(rows.length===3&&rows.every(row=>row.querySelector('.tray-proc-chev')),'three processes are listed and each row has a chevron');
+  const lastBottom=tray.lastElementChild.getBoundingClientRect().bottom;qaAssert(tray.scrollHeight<=tray.clientHeight+1&&lastBottom<=innerHeight,'three processes fit the shipped popup without scrolling; '+tray.scrollHeight+'/'+tray.clientHeight+' last bottom '+lastBottom);
+  qaAssert(rows[0].textContent.includes('384 MiB')&&rows[1].textContent.includes('2.0 GiB')&&rows[2].textContent.includes('128 MiB'),'process memory is labelled MiB, or GiB above 1024');
+  switchModule('status');
+  qaAssert(document.querySelector('#procTbody').textContent.includes('384 MiB')&&!document.querySelector('#procTbody').textContent.includes(' MB'),'the status table uses the same unit label as the tray');
+`);
+add('tray-memory-legend-swatch',compactTraySetup+`
+  STATE.memUsedGb=12;STATE.memTotalGb=32;STATE.memory={appGb:8,wiredGb:3,compressedGb:1,cacheGb:5};renderMenuBarTrayContent();
+  const legend=[...tray.querySelectorAll('[data-tray-metric="memory"] .tray-memory-legend')];
+  qaAssert(legend.length===4&&legend.every(item=>item.querySelector('i')),'every memory legend entry has a swatch');
+  qaAssert(legend.at(-1).textContent==='剩余'&&legend.at(-1).querySelector('i').style.background.includes('--border-strong'),'the remaining swatch uses the empty track colour');
+`);
+add('tray-follows-app-theme',compactTraySetup+`
+  const original={theme:document.documentElement.dataset.theme,popover:window.isMenuBarPopover,render:window.renderMenuBarTrayContent};
+  let renders=0;window.renderMenuBarTrayContent=()=>{renders++;original.render();};
+  try{
+    window.isMenuBarPopover=true;
+    onNativeTheme('dark');
+    qaAssert(document.documentElement.dataset.theme==='dark'&&renders===1,'a pushed dark theme restyles and re-renders the popover');
+    const dark=getComputedStyle(tray).backgroundColor;
+    onNativeTheme('light');
+    qaAssert(document.documentElement.dataset.theme==='light'&&renders===2&&getComputedStyle(tray).backgroundColor!==dark,'a pushed light theme follows even after dark');
+    onNativeTheme('system');
+    qaAssert(document.documentElement.dataset.theme===(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'),'system falls back to the media query');
+    window.isMenuBarPopover=false;renders=0;onNativeTheme('dark');
+    qaAssert(renders===0,'the main window ignores pushes meant for the popover');
+  }finally{window.renderMenuBarTrayContent=original.render;window.isMenuBarPopover=original.popover;onNativeTheme('system');document.documentElement.dataset.theme=original.theme;}
+`);
+add('tray-releases-focus-when-hidden',compactTraySetup+`
+  const card=tray.querySelector('[data-tray-key="cpu"]');card.focus();
+  qaAssert(document.activeElement===card,'the clicked card holds focus');
+  window.dispatchEvent(new Event('blur'));
+  qaAssert(!tray.contains(document.activeElement),'losing key status releases the highlighted card');
+  card.focus();document.body.classList.remove('menubar-mode');window.dispatchEvent(new Event('blur'));
+  qaAssert(document.activeElement===card,'the main window keeps focus when it blurs');
+  card.blur();document.body.classList.add('menubar-mode');
+`);
+add('quick-clean-nothing-selected-hint',`
+  onNativeRealScanComplete(structuredClone(qaFixture));
+  STATE.cleanGroups.forEach(group=>{group.checked=false;});
+  switchModule('status');openQuickClean();
+  const toast=document.getElementById('toastBanner');
+  qaAssert(STATE.module==='clean'&&!document.getElementById('confirmModal').classList.contains('open'),'quick clean opens the list without a review sheet when nothing is selected');
+  qaAssert(toast.style.display==='block'&&toast.textContent.includes('尚未勾选清理项，请先在列表中勾选要清理的项目'),'the user gets a calm in-page hint instead of silence');
+`);
+for(const scenario of scenarios.slice(newTrayStart).filter(item=>item.name.startsWith('tray-')))Object.assign(scenario,{width:380,height:trayHeight});
 add('runtime-raw-launch-guidance',`
   openRuntimePanel();
   const request=__qa.actions.find(action=>action.action==='requestRuntimeStatus');

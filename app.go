@@ -227,7 +227,7 @@ func ensureFlyout() (panel *mygo.Window, fresh bool) {
 		Tray:         trayItem,
 		URL:          "/?mode=menubar",
 		Width:        380,
-		Height:       568,
+		Height:       588,
 		Placement:    mygo.PlacementBottom,
 		Popover:      true,
 		Focusable:    true,
@@ -241,6 +241,7 @@ func ensureFlyout() (panel *mygo.Window, fresh bool) {
 		pushRealTelemetryNow()
 		pushCachedSystemScan(panel.Page())
 		pushCaffeinateState(currentCaffeinateActive())
+		pushFlyoutTheme(loadSavedTheme())
 	})
 	panel.OnClosed(func() {
 		flyoutWindow.CompareAndSwap(panel, nil)

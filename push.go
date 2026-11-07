@@ -243,6 +243,16 @@ func pushDoctorReport(requestID string, checks []map[string]any) {
 	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport(" + jsonOf(map[string]any{"requestId": requestID, "checks": checks}) + ") : undefined")
 }
 
+// pushFlyoutTheme tells the menu-bar panel which theme the main window chose.
+// The panel is usually hidden when that happens, so it cannot go through
+// evaluate, and a hidden popover's prefers-color-scheme is not something to
+// rely on: it gets the theme itself, "system" meaning follow the media query.
+func pushFlyoutTheme(theme string) {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
+		_, _ = w.Page().Eval("window.onNativeTheme ? window.onNativeTheme(" + jsonOf(theme) + ") : undefined")
+	}
+}
+
 // pushCaffeinateState tells both pages whether the display is being kept awake.
 // The state lives in Go, so the window and the menu-bar panel cannot disagree
 // and a caffeinate that exits on its own timer still turns the switch off.
