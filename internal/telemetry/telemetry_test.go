@@ -86,3 +86,19 @@ func TestCountsForNetSkipsLoopbackAndPeerToPeer(t *testing.T) {
 		}
 	}
 }
+
+func TestDueBacksOffSourcesThatFailed(t *testing.T) {
+	now := time.Unix(1000, 0)
+	if !due(time.Time{}, false, diskEvery, now) {
+		t.Error("a source never read must be read")
+	}
+	if due(now.Add(-diskEvery-time.Second), false, diskEvery, now) {
+		t.Error("a failed source was retried at the normal interval")
+	}
+	if !due(now.Add(-noSensorRetry), false, diskEvery, now) {
+		t.Error("a failed source was never retried")
+	}
+	if !due(now.Add(-diskEvery), true, diskEvery, now) {
+		t.Error("a working source was not refreshed")
+	}
+}

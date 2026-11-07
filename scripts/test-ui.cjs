@@ -262,6 +262,7 @@ receipts.STATE.appsList = [];
 receipts.STATE.orphanLeftoversList = [];
 receipts.STATE.whitelist = ['old-protection'];
 receipts.STATE.deletedPathsRegistry = ['cache', '/tmp/cache'];
+load('applyAppSort', receipts);
 loadCallback('onNativeRealScanComplete', receipts);
 receipts.onNativeRealScanComplete({ cleanGroups: null, aiMoonBands: null, appsList: null, orphanLeftoversList: null, purgeItems: null, installerFiles: null, largeFiles: null, whitelist: null });
 for (const key of ['cleanGroups', 'aiMoonBands', 'appsList', 'orphanLeftoversList', 'purgeItems', 'installerFiles', 'largeFiles', 'whitelist']) {
@@ -478,7 +479,7 @@ assert.equal(analysis.STATE.treemap2D.map(tile => tile.path).join('|'), rootPath
 assert.equal(analysis.STATE.totalAnalyzedGb, rootTotalBefore, 'a late child receipt cannot replace the root size');
 
 const quits = vm.createContext({
-  STATE: { processes: [{ pid: 8123, name: 'Canvas', path: '/Applications/Canvas.app/Contents/MacOS/Canvas' }] },
+  STATE: { appsList: [], processes: [{ pid: 8123, name: 'Canvas', path: '/Applications/Canvas.app/Contents/MacOS/Canvas' }] },
   PROTECTED_PROCS: new Set(['Finder']), pendingProcessQuits: new Map(),
   requestSeq: 0, sent: [], nextRequestId: () => 'quit-' + ++quits.requestSeq,
   sendNativeBridge: payload => quits.sent.push(payload), showToast() {}, renderModule() {}, renderMenuBarTrayContent() {},

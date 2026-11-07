@@ -4,7 +4,7 @@
 
 # orbit
 
-**A native macOS client for the [`mo`](https://github.com/tw93/mole) CLI.**
+**A native macOS disk cleaner, inspired by the [`mo`](https://github.com/tw93/mole) CLI.**
 
 Go · MyGo · WKWebView — no Electron, no bundled runtime.
 
@@ -15,21 +15,16 @@ Go · MyGo · WKWebView — no Electron, no bundled runtime.
 
 </div>
 
-> The application is **orbit**. It is a desktop client for the upstream `mo` CLI.
+> The application is **orbit**. It is a standalone desktop app; it does not need `mo` installed.
 > The bundle is named `MoleStudio` on disk; "orbit" is the product name in the UI.
 
 ---
 
 ## What it is
 
-orbit puts a desktop face on [`tw93/mole`](https://github.com/tw93/mole) — the open-source
-`mo` CLI that frees disk space and refreshes macOS caches. It reads real hardware telemetry from the
-Mach kernel, drives `mo` as a subprocess, and renders a warm, low-glare control surface instead of a
-terminal.
-
-The `mo` binary is **not** bundled or vendored. The app resolves it at runtime from `PATH`
-(`/opt/homebrew/bin/mo`, `/usr/local/bin/mo`, `~/.local/bin/mo`, `~/.mole/mo`) and shells out to it,
-so you always run the upstream version you installed.
+orbit is a desktop disk cleaner in the spirit of [`tw93/mole`](https://github.com/tw93/mole) — the
+open-source `mo` CLI. It reads real hardware telemetry, scans and cleans in-process (no subprocess, no
+`mo` binary needed), and renders a warm, low-glare control surface instead of a terminal.
 
 ## Features
 
@@ -187,7 +182,6 @@ says which Swift file each Go file was written from, so the mapping stays useful
 
 | Go package | Responsibility | Ported from |
 | --- | --- | --- |
-| `internal/model` | Domain types: modules, safety tiers, clean categories, retention windows, optimize tasks; the selection/toggle arithmetic of the view model | `Sources/MoleStudio/Models/MoleModels.swift`, `Engine/MoleViewModel.swift` |
 | `internal/power` | Thermal (`NSProcessInfo` over purego/objc), memory-pressure and battery snapshot via `sysctl` and `ioreg` (health from the nested `BatteryData` dictionary, temperature from SMC) | `Sources/MoleStudio/PowerStatus.swift` |
 | `internal/smc` | Reads AppleSMC over IOKit: CPU temperature and fan speeds, with the byte-order handling both Intel and Apple silicon need | — (new; the Swift build had no SMC reader) |
 | `internal/telemetry` | Network throughput from the routing `sysctl`, disk I/O and GPU utilisation from the IORegistry, sampled on independent cache intervals | — (new; the Swift build showed fixed placeholder numbers) |
@@ -203,7 +197,7 @@ where MyGo wants the entry point:
 | `main.go` | `func main() { run() }` — nothing else | `@main enum MoleStudioMain` |
 | `app.go` | `run`/`buildUI`: `mygo.NewWindow`, the tray, the popover flyout, the application menu, the 1.5 s telemetry ticker, and `OnActivate`/`OnClose` handling | `MoleStudioApp.swift` (`AppDelegate`, `UILocator`) |
 | `bridge.go` | `NativeBridge.Dispatch`: one switch over `payload["action"]` that reproduces the Swift `WKScriptMessageHandler` branch for branch | `MoleStudioApp.swift` (`NativeBridgeController`) |
-| `preload.go` | The `PreloadScript` injected before the page's own scripts: the `moleNative` shim, the `isNativeMacApp`/`isMenuBarPopover` flags, and the drag-region CSS | `MoleStudioApp.swift` (WKWebView configuration) |
+| `preload.go` | The `PreloadScript` injected before the page's own scripts: the `isNativeMacApp`/`isMenuBarPopover` flags, and the drag-region CSS | `MoleStudioApp.swift` (WKWebView configuration) |
 | `push.go` | Go → page: serialises payloads and calls the page's `window.onNative*` globals in every open window | `MoleStudioApp.swift` (`evaluateJavaScript` call sites) |
 | `theme.go` | `mygo.Theme` plus a `preferences.json` in the user data directory, replacing `UserDefaults` | `MoleStudioApp.swift` (`applyTheme`) |
 
@@ -220,11 +214,10 @@ were removed, what replaced them, and what was deliberately left alone. The desi
 in [`DESIGN.md`](DESIGN.md), the product rules in [`PRODUCT.md`](PRODUCT.md).
 
 The port itself did not touch the frontend's visual design; the layout is still the original page. What
-did change in `Resources/src-ui/index.html` is the part that talked to the native side: `preload.go`
-restores the `window.webkit.messageHandlers.moleNative` object the page expects to post to (MyGo has no
-`WKScriptMessageHandler`, so it forwards to `NativeBridge.Dispatch`), and the page now waits for a receipt
+did change in `Resources/src-ui/index.html` is the part that talked to the native side: the page
+posts straight to `NativeBridge.Dispatch` through `window.mygo.call` (`nativePost` in `index.html`), and the page now waits for a receipt
 before it claims anything was deleted or restored. Actions the page sends: `revealInFinder`, `copyText`,
-`killProcess`, `trashRealPaths`/`executeClean`/`trashPath`, `restoreTrashSnapshot`, `addWhitelist`/
+`killProcess`, `trashRealPaths`, `restoreTrashSnapshot`, `addWhitelist`/
 `removeWhitelist`, `runDoctorReCheck`, `requestRealSystemScan`, `requestDiskAnalyze`,
 `requestRealTelemetry`, `cancelDiskAnalyze`, `toggleCaffeinate`, `startWindowDrag`, `toggleWindowZoom`,
 `setTheme`, the `menubar*` family. Callbacks: `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`,
@@ -313,14 +306,13 @@ The app deletes files, so the guardrails are the point:
 - Every destructive action is previewed before execution.
 - Dry-run is on by default.
 - The whitelist is read from `~/.config/mole/whitelist`, the same file `mo` uses.
-- Cleanup history is `mo`'s own (`mo history`). orbit does not keep a second audit log, so there is
-  nothing to trust besides the upstream record.
+- Cleanup moves items to the Trash, and the page waits for a native receipt before it reports success.
 
 ## Relationship to upstream
 
 This project is an independent GUI client. It is **not** affiliated with or endorsed by
 [tw93/mole](https://github.com/tw93/mole). It contains no upstream source code and does not
-redistribute the `mo` binary — it invokes your installed copy as a subprocess. Upstream `mo` is
+redistribute the `mo` binary, and does not run it. Upstream `mo` is
 licensed GPL-3.0, and this client is licensed GPL-3.0 to match.
 
 ## Contributing

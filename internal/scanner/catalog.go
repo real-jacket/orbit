@@ -372,6 +372,8 @@ func (s *Scanner) excludedCatalogRoots(specs []CatalogSpec) []map[string]any {
 func (s *Scanner) scanAICaches() []map[string]any {
 	claims := &catalogClaims{}
 	items := s.scanAIVersions(claims)
+	// Before the protected session rows, so their measured bytes exclude these units.
+	items = append(items, s.scanAISessions(claims)...)
 	for _, entry := range aiCacheSpecs() {
 		var row map[string]any
 		if entry.logFiles {
@@ -385,7 +387,13 @@ func (s *Scanner) scanAICaches() []map[string]any {
 		row["band"], row["tool"] = entry.band, entry.tool
 		items = append(items, row)
 	}
-	return append(items, s.scanAIWorktrees(claims)...)
+	items = append(items, s.scanAIWorktrees(claims)...)
+	for _, row := range items {
+		if tool, _ := row["tool"].(string); s.aiToolUninstalled(tool) {
+			row["uninstalled"] = true
+		}
+	}
+	return items
 }
 
 // catalogRoots lists the expanded roots of every catalog row that is still

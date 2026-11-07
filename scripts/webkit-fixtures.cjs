@@ -15,7 +15,7 @@ const fixture = {
     version('ai-spare', 'Claude Code · 2.2.0', '~/.local/share/claude/versions/2.2.0', 0.3, 'protected', '保留最近的非当前版本作为备用'),
     { ...group('ai-worktree', 'Codex · 未提交的工作成果', '~/.codex/worktrees/fixture', 2, 'protected'), band: '工作成果（仅检查）', gitState: '存在未提交或未跟踪内容，保留工作成果' },
     { ...group('ai-models', '共享模型缓存（仅检查）', '~/.cache/huggingface/hub', 3, 'protected'), band: '模型资源', safetyReason: '共享模型与离线资源不能整目录清理' }],
-  appsList: Array.from({ length: 12 }, (_, i) => ({ id: 'fixture-app-' + i, bundleId: 'org.example.canvas.' + i, name: i ? '测试编辑工具 ' + i : 'Canvas Editor', appPath: '/Applications/' + (i ? 'Test Tool ' : 'Canvas Editor ') + i + '.app', version: '1.2.0', category: 'Mac 应用', icon, appSizeGb: 1.5, cacheSizeGb: 0.3, configSizeGb: 0.2, leftoverSizeGb: 0.5, checked: false, keepPersonal: true, subpaths: [{ path: '/Applications/' + (i ? 'Test Tool ' : 'Canvas Editor ') + i + '.app', kind: 'app', sizeGb: 1.5, size: '1.50 GB', checked: true }, { path: '~/Library/Caches/Canvas ' + i, kind: 'cache', sizeGb: 0.3, size: '0.30 GB', checked: true }, { path: '~/Library/Application Support/Canvas ' + i, kind: 'config', sizeGb: 0.2, size: '0.20 GB', checked: false }] })),
+  appsList: Array.from({ length: 12 }, (_, i) => ({ id: 'fixture-app-' + i, bundleId: 'org.example.canvas.' + i, name: i ? '测试编辑工具 ' + i : 'Canvas Editor', appPath: '/Applications/' + (i ? 'Test Tool ' : 'Canvas Editor ') + i + '.app', version: '1.2.0', category: 'Mac 应用', icon, lastUsedAt: i % 3 === 1 ? null : Math.floor(Date.now() / 1000) - (i * 23 + 3) * 86400, lastUsed: i % 3 === 1 ? '未记录' : '2026-01-01', running: i === 2, runningPid: i === 2 ? 4242 : undefined, runningPath: i === 2 ? '/Applications/Test Tool 2.app/Contents/MacOS/Tool' : undefined, appSizeGb: 1.5, cacheSizeGb: 0.3, configSizeGb: 0.2, leftoverSizeGb: 0.5, checked: false, keepPersonal: true, subpaths: [{ path: '/Applications/' + (i ? 'Test Tool ' : 'Canvas Editor ') + i + '.app', kind: 'app', sizeGb: 1.5, size: '1.50 GB', checked: true }, { path: '~/Library/Caches/Canvas ' + i, kind: 'cache', sizeGb: 0.3, size: '0.30 GB', checked: true }, { path: '~/Library/Application Support/Canvas ' + i, kind: 'config', sizeGb: 0.2, size: '0.20 GB', checked: false }].concat(i === 1 ? [{ path: '~/Library/LaunchAgents/org.example.canvas.1.plist', kind: 'launch', sizeGb: 0, size: '1 KB', checked: true }, { path: '/Library/LaunchDaemons/org.example.canvas.1.helper.plist', kind: 'launch', sizeGb: 0, size: '1 KB', checked: false, tier: 'protected', reason: '需要管理员权限，仅列出' }] : []) })),
   orphanLeftoversList: [{ ...group('orphan-fixture', '遗留编辑工具', '~/Library/Caches/Legacy Canvas', 1), leftoverSizeGb: 1, statusText: '未发现主程序', bundleId: 'org.example.legacy', checked: false }],
   purgeItems: [{ id: 'build', project: 'Canvas', path: '~/Projects/Canvas/node_modules', artifact: 'node_modules', sizeGb: 2, origSizeGb: 2, checked: true, kind: 'Node.js 依赖', age: '测试时间', gitClean: '仅用于测试', rebuildNote: '重新安装依赖' }],
   installerFiles: [{ id: 'installer', name: 'Canvas Setup.dmg', path: '~/Downloads/Canvas Setup.dmg', location: '~/Downloads', sizeGb: 1, age: '测试时间', checked: false }],
@@ -38,7 +38,7 @@ const dominantTiles = [
 const telemetry = { cpu: 24, freeDiskGb: 128, memUsedGb: 16, memTotalGb: 32, processes: [{ pid: 8123, name: 'Canvas Editor', cpu: 12, memory_mb: 384, path: '/Applications/Canvas Editor.app', power: null }, { pid: 8234, name: 'Canvas Helper', cpu: 4, memory_mb: 128, path: '/Applications/Canvas Helper.app', power: null }], power: { thermal: 'nominal', memPressure: 'normal', battery: { percent: 80, healthPct: 84, cycles: 439, charging: false, source: 'battery' } }, net: { rxBytesPerSec: 1048576, txBytesPerSec: 131072 }, diskIo: { readBytesPerSec: 2097152, writeBytesPerSec: 1048576 }, gpuPct: 20, cpuTempC: 52, fans: [1200] };
 const setup = `const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.appendChild(style);window.qaFixture=${JSON.stringify(fixture)}; window.qaTelemetry=${JSON.stringify(telemetry)}; window.qaTiles=${JSON.stringify(tiles)}; window.qaDominantTiles=${JSON.stringify(dominantTiles)};
 window.qaAssert=(condition,message)=>{if(!condition)throw new Error(message)};
-window.qaReset=()=>{ document.querySelector('.permission-toast')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
+window.qaReset=()=>{ document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
 fs.writeFileSync(dir + '/fixtures.js', setup);
 const scenarios = [];
 const modules = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'];
@@ -64,6 +64,37 @@ add('palette-navigation', `openCommandPalette('系统加速');qaAssert(document.
 add('keyboard-module-doctor', `document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'6',metaKey:true,bubbles:true}));qaAssert(STATE.module==='status','module shortcut works');document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'d',metaKey:true,bubbles:true}));qaAssert(document.getElementById('doctorModal').classList.contains('open'),'doctor shortcut works');`);
 add('partial-trash-receipt', `switchModule('clean');openConfirmSheet();executeConfirmedClean();const request=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(request,'confirmation posts request');onNativeTrashResult({requestId:request.requestId,moved:[{original:request.paths[0],trashed:'/trash/one'}],movedCount:1,failed:request.paths.slice(1).map(path=>({path,error:'Permission denied',pane:'fullDiskAccess'}))});qaAssert(STATE.historyLogs[0].restoreData.paths.length===1,'partial success recorded');qaAssert(document.getElementById('permHint'),'permission failure has recovery action');`);
 add('apps-no-matches', `switchModule('software');handleSearch('unmatched-keyword');qaAssert(document.querySelectorAll('#moduleStage .list-row').length===0,'no-match list is empty');qaAssert(getComputedStyle(document.querySelector('.master-detail-grid > .panel-card:nth-child(2)')).display==='none','unmatched inspector is hidden');`);
+add('apps-sort-keeps-selection', `switchModule('software');selectAppRow(4);const id=STATE.appsList[4].id;
+  const rows=()=>[...document.querySelectorAll('#moduleStage .list-row .row-name')].map(n=>n.textContent);
+  document.querySelector('.analysis-sort[onclick*="recent"]').click();
+  qaAssert(STATE.appSort==='recent'&&STATE.appsList[STATE.selectedAppIdx].id===id,'sorting keeps the selected app by id, not index');
+  const used=STATE.appsList.map(a=>Number.isFinite(a.lastUsedAt)?a.lastUsedAt:null);const firstUnknown=used.indexOf(null);
+  qaAssert(firstUnknown>0&&used.slice(0,firstUnknown).every((v,k,all)=>v!==null&&(k===0||all[k-1]>=v))&&used.slice(firstUnknown).every(v=>v===null),'recent sort is newest first with unknown last');
+  qaAssert(document.querySelector('.analysis-sort[onclick*="recent"]').getAttribute('aria-pressed')==='true','active sort is exposed');
+  const subs=[...document.querySelectorAll('#moduleStage .list-row .row-sub')].map(n=>n.textContent);qaAssert(subs.some(t=>/^最近使用 [0-9]+ 个月前$/.test(t)),'rows show relative time');qaAssert([...document.querySelectorAll('#moduleStage .list-row .row-sub')].some(n=>n.textContent==='最近使用 未记录'),'rows show relative time, unknown as 未记录');
+  setAppSort('name');const names=STATE.appsList.map(a=>a.name);qaAssert(names.every((n,k)=>k===0||names[k-1].localeCompare(n,'zh')<=0)&&STATE.appsList[STATE.selectedAppIdx].id===id,'name sort keeps selection');
+  STATE.appsList.find(a=>a.id==='fixture-app-5').appSizeGb=2.5;setAppSort('size');qaAssert(STATE.appsList[0].id==='fixture-app-5'&&STATE.appsList[STATE.selectedAppIdx].id===id,'size sort puts the biggest app first');
+  qaAssert(!__qa.actions.some(a=>['trashRealPaths','killProcess'].includes(a.action)),'sorting is read only');`);
+add('apps-running-blocked', `switchModule('software');const idx=STATE.appsList.findIndex(a=>a.running);selectAppRow(idx);
+  const row=document.querySelectorAll('#moduleStage .list-row')[idx];
+  qaAssert(row.textContent.includes('运行中')&&document.querySelectorAll('#moduleStage .list-row .badge').length>=1,'running app shows a badge');
+  qaAssert(row.querySelector('input[type=checkbox]').disabled,'a running app cannot be selected for removal');
+  toggleAppCheck(idx);qaAssert(!STATE.appsList[idx].checked,'direct toggles cannot select a running app');
+  const quit=document.querySelector('[data-quit-app]');qaAssert(quit&&!quit.disabled,'the inspector offers 退出应用');
+  qaAssert(!STATE.appsList.some((a,k)=>k!==idx&&a.running),'only the running app is flagged');
+  quit.click();const request=__qa.actions.find(a=>a.action==='killProcess');
+  qaAssert(request&&request.pid===4242&&request.path.endsWith('/Contents/MacOS/Tool')&&request.name==='Tool','quit reuses the killProcess bridge with the main executable');
+  qaAssert(document.querySelector('[data-quit-app]').disabled,'a pending quit cannot be repeated');
+  onNativeProcessQuitResult({requestId:request.requestId,pid:4242,ok:true});
+  qaAssert(STATE.appsList[idx].running&&document.querySelector('[data-quit-app]').textContent.includes('已请求退出'),'the page does not claim the app quit before a rescan');
+  qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'quitting never trashes anything');`);
+add('apps-launch-items', `switchModule('software');const idx=STATE.appsList.findIndex(a=>a.subpaths.some(sp=>sp.kind==='launch'));selectAppRow(idx);
+  const text=document.getElementById('moduleStage').textContent;
+  qaAssert(text.includes('启动项')&&text.includes('需要管理员权限，仅列出'),'user launch item and the admin-only reason are listed');
+  const boxes=[...document.querySelectorAll('#moduleStage .subpath-item input[type=checkbox]')];const sys=STATE.appsList[idx].subpaths.findIndex(sp=>sp.tier==='protected');
+  qaAssert(boxes[sys].disabled&&!boxes[sys].checked,'root-owned launch item is not selectable');
+  toggleAppCheck(idx);openConfirmSheet();const preview=document.getElementById('confirmModalItemsList').textContent;
+  qaAssert(preview.includes('LaunchAgents/org.example.canvas.1.plist')&&!preview.includes('/Library/LaunchDaemons'),'only the user-level launch item joins the removal');`);
 add('clean-no-matches', `switchModule('clean');handleSearch('unmatched-keyword');qaAssert(getComputedStyle(document.querySelector('.master-detail-grid > .panel-card:nth-child(2)')).display==='none','unmatched cache inspector is hidden');`);
 add('purge-installer-search', `switchModule('purge');handleSearch('Canvas Setup');qaAssert(document.getElementById('moduleStage').textContent.includes('Canvas Setup.dmg'),'installer-only search remains visible');qaAssert(document.querySelector('.inspector-content').querySelectorAll('.bento-cell').length===0,'unmatched build metadata is absent');`);
 add('status-missing-sensors', `switchModule('status');STATE.hw={};STATE.power={thermal:'nominal',memPressure:'normal'};renderModule();qaAssert(document.getElementById('statusCardNet').textContent.includes('本机不提供'),'missing network sensor is not zero');qaAssert(document.getElementById('statusCardGpu').textContent.includes('本机不提供'),'missing GPU sensor is not invented');`);
@@ -89,20 +120,20 @@ add('clean-unknown-small-allocation', `const row=structuredClone(qaFixture.clean
 add('clean-partial-path-protected', `const row=structuredClone(qaFixture.cleanGroups[0]);row.tier='protected';row.checked=false;row.partial=true;row.subpaths.forEach(sp=>{sp.tier='protected';sp.checked=false;sp.partial=true;sp.reason='达到文件测量上限；只计入已读取部分'});onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[row],readWarnings:[{path:row.path,reason:row.subpaths[0].reason}]});switchModule('clean');qaAssert(!document.querySelector('.inspector-content input'),'partial inventory cannot be selected');qaAssert(document.getElementById('moduleStage').textContent.includes('未完成测量'),'partial state does not claim complete totals');`);
 add('analyze-correlated-refresh', `switchModule('analyze');handlePrimaryAction();const request=__qa.actions.find(a=>a.action==='requestDiskAnalyze');qaAssert(request&&request.refresh===true&&request.requestId,'rescan explicitly requests a fresh correlated scan');const oldTotal=STATE.analyzeAllocGb;onNativeDiskAnalyze({requestId:'old',totalGb:999,treemap2D:[]});qaAssert(STATE.analyzeLoading&&STATE.analyzeAllocGb===oldTotal,'old result cannot replace the latest request');onNativeDiskAnalyze({requestId:request.requestId,root:'~',scanStatus:'ok',totalGb:2,totalSizeGb:2,totalLogicalGb:3,fileCount:4,treemap2D:[{name:'Fresh',path:'~/Fresh',sizeGb:2,diskGb:2,isDir:true}],largeFiles:[]});qaAssert(!STATE.analyzeLoading&&STATE.totalAnalyzedGb===2,'latest receipt supplies fresh totals');qaAssert(!document.getElementById('heroHeadline').textContent.includes('全机'),'home scope is not labeled whole machine');`);
 add('analyze-scoped-large-files', `switchModule('analyze');const parent=STATE.treemap2D[0];parent.logicalGb=9;parent.files=6;parent.childrenLoaded=true;parent.aggregated={count:3,sizeGb:1};parent.largeFiles=[{name:'Project archive',path:'~/Projects/a.zip',sizeGb:1},{name:'Outside',path:'~/Downloads/b.zip',sizeGb:2}];drillTile(0);qaAssert(document.querySelector('.facts-bar').textContent.includes('文件 6'),'drill-down reports its own file count');qaAssert(document.querySelector('.facts-bar').textContent.includes('9.00 GB'),'drill-down reports its own logical size');qaAssert(currentLargeFiles().length===1,'outside large files are not mixed into the current directory');qaAssert(!document.getElementById('moduleStage').textContent.includes('Outside'),'outside file is not displayed');`);
-add('analyze-aggregated-only', `switchModule('analyze');STATE.treemap2D=[];STATE.analyzeAllocGb=2;STATE.analyzeAggregated={count:14,sizeGb:2,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false,modified:1761739200},{name:'logs',path:'~/Library/Logs',sizeGb:0.6,fileCount:4,isDir:true}]};STATE.analyzeFileCount=14;renderModule();qaAssert(document.querySelector('.treemap-tile.tt-others'),'backend aggregation remains in the area map');qaAssert(document.querySelector('.analysis-aggregate-only'),'aggregate-only layer has a specific state');qaAssert(!document.getElementById('moduleStage').textContent.includes('未发现可清理项目'),'space analysis never claims there are no cleanable items');toggleAnalyzeOtherItems(true);qaAssert(document.querySelectorAll('.analysis-other-row').length===2,'aggregate exposes its bounded inspectable sample');qaAssert(document.querySelector('.crumb-actions button[onclick^="revealInFinder"]').disabled,'synthetic aggregate cannot reveal a fake path');`);
-add('analyze-search-aggregated', `switchModule('analyze');STATE.analyzeAggregated={count:2,sizeGb:1.4,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false,reason:''},{name:'other.bin',path:'~/Library/Caches/other.bin',sizeGb:0.6,fileCount:1,isDir:false}]};STATE.searchQuery='cache-a';const input=document.getElementById('searchInput');input.value='cache-a';renderModule();qaAssert(document.querySelectorAll('.treemap-split .list-row').length===1,'search filters the current analysis layer');qaAssert(document.querySelector('.treemap-stage').textContent.includes('cache-a.bin'),'search can surface an aggregated child');qaAssert(document.querySelector('.tt-size').textContent==='800.0MB','matched child keeps its measured size');clearAnalysisSearch();qaAssert(STATE.searchQuery==='','search can be cleared without rescanning');input.value='cache-a';handleSearch('cache-a');`);
-add('analyze-no-match', `switchModule('analyze');handleSearch('no-such-path');qaAssert(document.querySelector('.analysis-no-match'),'empty search has a specific result state');qaAssert(document.querySelector('.analysis-no-match').textContent.includes('只覆盖这一层'),'search scope is explicit');document.querySelector('.analysis-no-match button[onclick="clearAnalysisSearch()"]').click();qaAssert(document.querySelectorAll('.treemap-split .list-row').length===3,'clearing search restores the current layer');document.getElementById('searchInput').value='no-such-path';handleSearch('no-such-path');`);
+add('analyze-aggregated-only', `switchModule('analyze');STATE.treemap2D=[];STATE.analyzeAllocGb=2;STATE.analyzeAggregated={count:14,sizeGb:2,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false,modified:1761739200},{name:'logs',path:'~/Library/Logs',sizeGb:0.6,fileCount:4,isDir:true}]};STATE.analyzeFileCount=14;renderModule();qaAssert(document.querySelector('.treemap-tile.tt-others'),'backend aggregation remains in the area map');qaAssert(document.querySelector('.analysis-aggregate-only'),'aggregate-only layer has a specific state');qaAssert(!document.getElementById('moduleStage').textContent.includes('未发现可清理项目'),'space analysis never claims there are no cleanable items');toggleAnalyzeOtherItems(true);qaAssert(document.querySelectorAll('.analysis-other-row').length===2,'aggregate exposes its bounded inspectable sample');const reveal=document.querySelector('.crumb-actions button[onclick^="revealInFinder"]');qaAssert(document.querySelector('.crumb-sel .insp-kind').textContent==='当前目录'&&!/Caches|Logs/.test(reveal.getAttribute('onclick')),'synthetic aggregate cannot reveal a fake path: the inspector locates the real current directory');`);
+add('analyze-search-aggregated', `switchModule('analyze');STATE.analyzeAggregated={count:2,sizeGb:1.4,items:[{name:'cache-a.bin',path:'~/Library/Caches/cache-a.bin',sizeGb:0.8,fileCount:1,isDir:false,reason:''},{name:'other.bin',path:'~/Library/Caches/other.bin',sizeGb:0.6,fileCount:1,isDir:false}]};STATE.searchQuery='cache-a';const input=document.getElementById('searchInput');input.value='cache-a';renderModule();qaAssert(document.querySelectorAll('.analysis-children .list-row').length===1,'search filters the current analysis layer');qaAssert(document.querySelector('.treemap-stage').textContent.includes('cache-a.bin'),'search can surface an aggregated child');qaAssert(document.querySelector('.tt-size').textContent==='800.0MB','matched child keeps its measured size');clearAnalysisSearch();qaAssert(STATE.searchQuery==='','search can be cleared without rescanning');input.value='cache-a';handleSearch('cache-a');`);
+add('analyze-no-match', `switchModule('analyze');handleSearch('no-such-path');qaAssert(document.querySelector('.analysis-no-match'),'empty search has a specific result state');qaAssert(document.querySelector('.analysis-no-match').textContent.includes('只覆盖这一层'),'search scope is explicit');document.querySelector('.analysis-no-match button[onclick="clearAnalysisSearch()"]').click();qaAssert(document.querySelectorAll('.analysis-children .list-row').length===3,'clearing search restores the current layer');document.getElementById('searchInput').value='no-such-path';handleSearch('no-such-path');`);
 add('analyze-modified-metadata', `switchModule('analyze');selectTile(0);qaAssert(document.querySelector('.crumb-sel small').textContent.includes('12 个文件'),'selection exposes its file count');qaAssert(document.querySelector('.crumb-sel small').textContent.includes('修改于'),'selection exposes its latest modification');qaAssert(!document.querySelector('.treemap-split .rank-dot'),'removed duplicate decorative rank dots');`);
 add('analyze-pointer-selection', `switchModule('analyze');const idx=analysisVisibleTiles().findIndex(t=>t.name==='Downloads');const tile=document.querySelector('.treemap-tile[data-idx="'+idx+'"]');tile.click();qaAssert(STATE.analyzeSel===idx,'single click inspects the clicked map item');qaAssert(tile.isConnected,'inspection preserves the click target for a native double click');qaAssert(document.querySelector('.crumb-sel').textContent.includes('Downloads'),'inspector matches the clicked tile');qaAssert(!STATE.collected.length,'inspection never adds a cleanup target');tile.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));qaAssert(STATE.drillStack[0].path==='~/Downloads','double click enters the same directory');drillUp();qaAssert(analysisVisibleTiles()[STATE.analyzeSel].path==='~/Downloads','going up selects the directory just left');`);
 add('analyze-sorted-keyboard', `switchModule('analyze');setAnalyzeSort('name');const map=document.querySelector('.treemap-stage');let tile=map.querySelector('[data-idx="0"]');tile.focus();tile.dispatchEvent(new KeyboardEvent('keydown',{key:'f',bubbles:true,cancelable:true}));qaAssert(__qa.actions.some(a=>a.action==='revealInFinder'&&a.path.endsWith('/Downloads')),'Finder uses the sorted visible item, not the unsorted array');tile.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));qaAssert(!STATE.drillStack.length,'map arrows move instead of entering a directory');qaAssert(document.activeElement.classList.contains('treemap-tile')&&document.activeElement!==tile,'map arrows move focus');const current=document.activeElement;current.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true,cancelable:true}));qaAssert(current.isConnected&&document.activeElement===current,'Space inspects without rebuilding the focused tile');qaAssert(document.querySelector('.crumb-sel').textContent.includes(analysisVisibleTiles()[STATE.analyzeSel].name),'keyboard inspection and toolbar agree');current.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));qaAssert(document.activeElement===map.querySelector('.treemap-tile:last-child'),'End reaches the last visible tile');document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true,cancelable:true}));qaAssert(document.activeElement===map.querySelector('.treemap-tile'),'Home reaches the first visible tile');`);
 add('analyze-filtered-navigation', `switchModule('analyze');setAnalyzeSort('name');handleSearch('Projects');drillTile(0);qaAssert(STATE.searchQuery===''&&document.getElementById('searchInput').value==='','changing directories clears the current-layer filter');qaAssert(currentTiles()[0].name==='Canvas'&&document.querySelector('.treemap-tile'),'a parent filter cannot hide its children');drillUp();qaAssert(analysisVisibleTiles()[STATE.analyzeSel].name==='Projects','sorted parent restores the directory just left');setAnalyzeSort('size');qaAssert(analysisVisibleTiles()[STATE.analyzeSel].name==='Projects','sorting keeps the inspected path');handleSearch('Projects');drillTile(0);goBack();qaAssert(STATE.searchQuery===''&&!STATE.drillStack.length,'history navigation resets the old scope filter');goForward();qaAssert(STATE.searchQuery===''&&STATE.drillStack.length===1,'forward navigation returns to the child scope');qaAssert(document.querySelector('.crumb-left button.crumb-item'),'ancestor breadcrumbs are keyboard buttons');`);
-add('analyze-keyboard-controls', `switchModule('analyze');const button=document.querySelector('.treemap-tile[data-idx="0"] .tt-btn:last-child');button.focus();const key=new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true});button.dispatchEvent(key);qaAssert(!key.defaultPrevented&&!STATE.drillStack.length,'a tile action keeps its own native keyboard activation');button.click();qaAssert(__qa.actions.some(a=>a.action==='revealInFinder'&&a.path.endsWith('/Projects')),'Finder button still opens its own path');`);
+add('analyze-keyboard-controls', `switchModule('analyze');qaAssert(!document.querySelector('.treemap-tile button'),'tiles carry no competing action buttons');const button=document.querySelector('.analysis-inspector [aria-label^="在访达中显示"]');button.focus();const key=new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true});button.dispatchEvent(key);qaAssert(!key.defaultPrevented&&!STATE.drillStack.length,'an inspector action keeps its own native keyboard activation');button.click();qaAssert(__qa.actions.some(a=>a.action==='revealInFinder'&&a.path.endsWith('/Projects')),'Finder button still opens its own path');`);
 add('analyze-folded-keyboard', `switchModule('analyze');STATE.analyzeAggregated={count:2,sizeGb:1,items:[{name:'small.bin',path:'~/small.bin',sizeGb:0.5,isDir:false}]};renderModule();const tile=document.querySelector('.tt-others');tile.focus();tile.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));qaAssert(STATE.analyzeOtherOpen,'Enter opens the folded sample');qaAssert(document.activeElement.classList.contains('analysis-other-toggle'),'folded-item keyboard navigation retains focus');`);
 add('analyze-small-file-units', `switchModule('analyze');STATE.treemap2D=[{name:'small.bin',path:'~/small.bin',sizeGb:0.000004096,isDir:false}];STATE.analyzeAllocGb=0.000004096;STATE.analyzeAggregated=null;renderModule();qaAssert(document.querySelector('.tt-size').textContent==='4.1KB','map uses real units instead of rounding small files to zero GB');qaAssert(document.querySelector('.treemap-tile').getAttribute('aria-label').includes('4.1 KB'),'accessible size agrees with the visible size');STATE.treemap2D[0].sizeGb=0.04;STATE.analyzeAllocGb=0.04;renderModule();qaAssert(document.querySelector('.tt-size').textContent==='40.0MB','sub-GB map labels use MB');qaAssert(document.querySelector('.size-cell').textContent==='40.0 MB','one-decimal list labels do not show zero GB');qaAssert(document.querySelector('.crumb-sel').textContent.includes('40.0 MB'),'inspection agrees with the list and map size');`);
 add('analyze-empty-directory-return', `switchModule('analyze');STATE.treemap2D[0].children=[];STATE.treemap2D[0].childrenLoaded=true;STATE.treemap2D[0].aggregated=null;drillTile(0);const back=document.querySelector('#moduleStage button[onclick="drillUp()"]');qaAssert(back,'empty directories keep a mouse and keyboard return path');back.click();qaAssert(!STATE.drillStack.length&&document.querySelector('.treemap-stage'),'return restores the parent map');`);
 add('analyze-async-keyboard-focus', `switchModule('analyze');const parent=STATE.treemap2D[0];parent.children=[];parent.childrenLoaded=false;const tile=document.querySelector('.treemap-tile[data-idx="0"]');tile.focus();tile.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));const request=__qa.actions.find(a=>a.action==='requestDiskAnalyze');qaAssert(request&&STATE.analyzeLoading,'keyboard entry requests an unloaded child');onNativeDiskAnalyze({requestId:request.requestId,path:parent.path,scanStatus:'ok',totalSizeGb:2,treemap2D:[{name:'loaded.bin',path:parent.path+'/loaded.bin',diskGb:2,isDir:false}],largeFiles:[]});qaAssert(document.activeElement.classList.contains('treemap-tile')&&document.activeElement.textContent.includes('loaded.bin'),'child receipt restores focus inside the loaded map');`);
-add('analyze-list-keyboard', `switchModule('analyze');setAnalyzeSort('name');let row=document.querySelector('.treemap-split .list-row[data-idx="0"]');row.focus();row.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));qaAssert(document.activeElement.dataset.idx==='1'&&STATE.analyzeSel===1,'list arrows inspect the same sorted row they focus');document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));qaAssert(STATE.drillStack[0].name==='Library','list Right enters the focused directory');onNativeDiskAnalyze({requestId:STATE.analyzeRequestId,path:'~/Library',scanStatus:'ok',totalSizeGb:7,treemap2D:[{name:'Caches',path:'~/Library/Caches',diskGb:7,isDir:true,childrenLoaded:true}],largeFiles:[]});document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));qaAssert(!STATE.drillStack.length&&analysisVisibleTiles()[STATE.analyzeSel].name==='Library','list Left restores the sorted parent');qaAssert(document.activeElement.classList.contains('selected')&&document.activeElement.dataset.idx===String(STATE.analyzeSel),'return retains focus on the inspected list row');`);
-add('analyze-hover-details', `switchModule('analyze');const tile=document.querySelector('.treemap-tile[data-idx="1"]');tile.style.width='100px';const bar=document.querySelector('.breadcrumb-bar');const before=bar.getBoundingClientRect();tile.dispatchEvent(new MouseEvent('pointerover',{bubbles:true}));await new Promise(r=>setTimeout(r,140));const preview=document.getElementById('tilePreview');qaAssert(preview.classList.contains('show')&&preview.textContent.includes('Library'),'small-tile hover details remain readable below the map');qaAssert(preview.closest('.analysis-map-note'),'hover does not reserve breadcrumb space');const after=bar.getBoundingClientRect();qaAssert(before.width===after.width&&before.height===after.height,'hover does not reflow the context bar');tile.dispatchEvent(new MouseEvent('pointerout',{bubbles:true,relatedTarget:tile.querySelector('.tt-btn')}));qaAssert(preview.classList.contains('show'),'moving to a tile action does not flicker the preview');tile.dispatchEvent(new MouseEvent('pointerout',{bubbles:true}));qaAssert(!preview.classList.contains('show'),'leaving the tile clears its preview');`);
+add('analyze-list-keyboard', `switchModule('analyze');setAnalyzeSort('name');let row=document.querySelector('.analysis-children .list-row[data-idx="0"]');row.focus();row.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));qaAssert(document.activeElement.dataset.idx==='1'&&STATE.analyzeSel===1,'list arrows inspect the same sorted row they focus');document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));qaAssert(STATE.drillStack[0].name==='Library','list Right enters the focused directory');onNativeDiskAnalyze({requestId:STATE.analyzeRequestId,path:'~/Library',scanStatus:'ok',totalSizeGb:7,treemap2D:[{name:'Caches',path:'~/Library/Caches',diskGb:7,isDir:true,childrenLoaded:true}],largeFiles:[]});document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));qaAssert(!STATE.drillStack.length&&analysisVisibleTiles()[STATE.analyzeSel].name==='Library','list Left restores the sorted parent');qaAssert(document.activeElement.classList.contains('selected')&&document.activeElement.dataset.idx===String(STATE.analyzeSel),'return retains focus on the inspected list row');`);
+add('analyze-hover-details', `switchModule('analyze');const tile=document.querySelector('.treemap-tile[data-idx="1"]');tile.style.width='100px';const bar=document.querySelector('.breadcrumb-bar');const before=bar.getBoundingClientRect();tile.dispatchEvent(new MouseEvent('pointerover',{bubbles:true}));await new Promise(r=>setTimeout(r,140));const preview=document.getElementById('tilePreview');qaAssert(preview.classList.contains('show')&&preview.textContent.includes('Library'),'small-tile hover details remain readable below the map');qaAssert(preview.closest('.analysis-map-note'),'hover does not reserve breadcrumb space');const after=bar.getBoundingClientRect();qaAssert(before.width===after.width&&before.height===after.height,'hover does not reflow the context bar');tile.dispatchEvent(new MouseEvent('pointerout',{bubbles:true,relatedTarget:tile.querySelector('.tt-head')}));qaAssert(preview.classList.contains('show'),'moving within the tile does not flicker the preview');tile.dispatchEvent(new MouseEvent('pointerout',{bubbles:true}));qaAssert(!preview.classList.contains('show'),'leaving the tile clears its preview');`);
 add('analyze-resize-focus', `switchModule('analyze');const tile=document.querySelector('.treemap-tile[data-idx="1"]');tile.focus();window.dispatchEvent(new Event('resize'));await new Promise(r=>setTimeout(r,180));qaAssert(!tile.isConnected,'resize recalculates map geometry against the current viewport');qaAssert(document.activeElement.classList.contains('treemap-tile')&&document.activeElement.dataset.idx==='1','resizing preserves the focused map item');qaAssert(!__qa.actions.some(a=>a.action==='requestDiskAnalyze'),'resizing never rescans the disk');`);
 add('analyze-narrow-pointer', `switchModule('analyze');const map=document.querySelector('.treemap-stage');const before=map.getBoundingClientRect().top;const tile=map.querySelector('.treemap-tile[data-idx="1"]');tile.click();qaAssert(tile.isConnected&&map.getBoundingClientRect().top===before,'narrow-window inspection does not scroll the map out from under the pointer');qaAssert(map.clientHeight>=260,'narrow-window map remains usable');tile.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));qaAssert(STATE.drillStack[0].name==='Library','double click remains usable in the narrow window');`);
 scenarios[scenarios.length-1].width=880;scenarios[scenarios.length-1].height=620;
@@ -112,7 +143,21 @@ add('analyze-nested-tiles', `switchModule('analyze');const tile=document.querySe
 add('analyze-dominant-directory', `switchModule('analyze');STATE.analyzeAllocGb=717.61;STATE.totalAnalyzedGb=717.61;STATE.analyzeFileCount=2423088;STATE.treemap2D=structuredClone(qaDominantTiles);STATE.analyzeAggregated={count:183,sizeGb:47.1,items:[]};STATE.analyzeStatus='ok';STATE.analyzeSel=0;renderModule();const tile=document.querySelector('.treemap-tile[data-idx="0"]');qaAssert(tile.querySelector('.tt-preview-label b').textContent==='资料','dominant child stays labelled inside the hierarchy');qaAssert(tile.querySelector('.tt-preview-label small').textContent.includes('GB'),'nested label carries its measured size');qaAssert(getComputedStyle(tile.querySelector('.tt-preview')).top==='46px','nested map sits below the parent header');qaAssert(getComputedStyle(document.querySelector('.treemap-tile.tt-others')).opacity==='1','folded items do not look disabled');`);
 add('analyze-permission-recovery', `switchModule('analyze');STATE.analyzeStatus='partial';STATE.analyzeRestricted=[{path:qaFixture.homePath+'/Library/Containers/com.example.a',reason:'权限不足'},{path:qaFixture.homePath+'/Library/Containers/com.example.b',reason:'权限不足'},{path:qaFixture.homePath+'/Documents/private',reason:'需要文件访问权限'}];STATE.analyzeRestrictedOpen=true;renderModule();qaAssert(document.querySelector('.permission-recovery'),'restricted paths open a recovery panel');qaAssert(document.querySelectorAll('.permission-group-row').length===2,'restricted paths are grouped by directory');document.querySelector('.permission-recovery-actions [onclick="revealCurrentApp()"]').click();qaAssert(__qa.actions.some(a=>a.action==='revealAppBundle'),'recovery panel can reveal the exact running app');const paneButton=document.querySelector('.permission-group-row .permission-group-pane');paneButton.click();qaAssert(__qa.actions.some(a=>a.action==='openPrivacySettings'&&a.pane==='fullDiskAccess'),'each path group opens its recommended permissions pane');`);
 add('analyze-coverage', `switchModule('analyze');STATE.analyzeVolume={totalGb:512,usedGb:384,freeGb:128};renderModule();qaAssert(document.querySelector('.facts-bar').textContent.includes('范围外约 364.00 GB'),'unscanned volume space is disclosed as an estimate');qaAssert(document.getElementById('heroStatSub').textContent.includes('卷容量 512.0 GB'),'volume capacity remains separate from scan scope');`);
-add('analyze-narrow-priority', `switchModule('analyze');const map=document.querySelector('.treemap-stage').getBoundingClientRect();const list=document.querySelector('.treemap-split > .panel-card').getBoundingClientRect();qaAssert(map.top<list.top,'small window prioritizes the map over the duplicate list');qaAssert(document.getElementById('searchInput').disabled===false,'space analysis supports current-layer search');qaAssert(map.top<innerHeight,'map starts within the first viewport');qaAssert(map.height>=260,'minimum window keeps a useful map height');`);
+for(const [width,height] of [[1380,860],[1060,760],[880,620]]){
+  add('analyze-fits-viewport-'+width,`
+    switchModule('analyze');
+    const body=document.querySelector('.workspace-body'),stage=document.querySelector('.treemap-stage'),panel=document.querySelector('.analysis-inspector');
+    const stageBox=stage.getBoundingClientRect(),panelBox=panel.getBoundingClientRect();
+    __qa.motionEvidence={map:Math.round(stageBox.width)+'x'+Math.round(stageBox.height),inspector:Math.round(panelBox.width)+'x'+Math.round(panelBox.height)};
+    if(innerWidth>960){
+      qaAssert(body.scrollHeight<=body.clientHeight+1,'map plus inspector fit the window without page scroll; '+body.scrollHeight+'/'+body.clientHeight);
+      qaAssert(Math.abs(panelBox.width-(innerWidth<=1100?300:340))<2&&stageBox.height>=360,'map takes the remaining space beside a fixed inspector; '+__qa.motionEvidence.map);
+    }else qaAssert(stageBox.height>=360&&stageBox.bottom<=panelBox.top,'narrow windows keep a useful map above the inspector');
+    qaAssert(document.querySelectorAll('.analysis-inspector [data-tab]').length===3&&document.querySelectorAll('[onclick*="toggleAnalyzeOtherItems"]').length<=1,'tabs exist and the folded-items intent is not duplicated');
+  `);
+  Object.assign(scenarios.at(-1),{width,height});
+}
+add('analyze-narrow-priority', `switchModule('analyze');const map=document.querySelector('.treemap-stage').getBoundingClientRect();const list=document.querySelector('.analysis-inspector').getBoundingClientRect();qaAssert(map.left<list.left||map.top<list.top,'the map comes before the inspector');qaAssert(document.getElementById('searchInput').disabled===false,'space analysis supports current-layer search');qaAssert(map.top<innerHeight,'map starts within the first viewport');qaAssert(map.height>=260,'minimum window keeps a useful map height');`);
 scenarios[scenarios.length-1].width=880;scenarios[scenarios.length-1].height=620;
 add('analyze-protected-large-file', `switchModule('analyze');STATE.analyzeLargeFiles=[{name:'Active model',path:'~/.cache/huggingface/hub/model.bin',sizeGb:2,protectionReason:'共享模型保持原状'}];renderModule();const button=document.querySelector('#moduleStage button[onclick="removeLargeFile(0)"]');qaAssert(button.disabled&&button.textContent==='保留','protected large file cannot bypass the safety path');removeLargeFile(0);qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'direct large-file action also respects protection');`);
 add('permission-toast-path-actions', `switchModule('clean');const requestId='qa-permission-toast';const deniedPath=qaFixture.homePath+'/Documents/protected';pendingTrashRequests.set(requestId,{entries:[{label:'protected',sizeGb:1,paths:[deniedPath],basketOnFail:false}],options:{title:'隔离权限回执'},requested:1});onNativeTrashResult({requestId,moved:[],movedCount:0,failed:[{path:deniedPath,error:'权限不足',pane:'filesAndFolders'}]});qaAssert(document.querySelector('.permission-toast'),'permission failure exposes a recovery surface');qaAssert(document.querySelector('.permission-toast-path').textContent.includes('Documents/protected'),'the failed path stays visible');document.querySelector('[data-perm-reveal]').click();qaAssert(__qa.actions.some(a=>a.action==='revealAppBundle'),'permission toast can reveal the exact running app');`);
@@ -152,13 +197,14 @@ const slimDirectoryScript=`
   const tiles=[...document.querySelectorAll('.treemap-tile')];const bin=tiles.find(t=>t.getAttribute('aria-label').startsWith('bin '));
   qaAssert(tiles.length===2&&bin,'few slim directories preserve their actual identity');
   qaAssert(!document.querySelector('.tt-others'),'empty backend aggregation does not create a false Others tile');
+  setAnalyzeTab('folded');
   const detail=document.querySelector('.analysis-other-row[data-path="~/go/bin"]');
   qaAssert(detail&&detail.querySelector('b').textContent==='bin'&&detail.textContent.includes('116.3 MB'),'small directory has a visible full-size name and measured size beside the map');
   qaAssert(detail.querySelector('.btn').getBoundingClientRect().height>=28,'small directory has a usable enter target regardless of its area');
   const sizes=tiles.map(t=>{const r=t.getBoundingClientRect();return r.width*r.height});
   qaAssert(Math.abs(sizes[1]/(sizes[0]+sizes[1])-0.1163/2.2703)<0.001,'tile proportions match allocated bytes');
   qaAssert(detail.querySelector('b').scrollWidth<=detail.querySelector('b').clientWidth+1,'bin label remains readable in its side detail');
-  if(innerWidth>960)qaAssert(Math.abs(document.querySelector('.crumb-actions').getBoundingClientRect().left-document.querySelector('.analysis-map').getBoundingClientRect().left)<2,'inspection shares the map column boundary');
+  {const m=document.querySelector('.analysis-map').getBoundingClientRect(),i=document.querySelector('.analysis-inspector').getBoundingClientRect();qaAssert(innerWidth>960?m.right<=i.left+1&&Math.abs(m.top-i.top)<2:m.bottom<=i.top+1,'inspector sits beside the map above 960px and below it on narrow windows');}
   qaAssert([...document.querySelectorAll('.breadcrumb-bar .btn')].every(b=>b.getBoundingClientRect().height===28),'navigation and inspection actions share one height');
   bin.click();qaAssert(document.querySelector('.crumb-sel').textContent.includes('bin')&&document.querySelector('.crumb-sel').textContent.includes('116.3 MB'),'slim directory has complete inspectable details');
   qaAssert(detail.classList.contains('selected'),'map selection highlights the matching small-item detail');
@@ -233,7 +279,7 @@ for(const width of [880,1060,1380])for(const theme of ['light','dark'])scenarios
 const tinyDirectoryScript=`
   switchModule('analyze');
   STATE.treemap2D=[{name:'主目录',path:'~/main',diskGb:10,isDir:true,childrenLoaded:true,children:[]},{name:'很小的缓存目录',path:'~/tiny',diskGb:0.000002048,pct:0,isDir:true,childrenLoaded:true,children:[]}];
-  STATE.analyzeAllocGb=10.000002048;STATE.totalAnalyzedGb=10.000002048;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeAllocGb=10.000002048;STATE.totalAnalyzedGb=10.000002048;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const detail=document.querySelector('.analysis-other-row[data-path="~/tiny"]');
   qaAssert(detail&&detail.textContent.includes('很小的缓存目录')&&detail.textContent.includes('2.0 KB'),'tiny directories remain visible without a minimum-area lie');
   qaAssert(detail.querySelector('.btn').getBoundingClientRect().height>=28,'tiny directory has a usable navigation button');
@@ -294,12 +340,12 @@ add('analyze-hidden-window-motion', `
 add('analyze-small-items-preserve-scroll', `
   switchModule('analyze');
   STATE.treemap2D=[{name:'Main',path:'~/Main',diskGb:90,isDir:true},...Array.from({length:30},(_,index)=>({name:'Small '+index,path:'~/small-'+index,diskGb:0.002,isDir:true,childrenLoaded:true,children:[]}))];
-  STATE.analyzeAllocGb=90.06;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeAllocGb=90.06;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const body=document.querySelector('.analysis-other-body');
   body.scrollTop=body.scrollHeight;
   const before=body.scrollTop;
   qaAssert(before>100,'dense small items have a real scroll position');
-  const target=body.querySelectorAll('.analysis-other-row')[25];
+  const target=body.querySelectorAll('.analysis-other-row')[27];
   const path=target.dataset.path;
   target.querySelector('.analysis-other-actions .btn:last-child').focus({preventScroll:true});
   target.querySelector('.analysis-other-actions .btn:last-child').click();
@@ -337,20 +383,20 @@ add('analyze-small-directory-scroll-scope', `
   switchModule('analyze');
   const children=Array.from({length:40},(_,index)=>({name:'Child '+index,path:'~/small-29/child-'+index,diskGb:0.00005,isDir:false}));
   STATE.treemap2D=[{name:'Main',path:'~/Main',diskGb:90,isDir:true},...Array.from({length:30},(_,index)=>({name:'Small '+index,path:'~/small-'+index,diskGb:0.002,isDir:true,childrenLoaded:true,children:index===29?children:[]}))];
-  STATE.analyzeAllocGb=90.06;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeAllocGb=90.06;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const body=document.querySelector('.analysis-other-body');body.scrollTop=body.scrollHeight;
   qaAssert(body.scrollTop>100,'parent has a scrolled small-item list');
   const row=document.querySelector('.analysis-other-row[data-path="~/small-29"]');
   row.querySelector('.analysis-other-actions .btn').click();
   qaAssert(STATE.drillStack.at(-1)?.path==='~/small-29'&&currentTiles().length===40,'small directory enters the child scope');
   qaAssert(document.querySelector('.analysis-other-body').scrollTop===0,'a new directory starts its own small-item list at the top');
-  qaAssert(document.querySelector('.treemap-split .list-body').scrollTop===0,'parent detail scrolling cannot move the new directory list');
+  qaAssert(document.querySelector('.analysis-children .list-body').scrollTop===0,'parent detail scrolling cannot move the new directory list');
 `);
 scenarios[scenarios.length-1].width=880;scenarios[scenarios.length-1].height=620;
 add('analyze-small-items-keyboard-navigation', `
   switchModule('analyze');
   STATE.treemap2D=[{name:'Main',path:'~/Main',diskGb:90,isDir:true},...Array.from({length:12},(_,index)=>({name:'Small '+index,path:'~/small-'+index,diskGb:0.002,isDir:true,childrenLoaded:true,children:[]}))];
-  STATE.analyzeAllocGb=90.024;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeAllocGb=90.024;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const names=[...document.querySelectorAll('.analysis-other-path')];names[0].focus();
   names[0].dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));
   qaAssert(document.activeElement===names[1],'Down moves focus between small-item names');
@@ -370,7 +416,7 @@ const aggregateInspectionSetup=`
     {name:'Sample Directory',path:'~/aggregate-sample-directory',sizeGb:0.004,isDir:true,fileCount:2},
     {name:'sample-notes.txt',path:'~/aggregate-sample-notes.txt',sizeGb:0.003,isDir:false,fileCount:1}
   ]};
-  STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
 `;
 add('analyze-aggregate-sample-click-inspection', aggregateInspectionSetup+`
   const path='~/aggregate-sample-directory';
@@ -420,10 +466,11 @@ add('analyze-aggregate-sample-toolbar-entry', aggregateInspectionSetup+`
 const smallItemRefoldSetup=`
   document.getElementById('qa-refold-style')?.remove();
   switchModule('analyze');
+  { const base=document.createElement('style');base.id='qa-refold-style';base.textContent='#moduleStage .analysis-map{width:720px;height:312px}';document.head.appendChild(base); }
   STATE.treemap2D=[{name:'Main',path:'~/Main',diskGb:50,isDir:true},
     ...[12,10,8,7,5,3,2,1].map((diskGb,index)=>({name:'Medium '+index,path:'~/medium-'+index,diskGb,isDir:true,childrenLoaded:true,children:[]})),
     {name:'Tiny Focus Target',path:'~/tiny-focus-target',diskGb:0.01,isDir:true,childrenLoaded:true,children:[]}];
-  STATE.analyzeAllocGb=98.01;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeAllocGb=98.01;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
 `;
 for(const role of ['name','collect'])add('analyze-small-items-refold-focus-'+role, smallItemRefoldSetup+`
   const path='~/tiny-focus-target';
@@ -468,7 +515,7 @@ add('analyze-small-items-refold-focus-visible', smallItemRefoldSetup+`
   try{
     window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,180));
     const afterCount=document.querySelectorAll('.treemap-tile').length;
-    qaAssert(beforeCount===9&&afterCount===7,'width change refolds 9 map nodes into 7');
+    qaAssert(beforeCount===9&&afterCount===7,'width change refolds 9 map nodes into 7; actual '+beforeCount+'/'+afterCount);
     const expected=document.querySelector('.analysis-other-row[data-path="'+path+'"] '+selector);
     qaAssert(document.activeElement===expected,'refolding preserves the focused path and collect role');
     const bounds=document.querySelector('.analysis-other-body').getBoundingClientRect(),rect=expected.getBoundingClientRect();
@@ -486,7 +533,7 @@ add('analyze-small-items-collapse-space-'+width, `
   const region=document.getElementById('analysisOtherHost').getBoundingClientRect();
   qaAssert(document.querySelector('.analysis-other-toggle').getAttribute('aria-expanded')==='false','details collapse');
   __qa.motionEvidence={beforeWidth:mapBefore.width,afterWidth:map.width,collapsedDetailsWidth:region.width,collapsedDetailsHeight:region.height};
-  qaAssert(map.width>mapBefore.width+100,'collapsed details return useful horizontal space to the map');
+  qaAssert(Math.abs(map.width-mapBefore.width)<2,'collapsing the folded list never reflows the map; actual '+mapBefore.width+'/'+map.width);
   qaAssert(region.height<=48,'collapsed details remain a compact, reachable disclosure');
   document.querySelector('.analysis-other-toggle').click();
   qaAssert(document.querySelector('.analysis-other-row[data-path="~/tiny"]'),'reopening retains the actual tiny directory');
@@ -537,22 +584,22 @@ for(const surface of ['map','list'])add('analyze-'+surface+'-sort-focus-path',`
   switchModule('analyze');
   STATE.treemap2D=[{name:'Zulu',path:'~/zulu',diskGb:8,isDir:true,childrenLoaded:true,children:[]},{name:'Alpha',path:'~/alpha',diskGb:5,isDir:true,childrenLoaded:true,children:[]},{name:'Middle',path:'~/middle',diskGb:2,isDir:true,childrenLoaded:true,children:[]}];
   STATE.analyzeLargeFiles=[];STATE.analyzeAggregated=null;renderModule();
-  const selector='${surface==='map'?'.treemap-stage .treemap-tile':'.treemap-split .list-row'}';
+  const selector='${surface==='map'?'.treemap-stage .treemap-tile':'.analysis-children .list-row'}';
   document.querySelector(selector+'[data-idx="0"]').focus({preventScroll:true});
   setAnalyzeSort('name');
   const focused=document.activeElement.closest('[data-idx]');
   const path=focused&&analysisVisibleTiles()[Number(focused.dataset.idx)]?.path;
   qaAssert(path==='~/zulu','sorting preserves the focused ${surface} path, actual '+path);
-  for(const action of ${JSON.stringify(surface==='map'?['drillTile','revealInFinder']:['toggleCollect'])}){
+  for(const action of ${JSON.stringify(surface==='map'?['tile']:['toggleCollect'])}){
     const index=analysisVisibleTiles().findIndex(item=>item.path==='~/zulu');
     const row=document.querySelector(selector+'[data-idx="'+index+'"]');
-    const button=row.querySelector('[onclick*="'+action+'("]');
+    const button=action==='tile'?row:row.querySelector('[onclick*="'+action+'("]');
     qaAssert(button,'the intended ${surface} action is present before sorting');
     button.focus({preventScroll:true});
     setAnalyzeSort(STATE.analyzeSort==='name'?'size':'name');
     const active=document.activeElement,owner=active.closest('[data-idx]');
     const actual=owner&&analysisVisibleTiles()[Number(owner.dataset.idx)]?.path;
-    qaAssert(actual==='~/zulu'&&active.getAttribute('onclick')?.includes(action+'('),'sorting preserves the ${surface} '+action+' role for the same path, actual '+actual);
+    qaAssert(actual==='~/zulu'&&(action==='tile'?active.classList.contains('treemap-tile'):active.getAttribute('onclick')?.includes(action+'(')),'sorting preserves the ${surface} '+action+' role for the same path, actual '+actual);
   }
 `);
 add('analyze-map-refold-focus-path',smallItemRefoldSetup+`
@@ -575,32 +622,32 @@ add('analyze-visible-map-reveal-refold-inspect',`
   STATE.treemap2D=[{name:'Main',path:'~/Main',diskGb:10,isDir:true,childrenLoaded:true,children:[]},...Array.from({length:20},(_,index)=>({name:'Medium '+index,path:'~/medium-'+index,diskGb:1,isDir:true,childrenLoaded:true,children:[]}))];
   STATE.analyzeAllocGb=30;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();
   const path='~/medium-9';
-  const button=document.querySelector('.treemap-tile[data-path="'+path+'"] [data-analyze-action="reveal"]');
-  qaAssert(button&&button.getClientRects().length,'the map Finder button starts rendered');
-  button.closest('.treemap-tile').click();button.focus({preventScroll:true});
-  qaAssert(document.activeElement===button&&getComputedStyle(button.parentElement).opacity==='1','the visible map Finder button really receives focus');
+  const button=document.querySelector('.treemap-tile[data-path="'+path+'"]');
+  qaAssert(button&&button.getClientRects().length,'the map tile starts rendered; '+(document.querySelector('.treemap-tile[data-path="'+path+'"]')?.outerHTML||'no tile').slice(0,700)+' tiles '+document.querySelectorAll('.treemap-tile').length);
+  button.click();button.focus({preventScroll:true});
+  qaAssert(document.activeElement===button,'the visible map tile really receives focus');
   const rect=button.getBoundingClientRect();
-  qaAssert(rect.width>0&&rect.height>0&&rect.left>=0&&rect.right<=innerWidth&&rect.top>=0&&rect.bottom<=innerHeight,'the focused map action lies inside the viewport');
-  const style=document.createElement('style');style.textContent='#moduleStage .analysis-map{width:300px;height:180px;max-width:100%}';document.head.appendChild(style);
+  qaAssert(rect.width>0&&rect.height>0&&rect.left>=0&&rect.right<=innerWidth&&rect.top>=0&&rect.bottom<=innerHeight,'the focused map tile lies inside the viewport');
+  const style=document.createElement('style');style.textContent='#moduleStage .analysis-map{width:300px;height:156px;max-width:100%}';document.head.appendChild(style);
   try{
     window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,180));
     qaAssert(!document.querySelector('.treemap-tile[data-path="'+path+'"]'),'the original map path really becomes folded');
     const small=document.querySelector('.analysis-other-row[data-path="'+path+'"]');
-    qaAssert(small&&!small.querySelector('[data-analyze-action="reveal"]'),'the same small path has no Finder action');
+    qaAssert(small&&small.querySelector('.analysis-other-path'),'the same small path has a readable inspect target');
     const focused=document.activeElement,owner=focused.closest('[data-path]');
-    qaAssert(owner?.dataset.path===path&&focused.dataset.analyzeAction==='inspect','missing Finder role falls back to inspecting the same path, actual '+focused.outerHTML.slice(0,200));
+    qaAssert(owner?.dataset.path===path&&focused.dataset.analyzeAction==='inspect','a tile that folds away falls back to inspecting the same path, actual '+focused.outerHTML.slice(0,200));
     for(const intent of ['new-focus','body-pointer']){
       style.remove();window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,180));
-      const next=document.querySelector('.treemap-tile[data-path="'+path+'"] [data-analyze-action="reveal"]');
-      qaAssert(next&&next.getClientRects().length,'the same visible Finder action is restored before the '+intent+' check');
-      next.closest('.treemap-tile').click();next.focus({preventScroll:true});
-      qaAssert(document.activeElement===next&&getComputedStyle(next.parentElement).opacity==='1','the Finder action is really visible and focused before '+intent);
+      const next=document.querySelector('.treemap-tile[data-path="'+path+'"]');
+      qaAssert(next&&next.getClientRects().length,'the same visible map tile is restored before the '+intent+' check');
+      next.click();next.focus({preventScroll:true});
+      qaAssert(document.activeElement===next,'the map tile is really visible and focused before '+intent);
       document.head.appendChild(style);
       let intended;
       if(intent==='new-focus'){
         intended=document.querySelector('.analysis-sort');intended.focus({preventScroll:true});
         qaAssert(document.activeElement===intended,'the user deliberately places focus on the sort control');
-      }else document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
+      }else{document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));document.activeElement.blur();}
       window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,180));
       qaAssert(intent==='new-focus'?document.activeElement.matches('.analysis-sort')&&document.activeElement.getAttribute('onclick')===intended.getAttribute('onclick'):document.activeElement===document.body,'cached map focus does not override '+intent+' after reflow; actual '+document.activeElement.outerHTML.slice(0,180));
     }
@@ -637,7 +684,7 @@ const smallNavigationSetup=`
   switchModule('analyze');
   STATE.treemap2D=[{name:'Main',path:'~/main',diskGb:10,isDir:true,childrenLoaded:true,children:[]}];
   STATE.analyzeLargeFiles=[];
-  STATE.analyzeAggregated={count:2,sizeGb:0.009,items:[{name:'Sample Directory',path:'~/sample-directory',sizeGb:0.005,isDir:true},{name:'sample-notes.txt',path:'~/sample-notes.txt',sizeGb:0.004,isDir:false}]};renderModule();
+  STATE.analyzeAggregated={count:2,sizeGb:0.009,items:[{name:'Sample Directory',path:'~/sample-directory',sizeGb:0.005,isDir:true},{name:'sample-notes.txt',path:'~/sample-notes.txt',sizeGb:0.004,isDir:false}]};renderModule();setAnalyzeTab('folded');
 `;
 add('analyze-aggregate-search-selection-roundtrip',smallNavigationSetup+`
   const path='~/sample-directory';
@@ -720,7 +767,7 @@ add('analyze-mixed-basket-measurements',`
 const microKeyboardSetup=`
   switchModule('analyze');
   STATE.treemap2D=[{name:'Main',path:'~/micro-main',diskGb:90,isDir:true,childrenLoaded:true,children:[]},{name:'Tiny',path:'~/micro-tiny',diskGb:0.000004096,isDir:true,childrenLoaded:true,children:[{name:'child.txt',path:'~/micro-tiny/child.txt',diskGb:0.000004096,isDir:false}]}];
-  STATE.analyzeAllocGb=90.000004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeAllocGb=90.000004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const micro=document.querySelector('.treemap-tile[data-path="~/micro-tiny"]');
   const rect=micro.getBoundingClientRect();
   qaAssert(rect.width===0||rect.height===0,'the fixture really renders a zero-pixel micro map tile');
@@ -754,7 +801,7 @@ add('analyze-aggregate-only-child-keyboard-focus',`
   const path='~/SmallDirectory';
   STATE.treemap2D=[{name:'Main',path:'~/Main',diskGb:90,isDir:true,childrenLoaded:true,children:[]}];
   STATE.analyzeAggregated={count:1,sizeGb:0.000004096,items:[{name:'SmallDirectory',path,sizeGb:0.000004096,isDir:true}]};
-  STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const name=document.querySelector('.analysis-other-row[data-path="'+path+'"] .analysis-other-path');
   name.focus();qaAssert(document.activeElement===name&&name.getBoundingClientRect().width>=24,'the unloaded small directory starts with readable keyboard focus');
   name.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
@@ -771,7 +818,7 @@ const smallReturnKeyboardSetup=`
   const path='~/return-small';
   const children=[{name:'Large child',path:path+'/large.bin',diskGb:0.004,isDir:false},{name:'Tiny note',path:path+'/note.txt',diskGb:0.000004096,isDir:false}];
   STATE.treemap2D=[{name:'Main',path:'~/return-main',diskGb:90,isDir:true,childrenLoaded:true,children:[]},{name:'Small parent',path,diskGb:0.004004096,isDir:true,childrenLoaded:true,children}];
-  STATE.analyzeAllocGb=90.004004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();
+  STATE.analyzeAllocGb=90.004004096;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();setAnalyzeTab('folded');
   const parent=document.querySelector('.analysis-other-row[data-path="'+path+'"] .analysis-other-path');
   parent.focus();qaAssert(document.activeElement===parent&&parent.getBoundingClientRect().width>=24,'the parent small directory has actual readable focus');
   parent.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
@@ -1167,9 +1214,9 @@ add('uninstaller-sidebar-unmeasured', `
 `);
 const largeFileScrollSetup=`
   STATE.analyzeLargeFiles=Array.from({length:50},(_,index)=>({id:'large-scroll-'+index,name:'大文件 '+String(index+1).padStart(2,'0')+'.bin',path:'~/Library/ScrollFixture/'+String(index+1).padStart(2,'0')+'.bin',sizeGb:0.25,kind:'文件',protectionReason:'隔离验收保留，不执行移除'}));
-  switchModule('analyze');
-  const panel=[...document.querySelectorAll('#moduleStage .panel-card')].find(node=>node.querySelector('.panel-header')?.textContent.includes('当前范围的大文件'));
-  const body=panel.lastElementChild;
+  switchModule('analyze');setAnalyzeTab('large');
+  const panel=document.querySelector('.analysis-large-files');
+  const body=panel.querySelector('.list-body');
 `;
 for(const width of [1380,1424,880])for(const theme of ['dark','light']){
   add('analyze-large-files-scroll-'+width+'-'+theme,largeFileScrollSetup+`
@@ -1177,13 +1224,13 @@ for(const width of [1380,1424,880])for(const theme of ['dark','light']){
     qaAssert(body.querySelectorAll('.list-row').length===50,'all measured large files remain available');
     body.scrollTop=body.scrollHeight;
     qaAssert(body.scrollTop>0&&body.clientHeight<body.scrollHeight,'the bottom list scrolls instead of clipping rows inside its panel');
-    qaAssert(getComputedStyle(body).overflowY==='auto'&&panel.getBoundingClientRect().height<=361,'the file list has a bounded independent viewport');
+    qaAssert(getComputedStyle(body).overflowY==='auto'&&body.getBoundingClientRect().bottom<=panel.closest('.analysis-inspector').getBoundingClientRect().bottom+1,'the file list has a bounded independent viewport inside the inspector');
     qaAssert(body.getAttribute('role')==='region'&&body.getAttribute('tabindex')==='0'&&body.getAttribute('aria-label').includes('大文件'),'keyboard users can focus the scrollable region');
     const workspace=document.querySelector('.workspace-body');workspace.scrollTop=workspace.scrollHeight;
-    const header=panel.querySelector('.panel-header').getBoundingClientRect(),last=body.lastElementChild.getBoundingClientRect(),bounds=body.getBoundingClientRect();
+    const header=panel.querySelector('.insp-note').getBoundingClientRect(),last=body.lastElementChild.getBoundingClientRect(),bounds=body.getBoundingClientRect();
     qaAssert(last.bottom<=bounds.bottom+1&&last.top>=bounds.top-1&&last.bottom<=innerHeight+1,'the fiftieth file is visible after scrolling to the end');
     qaAssert(header.top>=0&&header.bottom<=bounds.top+1,'the count header stays visible while rows scroll');
-    qaAssert(last.bottom<=document.getElementById('basketBar').getBoundingClientRect().top+1,'the sticky cleanup bar does not cover the last file at the end of scrolling');
+    {const bar=document.getElementById('basketBar');qaAssert(!bar.getClientRects().length||last.bottom<=bar.getBoundingClientRect().top+1,'the cleanup bar does not cover the last file at the end of scrolling');}
     qaAssert(!__qa.actions.some(action=>['trashRealPaths','executeClean','killProcess'].includes(action.action)),'scrolling never submits cleanup');
     __qa.motionEvidence={rows:50,bodyHeight:body.clientHeight,scrollHeight:body.scrollHeight,scrollTop:body.scrollTop,lastRow:last.top,header:header.top};
   `);
@@ -1663,6 +1710,25 @@ add('ai-agent-excluded-only-tool',`
   qaAssert(document.getElementById('heroHeadline').textContent.includes('排除')&&document.querySelector('.empty-title').textContent.includes('排除'),'an excluded AI tool is not reported as an absent tool or a cleaned disk');
   qaAssert(!document.querySelector('#moduleStage input')&&document.getElementById('primaryBtnText').closest('button').disabled,'a detected excluded tool never becomes a selectable cache');
 `);
+const expiredSessionFixture=[
+  {...group('codex-expired-2025-09','Codex · 过期会话 · 2025-09','~/.codex/sessions/2025/09/26',0.5,'review'),tool:'Codex',band:'过期会话',ageText:'402–407 天前最后修改',impact:'这些是超过 90 天未修改的 Codex 对话历史，不能重建；会移入废纸篓，可在“历史”中还原。',checked:false,subpaths:[{path:'~/.codex/sessions/2025/09/26/rollout-a.jsonl',sizeGb:0.2,size:'0.20 GB',tier:'review',checked:false,isDir:false},{path:'~/.codex/sessions/2025/09/26/rollout-b.jsonl',sizeGb:0.3,size:'0.30 GB',tier:'review',checked:false,isDir:false}]},
+  {...group('copilot-expired-logs','GitHub Copilot CLI · 诊断日志','~/.copilot/logs',0.1,'review'),tool:'GitHub Copilot CLI',band:'诊断日志',uninstalled:true,checked:false,subpaths:[{path:'~/.copilot/logs/old.log',sizeGb:0.1,size:'0.10 GB',tier:'review',checked:false,isDir:false}]}
+];
+add('ai-expired-sessions-and-uninstalled-tool',`
+  onNativeRealScanComplete({...structuredClone(qaFixture),aiMoonBands:${JSON.stringify(expiredSessionFixture)}});switchModule('ai_moon');
+  qaAssert(STATE.aiMoonBands.every(item=>!item.checked)&&document.getElementById('heroStatValue').textContent==='0 B','expired conversations are never preselected');
+  const options=[...document.querySelectorAll('.ai-tool-filter select option')].map(option=>option.textContent);
+  qaAssert(options.includes('GitHub Copilot CLI · 已卸载')&&options.includes('Codex'),'only a tool detected as uninstalled carries the marker');
+  const rows=[...document.querySelectorAll('#moduleStage .list-row .row-sub')].map(row=>row.textContent);
+  qaAssert(rows.some(text=>text.includes('过期会话')&&text.includes('402–407 天前'))&&rows.some(text=>text.includes('诊断日志 · 已卸载')),'the band header shows age text and the uninstalled marker');
+  selectMoonRow(0);
+  qaAssert(document.querySelector('.inspector-content').textContent.includes('不能重建'),'expired history says it cannot be rebuilt');
+  setAIToolFilter('GitHub Copilot CLI');selectMoonRow(1);
+  qaAssert(document.querySelector('.inspector-content').textContent.includes('凭据')&&document.querySelector('.inspector-content').textContent.includes('已卸载'),'uninstalled copy says credentials stay protected');
+  setAIToolFilter('all');toggleMoonSubpathCheck(0,1);openConfirmSheet();
+  qaAssert(confirmedClean.entries.length===1&&confirmedClean.entries[0].paths.length===1&&confirmedClean.entries[0].paths[0].endsWith('/rollout-b.jsonl')&&!pendingTrashRequests.size,'review freezes only the explicitly selected expired session and never executes cleanup');closeConfirmSheet();
+`);
+Object.assign(scenarios.at(-1),{width:1380,height:760});
 add('ai-tool-scope-statistics',`
   onNativeRealScanComplete({...structuredClone(qaFixture),aiMoonBands:${JSON.stringify(agentDataFixture)}});switchModule('ai_moon');setAIToolFilter('GitHub Copilot CLI');
   const coverage=()=>document.querySelector('.ai-scan-coverage');

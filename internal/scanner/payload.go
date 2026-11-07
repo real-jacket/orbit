@@ -43,7 +43,7 @@ type FullScanPayload struct {
 func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	fullScanMu.Lock()
 	defer fullScanMu.Unlock()
-	s.refreshWhitelist()
+	policy := s.refreshWhitelist()
 	directoryReads.Lock()
 	for path := range directoryReads.failed {
 		if withinPath(path, s.home) {
@@ -69,7 +69,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 		AIExcludedRoots:    s.aiExcludedRoots(),
 		HomePath:           s.home,
 		Whitelist:          s.UserWhitelistPaths(),
-		WhitelistWarnings:  s.refreshWhitelist().Warnings,
+		WhitelistWarnings:  policy.Warnings,
 		ReadWarnings:       scanReadWarnings(s.home),
 	}
 }
@@ -82,8 +82,10 @@ type Telemetry struct {
 	MemUsedGb   *float64          `json:"memUsedGb"`
 	MemTotalGb  float64           `json:"memTotalGb"`
 	Memory      *telemetry.Memory `json:"memory"`
-	Processes   []map[string]any  `json:"processes"`
-	Power       PowerPayload      `json:"power"`
+	// Omitted while the cached table is unchanged: the page keeps its list on
+	// undefined, and a pointer to a nil slice still sends null to clear it.
+	Processes *[]map[string]any `json:"processes,omitempty"`
+	Power     PowerPayload      `json:"power"`
 
 	// Hardware counters beyond CPU/memory/disk. Each is omitted when this Mac
 	// does not expose it, so the page can say "no sensor" instead of zero.
@@ -131,11 +133,13 @@ func batteryPayload(b *power.Battery) map[string]any {
 	return out
 }
 
-// BuildTelemetry samples the machine for the telemetry event.
-func (s *Scanner) BuildTelemetry() Telemetry {
+// BuildTelemetry samples the machine for the telemetry event. The process list
+// (~64 KB) is left out when it is the cached one, unless withProcesses asks for
+// it, as a page that has just opened needs.
+func (s *Scanner) BuildTelemetry(withProcesses bool) Telemetry {
 	host := telemetry.HostSample()
 	cpu := s.cpuShare(host)
-	processes := s.cachedProcesses()
+	processes, freshProcesses := s.cachedProcesses()
 	freeGB, totalDiskGB := s.queryDiskSpace()
 	usedGB, totalGB := s.memoryUsage(host)
 	snapshot := power.Take()
@@ -147,14 +151,13 @@ func (s *Scanner) BuildTelemetry() Telemetry {
 		payload.Battery = batteryPayload(snapshot.Battery)
 	}
 	hardware := telemetry.Shared.Snapshot()
-	return Telemetry{
+	reading := Telemetry{
 		CPU:         roundPtr(cpu, 1),
 		FreeDiskGb:  round2(freeGB),
 		TotalDiskGb: round2(totalDiskGB),
 		MemUsedGb:   roundPtr(usedGB, 2),
 		MemTotalGb:  round2(totalGB),
 		Memory:      host.Memory,
-		Processes:   processes,
 		Power:       payload,
 		Net:         hardware.Net,
 		DiskIO:      hardware.DiskIO,
@@ -162,6 +165,10 @@ func (s *Scanner) BuildTelemetry() Telemetry {
 		CPUTempC:    roundPtr(hardware.CPUTempC, 1),
 		Fans:        hardware.Fans,
 	}
+	if withProcesses || freshProcesses {
+		reading.Processes = &processes
+	}
+	return reading
 }
 
 // scanHomeTreemap measures the user's top-level folders for the disk analyzer's

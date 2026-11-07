@@ -51,13 +51,8 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		revealInFinder(stringOf(payload["path"]))
 	case "copyText":
 		mygo.Clipboard.WriteText(stringOf(payload["text"]))
-	case "trashRealPaths", "executeClean", "trashPath":
+	case "trashRealPaths":
 		paths := stringsOf(payload["paths"])
-		if len(paths) == 0 {
-			if path := stringOf(payload["path"]); path != "" {
-				paths = []string{path}
-			}
-		}
 		if len(paths) == 0 {
 			return nil
 		}
@@ -66,6 +61,8 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 			// The page waits for this receipt before it claims success, so a
 			// refused or failed path is reported instead of swallowed.
 			pushTrashResult(requestID, scanner.Shared.TrashPaths(paths))
+			// The single rescan after a destructive action lives here, so the
+			// window and the menu-bar panel share it; the page does not ask again.
 			pushRealTelemetryNow()
 			pushRealSystemScanNow()
 		}()
@@ -96,7 +93,9 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 				policy, err = scanner.Shared.RemoveWhitelistEntry(path)
 			}
 			pushWhitelistChanged(action, path, policy, err)
-			pushRealSystemScanNow()
+			if err == nil {
+				pushRealSystemScanNow()
+			}
 		}()
 	case "killProcess":
 		pid, name, path, requestID := intOf(payload["pid"]), stringOf(payload["name"]), stringOf(payload["path"]), stringOf(payload["requestId"])
@@ -373,16 +372,23 @@ func processQuitReason(pid, uid int, currentPath, expectedName, expectedPath str
 	return ""
 }
 
-// caffeinateProcess is the running caffeinate command, if any.
+// caffeinateHold is the active keep-awake assertion, if any. It is a MyGo power
+// assertion rather than a caffeinate subprocess: the system drops it when the
+// app exits, so it can never outlive the app.
 var (
-	caffeinateMu      sync.Mutex
-	caffeinateProcess *exec.Cmd
+	caffeinateMu   sync.Mutex
+	caffeinateHold *caffeinateAssertion
 )
+
+type caffeinateAssertion struct {
+	release func()
+	timer   *time.Timer
+}
 
 func currentCaffeinateActive() bool {
 	caffeinateMu.Lock()
 	defer caffeinateMu.Unlock()
-	return caffeinateProcess != nil && caffeinateProcess.Process != nil
+	return caffeinateHold != nil
 }
 
 func menuBarNavigationScript(action, query string) string {
@@ -398,42 +404,37 @@ func menuBarNavigationScript(action, query string) string {
 	return "switchModule('status'); handleSearch(" + jsonOf(query) + ");"
 }
 
-// setCaffeinate keeps the display and the system awake while active. Turning it
-// off stops the previous command, as the Swift app terminated its stored
-// process.
+// setCaffeinate keeps the display and the system awake while active, for at
+// most two hours, as the Swift app's `caffeinate -d -i -t 7200` did. Turning it
+// off, or the timer, releases the assertion.
 func setCaffeinate(active bool) {
 	caffeinateMu.Lock()
-	if caffeinateProcess != nil {
-		_ = caffeinateProcess.Process.Signal(syscall.SIGTERM)
-		caffeinateProcess = nil
+	if hold := caffeinateHold; hold != nil {
+		hold.timer.Stop()
+		hold.release()
+		caffeinateHold = nil
 	}
 	if !active {
 		caffeinateMu.Unlock()
 		pushCaffeinateState(false)
 		return
 	}
-	cmd := exec.Command("/usr/bin/caffeinate", "-d", "-i", "-t", "7200")
-	if err := cmd.Start(); err != nil {
-		caffeinateMu.Unlock()
-		pushCaffeinateState(false)
-		return
-	}
-	caffeinateProcess = cmd
-	caffeinateMu.Unlock()
-	pushCaffeinateState(true)
-	// caffeinate exits by itself when its -t limit runs out, so wait for it and
-	// tell the page, instead of leaving the switch on forever.
-	go func() {
-		_ = cmd.Wait()
+	hold := &caffeinateAssertion{release: mygo.Power.KeepAwake("orbit 保持唤醒", true)}
+	// The timer tells the page too, instead of leaving the switch on forever.
+	hold.timer = time.AfterFunc(2*time.Hour, func() {
 		caffeinateMu.Lock()
-		if caffeinateProcess == cmd {
-			caffeinateProcess = nil
+		if caffeinateHold != hold {
 			caffeinateMu.Unlock()
-			pushCaffeinateState(false)
 			return
 		}
+		caffeinateHold = nil
 		caffeinateMu.Unlock()
-	}()
+		hold.release()
+		pushCaffeinateState(false)
+	})
+	caffeinateHold = hold
+	caffeinateMu.Unlock()
+	pushCaffeinateState(true)
 }
 
 // showMainWindow brings the main window forward, closing the menu-bar panel

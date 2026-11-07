@@ -64,15 +64,10 @@ func (a *Analyzer) SetProgressSink(sink func(Progress)) {
 // forces a new disk walk, and a canceled tree is never reused as complete.
 // path may be empty, which means the home directory.
 func (a *Analyzer) Tree(path string, refresh bool) (*Node, *ScanStats, string, error) {
-	target := absolutize(path)
-	if target == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, nil, "", fmt.Errorf("无法确定家目录路径：%w", err)
-		}
-		target = home
+	target, err := resolveTarget(path)
+	if err != nil {
+		return nil, nil, "", err
 	}
-	target = filepath.Clean(target)
 
 	for {
 		a.mu.Lock()
@@ -96,6 +91,20 @@ func (a *Analyzer) Tree(path string, refresh bool) (*Node, *ScanStats, string, e
 	}
 
 	return a.scan(target)
+}
+
+// resolveTarget turns a requested path into the clean absolute directory to
+// analyse; an empty path means the home directory.
+func resolveTarget(path string) (string, error) {
+	target := absolutize(path)
+	if target == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("无法确定家目录路径：%w", err)
+		}
+		target = home
+	}
+	return filepath.Clean(target), nil
 }
 
 // scan starts one walk and waits for it (up to scanTimeout).
@@ -182,6 +191,22 @@ func (a *Analyzer) Cancel() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.cancel == nil {
+		return false
+	}
+	a.cancel()
+	return true
+}
+
+// CancelUnlessCovering stops the running scan for a newer request, except when
+// that request is a drill-down the running scan will answer anyway: Tree waits
+// for a scan whose root covers the path, and cancelling it would throw that
+// tree away and start the same walk again. A refresh always cancels. It
+// reports whether a scan was canceled.
+func (a *Analyzer) CancelUnlessCovering(path string, refresh bool) bool {
+	target, err := resolveTarget(path)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cancel == nil || (!refresh && err == nil && a.running && covers(a.rootPath, target)) {
 		return false
 	}
 	a.cancel()

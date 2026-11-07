@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -17,6 +18,12 @@ type Scanner struct {
 	home         string
 	processProbe func() (string, error)
 	handleProbe  func(string) (bool, error)
+	installProbe func(aiInstall) bool
+	aiUnits      []aiSessionUnit // set only on a scan-scoped view, never on Shared
+
+	unitMu    sync.Mutex // guards the short-lived session enumeration cache
+	unitCache []aiSessionUnit
+	unitAt    time.Time
 
 	// Telemetry is sampled on every tick, but not everything has to be measured
 	// that often: the process table costs a `ps` fork (~15 ms), so it is reused

@@ -42,21 +42,22 @@ func (s *Scanner) memoryUsage(host telemetry.Host) (*float64, float64) {
 	return s.queryMemoryUsage()
 }
 
-// cachedProcesses reuses the last process table for processTableTTL.
-func (s *Scanner) cachedProcesses() []map[string]any {
+// cachedProcesses reuses the last process table for processTableTTL. fresh is
+// false when it is that reused table, which the page already holds.
+func (s *Scanner) cachedProcesses() (processes []map[string]any, fresh bool) {
 	s.sample.mu.Lock()
 	if s.sample.processes != nil && time.Since(s.sample.processesAt) < processTableTTL {
 		processes := s.sample.processes
 		s.sample.mu.Unlock()
-		return processes
+		return processes, false
 	}
 	s.sample.mu.Unlock()
 
-	_, processes := s.sampleRealProcesses()
+	_, processes = s.sampleRealProcesses()
 
 	s.sample.mu.Lock()
 	s.sample.processes = processes
 	s.sample.processesAt = time.Now()
 	s.sample.mu.Unlock()
-	return processes
+	return processes, true
 }

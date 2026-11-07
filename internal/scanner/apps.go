@@ -81,6 +81,8 @@ func (s *Scanner) appConfigCandidates(name, bundleID string) []string {
 // scanInstalledApps lists application bundles without truncating before sorting.
 func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 	results := []map[string]any{}
+	launchItems := s.loadLaunchItems()
+	procs := s.runningProcesses()
 	if len(appDirs) == 0 {
 		appDirs = []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
 	}
@@ -141,6 +143,15 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			// ratio; a group that was not found reports zero.
 			cacheBytes := s.appendExisting(cacheCandidates, "cache", true, &subpaths)
 			configBytes := s.appendExisting(configCandidates, "config", false, &subpaths)
+			// Launch items travel with the app but are not part of the cache or
+			// config totals. Root-owned ones are refused by CleanupReason.
+			launchPaths := launchPathsFor(launchItems, fullPath, bundleID)
+			s.appendExisting(launchPaths, "launch", true, &subpaths)
+			impact := "仅把勾选的应用、缓存或配置路径移入废纸篓；受保护或未完成测量的路径保留。"
+			if len(launchPaths) > 0 {
+				impact += "启动项已被系统加载时，移入废纸篓后仍会保持加载，直到注销或重启。"
+			}
+			running, mainProc := appRunning(procs, fullPath)
 			cacheGB := plainGB(cacheBytes)
 			configGB := plainGB(configBytes)
 			leftoverGB := cacheGB + configGB
@@ -150,13 +161,13 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 				"name":     name,
 				"category": "Mac 应用",
 				"appPath":  fullPath,
-				// The bundle's own artwork, as a data URL: drawing a made-up
-				// squircle for an installed app made the list look fake.
-				"icon":           appIconDataURL(fullPath),
+				// The bundle's own artwork, served by IconHandler: drawing a
+				// made-up squircle for an installed app made the list look fake.
+				"icon":           appIconURL(fullPath),
 				"bundleId":       bundleID,
 				"version":        version,
 				"partial":        size.partial,
-				"lastUsed":       "本机已安装",
+				"running":        running,
 				"appSizeGb":      plainGB(appBytes),
 				"leftoverSizeGb": leftoverGB,
 				"cacheSizeGb":    cacheGB,
@@ -165,12 +176,26 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 				// safe-by-default action.
 				"checked":      false,
 				"keepPersonal": true,
-				"impact":       "仅把勾选的应用、缓存或配置路径移入废纸篓；受保护或未完成测量的路径保留。",
+				"impact":       impact,
 				"subpaths":     subpaths,
 			})
+			if running && mainProc.pid > 0 {
+				results[len(results)-1]["runningPid"], results[len(results)-1]["runningPath"] = mainProc.pid, mainProc.path
+			}
 		}
 	}
 
+	appPaths := make([]string, len(results))
+	for i, row := range results {
+		appPaths[i] = row["appPath"].(string)
+	}
+	for i, used := range appLastUsed(appPaths) {
+		// Unknown stays unknown: no date is invented for an app Spotlight never saw.
+		results[i]["lastUsedAt"], results[i]["lastUsed"] = nil, "未记录"
+		if used != nil {
+			results[i]["lastUsedAt"], results[i]["lastUsed"] = used.Unix(), used.Format("2006-01-02")
+		}
+	}
 	sort.SliceStable(results, func(i, j int) bool {
 		left := floatOf(results[i]["appSizeGb"]) + floatOf(results[i]["leftoverSizeGb"])
 		right := floatOf(results[j]["appSizeGb"]) + floatOf(results[j]["leftoverSizeGb"])

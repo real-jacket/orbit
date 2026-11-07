@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"encoding/json"
 	"runtime"
 	"strings"
 	"testing"
@@ -169,7 +170,7 @@ Pages purgeable: 5.
 }
 
 func TestTelemetryIncludesDiskCapacityAndMemoryBreakdown(t *testing.T) {
-	reading := Shared.BuildTelemetry()
+	reading := Shared.BuildTelemetry(true)
 	if reading.TotalDiskGb <= 0 || reading.FreeDiskGb > reading.TotalDiskGb {
 		t.Fatalf("disk capacity = %v free / %v total", reading.FreeDiskGb, reading.TotalDiskGb)
 	}
@@ -179,6 +180,23 @@ func TestTelemetryIncludesDiskCapacityAndMemoryBreakdown(t *testing.T) {
 	parts := reading.Memory.AppGB + reading.Memory.WiredGB + reading.Memory.CompressedGB
 	if difference := parts - *reading.MemUsedGb; difference < -0.01 || difference > 0.01 {
 		t.Fatalf("memory parts %v GiB do not match used %v GiB", parts, *reading.MemUsedGb)
+	}
+}
+
+// A tick inside the process cache window must not resend the ~64 KB table the
+// page already has, but a page that just opened asks for it explicitly.
+func TestTelemetryOmitsCachedProcessesUnlessAsked(t *testing.T) {
+	scanner := &Scanner{home: t.TempDir()}
+	if first := scanner.BuildTelemetry(false); first.Processes == nil {
+		t.Skip("ps produced no process table on this machine")
+	}
+	tick, _ := json.Marshal(scanner.BuildTelemetry(false))
+	if strings.Contains(string(tick), `"processes"`) {
+		t.Fatal("a cached process table was resent on a plain tick")
+	}
+	opened, _ := json.Marshal(scanner.BuildTelemetry(true))
+	if !strings.Contains(string(opened), `"processes":[`) {
+		t.Fatal("a page that just opened did not get the process table")
 	}
 }
 

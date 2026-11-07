@@ -20,13 +20,6 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 make doctor   # confirms the CLI and the rest of the toolchain are there
 ```
 
-You will also want the upstream CLI available, since the app shells out to it:
-
-```bash
-brew install mole
-mo --version
-```
-
 ## Before you open a pull request
 
 Run these and make sure they pass:
@@ -52,8 +45,6 @@ CI runs the same steps on `macos-latest`, using the Go version from `go.mod`.
 `node scripts/test-ui.cjs` checks inline JavaScript syntax, selection arithmetic, uninstall mode boundaries,
 the frozen confirmation path set and duplicate submission. The Go tests live next to the code they cover:
 
-- **`internal/model`** — the safety invariants. Asserts `protected` rows cannot be selected even by
-  calling the toggle directly, and that dry-run defaults to on.
 - **`internal/scanner`** — the numeric helpers and the refactor invariants: the signature table is
   non-empty and unique, the payload keys are unchanged, and leftover rows keep the fields the UI reads.
 - **`internal/analyze`** — payload shaping and tile layout: sizes add up to the total, colours follow
@@ -63,7 +54,7 @@ the frozen confirmation path set and duplicate submission. The Go tests live nex
 - **`internal/trayicon`** — the menu-bar mark: every pixel is pure black, the alpha carries the shape,
   and the ring is cut where it passes behind the planet.
 
-If you change `Tier`, `Module`, or the layout math, extend the existing file rather than adding a new one.
+If you change the safety tiers or the layout math, extend the existing file rather than adding a new one.
 
 For layout or interaction changes, `make test-ui-webkit` loads the actual HTML in an isolated macOS
 WebKit view and checks all modules, both themes, the minimum window, search, dialogs and receipts.
@@ -106,9 +97,8 @@ reads the files above, so a change to the brand mark does not automatically foll
 ## How the pieces fit
 
 **The UI is HTML, not SwiftUI.** `Resources/src-ui/index.html` is the shipping surface and the port did
-not touch it. It talks to the shell through one object, `window.webkit.messageHandlers.moleNative`; MyGo
-has no `WKScriptMessageHandler`, so `preload.go` recreates that object in a `PreloadScript` and forwards
-each message to `NativeBridge.Dispatch` in `bridge.go`. That switch is the one entry point for everything
+not touch it. It talks to the shell through `window.mygo.call('NativeBridge.Dispatch', payload)` (the `nativePost`
+helper in the page), which lands in `bridge.go`. That switch is the one entry point for everything
 the page asks the native side to do.
 
 The reverse direction has no equivalent to `evaluateJavaScript` on a channel the page listens to, so
@@ -129,13 +119,12 @@ behavioural differences. Read it before porting anything back.
 
 ## Adding a module
 
-Modules are the `Module` type in `internal/model/model.go`. A new case needs its raw value (the string the
-HTML already uses for the sidebar), a `Label`, a sidebar entry and section in `index.html`, and — if it
-maps to a real subcommand — a call site in `internal/analyze` or `internal/scanner`.
+A module is a sidebar entry plus a section in `Resources/src-ui/index.html`; if it needs real data, add
+a payload in `internal/scanner` or `internal/analyze` and push it from `push.go`.
 
 ## Safety changes need extra care
 
-Anything touching deletion, the whitelist, or `Tier` gets a closer review. The invariants:
+Anything touching deletion, the whitelist, or the safety tiers gets a closer review. The invariants:
 
 - `tier == "protected"` items must never become selectable.
 - Destructive operations must remain previewable before execution.
@@ -145,6 +134,6 @@ Anything touching deletion, the whitelist, or `Tier` gets a closer review. The i
 
 ## Reporting bugs
 
-Use the issue template. The most useful reports include your macOS version, `mo --version`, and the
+Use the issue template. The most useful reports include your macOS version, the orbit version, and the
 exact steps that reproduced the problem. Since this app deletes files, please say whether the problem
 occurred in dry-run or for real.

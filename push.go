@@ -54,14 +54,19 @@ func evaluate(script string) {
 	}
 }
 
-// pushRealTelemetryNow sends the live CPU, memory, disk, process and power
+// pushRealTelemetryNow sends the full live snapshot, process list included.
+func pushRealTelemetryNow() { pushRealTelemetry(true) }
+
+// pushRealTelemetry sends the live CPU, memory, disk, process and power
 // snapshot to the page and updates the menu-bar tooltip. It does its measuring
 // on its own goroutine, since sampling processes and the battery takes long
 // enough to be felt on the main thread — the Swift app used a background queue
-// for the same reason.
-func pushRealTelemetryNow() {
+// for the same reason. The timer passes withProcesses=false: the process list
+// is cached for several ticks and is 90% of the payload, so a tick that has no
+// fresh list omits it and the page keeps the one it has.
+func pushRealTelemetry(withProcesses bool) {
 	go func() {
-		snapshot := scanner.Shared.BuildTelemetry()
+		snapshot := scanner.Shared.BuildTelemetry(withProcesses)
 		if trayItem != nil {
 			cpu := "未知"
 			if snapshot.CPU != nil {
@@ -77,7 +82,7 @@ func pushRealTelemetryNow() {
 	}()
 }
 
-// analyzeQueue keeps at most one `mo analyze` running. Each run can take half a
+// analyzeQueue keeps at most one disk scan running. Each run can take half a
 // minute on a big directory, and the page asks again on every drill-down, so
 // without this the requests pile up behind each other and the last answer
 // arrives long after the one the user is waiting for.
@@ -107,13 +112,14 @@ func pushAnalyzeProgress(progress analyze.Progress) {
 // for the overview of the root volume; anything else analyses that directory
 // and the page hangs the result under the tile it already has for it. A request
 // that arrives while one is running replaces the pending one, so the newest
-// click wins instead of every click being queued.
+// click wins instead of every click being queued. The running scan is only
+// canceled when the new request cannot use its tree.
 func pushDiskAnalyze(path string, refresh bool, requestID string) {
 	request := analyzeRequest{path: path, refresh: refresh, id: requestID}
 	analyzeQueue.mu.Lock()
 	if analyzeQueue.running {
 		analyzeQueue.next = &request
-		analyze.Shared.Cancel()
+		analyze.Shared.CancelUnlessCovering(expandTilde(path), refresh)
 		analyzeQueue.mu.Unlock()
 		return
 	}
