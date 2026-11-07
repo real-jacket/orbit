@@ -6,6 +6,10 @@ const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '../Resources/src-ui/index.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 new vm.Script(script);
+// Every sandbox gets t() (Chinese until a language is chosen), as the page does.
+const i18nSource = fs.readFileSync(path.join(__dirname, '../Resources/src-ui/i18n/core.js'), 'utf8');
+const createContext = vm.createContext;
+vm.createContext = sandbox => { const c = createContext(sandbox); vm.runInContext(i18nSource, c); return c; };
 const context = vm.createContext({
   STATE: { uninstallMode: 'standard', cleanGroups: [], appsList: [], orphanLeftoversList: [] },
   persistState() {}, updateSidebarBadges() {}, renderModule() {},
@@ -308,7 +312,7 @@ const analysis = vm.createContext({
   showToast() {}, renderModule() {}, updateSidebarBadges() {}, renderAnalyzeProgress() {}, console,
 });
 analysis.window = analysis;
-['hasNum', 'escHtml', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
+['hasNum', 'escHtml', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'uiLocale', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
   'currentTiles', 'currentAggregated', 'analyzeScopeTotal', 'matchesSearch', 'analysisSelectedSmallItem', 'analysisVisibleTiles', 'restoreAnalysisSelection', 'currentLargeFiles', 'scanRowsWithFailures',
   'normalizeAggregated', 'squarifyRects', 'foldedTreemapTile', 'layoutTreemap', 'treemapPreviewHTML', 'absolutePath', 'permissionPaneForPath',
   'groupRestrictedPaths', 'protectionReason'].forEach(name => load(name, analysis));

@@ -38,8 +38,57 @@ const dominantTiles = [
 const telemetry = { cpu: 24, freeDiskGb: 128, memUsedGb: 16, memTotalGb: 32, processes: [{ pid: 8123, name: 'Canvas Editor', cpu: 12, memory_mb: 384, path: '/Applications/Canvas Editor.app', power: null }, { pid: 8234, name: 'Canvas Helper', cpu: 4, memory_mb: 128, path: '/Applications/Canvas Helper.app', power: null }], power: { thermal: 'nominal', memPressure: 'normal', battery: { percent: 80, healthPct: 84, cycles: 439, charging: false, source: 'battery' } }, net: { rxBytesPerSec: 1048576, txBytesPerSec: 131072 }, diskIo: { readBytesPerSec: 2097152, writeBytesPerSec: 1048576 }, gpuPct: 20, cpuTempC: 52, fans: [1200] };
 const setup = `const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.appendChild(style);window.qaFixture=${JSON.stringify(fixture)}; window.qaTelemetry=${JSON.stringify(telemetry)}; window.qaTiles=${JSON.stringify(tiles)}; window.qaDominantTiles=${JSON.stringify(dominantTiles)};
 window.qaAssert=(condition,message)=>{if(!condition)throw new Error(message)};
-window.qaReset=()=>{ document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
-fs.writeFileSync(dir + '/fixtures.js', setup);
+window.qaReset=()=>{ I18N.setLang('zh',false); document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
+// English walk helpers (installed into the page). The fixture is Chinese user data plus Chinese backend
+// sentences; backend sentences without a dictionary entry get a placeholder so only the page's own text is judged.
+function installEnglishWalk() {
+  const CJK = /[㐀-鿿]/;
+  const userData = /测试编辑工具 \d+|测试视频\.mov/g;   // fixture file and app names are user data, never translated
+  const fixtureStrings = () => {
+    const out = new Set();
+    const visit = v => { if (typeof v === 'string') { if (CJK.test(v.replace(userData, ''))) out.add(v); } else if (v && typeof v === 'object') Object.values(v).forEach(visit); };
+    [qaFixture, qaTelemetry, qaTiles].forEach(visit);
+    ['隔离测试', '测试缓存清理', '测试时间', '测试拒绝结果', '隔离测试结果', '已移入废纸篓'].forEach(x => out.add(x));
+    return out;
+  };
+  window.qaEnglishFixture = () => {
+    const add = {};
+    fixtureStrings().forEach(x => { if (t(x) === x && CJK.test(x.replace(userData, ''))) add[x] = 'Fixture text'; });
+    I18N.add(add);
+  };
+  const visible = el => { const st = getComputedStyle(el); return st.display !== 'none' && st.visibility !== 'hidden' && el.getClientRects().length > 0; };
+  window.qaLeaks = () => {
+    const leaks = [];
+    const bad = (where, text) => { const clean = String(text).replace(userData, ''); if (CJK.test(clean)) leaks.push(where + ': ' + String(text).trim().slice(0, 60)); };
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const el = n.parentElement;
+      if (!el || el.closest('script,style,#btnLang') || !visible(el)) continue;
+      bad(el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(' ')[0] : ''), n.nodeValue);
+    }
+    document.querySelectorAll('[title],[placeholder],[aria-label],[alt]').forEach(el => {
+      if (el.closest('#btnLang') || !visible(el)) return;
+      ['title', 'placeholder', 'aria-label', 'alt'].forEach(a => { if (el.hasAttribute(a)) bad('@' + a, el.getAttribute(a)); });
+    });
+    document.querySelectorAll('input,textarea').forEach(el => { if (visible(el) && el.value) bad('value', el.value); });
+    return leaks;
+  };
+  const settle = () => new Promise(r => setTimeout(r, 80));
+  // Switch live to English, run the scenario step, and fail on any CJK left on screen.
+  window.qaEn = async (label, step) => {
+    qaEnglishFixture();
+    I18N.setLang('en', false);
+    qaAssert(document.documentElement.lang === 'en', 'html lang follows the language');
+    if (step) await step();
+    await settle();
+    const leaks = qaLeaks();
+    qaAssert(leaks.length === 0, label + ' leaks Chinese in English mode: ' + leaks.slice(0, 6).join(' | '));
+  };
+  window.qaStageText = () => document.getElementById('moduleStage').textContent + '|' + document.querySelector('.top-header').textContent;
+  window.qaSettle = settle;
+}
+const setupEn = '(' + installEnglishWalk.toString() + ')();';
+fs.writeFileSync(dir + '/fixtures.js', setup + setupEn);
 const scenarios = [];
 const modules = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'];
 for (const width of [1380, 1060, 880]) for (const theme of ['dark', 'light']) for (const mod of modules) scenarios.push({ name: `${width}-${theme}-${mod}`, width, height: width === 880 ? 620 : 860, script: `qaReset(); document.documentElement.dataset.theme='${theme}'; switchModule('${mod}');` });
@@ -1986,5 +2035,28 @@ add('clean-inspector-scan-skeleton', `
   qaAssert(blank&&blank.querySelectorAll('.skel').length>=3&&blank.getAttribute('role')==='status','a running scan shows skeleton lines in the inspector');
   qaAssert(!text().includes('选择左侧任一项查看详情'),'a running scan never asks for a selection');
 `);
+// English: every module, live-switched from Chinese, at a wide and a narrow window. Fails on any CJK left on screen
+// (user data and the 中 / EN toggle are exempt) and checks the usual overflow rules.
+for (const [width, theme] of [[1380, 'dark'], [880, 'light']]) for (const mod of modules) {
+  scenarios.push({ name: `en-${width}-${mod}`, width, height: width === 880 ? 620 : 860, script: `qaReset(); document.documentElement.dataset.theme='${theme}'; switchModule('${mod}'); await qaEn('${mod}');` });
+}
+add('en-live-roundtrip', `const modules=${JSON.stringify(modules)};for(const mod of modules){switchModule(mod);await qaSettle();const zh=qaStageText();qaAssert(/[㐀-鿿]/.test(zh),mod+' starts in Chinese');await qaEn(mod);qaAssert(!/[㐀-鿿]/.test(qaStageText().replace(/测试编辑工具 \\d+|测试视频\\.mov/g,'')),mod+' header and stage are English');I18N.setLang('zh',false);await qaSettle();qaAssert(document.documentElement.lang==='zh-CN','html lang returns to zh-CN');qaAssert(qaStageText()===zh,mod+' returns to the same Chinese text');}`);
+add('en-modal-doctor', `openDoctorModal(true);onNativeDoctorReport({requestId:_doctorRequestId,checks:[{id:'disk',title:'磁盘剩余空间',detail:'隔离测试结果',passed:true},{id:'permission',title:'完全磁盘访问',detail:'隔离测试结果',passed:false}]});await qaEn('doctor',async()=>{});qaAssert(document.getElementById('doctorModal').classList.contains('open'),'doctor stays open across the language switch');`);
+add('en-modal-doctor-waiting', `await qaEn('doctor waiting',async()=>{openDoctorModal(true);});`);
+add('en-modal-permissions', `I18N.add({'受保护目录读取被拒绝':'Fixture text'});openRuntimePanel();const request=__qa.actions.find(a=>a.action==='requestRuntimeStatus');onNativeRuntimeStatus({requestId:request.requestId,packaged:true,appPath:'/Applications/orbit.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:false,detail:'受保护目录读取被拒绝'}});await qaEn('permissions',async()=>{});qaAssert(document.getElementById('runtimeModal').classList.contains('open'),'permissions stay open across the switch');`);
+add('en-modal-permissions-dev', `openRuntimePanel();const request=__qa.actions.find(a=>a.action==='requestRuntimeStatus');onNativeRuntimeStatus({requestId:request.requestId,packaged:false,appPath:'/tmp/go-build123/b001/exe/mole-studio',executablePath:'/tmp/go-build123/b001/exe/mole-studio',identifier:'',version:'dev',menuBarRegistered:true,readAccess:{passed:null,detail:''}});await qaEn('permissions (dev run)',async()=>{});`);
+add('en-modal-confirm-clean', `switchModule('clean');await qaEn('confirm clean',async()=>{openConfirmSheet();});qaAssert(document.querySelector('.modal-backdrop.open'),'confirm sheet is open');`);
+add('en-modal-confirm-apps', `switchModule('software');toggleAppCheck(0);await qaEn('confirm uninstall',async()=>{openConfirmSheet();});`);
+add('en-modal-palette', `await qaEn('palette',async()=>{openCommandPalette('');});qaAssert(document.querySelectorAll('#cmdPaletteList .list-row').length>=8,'palette lists every module');`);
+add('en-modal-palette-search', `await qaEn('palette search',async()=>{openCommandPalette('Optimize');});qaAssert(document.querySelectorAll('#cmdPaletteList .list-row').length===1,'palette filters by the English module name');document.querySelector('#cmdPaletteList .list-row').click();qaAssert(STATE.module==='optimize','palette reaches Optimize by its English name');`);
+add('en-popover', `document.body.classList.add('menubar-mode');renderMenuBarTrayContent();await qaEn('popover',async()=>{});const shell=document.getElementById('menubarTrayShell');const over=[];shell.querySelectorAll('button,[data-tray-key]').forEach(el=>{const r=el.getBoundingClientRect();if(!r.width)return;if(r.left<-1||r.right>innerWidth+1)over.push('viewport:'+(el.dataset.trayKey||el.className));if(el.scrollWidth>el.clientWidth+2)over.push('clipped:'+(el.dataset.trayKey||el.className)+' '+el.scrollWidth+'>'+el.clientWidth);});qaAssert(over.length===0,'popover overflow: '+over.join(', '));qaAssert(shell.scrollHeight<=innerHeight+1,'popover fits its fixed height: '+shell.scrollHeight+'>'+innerHeight);qaAssert(shell.querySelector('[data-tray-key="update"]'),'popover has the update button');`);
+scenarios[scenarios.length-1].width=356;scenarios[scenarios.length-1].height=588;
+add('en-popover-follows-main', `document.body.classList.add('menubar-mode');window.isMenuBarPopover=true;try{renderMenuBarTrayContent();qaAssert(/[㐀-鿿]/.test(document.getElementById('menubarTrayShell').textContent),'popover starts in Chinese');onNativeLanguage('en');await qaSettle();qaAssert(document.documentElement.lang==='en','popover html lang follows');const leaks=qaLeaks();qaAssert(leaks.length===0,'popover leaks: '+leaks.join(' | '));onNativeLanguage('zh');await qaSettle();qaAssert(/[㐀-鿿]/.test(document.getElementById('menubarTrayShell').textContent),'popover returns to Chinese');}finally{window.isMenuBarPopover=false;}`);
+scenarios[scenarios.length-1].width=356;scenarios[scenarios.length-1].height=588;
+const emptyAll = `onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],aiMoonBands:[],appsList:[],orphanLeftoversList:[],purgeItems:[],installerFiles:[],largeFiles:[]});STATE.historyLogs=[];STATE.treemap2D=[];STATE.analyzeLargeFiles=[];STATE.analyzeAllocGb=0;STATE.totalAnalyzedGb=0;STATE.analyzeFileCount=0;`;
+for (const mod of modules) scenarios.push({ name: `en-empty-${mod}`, width: 1380, height: 860, script: `qaReset();${emptyAll}switchModule('${mod}');await qaEn('empty ${mod}');` });
+add('en-no-matches', `switchModule('software');handleSearch('unmatched-keyword');await qaEn('no matches');switchModule('clean');handleSearch('unmatched-keyword');await qaEn('no matches clean');switchModule('analyze');handleSearch('no-such-path');await qaEn('no matches analyze');`);
+add('en-trash-failure', `switchModule('clean');await qaEn('partial trash failure',async()=>{openConfirmSheet();executeConfirmedClean();const request=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:request.requestId,moved:[{original:request.paths[0],trashed:'/trash/one'}],movedCount:1,failed:request.paths.slice(1).map(path=>({path,error:'Permission denied',pane:'fullDiskAccess'}))});});qaAssert(document.getElementById('permHint'),'recovery action is still offered in English');`);
+add('en-scan-permission-partial', `I18N.add({'目录读取超时，未计入本次扫描':'Fixture text'});onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Desktop',reason:'目录读取超时，未计入本次扫描'}]});switchModule('clean');await qaEn('scan permission partial');`);
 fs.writeFileSync(dir + '/suite.json', JSON.stringify(scenarios));
 console.log(`${scenarios.length} scenarios generated, isolated fixture data only.`);
