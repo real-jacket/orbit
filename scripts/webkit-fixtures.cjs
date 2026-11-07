@@ -1849,5 +1849,82 @@ add('measure-full-app-subpath', `
   qaAssert(document.getElementById('moduleStage').textContent.includes('6.58 GB')&&!row.subpaths[1].partial&&!row.subpaths[1].reason,'the cache subpath shows its measured size');
   qaAssert(!row.subpaths[1].checked&&!selectedSubpaths(row,'standard').includes(row.subpaths[1]),'the measured cache is not pre-selected');
 `);
+add('measure-full-purge', `
+  const reason=${JSON.stringify(partialReason)};
+  const p='~/code/deepseek-harness/node_modules';
+  const item={...structuredClone(qaFixture.purgeItems[0]),id:'partial-build',path:p,project:'deepseek-harness',partial:true,checked:false,tier:'protected',safetyReason:reason,sizeGb:0.5,origSizeGb:0.5,subpaths:[{path:p,sizeGb:0.5,size:'0.50 GB',partial:true,tier:'protected',checked:false,reason}]};
+  onNativeRealScanComplete({...structuredClone(qaFixture),purgeItems:[item]});
+  switchModule('purge');
+  const button=()=>document.querySelector('[data-measure-path]');
+  const post=()=>__qa.actions.filter(a=>a.action==='measurePathFully');
+  qaAssert(button()&&button().textContent.trim()==='完整测量','a partial build folder offers a full measurement');
+  button().click();
+  qaAssert(post().length===1&&post()[0].path===p,'the click posts the build folder path');
+  onNativeMeasureResult({requestId:post()[0].requestId,path:p,ok:true,bytes:4200000000,sizeGb:4.2,files:120000,partial:false});
+  const row=STATE.purgeItems[0];
+  qaAssert(!button()&&!row.partial&&!row.subpaths[0].partial&&row.tier!=='protected'&&!row.safetyReason&&!row.subpaths[0].reason,'a complete measurement clears the partial state');
+  qaAssert(row.sizeGb===4.2&&row.origSizeGb===4.2,'the build folder keeps the measured size');
+  qaAssert(!row.checked&&!row.subpaths[0].checked&&document.getElementById('navMetaPurge').textContent==='未勾选','a measured build folder is never pre-selected');
+  togglePurgeCheck(0);
+  qaAssert(row.checked&&document.getElementById('navMetaPurge').textContent==='4.2 GB','selecting the measured folder updates the sidebar badge');
+  qaAssert(__qa.actions.every(a=>a.action==='measurePathFully'),'measuring never submits a move');
+`);
+add('measure-full-clean-and-ai', `
+  const reason=${JSON.stringify(partialReason)};
+  const mk=(id,baseTier)=>({...structuredClone(qaFixture.cleanGroups[0]),id,tier:'protected',baseTier,checked:false,partial:true,safetyReason:reason,sizeGb:1.5,origSizeGb:1.5,subpaths:[
+    {path:'~/Library/Caches/'+id+'/done',sizeGb:1,size:'1.00 GB',tier:'protected',checked:false,reason:'当前正在使用'},
+    {path:'~/Library/Caches/'+id+'/pnpm',sizeGb:0.5,size:'0.50 GB',partial:true,tier:'protected',checked:false,reason}]});
+  const group=mk('pnpm','review'), locked=mk('keep','protected'), band={...mk('ai-cache','review'),band:'运行缓存'};
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[group,locked],aiMoonBands:[band]});
+  switchModule('clean');
+  const buttons=()=>[...document.querySelectorAll('[data-measure-path]')].map(b=>b.dataset.measurePath);
+  const post=()=>__qa.actions.filter(a=>a.action==='measurePathFully');
+  selectCleanRow(0);
+  qaAssert(buttons().length===1&&buttons()[0]===group.subpaths[1].path,'only the partial path of a non-protected group offers a measurement');
+  selectCleanRow(1);qaAssert(!buttons().length,'a group protected by design never offers a measurement');
+  selectCleanRow(0);
+  document.querySelector('[data-measure-path]').click();
+  onNativeMeasureResult({requestId:post()[0].requestId,path:group.subpaths[1].path,ok:true,bytes:3000000000,sizeGb:3,files:900,partial:false});
+  const g=STATE.cleanGroups[0];
+  qaAssert(!g.partial&&!g.subpaths[1].partial&&!g.subpaths[1].reason&&!g.subpaths[1].checked,'the measured subpath is cleared but never pre-checked');
+  qaAssert(g.sizeGb===4&&g.origSizeGb===4&&!g.safetyReason&&g.tier==='review'&&!g.checked,'the group total follows its subpaths and stays unchecked');
+  qaAssert(STATE.cleanGroups[1].partial&&STATE.cleanGroups[1].tier==='protected','a group protected by design stays untouched');
+  switchModule('ai_moon');
+  qaAssert(buttons().length===1,'a partial AI band path offers a measurement');
+  document.querySelector('[data-measure-path]').click();
+  onNativeMeasureResult({requestId:post()[1].requestId,path:band.subpaths[1].path,ok:true,bytes:2000000000,sizeGb:2,files:10,partial:false});
+  qaAssert(STATE.aiMoonBands[0].sizeGb===3&&!STATE.aiMoonBands[0].partial,'the AI band total is recomputed');
+  qaAssert(__qa.actions.every(a=>a.action==='measurePathFully'),'measuring never submits a move');
+`);
+add('purge-installer-empty-state', `
+  onNativeRealScanComplete({...structuredClone(qaFixture),installerFiles:[]});switchModule('purge');
+  const note=document.querySelector('[data-installer-empty]');
+  qaAssert(note&&note.textContent.includes('~/Downloads')&&note.textContent.includes('Homebrew/downloads')&&note.textContent.includes('20 MB'),'an empty installer list says what was checked');
+  onNativeRealScanComplete({...structuredClone(qaFixture)});switchModule('purge');
+  qaAssert(!document.querySelector('[data-installer-empty]'),'the empty state disappears when installers exist');
+`);
+add('analyze-hover-readout-outside-map', `
+  switchModule('analyze');
+  const stage=document.querySelector('.treemap-stage'), preview=document.getElementById('tilePreview');
+  const tile=document.querySelector('.treemap-tile[data-idx="1"]');tile.style.width='100px';
+  tile.dispatchEvent(new MouseEvent('pointerover',{bubbles:true}));await new Promise(r=>setTimeout(r,140));
+  qaAssert(preview.classList.contains('show'),'hovering a small tile fills the readout');
+  const pr=preview.getBoundingClientRect(), sr=stage.getBoundingClientRect(), before=sr.height;
+  qaAssert(pr.top>=sr.bottom-0.5,'the readout sits below the map, not over a tile');
+  qaAssert(pr.right<=sr.right+0.5&&pr.left>=sr.left-0.5,'the readout stays inside the map column');
+  tile.dispatchEvent(new MouseEvent('pointerout',{bubbles:true}));
+  qaAssert(stage.getBoundingClientRect().height===before,'showing and hiding the readout never resizes the map');
+`);
+scenarios[scenarios.length-1].width=880;scenarios[scenarios.length-1].height=620;
+add('clean-inspector-scan-skeleton', `
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[]});switchModule('clean');
+  const text=()=>document.getElementById('moduleStage').textContent;
+  qaAssert(text().includes('选择左侧任一项查看详情')||!document.querySelector('.panel-blank'),'a finished empty scan renders without a scan skeleton');
+  qaAssert(!document.querySelector('[data-inspector-scanning]'),'no skeleton after the scan finished');
+  onNativeRealScanStarted();
+  const blank=document.querySelector('[data-inspector-scanning]');
+  qaAssert(blank&&blank.querySelectorAll('.skel').length>=3&&blank.getAttribute('role')==='status','a running scan shows skeleton lines in the inspector');
+  qaAssert(!text().includes('选择左侧任一项查看详情'),'a running scan never asks for a selection');
+`);
 fs.writeFileSync(dir + '/suite.json', JSON.stringify(scenarios));
 console.log(`${scenarios.length} scenarios generated, isolated fixture data only.`);

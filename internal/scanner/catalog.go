@@ -172,6 +172,7 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 		"source":      "orbit 本地目录扫描",
 		"rebuildTime": spec.Rebuild,
 		"tier":        spec.Tier,
+		"baseTier":    spec.Tier, // tier before measurement protection; the UI never lifts a "protected" spec
 		"checked":     checkedByTier,
 		"cleaned":     false,
 		"impact":      spec.Impact,
