@@ -304,8 +304,11 @@ func (s *Scanner) scanAISessions(claims *catalogClaims) []map[string]any {
 	// the move boundary still asks per path.
 	view := &Scanner{home: s.home, processProbe: s.processProbe, handleProbe: s.handleProbe, installProbe: s.installProbe, aiUnits: units}
 	if view.processProbe == nil {
-		output, err := s.cleanupProcesses()
+		output, err := s.processSnapshot(false)
 		view.processProbe = func() (string, error) { return output, err }
+	}
+	if view.handleProbe == nil {
+		view.handleProbe = s.openSnapshot
 	}
 	if view.handleProbe == nil {
 		view.handleProbe = openFileSnapshot()

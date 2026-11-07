@@ -125,7 +125,7 @@ func aiDiagnosticName(name, tool string) bool {
 	return extension == ".log" || tool == "Claude Code" && extension == ".txt"
 }
 
-func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec) string {
+func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec, live bool) string {
 	info, err := os.Lstat(path)
 	if err != nil || info.Mode()&os.ModeSymlink != 0 {
 		return "AI 数据路径无法核验，保持原状"
@@ -176,7 +176,7 @@ func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec) strin
 			return "latest 日志引用无法核验，保持原状"
 		}
 	}
-	processes, err := s.cleanupProcesses()
+	processes, err := s.processSnapshot(live)
 	if err != nil || strings.TrimSpace(processes) == "" {
 		return "进程状态未知，不能证明 AI 数据闲置，保持原状"
 	}
@@ -189,7 +189,7 @@ func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec) strin
 			}
 		}
 	}
-	open, err := s.aiVersionHasOpenHandle(path)
+	open, err := s.aiHandleOpen(path, live)
 	if err != nil {
 		return "无法确认 AI 数据是否仍被打开，保持原状"
 	}

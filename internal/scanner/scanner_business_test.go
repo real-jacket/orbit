@@ -384,7 +384,7 @@ func TestClaudeDesktopMarkerDefinesCurrentVersion(t *testing.T) {
 	if err := os.WriteFile(marker, []byte("1.2.0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	versions := s.versionInventory(spec)
+	versions := s.versionInventory(spec, true)
 	reasons := map[string]string{}
 	for _, version := range versions {
 		reasons[filepath.Base(version.path)] = version.reason
@@ -393,7 +393,7 @@ func TestClaudeDesktopMarkerDefinesCurrentVersion(t *testing.T) {
 		t.Fatalf("Claude Desktop marker plan = %+v", reasons)
 	}
 	s.processProbe = func() (string, error) { return "/Applications/Claude.app/Contents/MacOS/Claude\n", nil }
-	for _, version := range s.versionInventory(spec) {
+	for _, version := range s.versionInventory(spec, true) {
 		if version.reason == "" {
 			t.Fatalf("a running Claude Desktop must protect every bundled version: %+v", version)
 		}
