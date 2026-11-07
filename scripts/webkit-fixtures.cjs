@@ -1140,16 +1140,16 @@ add('runtime-raw-launch-guidance',`
 `);
 add('runtime-packaged-permission-guidance',`
   openRuntimePanel();const request=__qa.actions.find(action=>action.action==='requestRuntimeStatus');
-  onNativeRuntimeStatus({requestId:request.requestId,packaged:true,appPath:'/Applications/MoleStudio.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:false,detail:'受保护目录读取被拒绝'}});
+  onNativeRuntimeStatus({requestId:request.requestId,packaged:true,appPath:'/Applications/orbit.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:false,detail:'受保护目录读取被拒绝'}});
   const body=document.getElementById('runtimePanelBody');
-  qaAssert(body.textContent.includes('/Applications/MoleStudio.app')&&body.textContent.includes('读取被拒绝'),'the guide identifies the exact app and actual access failure');
+  qaAssert(body.textContent.includes('/Applications/orbit.app')&&body.textContent.includes('读取被拒绝'),'the guide identifies the exact app and actual access failure');
   qaAssert(body.textContent.includes('程序不能自动授予')&&body.textContent.includes('仅接入 Quick Look'),'permissions and implemented maintenance limits are honest');
   for(const pane of ['fullDiskAccess','filesAndFolders','appManagement']){
     __qa.actions=[];[...body.querySelectorAll('button')].find(button=>button.getAttribute('onclick').includes(pane)).click();
     qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='openPrivacySettings'&&__qa.actions[0].pane===pane,'each permission opens its exact settings pane');
   }
   __qa.actions=[];body.querySelector('[onclick="revealCurrentApp()"]').click();qaAssert(__qa.actions[0].action==='revealAppBundle','the guide can locate the exact native application');
-  requestRuntimeCheck();onNativeRuntimeStatus({requestId:STATE.runtimeRequestId,packaged:true,appPath:'/Applications/MoleStudio.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:true,detail:'可读取受保护目录'}});
+  requestRuntimeCheck();onNativeRuntimeStatus({requestId:STATE.runtimeRequestId,packaged:true,appPath:'/Applications/orbit.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:true,detail:'可读取受保护目录'}});
   qaAssert(document.getElementById('runtimeBanner').hidden,'verified read access clears the warning without altering grants');
   closeRuntimePanel();
 `);
@@ -1316,7 +1316,7 @@ add('analyze-large-files-scroll-retained',largeFileScrollSetup+`
   qaAssert(Math.abs(document.querySelector('.analysis-large-files .list-body').scrollTop-before)<1,'changing directory sort does not reset the independent file list');
 `);
 const runtimePermissionFixture=`
-  const permissionStatus={requestId:STATE.runtimeRequestId,packaged:true,appPath:'/Applications/MoleStudio.app',executablePath:'/Applications/MoleStudio.app/Contents/MacOS/MoleStudio',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,checkedAt:Date.now(),readAccess:{passed:false,status:'denied',detail:'~/Library/Safari 读取被拒绝',checkedAt:Date.now(),checks:[{path:'~/Library/Mail',passed:true,status:'readable',detail:'已读取目录'},{path:'~/Library/Safari',passed:false,status:'denied',detail:'读取被拒绝'}]},folderReadAccess:[{id:'desktop',title:'桌面',path:'~/Desktop',passed:true,status:'readable',detail:'可读取目录（2 项）',checkedAt:Date.now()},{id:'documents',title:'文稿',path:'~/Documents',passed:false,status:'denied',detail:'目录读取被拒绝',checkedAt:Date.now()},{id:'downloads',title:'下载',path:'~/Downloads',passed:null,status:'missing',detail:'未找到该目录',checkedAt:Date.now()}]};
+  const permissionStatus={requestId:STATE.runtimeRequestId,packaged:true,appPath:'/Applications/orbit.app',executablePath:'/Applications/orbit.app/Contents/MacOS/orbit',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,checkedAt:Date.now(),readAccess:{passed:false,status:'denied',detail:'~/Library/Safari 读取被拒绝',checkedAt:Date.now(),checks:[{path:'~/Library/Mail',passed:true,status:'readable',detail:'已读取目录'},{path:'~/Library/Safari',passed:false,status:'denied',detail:'读取被拒绝'}]},folderReadAccess:[{id:'desktop',title:'桌面',path:'~/Desktop',passed:true,status:'readable',detail:'可读取目录（2 项）',checkedAt:Date.now()},{id:'documents',title:'文稿',path:'~/Documents',passed:false,status:'denied',detail:'目录读取被拒绝',checkedAt:Date.now()},{id:'downloads',title:'下载',path:'~/Downloads',passed:null,status:'missing',detail:'未找到该目录',checkedAt:Date.now()}]};
 `;
 for(const width of [1380,880])for(const theme of ['dark','light']){
   add('runtime-permission-status-'+width+'-'+theme,`

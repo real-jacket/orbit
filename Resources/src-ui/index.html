@@ -2691,7 +2691,7 @@ function buildMenuBarTrayHTML() {
         <span class="tray-awake-label">${UI_ICON('plug')}<span>${sleepLabel}<small>${STATE.caffeinateActive ? '已开启 · 最长 2 小时' : '保持屏幕和系统唤醒 · 2 小时'}</small></span></span><span class="tray-switch" aria-hidden="true"><i></i></span>
       </button>
     </div>
-    <div class="tray-footer"><button class="tray-text-button" data-tray-key="main" onclick="sendNativeBridge({action:'menubarShowMain'})">打开主窗口</button><button class="tray-text-button" data-tray-key="doctor" onclick="sendNativeBridge({action:'menubarOpenDoctor'})">系统体检</button><button class="tray-text-button tray-quit" data-tray-key="quit" onclick="sendNativeBridge({action:'menubarQuit'})">退出 orbit</button></div>
+    <div class="tray-footer"><button class="tray-text-button" data-tray-key="main" onclick="sendNativeBridge({action:'menubarShowMain'})">打开主窗口</button><button class="tray-text-button" data-tray-key="doctor" onclick="sendNativeBridge({action:'menubarOpenDoctor'})">系统体检</button><button class="tray-text-button" data-tray-key="update" onclick="sendNativeBridge({action:'checkForUpdates'})">检查更新…</button><button class="tray-text-button tray-quit" data-tray-key="quit" onclick="sendNativeBridge({action:'menubarQuit'})">退出 orbit</button></div>
   `;
 }
 
