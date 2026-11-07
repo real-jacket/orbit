@@ -96,7 +96,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			if !strings.EqualFold(filepath.Ext(item), ".app") {
 				continue
 			}
-			if strings.Contains(item, "MoleStudio") || item == "Safari.app" {
+			if strings.Contains(item, "MoleStudio") || item == "orbit.app" || item == "Safari.app" {
 				continue
 			}
 			fullPath := filepath.Join(dir, item)

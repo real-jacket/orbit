@@ -30,10 +30,10 @@
 # `make doctor` reports whether the CLI and the rest of the toolchain are there.
 #
 # `make app` writes into $(OUT_DIR)/<goos>-<goarch>/ — on Apple silicon that is
-# build/darwin-arm64/MoleStudio.app plus a .dmg beside it. The per-platform
-# subdirectory comes from MyGo, so do not expect build/MoleStudio.app.
+# build/darwin-arm64/orbit.app plus a .dmg beside it. The per-platform
+# subdirectory comes from MyGo, so do not expect build/orbit.app.
 
-APP_NAME := MoleStudio
+APP_NAME := orbit
 BIN      := mole-studio
 OUT_DIR  := build
 MYGO     ?= mygo
@@ -78,7 +78,7 @@ vet:
 dev:
 	$(MYGO) dev
 
-## Package the app bundle and a .dmg (build/darwin-arm64/MoleStudio.app).
+## Package the app bundle and a .dmg (build/darwin-arm64/orbit.app).
 app:
 	$(MYGO) build
 
