@@ -33,8 +33,8 @@ const (
 	lightBackground = "#faf8f5"
 )
 
-// applyTheme sets the app appearance, remembers the choice when asked to, and
-// repaints the window background.
+// applyTheme sets the app appearance, remembers the choice when asked to,
+// repaints the window background and tells the menu-bar panel.
 func applyTheme(theme string, remember bool) {
 	switch theme {
 	case themeDark:
@@ -52,6 +52,7 @@ func applyTheme(theme string, remember bool) {
 		}
 	}
 	setWindowBackground(windowBackground(theme))
+	pushFlyoutTheme(theme)
 }
 
 // windowBackground returns the background colour for a theme. Asking the system
