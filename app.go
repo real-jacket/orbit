@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 
 	"github.com/mymoles/mole-studio/internal/analyze"
 	"github.com/mymoles/mole-studio/internal/scanner"
@@ -53,6 +54,11 @@ var quitting atomic.Bool
 
 // run wires the app up and starts its event loop.
 func run() {
+	// The update window is Sparkle-style and reads releases from the repo in
+	// mygo.json's updates block. Dev builds carry no key, so it only says that
+	// updates are unavailable. The UI is Chinese, so the window is too.
+	mygo.Use(updater.New(updater.Options{Language: "zh-Hans"}))
+
 	mygo.Bind(&NativeBridge{})
 
 	mygo.App.SetName(appName)
@@ -287,6 +293,7 @@ func buildApplicationMenu() *mygo.Menu {
 			Role: mygo.RoleAppMenu,
 			Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleAbout, Label: "关于 " + appName},
+				updater.MenuItem(),
 				mygo.Separator(),
 				{Role: mygo.RoleHide, Label: "隐藏 " + appName},
 				{Role: mygo.RoleHideOthers, Label: "隐藏其他"},

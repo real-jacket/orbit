@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 
 	"github.com/mymoles/mole-studio/internal/scanner"
 )
@@ -156,6 +157,10 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		showMainWindow("")
 	case "menubarQuit":
 		mygo.App.Quit()
+	case "checkForUpdates":
+		// Returns at once; the updater opens its own window, and says so when
+		// this build cannot update (a dev build, or one without the key).
+		updater.CheckForUpdates()
 	case "setTheme":
 		if theme := stringOf(payload["theme"]); theme == themeDark || theme == themeLight || theme == themeSystem {
 			applyTheme(theme, true)
