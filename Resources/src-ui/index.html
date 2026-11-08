@@ -1830,15 +1830,17 @@ const GLYPHS = {
     <circle cx="52.65" cy="18.15" r="3.6" fill="${GLYPH_INK.ice}"/>
     <circle cx="51.6" cy="17" r="1.1" fill="#fff" fill-opacity="0.85"/>`,
 
-  // Airlock: a hatch ring seen at an angle, a deep-space opening, the door
-  // slab standing open at the left, and two gold chips venting out to the upper
-  // right. Body ring, opening, door, chips: nothing else.
+  // Airlock: a light octagonal hatch ring, its deep-space opening pushed toward
+  // the upper right for depth, and two gold chips knocked out over the ring's
+  // upper-right edge, the larger with one short trail pointing back into the
+  // opening. Ring, opening, trail, two chips: nothing else.
   clean: (p) => `
-    <defs><linearGradient id="${p}-i" x1="0" y1="0" x2="0.6" y2="1"><stop stop-color="#0b2d4d"/><stop offset="1" stop-color="#3aa6c9"/></linearGradient></defs>
-    <ellipse cx="9" cy="37" rx="6.5" ry="17" fill="#64748b" transform="rotate(-12 9 37)"/>
-    <ellipse cx="30" cy="37" rx="20" ry="23" fill="${GLYPH_INK.slate}"/>
-    <ellipse cx="32" cy="38" rx="13" ry="16" fill="url(#${p}-i)"/>
-    ${glyph_chip(52.5, 26, 1.7, 10)}${glyph_chip(57.5, 11.5, 1.2, -25)}`,
+    <defs>${glyph_ramp(p, 'f', '#ffffff', '#9fb3cc')}</defs>
+    <path d="M49.2 47.2L36.2 60.2L17.8 60.2L4.8 47.2L4.8 28.8L17.8 15.8L36.2 15.8L49.2 28.8Z" fill="url(#${p}-f)" stroke="url(#${p}-f)" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M43.5 37.8L36.8 44.5L27.2 44.5L20.5 37.8L20.5 28.2L27.2 21.5L36.8 21.5L43.5 28.2Z" fill="${GLYPH_INK.night}" stroke="${GLYPH_INK.night}" stroke-width="5" stroke-linejoin="round"/>
+    ${glyph_trail(45, 24, 4.4, 148, 15, GLYPH_INK.gold, 1)}
+    <rect x="-5.5" y="-5.5" width="11" height="11" rx="3.3" transform="translate(49.5 21.5) rotate(14)" fill="${GLYPH_INK.gold}"/>
+    <rect x="-3.4" y="-3.4" width="6.8" height="6.8" rx="2" transform="translate(57.5 8.5) rotate(-22)" fill="${GLYPH_INK.gold}"/>`,
 
   // Cortex: a crescent cut from a disc by an offset disc, and one four-point
   // spark in its hollow.
