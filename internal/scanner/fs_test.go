@@ -1,10 +1,14 @@
 package scanner
 
 import (
+	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestReadWarningsBelongToTheirScannerHome(t *testing.T) {
@@ -98,5 +102,118 @@ func TestInstallerScanDoesNotDescendIntoBundles(t *testing.T) {
 	}
 	if len(names) != 2 {
 		t.Fatalf("installers = %v, want only Real.dmg and Nested.dmg", names)
+	}
+}
+
+func TestReadWarningsKeepOneEntryPerMeasuredRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Cleanup(func() { clearReadWarnings(home) })
+	root := filepath.Join(home, "Library/Caches/pnpm")
+	recordReadWarningKind(root, "root", warnLimit)
+	recordReadWarningKind(filepath.Join(root, "store/v3"), "child of the same kind", warnLimit)
+	recordReadWarningKind(filepath.Join(root, "store/v3/files"), "grandchild of the same kind", warnLimit)
+	recordReadWarningKind(filepath.Join(root, "locked"), "different kind stays visible", warnPermission)
+	warnings := scanReadWarnings(home)
+	if len(warnings) != 2 || warnings[0]["path"] != root || warnings[0]["kind"] != warnLimit ||
+		warnings[1]["path"] != filepath.Join(root, "locked") || warnings[1]["kind"] != warnPermission {
+		t.Fatalf("expected the outermost limit entry and the permission entry only: %v", warnings)
+	}
+}
+
+func TestReadErrorsAreClassifiedByCause(t *testing.T) {
+	home := "/Users/someone"
+	cases := []struct {
+		name string
+		path string
+		err  error
+		want string
+	}{
+		{"apple cache refuses even with access", home + "/Library/Caches/com.apple.homed/x", &fs.PathError{Op: "open", Err: syscall.EPERM}, warnSystem},
+		{"user cache that needs a grant", home + "/Library/Caches/Spotify", &fs.PathError{Op: "open", Err: syscall.EPERM}, warnPermission},
+		{"plain access refusal", home + "/Desktop", &fs.PathError{Op: "open", Err: syscall.EACCES}, warnPermission},
+		{"a prompt nobody answered", home + "/Documents", context.DeadlineExceeded, warnPermission},
+		{"anything else is an error", home + "/Movies", &fs.PathError{Op: "open", Err: syscall.EIO}, warnError},
+	}
+	for _, c := range cases {
+		if kind, reason := classifyReadError(c.path, c.err); kind != c.want || reason == "" {
+			t.Errorf("%s: kind=%q reason=%q, want %q", c.name, kind, reason, c.want)
+		}
+	}
+}
+
+func TestCappedMeasurementRecordsOneWarningOnItsRoot(t *testing.T) {
+	home := fixtureHome(t)
+	t.Cleanup(func() { clearReadWarnings(home) })
+	root := fixtureDir(t, home, "Library/Caches/dense", 1)
+	for i := 0; i < 6; i++ {
+		writeTestFile(t, filepath.Join(root, "a", "b", "f"+itoa64(int64(i))), 1)
+	}
+	if size := (&Scanner{home: home}).fastDirectorySize(root, 3); !size.partial {
+		t.Fatalf("fixture must hit the cap: %+v", size)
+	}
+	warnings := scanReadWarnings(home)
+	if len(warnings) != 1 || warnings[0]["path"] != root || warnings[0]["kind"] != warnLimit {
+		t.Fatalf("a cap hit is one limit warning on the measured root: %v", warnings)
+	}
+}
+
+func TestBulkListingMatchesPortableListing(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "plain"), 5000)
+	writeTestFile(t, filepath.Join(dir, "empty"), 0)
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("plain", filepath.Join(dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(filepath.Join(dir, "plain"), filepath.Join(dir, "twin")); err != nil {
+		t.Fatal(err)
+	}
+	index := func(items []dirItem) map[string]dirItem {
+		out := map[string]dirItem{}
+		for _, item := range items {
+			item.mtime = 0 // sub-second rounding may differ between the two paths
+			if item.kind != itemFile {
+				item = dirItem{name: item.name, kind: item.kind} // identity is only filled for regular files
+			}
+			out[item.name] = item
+		}
+		return out
+	}
+	got, err := listDirItems(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := listDirStd(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, w := index(got), index(want)
+	if len(g) != len(w) || len(g) != 5 {
+		t.Fatalf("entries differ: got %v want %v", g, w)
+	}
+	for name, item := range w {
+		if g[name] != item {
+			t.Errorf("%s: got %+v want %+v", name, g[name], item)
+		}
+	}
+}
+
+func TestLargeFileWalkFindsBigFilesAndReportsAnExpiredBudget(t *testing.T) {
+	home := fixtureHome(t)
+	root := filepath.Join(home, "Downloads")
+	big := filepath.Join(root, "movie.mov")
+	writeTestFile(t, big, 16<<20)
+	writeTestFile(t, filepath.Join(root, "small.txt"), 10)
+	writeTestFile(t, filepath.Join(root, ".hidden", "huge.bin"), 16<<20)
+	s := &Scanner{home: home}
+	var found []largeFile
+	if !s.collectLargeFiles(root, root, time.Now().Add(time.Minute), &found) || len(found) != 1 || found[0].path != big {
+		t.Fatalf("only the visible file over the threshold belongs in the list: %v", found)
+	}
+	found = nil
+	if s.collectLargeFiles(root, root, time.Now().Add(-time.Second), &found) {
+		t.Fatal("an expired budget must be reported to the caller")
 	}
 }

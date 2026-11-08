@@ -51,7 +51,7 @@ func (s *Scanner) measureFully(raw string, budget time.Duration) MeasureOutcome 
 	size := s.measureDirectory(path, 0, budget)
 	out.OK, out.Bytes, out.SizeGb, out.Files, out.Partial = true, size.bytes, plainGB(size.bytes), size.files, size.partial
 	if size.partial {
-		if !size.deadline.IsZero() && time.Now().After(size.deadline) {
+		if size.timedOut {
 			out.Reason = "超过 " + itoa64(int64(budget/time.Second)) + " 秒仍未读完，体积只是已读取部分"
 		} else {
 			out.Reason = "部分目录无法读取（权限或读取错误），体积只是已读取部分"

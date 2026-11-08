@@ -99,7 +99,7 @@ func TestUnclaimedPartialContainersRemainUnselectable(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(path, 0o755) })
 	s := &Scanner{home: home}
 	rows := s.scanUnclaimedContainers(home, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
-	if len(rows) != 1 || rows[0]["partial"] != true || rows[0]["tier"] != "protected" || rows[0]["checked"] != false {
+	if len(rows) != 1 || rows[0]["partial"] != true || rows[0]["tier"] == "safe" || rows[0]["checked"] != false {
 		t.Fatalf("incomplete container was hidden or authorized: %+v", rows)
 	}
 	sp := rows[0]["subpaths"].([]map[string]any)[0]
@@ -114,7 +114,7 @@ func TestBuildAndSignatureCandidatesNeedExplicitSelection(t *testing.T) {
 	fixtureDir(t, home, "Library/Containers/com.docker.docker", 4096)
 	s := &Scanner{home: home, processProbe: func() (string, error) { return "/sbin/launchd\n", nil }}
 	rows := s.scanBuildArtifacts()
-	if len(rows) != 1 || rows[0]["checked"] != false || rows[0]["tier"] != "review" || rows[0]["gitClean"] != "未检查版本库" {
+	if len(rows) != 1 || rows[0]["checked"] != false || rows[0]["tier"] != "review" || rows[0]["gitClean"] != "非 Git 项目" || rows[0]["reason"] == "" {
 		t.Fatalf("directory names cannot authorize building cleanup: %+v", rows)
 	}
 	orphans := s.scanOrphanedLeftovers()
@@ -146,10 +146,9 @@ func TestBuildDiscoveryDoesNotSpendDirectoryBudgetOnSourceFiles(t *testing.T) {
 	artifact := fixtureDir(t, home, "code/zzz-project/target", 21_000_000)
 	scanner := &Scanner{home: home}
 	var candidates []artifactCandidate
-	visited := 0
-	scanner.walkArtifacts(filepath.Join(home, "code"), 3, &visited, &candidates)
-	if visited > 3 || len(candidates) != 1 || candidates[0].path != artifact {
-		t.Fatalf("ordinary source files exhausted the directory budget: visited=%d candidates=%v", visited, candidates)
+	scanner.walkArtifacts(filepath.Join(home, "code"), time.Now().Add(time.Minute), &candidates)
+	if len(candidates) != 1 || candidates[0].path != artifact {
+		t.Fatalf("ordinary source files hid the artifact: candidates=%v", candidates)
 	}
 }
 
@@ -183,21 +182,57 @@ func TestBuildDiscoveryKeepsAnIndependentBoundedBudgetForEachRoot(t *testing.T) 
 	}
 }
 
-func TestBuildDiscoveryStillStopsAtItsDirectoryLimit(t *testing.T) {
+func TestBuildDiscoveryStopsAtItsDeadlineWithOneWarning(t *testing.T) {
 	home := fixtureHome(t)
 	for index := 0; index < 8; index++ {
-		if err := os.MkdirAll(filepath.Join(home, "code/aaa-source", "directory-"+itoa64(int64(index))), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(home, "code/aaa-source", "directory-"+itoa64(int64(index)), "inner"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	fixtureDir(t, home, "code/zzz-project/target", 21_000_000)
 	scanner := &Scanner{home: home}
 	var candidates []artifactCandidate
-	visited := 0
-	scanner.walkArtifacts(filepath.Join(home, "code"), 3, &visited, &candidates)
+	root := filepath.Join(home, "code")
+	scanner.walkArtifacts(root, time.Now().Add(-time.Second), &candidates)
 	warnings := scanReadWarnings(home)
-	if visited != 3 || len(candidates) != 0 || len(warnings) == 0 {
-		t.Fatalf("directory discovery must remain bounded: visited=%d candidates=%v warnings=%v", visited, candidates, warnings)
+	if len(candidates) != 0 || len(warnings) != 1 || warnings[0]["path"] != root || warnings[0]["kind"] != "limit" {
+		t.Fatalf("discovery past its deadline must say so once, on the root: candidates=%v warnings=%v", candidates, warnings)
+	}
+}
+
+func TestBuildDiscoveryPrunesWhatIsNotAProject(t *testing.T) {
+	home := fixtureHome(t)
+	want := fixtureDir(t, home, "code/app/node_modules", 21_000_000)
+	// Never descended into: an artifact, a hidden directory, a bundle and a heavy non-project directory.
+	fixtureDir(t, home, "code/app/node_modules/dep/node_modules", 21_000_000)
+	fixtureDir(t, home, "code/.hidden/node_modules", 21_000_000)
+	fixtureDir(t, home, "code/Tool.app/node_modules", 21_000_000)
+	fixtureDir(t, home, "code/Pods/node_modules", 21_000_000)
+	scanner := &Scanner{home: home}
+	var candidates []artifactCandidate
+	scanner.walkArtifacts(filepath.Join(home, "code"), time.Now().Add(time.Minute), &candidates)
+	if len(candidates) != 1 || candidates[0].path != want {
+		t.Fatalf("discovery must list only the project's own artifact: %v", candidates)
+	}
+}
+
+func TestBuildDiscoveryFindsEveryProjectBeyondTheOldDirectoryCap(t *testing.T) {
+	home := fixtureHome(t)
+	for index := 0; index < 30; index++ {
+		for sub := 0; sub < 3; sub++ {
+			if err := os.MkdirAll(filepath.Join(home, "code", "p"+itoa64(int64(index)), "src", "d"+itoa64(int64(sub))), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.MkdirAll(filepath.Join(home, "code", "p"+itoa64(int64(index)), "node_modules"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scanner := &Scanner{home: home}
+	var candidates []artifactCandidate
+	scanner.walkArtifacts(filepath.Join(home, "code"), time.Now().Add(time.Minute), &candidates)
+	if len(candidates) != 30 {
+		t.Fatalf("found %d of 30 project artifacts", len(candidates))
 	}
 }
 
@@ -276,7 +311,7 @@ func TestAppCacheIncompleteMeasurementRemainsVisible(t *testing.T) {
 	if got := s.appendExisting([]string{path}, "cache", true, &paths); got != 0 {
 		t.Fatalf("unread bytes = %d", got)
 	}
-	if len(paths) != 1 || paths[0]["partial"] != true || paths[0]["checked"] != false || paths[0]["sizeGb"] != nil {
+	if len(paths) != 1 || paths[0]["partial"] != true || paths[0]["tier"] == "protected" || paths[0]["sizeGb"] != nil {
 		t.Fatalf("an unread cache must not be hidden or reported as zero: %v", paths)
 	}
 }
@@ -543,12 +578,12 @@ func TestCleanGroupsReportEachRootOnce(t *testing.T) {
 	if !ok {
 		t.Fatalf("package_caches row missing, got ids %v", rowIDs(groups))
 	}
-	if checked, _ := pkg["checked"].(bool); checked {
-		t.Error("review-tier package_caches must not be pre-checked (S-09)")
+	if checked, _ := pkg["checked"].(bool); !checked || pkg["tier"] != "safe" {
+		t.Errorf("regenerable package caches are recommended: %v", pkg["tier"])
 	}
 	for _, subpath := range pkg["subpaths"].([]map[string]any) {
-		if checked, _ := subpath["checked"].(bool); checked {
-			t.Errorf("review-tier subpath %v must not be pre-checked", subpath["path"])
+		if checked, _ := subpath["checked"].(bool); !checked {
+			t.Errorf("safe subpath %v must be pre-checked", subpath["path"])
 		}
 	}
 

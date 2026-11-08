@@ -349,6 +349,7 @@ func (s *Scanner) scanAISessions(claims *catalogClaims) []map[string]any {
 		}
 		row := view.catalog(CatalogSpec{
 			ID: "ai_sessions:" + tool + ":" + label, Category: tool, Name: tool + " · 过期会话 · " + label, Roots: roots, Tier: "review",
+			Reason: "超过 90 天未修改的对话历史，不能重建；移除后无法继续或回看这些对话，可在“历史”中还原",
 			Impact: impact, Rebuild: "对话历史不可重建；废纸篓中可还原",
 		}, claims, nil)
 		if row != nil {
