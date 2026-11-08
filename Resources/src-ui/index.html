@@ -1712,23 +1712,24 @@ I18N.apply();   // translate the static markup (data-i18n) before anything draws
 // namespaces every <defs> id so the same mark can appear in the sidebar, the
 // hero banner and the tray without two gradients ever sharing an id (spec 五.1).
 //
-// Each glyph is one object with a flat plate colour from its container, one
-// body with a single two-stop gradient, and one accent in a second hue. Finish
-// is shared and light: a rim light on the upper-left edge, one soft contact
-// shadow, and one badge (r 11.5 at 46,46) where a glyph needs a second idea.
-// Occlusion is used only where it carries meaning. The test applied here: if
-// an element cannot be named at 28px, it is not drawn.
+// Each glyph is built from the same three moves and nothing more:
+//   1  a flat plate colour supplied by the container
+//   2  one solid body, optionally with a single two-stop gradient for volume
+//   3  one accent detail in a second hue
+// No shadows, no rim lights, no sheen. Occlusion is used only where it carries
+// meaning. The test applied here: if an element cannot be named at 28px, it is
+// not drawn.
 //
 // Each module is a spaceflight codename, drawn as that one object:
 //   brand     orbit        terracotta sphere, gold ring with a real occlusion seam, ice companion
-//   clean     Airlock      round hatch, door standing open, gold shards blasting out
-//   ai_moon   Cortex       crescent moon with a three-star AI spark in its hollow
-//   software  Jettison     app tile thrown out of a shuttle bay, bold streaks, eject mark on it
-//   optimize  Thruster     rocket tilted up-right, big gold plume with a cream core
-//   analyze   Astrolabe    star-chart dial in a graduated ring, alidade out to its sight
-//   status    Telemetry    screen on a stand, mint pulse trace, gold live dot
+//   clean     Airlock      hatch ring, deep-space opening, door slab open, gold chips venting out
+//   ai_moon   Cortex       crescent moon with one four-point spark
+//   software  Jettison     app tile tilted up-right, eject mark on it, two bold streaks behind
+//   optimize  Thruster     rocket tilted up-right with one porthole and a gold flame
+//   analyze   Astrolabe    night disc with one lit sector, sighting arm out past the rim
+//   status    Telemetry    screen on one foot, mint pulse trace
 //   purge     Payload      isometric crate with a </> badge
-//   history   Blackbox     orange flight recorder (two bands) with a restore-arrow badge
+//   history   Blackbox     orange recorder case (two bands) with a restore-arrow badge
 //   file      -            plain document, the large-file row marker
 // Light comes from the upper left everywhere, as on the brand sphere.
 // ---------------------------------------------------------------------------
@@ -1799,19 +1800,12 @@ const glyph_ramp = (p, id, a = GLYPH_INK.white, b = GLYPH_INK.fog) =>
 // the overlap reads as "in front of" without borrowing the container's colour.
 const glyph_gap = (p, id, cx, cy, r) =>
   `<mask id="${p}-${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="#000"/></mask>`;
-// Shared finish, defined once per glyph: a rim light that fades from the upper
-// left (stroke="url(#p-rim)" on a body), the badge face, and the contact shadow.
-const glyph_defs = (p) =>
-  `<radialGradient id="${p}-sh"><stop stop-color="#000" stop-opacity="0.34"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>` +
-  `<linearGradient id="${p}-rim" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#fff" stop-opacity="0.9"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient>` +
-  `<linearGradient id="${p}-bd" x1="0.15" y1="0.05" x2="0.85" y2="1"><stop stop-color="#3b4a63"/><stop offset="1" stop-color="#111a2b"/></linearGradient>`;
-const glyph_shadow = (p, cx, cy, rx, ry) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#${p}-sh)"/>`;
-// The corner badge every glyph shares: r 11.5 at (46, 46), inner marks 2.4 round.
-const glyph_badge = (p, inner) =>
-  `<circle cx="46" cy="46" r="11.5" fill="url(#${p}-bd)" stroke="url(#${p}-rim)" stroke-width="1.2"/>${inner}`;
-// A gold debris shard: a faceted chip with a bright top edge, scaled and turned in place.
-const glyph_shard = (x, y, k, deg) =>
-  `<g transform="translate(${x} ${y}) rotate(${deg}) scale(${k})"><path d="M-4.2 -0.6 L-0.8 -4.6 L4.4 -1.6 L3.4 3.4 L-2.6 4Z" fill="${GLYPH_INK.gold}" stroke="#fde68a" stroke-width="0.9" stroke-linejoin="round" stroke-opacity="0.9"/><path d="M-0.8 -4.6 L4.4 -1.6 L0.4 0Z" fill="#fff4c2" fill-opacity="0.8"/></g>`;
+// The corner badge every glyph shares: a flat night disc, r 11.5 at (46, 46),
+// inner marks 2.4 round.
+const glyph_badge = (inner) => `<circle cx="46" cy="46" r="11.5" fill="${GLYPH_INK.night}"/>${inner}`;
+// A gold debris chip, scaled and turned in place.
+const glyph_chip = (x, y, k, deg) =>
+  `<path transform="translate(${x} ${y}) rotate(${deg}) scale(${k})" d="M-4.2 -0.6 L-0.8 -4.6 L4.4 -1.6 L3.4 3.4 L-2.6 4Z" fill="${GLYPH_INK.gold}" stroke="${GLYPH_INK.gold}" stroke-width="1" stroke-linejoin="round"/>`;
 const glyph_star = (cx, cy, R, fill) => { const k = R * 0.2;
   return `<path d="M${cx} ${cy - R} Q${cx + k} ${cy - k} ${cx + R} ${cy} Q${cx + k} ${cy + k} ${cx} ${cy + R} Q${cx - k} ${cy + k} ${cx - R} ${cy} Q${cx - k} ${cy - k} ${cx} ${cy - R}Z" fill="${fill}"/>`; };
 // A tapered streak trailing behind (x, y): wide at the object, a point `len` away at `deg`.
@@ -1836,148 +1830,89 @@ const GLYPHS = {
     <circle cx="52.65" cy="18.15" r="3.6" fill="${GLYPH_INK.ice}"/>
     <circle cx="51.6" cy="17" r="1.1" fill="#fff" fill-opacity="0.85"/>`,
 
-  // Airlock: a round spacecraft hatch seen at a slight angle. Thick pale rim
-  // with bolts, a lip, and an opening onto deep space (navy to cyan, a few
-  // stars) so it is not a black hole; the door leaf stands open on two hinge
-  // blocks at the left, a slab with a lit edge. Three gold shards, big and
-  // tapered-trailed, blast out up and to the right and overlap the rim.
+  // Airlock: a hatch ring seen at an angle, a deep-space opening, the door
+  // slab standing open at the left, and two gold chips venting out to the upper
+  // right. Body ring, opening, door, chips: nothing else.
   clean: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 'f')}${glyph_ramp(p, 'd', '#f1f5f9', '#8aa0bd')}${glyph_gap(p, 'g', 48, 26, 8.5)}
-      <linearGradient id="${p}-i" x1="0" y1="0" x2="0.5" y2="1"><stop stop-color="#0b2d4d"/><stop offset="1" stop-color="#2a9bbd"/></linearGradient></defs>
-    ${glyph_shadow(p, 30, 60.5, 18, 2.4)}
-    <g mask="url(#${p}-g)">
-      <ellipse cx="30" cy="38" rx="19.5" ry="21.5" fill="url(#${p}-f)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-      <ellipse cx="31" cy="38" rx="13.6" ry="16" fill="${GLYPH_INK.slateDeep}" fill-opacity="0.55"/>
-      <ellipse cx="31.8" cy="38" rx="11.4" ry="13.6" fill="url(#${p}-i)"/>
-      <circle cx="26" cy="30" r="0.9" fill="#fff"/><circle cx="36" cy="44" r="1.1" fill="#fff" fill-opacity="0.9"/><circle cx="24" cy="46" r="0.7" fill="#fff" fill-opacity="0.8"/>
-      <g fill="${GLYPH_INK.slateDeep}"><circle cx="30" cy="20.2" r="1.5"/><circle cx="30" cy="55.8" r="1.5"/><circle cx="46.5" cy="38" r="1.5"/></g>
-    </g>
-    <rect x="9.5" y="21" width="6" height="5.6" rx="1.6" fill="${GLYPH_INK.slateDeep}"/><rect x="9.5" y="45.4" width="6" height="5.6" rx="1.6" fill="${GLYPH_INK.slateDeep}"/>
-    <g transform="rotate(-14 8 36)">
-      <ellipse cx="9.8" cy="36" rx="5.4" ry="15.6" fill="${GLYPH_INK.slateDeep}"/>
-      <ellipse cx="7.2" cy="36" rx="5.2" ry="15.4" fill="url(#${p}-d)"/>
-      <path d="M4.6 23 Q3 36 4.6 49" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-opacity="0.95"/>
-    </g>
-    ${glyph_trail(50, 26, 5, 152, 12, GLYPH_INK.gold, 0.6)}
-    ${glyph_trail(59, 14, 3.8, 142, 10, GLYPH_INK.gold, 0.6)}
-    ${glyph_trail(46.5, 11, 3.2, 118, 9, GLYPH_INK.gold, 0.6)}
-    ${glyph_shard(50, 26, 1.5, 10)}${glyph_shard(59, 14, 1.15, -25)}${glyph_shard(46.5, 11, 1, 35)}`,
+    <defs><linearGradient id="${p}-i" x1="0" y1="0" x2="0.6" y2="1"><stop stop-color="#0b2d4d"/><stop offset="1" stop-color="#3aa6c9"/></linearGradient></defs>
+    <ellipse cx="9" cy="37" rx="6.5" ry="17" fill="#64748b" transform="rotate(-12 9 37)"/>
+    <ellipse cx="30" cy="37" rx="20" ry="23" fill="${GLYPH_INK.slate}"/>
+    <ellipse cx="32" cy="38" rx="13" ry="16" fill="url(#${p}-i)"/>
+    ${glyph_chip(52.5, 26, 1.7, 10)}${glyph_chip(57.5, 11.5, 1.2, -25)}`,
 
-  // Cortex: a strong crescent (cut from a disc by an offset disc) with an AI
-  // spark cluster of three four-point stars floating in its hollow.
+  // Cortex: a crescent cut from a disc by an offset disc, and one four-point
+  // spark in its hollow.
   ai_moon: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 'm')}${glyph_ramp(p, 's', '#7dd3fc', GLYPH_INK.iceDeep)}
+    <defs>${glyph_ramp(p, 'm')}
       <mask id="${p}-c" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#000"/><circle cx="28" cy="36" r="22" fill="#fff"/><circle cx="38" cy="28" r="18" fill="#000"/></mask></defs>
-    ${glyph_shadow(p, 24, 59, 16, 2.4)}
     <g mask="url(#${p}-c)"><rect width="64" height="64" fill="url(#${p}-m)"/></g>
-    ${glyph_star(43, 23, 9, `url(#${p}-s)`)}
-    ${glyph_star(53.5, 36, 4.6, GLYPH_INK.ice)}
-    ${glyph_star(33, 12, 3.6, GLYPH_INK.ice)}`,
+    ${glyph_star(44, 23, 10.5, GLYPH_INK.ice)}`,
 
-  // Jettison: a shuttle-style craft (black nose cone, delta wing, tail fin,
-  // porthole, open payload-bay slot) throwing the app tile out diagonally,
-  // tilted, with two bold light streaks trailing back. The tile carries the
-  // eject mark.
+  // Jettison: the app tile, tilted up and to the right with the eject mark on
+  // it, and two bold light streaks trailing behind.
   software: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 't')}${glyph_ramp(p, 'h', '#f1f5f9', '#8394ad')}</defs>
-    ${glyph_shadow(p, 28, 61, 22, 2.4)}
-    <path d="M6 46 L2 34 H12 L18 46Z" fill="#64748b" stroke="#475569" stroke-width="1" stroke-linejoin="round"/>
-    <path d="M22 52 L40 62 H22Z" fill="#475569"/>
-    <path d="M4 50 C4 44 9 41 15 41 H38 C47 41 54 46 58 51 C54 55 47 58 38 58 H15 C9 58 4 56 4 50Z" fill="url(#${p}-h)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-    <path d="M48 44 C53 46 56 48 58 51 C56 53 53 55 48 56Z" fill="${GLYPH_INK.night}"/>
-    <path d="M14 41 H36" stroke="${GLYPH_INK.night}" stroke-width="3.6" stroke-linecap="round"/>
-    <circle cx="40" cy="50" r="2.4" fill="${GLYPH_INK.night}"/>
-    <path d="M14 36 L20 29" stroke="#fff" stroke-opacity="0.95" stroke-width="3.4" stroke-linecap="round"/>
-    <path d="M24 34 L30 27" stroke="#fff" stroke-opacity="0.7" stroke-width="3.4" stroke-linecap="round"/>
-    <g transform="rotate(20 43 17)">
-      <rect x="28" y="2" width="30" height="30" rx="9" fill="url(#${p}-t)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-      <path d="M43 9 L49.6 17.4 H36.4 Z" fill="${GLYPH_INK.iceDeep}" stroke="${GLYPH_INK.iceDeep}" stroke-width="1.6" stroke-linejoin="round"/>
-      <rect x="36.3" y="20.6" width="13.4" height="3.8" rx="1.9" fill="${GLYPH_INK.iceDeep}"/>
+    <defs>${glyph_ramp(p, 't')}</defs>
+    <path d="M5 52 L17 40 M17 58 L29 46" stroke="${GLYPH_INK.white}" stroke-opacity="0.85" stroke-width="4" stroke-linecap="round"/>
+    <g transform="rotate(20 40 26)">
+      <rect x="22" y="8" width="36" height="36" rx="11" fill="url(#${p}-t)"/>
+      <path d="M40 17 L47.4 26.6 H32.6 Z" fill="${GLYPH_INK.iceDeep}" stroke="${GLYPH_INK.iceDeep}" stroke-width="1.8" stroke-linejoin="round"/>
+      <rect x="31.8" y="30.6" width="16.4" height="4.4" rx="2.2" fill="${GLYPH_INK.iceDeep}"/>
     </g>`,
 
-  // Thruster: a rocket tilted 45 degrees up and to the right, finned and
-  // nozzled, with a long gold plume (cream core) and two speed streaks.
+  // Thruster: one rocket silhouette (nose, body, fins) tilted up-right, one
+  // porthole, one flame.
   optimize: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 'n')}${glyph_ramp(p, 'k', '#38bdf8', GLYPH_INK.iceDeep)}
-      <linearGradient id="${p}-fl" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${GLYPH_INK.gold}"/><stop offset="1" stop-color="${GLYPH_INK.clay}"/></linearGradient>
-      <linearGradient id="${p}-rr" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="64" y2="64" gradientTransform="rotate(-45 32 32)"><stop stop-color="#fff" stop-opacity="0.9"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+    <defs>${glyph_ramp(p, 'n')}</defs>
     <g transform="rotate(45 32 32)">
-      <path d="M18.5 47 V57 M45.5 46 V53" stroke="${GLYPH_INK.gold}" stroke-opacity="0.6" stroke-width="2.4" stroke-linecap="round"/>
-      <path d="M26 42 C25 50 28.5 56 32 63 C35.5 56 39 50 38 42 Z" fill="url(#${p}-fl)"/>
-      <path d="M28.8 42 C28.5 47 30.2 51 32 55 C33.8 51 35.5 47 35.2 42 Z" fill="${GLYPH_INK.cream}"/>
-      <path d="M26.5 36 H37.5 L39 42.5 H25 Z" fill="${GLYPH_INK.slateDeep}"/>
-      <path d="M23.5 27 C18 31 15 36 14.5 43 L23 38 Z M40.5 27 C46 31 49 36 49.5 43 L41 38 Z" fill="url(#${p}-k)"/>
-      <path d="M32 6 C40 13 41.5 24 41 36 H23 C22.5 24 24 13 32 6 Z" fill="url(#${p}-n)" stroke="url(#${p}-rr)" stroke-width="1.2"/>
-      <circle cx="32" cy="22.5" r="5" fill="${GLYPH_INK.iceDeep}" stroke="${GLYPH_INK.white}" stroke-width="1.6"/>
+      <path d="M25.5 45 C23 55 28 62 32 68 C36 62 41 55 38.5 45 Z" fill="${GLYPH_INK.gold}"/>
+      <path d="M32 3 C41 10 42.5 22 41.5 38 L50 48 V53 L41.5 49 H22.5 L14 53 V48 L22.5 38 C21.5 22 23 10 32 3 Z" fill="url(#${p}-n)" stroke="url(#${p}-n)" stroke-width="1.5" stroke-linejoin="round"/>
+      <circle cx="32" cy="22" r="5.4" fill="${GLYPH_INK.iceDeep}"/>
     </g>`,
 
-  // Astrolabe: a star chart in a graduated ring. Two sectors split the night
-  // dial, two gold stars sit in the open quarter, and the alidade pivots on the
-  // hub out past the rim to its sight.
+  // Astrolabe: a night disc, one lit sector, and the sighting arm out past the rim.
   analyze: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 'a')}</defs>
-    ${glyph_shadow(p, 29, 59, 20, 2.4)}
-    <circle cx="29" cy="35" r="22.5" fill="url(#${p}-a)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-    <circle cx="29" cy="35" r="17.5" fill="${GLYPH_INK.night}"/>
-    <path d="M29 35 L46.5 35 A17.5 17.5 0 0 1 29 52.5 Z" fill="${GLYPH_INK.iceDeep}"/>
-    <path d="M29 35 L29 52.5 A17.5 17.5 0 0 1 16.6 47.4 Z" fill="${GLYPH_INK.ice}"/>
-    <circle cx="21" cy="26" r="1.9" fill="${GLYPH_INK.gold}"/>
-    <circle cx="33" cy="22" r="1.5" fill="${GLYPH_INK.gold}"/>
-    <path d="M29 35 L50 14" stroke="${GLYPH_INK.white}" stroke-width="3.2" stroke-linecap="round"/>
-    <circle cx="54" cy="10" r="3.8" fill="${GLYPH_INK.white}"/>
-    <circle cx="29" cy="35" r="5" fill="${GLYPH_INK.white}"/>
-    <circle cx="29" cy="35" r="2" fill="${GLYPH_INK.night}"/>`,
+    <circle cx="29" cy="35" r="22.5" fill="${GLYPH_INK.night}"/>
+    <path d="M29 35 L51.5 35 A22.5 22.5 0 0 1 29 57.5 Z" fill="${GLYPH_INK.ice}"/>
+    <path d="M29 35 L50 14" stroke="${GLYPH_INK.white}" stroke-width="3.8" stroke-linecap="round"/>
+    <circle cx="54" cy="10" r="4.4" fill="${GLYPH_INK.white}"/>`,
 
-  // Telemetry: a readout screen in a pale bezel on a neck and foot, one pulse
-  // trace, one live dot, and a faint sheen across the glass.
+  // Telemetry: a pale bezel, a dark screen, one pulse trace, one T-shaped foot.
   status: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 'b')}
-      <linearGradient id="${p}-sc" x1="0.1" y1="0" x2="0.9" y2="1"><stop stop-color="#27364d"/><stop offset="1" stop-color="#0f172a"/></linearGradient></defs>
-    ${glyph_shadow(p, 32, 57.5, 18, 2.2)}
-    <rect x="28.5" y="44" width="7" height="9" fill="${GLYPH_INK.fog}"/>
-    <rect x="21" y="51" width="22" height="5.5" rx="2.75" fill="${GLYPH_INK.fog}"/>
-    <rect x="5" y="7" width="54" height="40" rx="9" fill="url(#${p}-b)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-    <rect x="9.5" y="11.5" width="45" height="31" rx="5.5" fill="url(#${p}-sc)"/>
-    <path d="M15 11.5 H33 L20 42.5 H9.5 V17 A5.5 5.5 0 0 1 15 11.5 Z" fill="#fff" fill-opacity="0.07"/>
-    <path d="M13.5 28.5 h8 l4.5 -9.5 l6 18 l5 -12 l3 3.5 h8.5" stroke="${GLYPH_INK.mint}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="49" cy="17.5" r="2.4" fill="${GLYPH_INK.gold}"/>`,
+    <defs>${glyph_ramp(p, 'b')}</defs>
+    <path d="M29 46 h6 v4 h6 a2.75 2.75 0 0 1 0 5.5 H23 a2.75 2.75 0 0 1 0 -5.5 h6 z" fill="${GLYPH_INK.fog}"/>
+    <rect x="5" y="7" width="54" height="40" rx="9" fill="url(#${p}-b)"/>
+    <rect x="9.5" y="11.5" width="45" height="31" rx="5.5" fill="${GLYPH_INK.night}"/>
+    <path d="M13.5 28.5 h8 l4.5 -9.5 l6 18 l5 -12 l3 3.5 h8.5" stroke="${GLYPH_INK.mint}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>`,
 
-  // Payload: an isometric cargo crate (lit top, lit left, shaded right) with a
-  // rim light along its upper-left edge and the code badge on its lower right.
+  // Payload: an isometric crate (three flat faces) and the code badge.
   purge: (p) => `
-    <defs>${glyph_defs(p)}${glyph_gap(p, 'g', 46, 46, 14.5)}</defs>
-    ${glyph_shadow(p, 30, 57.5, 19, 2.6)}
+    <defs>${glyph_gap(p, 'g', 46, 46, 14.5)}</defs>
     <g mask="url(#${p}-g)" stroke-linejoin="round" stroke-width="2.4">
       <path d="M30 6 L53 19 L30 32 L7 19 Z" fill="${GLYPH_INK.cream}" stroke="${GLYPH_INK.cream}"/>
       <path d="M7 19 L30 32 v24 L7 43 Z" fill="${GLYPH_INK.gold}" stroke="${GLYPH_INK.gold}"/>
       <path d="M53 19 L30 32 v24 L53 43 Z" fill="${GLYPH_INK.goldDeep}" stroke="${GLYPH_INK.goldDeep}"/>
-      <path d="M8 31 L30 44 L52 31" stroke="${GLYPH_INK.goldDeep}" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
-      <path d="M7.4 18.6 L30 5.6" stroke="#fff" stroke-opacity="0.85" stroke-width="1.2" stroke-linecap="round"/>
     </g>
-    ${glyph_badge(p, `<path d="M43 41.6 l-4 4.6 l4 4.6 M49 41.6 l4 4.6 l-4 4.6 M47.4 40.8 l-2.8 10.8" stroke="${GLYPH_INK.white}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)}`,
+    ${glyph_badge(`<path d="M43 41.6 l-4 4.6 l4 4.6 M49 41.6 l4 4.6 l-4 4.6 M47.4 40.8 l-2.8 10.8" stroke="${GLYPH_INK.white}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)}`,
 
-  // Blackbox: a flight recorder reduced to its two marks, the orange case and
-  // two reflective bands, with a bold counter-clockwise restore arrow in the
-  // shared badge as the single accent.
+  // Blackbox: the orange recorder case with two bands, and the restore arrow
+  // in the badge.
   history: (p) => `
-    <defs>${glyph_defs(p)}${glyph_gap(p, 'g', 46, 46, 14.5)}
+    <defs>${glyph_gap(p, 'g', 46, 46, 14.5)}
       <linearGradient id="${p}-o" x1="0.15" y1="0.05" x2="0.85" y2="1"><stop stop-color="#fb923c"/><stop offset="1" stop-color="${GLYPH_INK.clayDeep}"/></linearGradient></defs>
-    ${glyph_shadow(p, 28, 54, 22, 2.6)}
     <g mask="url(#${p}-g)">
-      <rect x="4" y="14" width="48" height="36" rx="10" fill="url(#${p}-o)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
+      <rect x="4" y="14" width="48" height="36" rx="10" fill="url(#${p}-o)"/>
       <path d="M17 14 V50 M30 14 V50" stroke="${GLYPH_INK.white}" stroke-width="6"/>
     </g>
-    ${glyph_badge(p, `<path d="M51.36 50.52 A7 7 0 1 0 41.48 51.36" stroke="${GLYPH_INK.gold}" stroke-width="3.2" stroke-linecap="round"/>
+    ${glyph_badge(`<path d="M51.36 50.52 A7 7 0 1 0 41.48 51.36" stroke="${GLYPH_INK.gold}" stroke-width="3.2" stroke-linecap="round"/>
     <path d="M44.4 53.9 L38.1 53.5 L42.85 47.9 Z" fill="${GLYPH_INK.gold}" stroke="${GLYPH_INK.gold}" stroke-width="1.2" stroke-linejoin="round"/>`)}`,
 
   // A single file (large-file rows): a page with a folded corner and text lines.
   // Ice body so it stays visible on light cards as well as dark ones.
   file: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 'p', GLYPH_INK.ice, GLYPH_INK.iceDeep)}</defs>
-    ${glyph_shadow(p, 32, 60, 15, 2.2)}
-    <path d="M17 6 h19 l13 13 v34 a5 5 0 0 1 -5 5 h-27 a5 5 0 0 1 -5 -5 v-42 a5 5 0 0 1 5 -5 z" fill="url(#${p}-p)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
+    <defs>${glyph_ramp(p, 'p', GLYPH_INK.ice, GLYPH_INK.iceDeep)}</defs>
+    <path d="M17 6 h19 l13 13 v34 a5 5 0 0 1 -5 5 h-27 a5 5 0 0 1 -5 -5 v-42 a5 5 0 0 1 5 -5 z" fill="url(#${p}-p)"/>
     <path d="M36 6 v9 a4 4 0 0 0 4 4 h9 z" fill="${GLYPH_INK.white}"/>
-    <path d="M21 31 h22 M21 39 h22 M21 47 h13" stroke="${GLYPH_INK.white}" stroke-width="3" stroke-linecap="round"/>`,
+    <path d="M21 31 h22 M21 40 h22 M21 49 h13" stroke="${GLYPH_INK.white}" stroke-width="3.2" stroke-linecap="round"/>`,
 
   // Installed apps (spec 四.4.2), drawn to the same restraint.
   app_xcode: () => `
