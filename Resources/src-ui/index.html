@@ -1253,6 +1253,24 @@
   .permission-group-path small { font-size: 10px; color: var(--text-muted); }
   .permission-group-path:hover b { color: var(--accent-primary); }
   .permission-group-path:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+  .tier-summary { gap: var(--space-1) var(--space-3); }
+  .tier-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 600; white-space: nowrap; }
+  .tier-chip .ui-ico { width: 11px; height: 11px; }
+  .tier-safe { --tier-color: var(--accent-emerald); }
+  .tier-review { --tier-color: var(--accent-amber); }
+  .tier-protected { --tier-color: var(--text-muted); }
+  .tier-chip { color: var(--tier-color); }
+  .tier-select { margin-left: auto; flex: none; }
+  .tier-note { white-space: normal; display: flex; flex-wrap: wrap; gap: 0 var(--space-2); line-height: 1.5; color: var(--text-secondary); }
+  .tier-note .tier-tag { color: var(--tier-color); font-weight: 700; }
+  .tier-note .tier-unlock { color: var(--text-muted); }
+  .tier-note .ui-ico { width: 10px; height: 10px; vertical-align: -1px; margin-right: 3px; }
+  .warn-kind + .warn-kind { margin-top: 8px; }
+  .warn-kind-head { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px; }
+  .warn-kind-head span { font: 10.5px/1.4 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-muted); }
+  .warn-permission .warn-kind-head b, .warn-limit .warn-kind-head b { color: var(--accent-amber); }
+  .warn-system .warn-kind-head b, .warn-system .permission-group-path b { color: var(--text-muted); }
+  .warn-kind-note { white-space: normal; }
   .permission-group-pane { height: 26px; padding: 0 7px; font-size: 10px; white-space: nowrap; }
   .tt-others { cursor: pointer; }
   .insights-box { border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
@@ -2253,9 +2271,9 @@ function sendNativeBridge(payload) {
   }
 }
 
-function triggerNativeRescan() {
+function triggerNativeRescan(quiet) {
   sendNativeBridge({ action: 'requestRealSystemScan' });
-  showToast(t('正在重新扫描本机真实目录、已安装应用与大文件...'));
+  if (!quiet) showToast(t('正在重新扫描本机真实目录、已安装应用与大文件...'));
 }
 
 // ───────────────── 破坏性操作回执账本（Go 执行完才回推结果）─────────────────
@@ -2283,11 +2301,70 @@ function firstFailureText(failedByPath, paths) {
 
 // entries: [{ label, sizeGb, paths:[绝对路径], commit(okPaths), onFail(failed), regKey }]
 // opts: { title, onDone(movedEntries, failedEntries, res), emptyHint, mountFailedBasket }
-// 破坏性操作成功后的刷新：真实重扫由 Go 在回执之后自己发起（主窗口与菜单栏面板共用，页面再请求会变成两次全盘扫描），
-// 这里只让空间分析模块重拉 treemap（不再手改下标猜体积）。
-function refreshAfterDestructive() {
+// 破坏性操作（清理 / AI / 卸载 / 构建 / 安装包 / 大文件 / 分析器删除 / 还原）成功后的刷新。
+// Go 在每次回执后自己发起一次整机重扫（主窗口与菜单栏面板共用，页面再请求会变成两次全盘扫描），所以页面只做：
+// 1) 回执结算时已按「剩下的」重算各模块与徽标；2) 重扫回来前在顶栏显示「正在刷新扫描结果」，不切模块、不动滚动；
+// 3) 兜底：REFRESH_DEBOUNCE_MS 内没等到 Go 的开始通知才由页面请求一次，连续多次操作只会触发一次；
+// 4) recentMoves：扫描开始后才移走的路径，迟到的扫描结果里不再「复活」。
+const recentMoves = new Map();
+const REFRESH_DEBOUNCE_MS = 2500;
+let refreshing = false, refreshTimer = 0, refreshGuard = 0, scanStartedAt = 0, lastMoveAt = 0;
+
+function endRefreshing() {
+  clearTimeout(refreshTimer); clearTimeout(refreshGuard);
+  refreshTimer = refreshGuard = 0;
+  if (refreshing) { refreshing = false; renderModule(); }
+}
+function armRefreshFallback() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = 0;
+    if (STATE.scanRunning) return;
+    triggerNativeRescan(true);
+    sendNativeBridge({ action: 'requestRealTelemetry' });
+  }, REFRESH_DEBOUNCE_MS);
+}
+function scheduleRefresh(movedPaths) {
+  const now = Date.now();
+  (movedPaths || []).forEach(p => recentMoves.set(normalizeComparePath(p), now));
+  lastMoveAt = now;
+  refreshing = true;
+  armRefreshFallback();
+  clearTimeout(refreshGuard);
+  refreshGuard = setTimeout(endRefreshing, 90000);
   STATE.analyzeStale = !!STATE.analyzeStatus;
   if (STATE.module === 'analyze') requestDiskAnalyze(STATE.analyzeRoot || '', true);
+}
+// Go 开始了一次扫描：它晚于最后一次移动就由它负责，页面兜底作废。
+function noteNativeScanStarted() {
+  scanStartedAt = Date.now();
+  if (refreshing && scanStartedAt >= lastMoveAt) { clearTimeout(refreshTimer); refreshTimer = 0; }
+}
+// 扫描结果回来：把扫描开始之后才移走的路径再剔掉一次，覆盖到最后一次移动就结束刷新态。
+function reconcileAfterScan() {
+  const now = Date.now(), ghosts = new Set();
+  recentMoves.forEach((ts, p) => {
+    if (now - ts > 600000 || ts <= scanStartedAt) recentMoves.delete(p);
+    else ghosts.add(p);
+  });
+  if (ghosts.size) dropMovedFromLists(ghosts);
+  if (!refreshing) return;
+  if (scanStartedAt >= lastMoveAt) { clearTimeout(refreshTimer); clearTimeout(refreshGuard); refreshTimer = refreshGuard = 0; refreshing = false; }
+  else if (!refreshTimer) armRefreshFallback();
+}
+function dropMovedFromLists(moved) {
+  const hit = p => !!p && moved.has(normalizeComparePath(p));
+  ['cleanGroups', 'aiMoonBands', 'orphanLeftoversList', 'appsList'].forEach(key => {
+    STATE[key] = (STATE[key] || []).filter(row => !(key === 'appsList' && hit(row.appPath))).map(row => {
+      const gone = (row.subpaths || []).filter(sp => hit(sp.path)).map(sp => sp.path);
+      if (gone.length) markSubpathsMoved(row, gone);
+      return row;
+    });
+  });
+  ['purgeItems', 'installerFiles'].forEach(key => (STATE[key] || []).forEach(row => {
+    if (hit(row.path) || (row.subpaths || []).some(sp => hit(sp.path))) { row.sizeGb = 0; row.checked = false; row.cleaned = true; row.failed = false; }
+  }));
+  STATE.largeFiles = (STATE.largeFiles || []).filter(row => !hit(row.path));
 }
 function submitTrash(entries, opts) {
   if (pendingTrashRequests.size || pendingRestoreRequests.size) { showToast(t('已有文件操作正在等待系统回执，请稍后再试')); return false; }
@@ -2386,9 +2463,9 @@ function resolveTrash(res) {
   } else {
     showToast(t('{title}失败：{n} 个路径都未能移入废纸篓（{error}）', { title: opTitle, n: failedPaths.length, error: failedPaths[0].error }));
   }
+  if (okCount > 0) scheduleRefresh(Array.from(movedSet));
   persistState();
   updateSidebarBadges(); renderModule(); renderMenuBarTrayContent();
-  if (okCount > 0) refreshAfterDestructive();
 }
 
 // 从废纸篓按 manifest 还原一批原始路径（restoreTrashSnapshot）。
@@ -2441,9 +2518,9 @@ function resolveRestore(res) {
   } else {
     showToast(t('还原失败：{error}，记录已保留', { error: firstFailureText(failedByPath, stillGone) }));
   }
+  if (restored.length) { restored.forEach(p => recentMoves.delete(normalizeComparePath(p))); scheduleRefresh(); }
   persistState();
   updateSidebarBadges(); renderModule(); renderMenuBarTrayContent();
-  if (restored.length) refreshAfterDestructive();
 }
 
 window.onNativeTrashResult = function(res) { resolveTrash(res); };
@@ -2630,6 +2707,7 @@ window.onNativeRealScanComplete = function(payload) {
     STATE.installerFiles = scanRowsWithFailures(payload.installerFiles || [], STATE.installerFiles);
   }
 
+  reconcileAfterScan();
   recomputeDiskAnalyzeTotals();
   updateSidebarBadges();
   renderModule();
@@ -3547,7 +3625,58 @@ function recomputeDiskAnalyzeTotals() {
 }
 
 // 路径行与检查器头部共用同一个格式化函数，避免 0.14 GB 与 137.6 MB 并存。
-const spSizeText = sp => hasNum(sp.sizeGb) ? fmtDiskSizeGb(sp.sizeGb) : sp.size;
+// partial 的体积只是下限：显示 ≥；一个字节都没读到时不编造数字。
+const fmtPartialGb = (gb, partial) => !partial ? fmtDiskSizeGb(gb) : hasNum(gb) && gb > 0 ? '≥ ' + fmtDiskSizeGb(gb) : t('未读取');
+const spSizeText = sp => hasNum(sp.sizeGb) ? fmtPartialGb(sp.sizeGb, sp.partial) : sp.size;
+const TIERS = ['safe', 'review', 'protected'];
+const tierLabel = tier => tier === 'safe' ? t('推荐清理') : tier === 'review' ? t('需确认') : t('受保护');
+const tierFallback = tier => tier === 'safe' ? t('可重建缓存，清理后会按需重新生成。') : tier === 'review' ? t('用途需要你确认，确认后才会处理。') : t('为避免误删，这一项只读保留。');
+// 每行 / 子路径的可见说明：reason 为空的旧载荷用分级通用句；protected 再显示 unlock；partial 说明 ≥ 不影响清理。
+function tierNoteHTML(x, parent, row) {
+  const tier = TIERS.includes(x.tier) ? x.tier : TIERS.includes(parent && parent.tier) ? parent.tier : '';
+  if (!tier) return '';
+  const reason = x.reason || x.safetyReason;
+  const text = reason ? t(reason) : tier === 'safe' && !row ? '' : tierFallback(tier);
+  return `<div class="row-sub tier-note tier-${tier}" data-tier-note="${tier}">${row ? '' : `<b class="tier-tag">${tierLabel(tier)}</b>`}${text ? `<span>${escHtml(text)}</span>` : ''}${tier === 'protected' && x.unlock ? `<span class="tier-unlock">${UI_ICON('lock')}${escHtml(t(x.unlock))}</span>` : ''}${x.partial ? `<span>${t('体积为已测下限，不影响清理')}</span>` : ''}</div>`;
+}
+// 汇总按子路径计（没有子路径的行按行计）；没有合法 tier 的旧载荷不归类，也就不出汇总。
+function tierSummary(items) {
+  const sum = { safe: { gb: 0, n: 0, partial: false }, review: { gb: 0, n: 0, partial: false }, protected: { gb: 0, n: 0, partial: false } };
+  (items || []).forEach(it => {
+    if (it.cleaned) return;
+    const subs = (it.subpaths || []).filter(sp => !sp.cleaned);
+    (subs.length ? subs.map(sp => ({ tier: it.tier === 'protected' ? 'protected' : sp.tier || it.tier, gb: sp.sizeGb, partial: sp.partial })) : [{ tier: it.tier, gb: it.sizeGb, partial: it.partial }]).forEach(r => {
+      if (!TIERS.includes(r.tier)) return;
+      const bucket = sum[r.tier];
+      bucket.n++; bucket.gb += Number(r.gb) || 0; bucket.partial = bucket.partial || !!r.partial;
+    });
+  });
+  return sum;
+}
+function tierSummaryHTML(items, mod) {
+  const sum = tierSummary(items);
+  if (!STATE.scanCompleted || !TIERS.some(tier => sum[tier].n)) return '';
+  const size = b => (b.partial && b.gb > 0 ? '≥ ' : '') + fmtDiskSizeGb(b.gb);
+  return `<div class="facts-bar tier-summary" data-tier-summary="${mod}" aria-label="${t('清理建议汇总')}">
+    <span class="tier-chip tier-safe" data-tier-safe>${t('推荐清理 {size}（已默认勾选）', { size: size(sum.safe) })}</span>
+    <span class="tier-chip tier-review" data-tier-review>${t('需确认 {size}', { size: size(sum.review) })}</span>
+    <span class="tier-chip tier-protected" data-tier-protected>${UI_ICON('lock')}${t('受保护 {size}', { size: size(sum.protected) })}</span>
+    ${TIERS.some(tier => sum[tier].partial) ? `<span class="as-note" data-tier-partial-note>${t('≥ 表示只测得下限，不影响清理')}</span>` : ''}
+    <button class="btn btn-quiet tier-select" data-tier-select ${sum.safe.n ? '' : 'disabled'} onclick="selectRecommended('${mod}')">${t('只选推荐项')}</button>
+  </div>`;
+}
+// 精确勾选推荐项：只留 tier 为 safe 的子路径（或行），其余全部取消。
+function selectRecommended(mod) {
+  const lists = mod === 'clean' ? [STATE.cleanGroups] : mod === 'ai_moon' ? [STATE.aiMoonBands] : [STATE.purgeItems, STATE.installerFiles];
+  lists.forEach(list => (list || []).forEach(it => {
+    if (it.cleaned) return;
+    if (it.subpaths && it.subpaths.length) {
+      it.subpaths.forEach(sp => { if (!sp.cleaned) sp.checked = it.tier !== 'protected' && (sp.tier || it.tier) === 'safe'; });
+      it.checked = selectedSubpaths(it).length > 0;
+    } else it.checked = it.tier === 'safe';
+  }));
+  persistState(); updateSidebarBadges(); renderModule();
+}
 // 后端在最早与最晚修改相同时也会输出「354–354 天前」。
 const ageLabel = t => String(t || '').replace(/(\d+)\s*[–-]\s*\1(?!\d)/, '$1');
 
@@ -3593,7 +3722,7 @@ window.switchModule = function(mod) {
 // Interactive Handlers for Clean (Zero protected items in list)
 function selectedSubpaths(item, mode) {
   if (item.tier === 'protected') return [];
-  return (item.subpaths || []).filter(sp => sp.checked !== false && !sp.cleaned && sp.tier !== 'protected' && !sp.partial &&
+  return (item.subpaths || []).filter(sp => sp.checked !== false && !sp.cleaned && sp.tier !== 'protected' &&
     (mode !== 'cache_only' || sp.kind === 'cache') &&
     (mode !== 'standard' || sp.kind !== 'config' || !item.keepPersonal));
 }
@@ -3606,8 +3735,8 @@ function appCacheSummary(app) {
   if (!paths.length) return { size: t('未发现'), state: '未发现已识别缓存', detail: t('只检查已识别的缓存路径，不代表应用没有缓存。Application Support 或沙盒中的私有缓存不在当前识别范围。') };
   const partial = paths.some(sp => sp.partial);
   const bytes = paths.reduce((sum, sp) => sum + (Number(sp.sizeGb) || 0), 0);
-  const size = partial && !bytes ? t('未读取') : partial ? t('{size}（已测）', { size: fmtDiskSizeGb(bytes) }) : fmtDiskSizeGb(bytes);
-  if (partial) return { size, state: '测量未完成', detail: t('缓存有未读取的部分，显示值只是已测量下限；未读取不等于没有缓存。受限路径保留，完成测量后再处理。') };
+  const size = fmtPartialGb(bytes, partial);
+  if (partial) return { size, state: '测量未完成', detail: t('缓存有未读取的部分，显示值只是已测量下限；未读取不等于没有缓存，不影响清理。') };
   const available = paths.some(sp => sp.tier !== 'protected');
   return { size, state: available ? '已测量' : '安全保留', detail: available ? t('仅清缓存只处理明确勾选的缓存路径，保留应用和个人配置。') : paths.map(sp => sp.reason).filter(Boolean).map(r => t(r)).join(I18N.lang === 'en' ? '; ' : '；') || t('缓存已测量，但受保护，不能加入清理。') };
 }
@@ -3644,7 +3773,7 @@ function toggleCleanCheck(idx, ev) {
   const g = STATE.cleanGroups[idx];
   if (!g || g.tier === 'protected') return;
   g.checked = !g.checked;
-  g.subpaths.forEach(sp => { sp.checked = g.checked && sp.tier !== 'protected' && !sp.partial; });
+  g.subpaths.forEach(sp => { sp.checked = g.checked && sp.tier !== 'protected'; });
   g.checked = selectedSubpaths(g).length > 0;
   persistState();
   updateSidebarBadges();
@@ -3652,7 +3781,7 @@ function toggleCleanCheck(idx, ev) {
 }
 function toggleSubpathCheck(groupIdx, subIdx) {
   const g = STATE.cleanGroups[groupIdx];
-  if (!g || g.tier === 'protected' || !g.subpaths[subIdx] || g.subpaths[subIdx].tier === 'protected' || g.subpaths[subIdx].partial) return;
+  if (!g || g.tier === 'protected' || !g.subpaths[subIdx] || g.subpaths[subIdx].tier === 'protected') return;
   g.subpaths[subIdx].checked = !g.subpaths[subIdx].checked;
   g.checked = selectedSubpaths(g).length > 0;
   persistState();
@@ -3677,7 +3806,7 @@ function toggleMoonCheck(idx, ev) {
   const b = STATE.aiMoonBands[idx];
   if (!b || b.tier === 'protected') return;
   b.checked = !b.checked;
-  (b.subpaths || []).forEach(sp => { sp.checked = b.checked && sp.tier !== 'protected' && !sp.partial; });
+  (b.subpaths || []).forEach(sp => { sp.checked = b.checked && sp.tier !== 'protected'; });
   b.checked = selectedSubpaths(b).length > 0;
   persistState();
   updateSidebarBadges();
@@ -3685,7 +3814,7 @@ function toggleMoonCheck(idx, ev) {
 }
 function toggleMoonSubpathCheck(idx, subIdx) {
   const b = STATE.aiMoonBands[idx], sp = b && (b.subpaths || [])[subIdx];
-  if (!sp || b.tier === 'protected' || sp.tier === 'protected' || sp.partial) return;
+  if (!sp || b.tier === 'protected' || sp.tier === 'protected') return;
   sp.checked = !sp.checked;
   b.checked = selectedSubpaths(b).length > 0;
   persistState(); updateSidebarBadges(); renderModule();
@@ -3752,7 +3881,7 @@ function toggleOrphanCheck(idx, ev) {
   item.checked = !item.checked;
   // 一组残留 = 一个整体：勾上这一组就把它的残留目录一起勾上，否则右栏看着已选、
   // 真正发给 Go 的路径集合却是空的（就是「没有解析出可删除的绝对路径」）。
-  (item.subpaths || []).forEach(sp => { sp.checked = item.checked && sp.tier !== 'protected' && !sp.partial; });
+  (item.subpaths || []).forEach(sp => { sp.checked = item.checked && sp.tier !== 'protected'; });
   item.checked = selectedSubpaths(item).length > 0;
   persistState();
   updateSidebarBadges();
@@ -3762,7 +3891,7 @@ function toggleOrphanCheck(idx, ev) {
 function toggleOrphanSubpathCheck(orphanIdx, subIdx) {
   const item = STATE.orphanLeftoversList[orphanIdx];
   if (!item || !item.subpaths || !item.subpaths[subIdx]) return;
-  if (item.tier === 'protected' || item.subpaths[subIdx].tier === 'protected' || item.subpaths[subIdx].partial) return;
+  if (item.tier === 'protected' || item.subpaths[subIdx].tier === 'protected') return;
   item.subpaths[subIdx].checked = !item.subpaths[subIdx].checked;
   item.checked = selectedSubpaths(item).length > 0;
   persistState();
@@ -3776,7 +3905,7 @@ function setUninstallMode(mode) {
     app.keepPersonal = (mode !== 'complete');
     if (Array.isArray(app.subpaths)) {
       app.subpaths.forEach(sp => {
-        if (sp.tier === 'protected' || sp.partial) sp.checked = false;
+        if (sp.tier === 'protected') sp.checked = false;
         else if (mode === 'standard') sp.checked = (sp.kind === 'app' || sp.kind === 'cache' || sp.kind === 'launch');
         else if (mode === 'complete') sp.checked = true;
         else if (mode === 'cache_only') sp.checked = (sp.kind === 'cache');
@@ -3796,7 +3925,7 @@ function setUninstallMode(mode) {
 function toggleAppSubpathCheck(appIdx, subIdx) {
   const app = STATE.appsList[appIdx];
   if (!app || !app.subpaths || !app.subpaths[subIdx]) return;
-  if (app.subpaths[subIdx].tier === 'protected' || app.subpaths[subIdx].partial) return;
+  if (app.subpaths[subIdx].tier === 'protected') return;
   app.subpaths[subIdx].checked = !app.subpaths[subIdx].checked;
   app.checked = selectedSubpaths(app, STATE.uninstallMode || 'standard').length > 0;
   persistState();
@@ -3833,13 +3962,11 @@ function renderRuntimePanel() {
   const diskReadState = pending ? [t('正在检查…'), 'unknown'] : STATE.runtimeCheckError ? [t('本次未确认'), 'unknown'] : diskObservedState;
   const previousRead = (pending || STATE.runtimeCheckError) && read ? `<p class="runtime-check-time" data-runtime-last-read>${t('上次核对 {time} · {state}；本次结果尚未返回。', { time: runtimeCheckTime(read.checkedAt || status.checkedAt), state: diskObservedState[0] })}</p>` : '';
   const evidence = Array.isArray(read?.checks) && read.checks.length ? `<details class="runtime-evidence" data-runtime-detail="read-evidence"><summary data-runtime-action="read-evidence">${t('查看 {n} 个目录的核对结果', { n: read.checks.length })}</summary>${read.checks.map(check => `<div class="runtime-evidence-row"><div><code>${escHtml(check.path)}</code>${check.detail ? `<p class="runtime-read-detail">${pending || STATE.runtimeCheckError ? t('上次读取说明：') : ''}${escHtml(t(check.detail))}</p>` : ''}</div>${stateHTML(...runtimeReadState(check))}</div>`).join('')}</details>` : '';
-  const scanGroups = groupRestrictedPaths(STATE.scanReadWarnings).map(group => ({ ...group, pane: /^(?:~|\/Users\/[^/]+)\/(?:Desktop|Documents|Downloads|Library\/(?:Mail|Safari|Messages|Containers|Group Containers))(\/|$)/.test(group.label) ? group.pane : '' }));
-  const scanEvidence = scanGroups.length ? `<details class="runtime-evidence runtime-scan-evidence" data-runtime-detail="scan-evidence"><summary data-runtime-action="scan-evidence">${t('最近本机扫描：{n} 个路径未完成测量 · {groups} 组', { n: STATE.scanReadWarnings.length, groups: scanGroups.length })}</summary>
+  const scanSum = warningSummary();
+  const scanGroupCount = groupRestrictedPaths(STATE.scanReadWarnings.filter(w => warningKind(w) !== 'system')).length;
+  const scanEvidence = scanSum.total ? `<details class="runtime-evidence runtime-scan-evidence" data-runtime-detail="scan-evidence"><summary data-runtime-action="scan-evidence">${scanSum.total > scanSum.system ? t('最近本机扫描：{n} 个路径未完成测量 · {groups} 组', { n: scanSum.total - scanSum.system, groups: scanGroupCount }) : t('最近本机扫描：{n} 个位置受 macOS 系统保护，无需处理', { n: scanSum.system })}</summary>
     <p class="runtime-permission-note">${t('这是最近收到的本机模块扫描记录，不等于系统权限开关状态。探测目录可读不保证其它路径可读；拒绝、超时和读取上限分别见各组原因。权限设置不会消除读取上限或目录访问控制；刷新权限不会重新扫描这些路径。')}</p>
-    <div class="permission-group-list">${scanGroups.map(group => `<div class="permission-group-row">
-      <button class="permission-group-path" data-runtime-action="${escHtml('scan-path:' + group.key)}" onclick="revealInFinder('${jsq(group.path)}')" aria-label="${escHtml(t('在访达中显示 {path}', { path: group.path }))}">${UI_ICON('folder')}<span><b>${escHtml(group.label)}</b><small>${t('{n} 个路径', { n: group.count })}${group.reason ? ' · ' + escHtml(t(group.reason)) : ''}</small></span></button>
-      ${group.pane ? `<button class="btn permission-group-pane" data-runtime-action="${escHtml('scan-pane:' + group.key)}" onclick="openPrivacySettingsForPane('${group.pane}')">${t('核对{pane}', { pane: permissionPaneLabel(group.pane) })}</button>` : `<span class="row-sub">${t('查看读取原因')}</span>`}
-    </div>`).join('')}</div></details>` : '';
+    ${scanWarningSectionsHTML(true)}</details>` : '';
   body.innerHTML = `<div class="runtime-section"><strong>${status ? packaged ? t('当前运行：应用包') : t('当前运行：临时可执行程序') : t('等待原生运行信息')}</strong>
     <p>${status ? packaged ? t('权限应授予下方这个应用包。当前为本地临时签名；重建后 macOS 仍可能要求重新确认。') : t('go run 的程序位于临时目录，没有稳定的应用身份。请先在启动终端按 Ctrl-C，再使用 make run 启动应用包；不要把临时程序当作正式 orbit 授权。') : t('这里只检查运行方式和读取能力，不会执行清理或修改系统权限。')}</p>
     ${status ? `<code class="runtime-path">${escHtml(status.appPath || status.executablePath)}</code><p>${escHtml(status.identifier || t('未绑定 Bundle ID'))} · ${escHtml(t('版本 {version}', { version: status.version || t('未知') }))}</p>` : ''}</div>
@@ -3931,7 +4058,8 @@ function renderRuntimeBanner() {
   const foldersDenied = status?.folderReadAccess?.some(check => check.passed === false || check.status === 'denied');
   const message = status?.packaged === false ? t('当前是 go run 临时程序，权限可能归属启动它的终端。请使用 make run 的应用包运行方式。')
     : status?.readAccess?.passed === false || status?.readAccess?.status === 'denied' || foldersDenied ? t('部分目录读取被拒绝，列表可能不完整；请查看各项权限状态，核对当前应用的系统开关。')
-    : STATE.scanReadWarnings.length ? t('最近本机扫描还有 {n} 个路径未完成测量，可能涉及权限、超时或读取上限；请查看原因。', { n: STATE.scanReadWarnings.length }) : '';
+    : warningSummary().permission ? t('最近本机扫描有 {n} 个路径没有读取权限；请在完全磁盘访问权限中确认当前应用，然后刷新扫描。', { n: warningSummary().permission })
+    : warningSummary().error + warningSummary().legacy ? t('最近本机扫描还有 {n} 个路径未完成测量，可能涉及权限、超时或读取上限；请查看原因。', { n: warningSummary().error + warningSummary().legacy }) : '';
   banner.hidden = !message;
   document.getElementById('runtimeBannerText').textContent = message;
 }
@@ -3950,6 +4078,54 @@ function permissionPaneForPath(rawPath) {
 
 function permissionPaneLabel(pane) {
   return pane === 'filesAndFolders' ? t('文件与文件夹') : t('完全磁盘访问权限');
+}
+
+// readWarnings[].kind: permission | system | limit | error。旧载荷没有 kind，按未分类（''）处理，行为与此前一致。
+const WARNING_KIND_ORDER = ['permission', 'error', '', 'limit', 'system'];
+function warningKind(w) { return w && ['permission', 'system', 'limit', 'error'].includes(w.kind) ? w.kind : ''; }
+function warningSummary(list) {
+  const s = { permission: 0, error: 0, legacy: 0, limit: 0, system: 0 };
+  (Array.isArray(list) ? list : STATE.scanReadWarnings).forEach(w => { s[warningKind(w) || 'legacy']++; });
+  s.actionable = s.permission + s.error + s.legacy;
+  s.total = s.actionable + s.limit + s.system;
+  return s;
+}
+// 标题与徽章不计入 system（无需处理）；limit 只说明体积是下限，不说「受限」。
+function warningHeadline(s) {
+  if (s.permission) return t('{n} 个路径没有读取权限，请授予完全磁盘访问权限', { n: s.permission });
+  if (s.error || s.legacy) return t('部分路径未完成测量，请先查看原因');
+  if (s.limit) return t('权限正常；{n} 个较大目录只测量了部分体积（不影响清理）', { n: s.limit });
+  return '';
+}
+function warningBadge(s) {
+  return s.permission ? t('部分路径无读取权限') : s.error || s.legacy ? t('部分测量受限') : s.limit ? t('部分体积为下限') : '';
+}
+function warningKindText(kind) {
+  if (kind === 'permission') return { title: t('没有读取权限'), note: t('需要完全磁盘访问权限；授权后回到 orbit 点「刷新扫描」。') };
+  if (kind === 'limit') return { title: t('只测量了部分体积'), note: t('触达测量上限或超时，体积是下限；没有被拒绝，也不影响清理。') };
+  if (kind === 'system') return { title: t('macOS 系统保护'), note: t('这些位置即使授予完全磁盘访问权限也无法读取，无需处理。') };
+  if (kind === 'error') return { title: t('读取出错'), note: t('读取时出现其它错误，见各组原因。') };
+  return { title: '', note: '' };
+}
+function warningRowAction(group, rt) {
+  if (group.pane) return `<button class="btn permission-group-pane"${rt ? ` data-runtime-action="${escHtml('scan-pane:' + group.key)}"` : ''} onclick="openPrivacySettingsForPane('${group.pane}')">${rt ? t('核对{pane}', { pane: permissionPaneLabel(group.pane) }) : permissionPaneLabel(group.pane)}</button>`;
+  return `<span class="row-sub">${group.kind === 'system' ? t('无需处理') : group.kind === 'limit' ? t('不影响清理') : t('查看读取原因')}</span>`;
+}
+// 运行时面板与模块内提示共用：按 kind 分节，每节一句说明；没有 kind 时不加节标题。
+function scanWarningSectionsHTML(rt) {
+  const groups = groupRestrictedPaths(STATE.scanReadWarnings).map(group => rt && !group.kind && !/^(?:~|\/Users\/[^/]+)\/(?:Desktop|Documents|Downloads|Library\/(?:Mail|Safari|Messages|Containers|Group Containers))(\/|$)/.test(group.label) ? { ...group, pane: '' } : group);
+  const headed = groups.some(group => group.kind);
+  return WARNING_KIND_ORDER.map(kind => {
+    const rows = groups.filter(group => group.kind === kind);
+    if (!rows.length) return '';
+    const text = warningKindText(kind);
+    const n = rows.reduce((sum, group) => sum + group.count, 0);
+    return `<div class="warn-kind warn-${kind || 'legacy'}">${headed && kind ? `<div class="warn-kind-head"><b>${text.title}</b><span>${t('{n} 个路径', { n })}</span></div><div class="row-sub warn-kind-note">${text.note}</div>` : ''}
+      <div class="permission-group-list">${rows.map(group => `<div class="permission-group-row">
+        <button class="permission-group-path"${rt ? ` data-runtime-action="${escHtml('scan-path:' + group.key)}"` : ''} onclick="revealInFinder('${jsq(group.path)}')" aria-label="${escHtml(t('在访达中显示 {path}', { path: group.path }))}">${UI_ICON(kind === 'system' ? 'lock' : 'folder')}<span><b>${escHtml(group.label)}</b><small>${t('{n} 个路径', { n: group.count })}${group.reason ? ' · ' + escHtml(t(group.reason)) : ''}</small></span></button>
+        ${warningRowAction(group, rt)}
+      </div>`).join('')}</div></div>`;
+  }).join('');
 }
 
 // Keep 590 restrictions inspectable without printing 590 rows: group by the
@@ -3972,10 +4148,13 @@ function groupRestrictedPaths(items) {
     }
     const key = label || shown;
     const reason = typeof item.reason === 'string' ? item.reason : '';
-    const pane = /权限|授权|permission|not permitted|access denied/i.test(reason) ? permissionPaneForPath(item.path) : '';
-    if (!groups.has(key)) {
-      groups.set(key, {
+    const kind = warningKind(item);
+    const pane = (kind ? kind === 'permission' : /权限|授权|permission|not permitted|access denied/i.test(reason)) ? permissionPaneForPath(item.path) : '';
+    const gkey = kind + '\0' + key;
+    if (!groups.has(gkey)) {
+      groups.set(gkey, {
         key,
+        kind,
         label: key,
         path: absolutePath(key),
         count: 0,
@@ -3984,12 +4163,12 @@ function groupRestrictedPaths(items) {
         firstIndex: index
       });
     }
-    const group = groups.get(key);
+    const group = groups.get(gkey);
     group.count += 1;
     if (!group.pane && pane) group.pane = pane;
     if (!group.reason && typeof item.reason === 'string') group.reason = item.reason;
   });
-  return Array.from(groups.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'));
+  return Array.from(groups.values()).sort((a, b) => WARNING_KIND_ORDER.indexOf(a.kind) - WARNING_KIND_ORDER.indexOf(b.kind) || b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'));
 }
 
 function restrictedRecoveryHTML(items, rescanPath) {
@@ -4734,14 +4913,15 @@ function selectPurgeRow(idx) { STATE.selectedPurgeIdx = idx; renderModule(); }
 function togglePurgeCheck(idx, ev) {
   if (ev) ev.stopPropagation();
   const item = STATE.purgeItems[idx];
-  if (!item || item.tier === 'protected' || item.partial) return;
+  if (!item || item.tier === 'protected') return;
   item.checked = !item.checked;
-  (item.subpaths || []).forEach(sp => { sp.checked = item.checked && sp.tier !== 'protected' && !sp.partial; });
+  (item.subpaths || []).forEach(sp => { sp.checked = item.checked && sp.tier !== 'protected'; });
   persistState();
   updateSidebarBadges();
   renderModule();
 }
 function toggleInstallerCheck(idx) {
+  if (STATE.installerFiles[idx].tier === 'protected') return;
   STATE.installerFiles[idx].checked = !STATE.installerFiles[idx].checked;
   persistState();
   updateSidebarBadges();
@@ -4870,13 +5050,13 @@ function renderModule() {
     const selectedGb = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + selectedSizeGb(g), 0);
     const selectedItems = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + selectedSubpaths(g).length, 0);
     const measuredGb = STATE.cleanGroups.reduce((sum, group) => sum + (hasNum(group.sizeGb) ? group.sizeGb : 0), 0);
-    const reviewableGb = STATE.cleanGroups.filter(group => group.tier !== 'protected').reduce((sum, group) => sum + (group.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected' && !path.partial).reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0), 0);
+    const reviewableGb = STATE.cleanGroups.filter(group => group.tier !== 'protected').reduce((sum, group) => sum + (group.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected').reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0), 0);
     topTitle.textContent = t('智能深度清理 · 气闸舱');
     primaryBtnText.textContent = selectedGb > 0 ? t('一键清理所选 ({size} GB)', {size: selectedGb.toFixed(2)}) : !STATE.cleanGroups.length ? t('开始扫描') : !STATE.cleanGroups.some(g => g.cleaned) ? t('请先勾选要清理的项目') : t('全部所选项已清理完毕');
     heroHeadline.textContent = selectedGb > 0
       ? t('已勾选 {size}，预览后再移入废纸篓', {size: fmtDiskSizeGb(selectedGb)})
       : !STATE.cleanGroups.length ? t('还没有扫描结果') : STATE.cleanGroups.every(g => g.tier === 'protected') ? t('本次路径暂不能处理，请查看保留原因') : t('缓存按路径审查，未知用途先保留');
-    heroDesc.textContent = t('已知闲置缓存才可默认选择；未知用途、运行中和未完整读取的路径保留。预览精确路径，确认后移入废纸篓。');
+    heroDesc.textContent = t('推荐清理已默认勾选；需确认的路径由你决定，受保护的路径只读保留。预览精确路径，确认后移入废纸篓。');
     heroStatLabel.textContent = t('当前已勾选待清理');
     heroStatValue.textContent = fmtDiskSizeGb(selectedGb);
     heroStatSub.textContent = selectedGb > 0 ? t('共 {n} 项 · 二次确认后真实移入废纸篓', {n: selectedItems}) : !STATE.cleanGroups.length ? t('扫描只读取，不会删除任何内容') : !STATE.cleanGroups.some(g => g.cleaned) ? t('勾选后将显示合计大小') : t('可在「恢复记录与白名单」中随时还原');
@@ -4888,6 +5068,7 @@ function renderModule() {
     const sharePct = selGroup && selGroup.sizeGb > 0 ? ((selGroup.sizeGb / totalScanGb) * 100).toFixed(1) + '%' : t('0.0% (已清理)');
 
     stage.innerHTML = `
+      ${tierSummaryHTML(STATE.cleanGroups, 'clean')}
       ${STATE.scanCompleted ? `<div class="facts-bar clean-scan-coverage" aria-label="${t('本模块已识别缓存的测量与保留情况')}"><span data-clean-measured>${t('已测量 {size}', {size: fmtDiskSizeGb(measuredGb)})}${STATE.cleanGroups.some(group => group.partial) ? t('（含不完整下限）') : ''}</span><span data-clean-reviewable>${t('可审查 {size}', {size: fmtDiskSizeGb(reviewableGb)})}</span><span data-clean-retained>${t('保留（已测）{size}', {size: fmtDiskSizeGb(Math.max(0, measuredGb - reviewableGb))})}</span></div>` : ''}
       ${STATE.scanCompleted && STATE.cleanExcludedRoots.length ? `<details class="runtime-evidence clean-exclusions" ${STATE.cleanExcludedOpen ? 'open' : ''} ontoggle="if(this.isConnected)STATE.cleanExcludedOpen=this.open"><summary tabindex="0">${t('{n} 个已识别扫描目录被保护排除 · 体积未测量', {n: STATE.cleanExcludedRoots.length})}</summary><p>${t('这些是本模块已识别的扫描目录，不是全盘索引；白名单和核心保护仍生效。未测量不等于 0 B，也不是可直接释放的容量。')}</p><div class="permission-group-list">${STATE.cleanExcludedRoots.map(item => `<div class="permission-group-row"><button class="permission-group-path" onclick="revealInFinder('${jsq(item.path)}')" aria-label="${t('在访达中显示 {path}', {path: escHtml(item.path)})}">${UI_ICON('lock')}<span><b>${escHtml(displayPath(item.path))}</b><small>${escHtml(t(item.reason))}</small></span></button><span class="row-sub">${t('未测量')}</span></div>`).join('')}</div><div class="permission-recovery-actions"><button class="btn" data-clean-whitelist onclick="switchModule('history')">${t('查看白名单')}</button></div></details>` : ''}
       <div class="master-detail-grid">
@@ -4896,9 +5077,9 @@ function renderModule() {
             <span>${t('缓存与日志')}</span>
             <div class="segmented-tabs">
               <div class="seg-tab ${STATE.cleanFilter === 'all' ? 'active' : ''}" onclick="setCleanFilter('all')">${t('全部')}${tabCount(STATE.cleanGroups.length)}</div>
-              <div class="seg-tab ${STATE.cleanFilter === 'safe' ? 'active' : ''}" onclick="setCleanFilter('safe')">${t('可重建')}${tabCount(STATE.cleanGroups.filter(x=>x.tier==='safe').length)}</div>
+              <div class="seg-tab ${STATE.cleanFilter === 'safe' ? 'active' : ''}" onclick="setCleanFilter('safe')">${t('推荐清理')}${tabCount(STATE.cleanGroups.filter(x=>x.tier==='safe').length)}</div>
               <div class="seg-tab ${STATE.cleanFilter === 'review' ? 'active' : ''}" onclick="setCleanFilter('review')">${t('需确认')}${tabCount(STATE.cleanGroups.filter(x=>x.tier==='review').length)}</div>
-              <div class="seg-tab ${STATE.cleanFilter === 'protected' ? 'active' : ''}" onclick="setCleanFilter('protected')">${t('保留')}${tabCount(STATE.cleanGroups.filter(x=>x.tier==='protected').length)}</div>
+              <div class="seg-tab ${STATE.cleanFilter === 'protected' ? 'active' : ''}" onclick="setCleanFilter('protected')">${t('受保护')}${tabCount(STATE.cleanGroups.filter(x=>x.tier==='protected').length)}</div>
             </div>
           </div>
           <div class="list-body">
@@ -4911,22 +5092,22 @@ function renderModule() {
                 <div class="list-row ${isSel ? 'selected' : ''}" onclick="selectCleanRow(${origIdx})">
                   <div class="row-left">
                     ${g.tier === 'protected'
-                      ? `<span class="lock-glyph" title="${t('保留，不可勾选')}">${UI_ICON('lock')}</span>`
+                      ? `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`
                       : `<input type="checkbox" ${g.checked ? 'checked' : ''} onclick="toggleCleanCheck(${origIdx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
                     }
                     <div style="min-width:0;">
                       <div class="row-title">${escHtml(t(g.name))}</div>
                       <div class="row-sub">${escHtml(g.path)} · ${escHtml(t(g.filesCount))}${g.partial ? ' · ' + t('部分测量') : ''}</div>
-                      ${g.safetyReason ? `<div class="row-sub" style="color:var(--accent-amber);white-space:normal;">${escHtml(t(g.safetyReason))}</div>` : ''}
+                      ${tierNoteHTML(g, null, true)}
                       ${g.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;line-height:1.5;margin-top:2px;">${escHtml(t(g.failedReason))}</div>` : ''}
                     </div>
                   </div>
                   <div class="row-right">
                     <div class="prop-bar-wrap"><div class="prop-bar-fill" style="width:${pct}%;background:${g.tier === 'protected' ? 'var(--accent-purple)' : barColor};"></div></div>
                     ${g.failed ? `<span class="badge" style="background:rgba(244,63,94,.14);color:var(--accent-rose);border:1px solid rgba(244,63,94,.35);">${t('删除失败')}</span>` : `<span class="badge ${g.cleaned ? 'badge-safe' : g.tier === 'safe' ? 'badge-safe' : g.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-                      ${g.cleaned ? t('已清理') : g.tier === 'safe' ? t('闲置可重建') : g.tier === 'review' ? t('需确认') : t('保留')}
+                      ${g.cleaned ? t('已清理') : tierLabel(g.tier)}
                     </span>`}
-                    <span class="size-cell">${fmtDiskSizeGb(g.sizeGb)}</span>
+                    <span class="size-cell">${fmtPartialGb(g.sizeGb, g.partial)}</span>
                   </div>
                 </div>
               `;
@@ -4937,7 +5118,7 @@ function renderModule() {
         <div class="panel-card">
           <div class="panel-header">
             <span>${t('目录结构与安全评估')}</span>
-            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selGroup ? fmtDiskSizeGb(selGroup.sizeGb) : ''}</span>
+            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selGroup ? fmtPartialGb(selGroup.sizeGb, selGroup.partial) : ''}</span>
           </div>
           ${selGroup ? `
           <div class="inspector-content">
@@ -4963,10 +5144,10 @@ function renderModule() {
               ${selGroup.subpaths.map((sp, spIdx) => `
                 <div class="subpath-item">
                   <div class="subpath-left">
-                    ${selGroup.tier === 'protected' || sp.tier === 'protected' || sp.partial ? `<span class="lock-glyph" title="${escHtml(t(sp.reason || '保持原状'))}">${UI_ICON('lock')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
+                    ${selGroup.tier === 'protected' || sp.tier === 'protected' ? `<span class="lock-glyph" title="${escHtml(t(sp.reason || '保持原状'))}">${UI_ICON('lock')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleSubpathCheck(${STATE.selectedCleanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />`}
                     <div style="min-width:0;">
                       <span style="overflow-wrap:anywhere;cursor:pointer;" onclick="revealInFinder('${jsq(sp.path)}')">${UI_ICON(sp.isDir === false ? 'file' : 'folder')} ${escHtml(sp.path)}</span>
-                      ${sp.reason ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(t(sp.reason))}</div>` : ''}${fullMeasureButton(sp, selGroup)}
+                      ${tierNoteHTML(sp, selGroup)}${fullMeasureButton(sp, selGroup)}
                     </div>
                   </div>
                   <div class="subpath-right">
@@ -4994,7 +5175,7 @@ function renderModule() {
     const scopedBands = STATE.aiMoonBands.filter(band => matchesAITool(band) && matchesSearch(band));
     const scopedExclusions = STATE.aiExcludedRoots.filter(root => matchesAITool(root) && matchesSearch(root));
     const measuredGb = scopedBands.reduce((sum, band) => sum + (hasNum(band.sizeGb) ? band.sizeGb : 0), 0);
-    const reviewableGb = scopedBands.filter(band => band.tier !== 'protected').reduce((sum, band) => sum + (band.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected' && !path.partial).reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0), 0);
+    const reviewableGb = scopedBands.filter(band => band.tier !== 'protected').reduce((sum, band) => sum + (band.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected').reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0), 0);
     topTitle.textContent = t('AI 专项清理 · 智核舱');
     primaryBtnText.textContent = selectedGb > 0 ? t('清理所选 AI 冗余 ({size} GB)', {size: selectedGb.toFixed(2)}) : !STATE.aiMoonBands.length ? t('开始扫描') : t('AI 冗余已清理完毕');
     heroHeadline.textContent = selectedGb > 0
@@ -5008,9 +5189,10 @@ function renderModule() {
     const filtered = scopedBands.filter(band => STATE.aiFilter === 'all' || band.tier === STATE.aiFilter);
     const hiddenSelection = selectedBands.filter(band => !filtered.includes(band)).flatMap(band => selectedSubpaths(band));
     const selBand = filtered.includes(STATE.aiMoonBands[STATE.selectedMoonIdx]) ? STATE.aiMoonBands[STATE.selectedMoonIdx] : filtered[0];
-    const selNote = selBand ? selBand.safetyReason || selBand.gitState || '' : '';
+    const selNote = selBand ? selBand.reason || selBand.safetyReason || selBand.gitState || '' : '';
     if (selBand) STATE.selectedMoonIdx = STATE.aiMoonBands.indexOf(selBand);
     stage.innerHTML = `
+      ${tierSummaryHTML(scopedBands, 'ai_moon')}
       ${STATE.scanCompleted ? `<div class="facts-bar clean-scan-coverage ai-scan-coverage" aria-label="${t('当前工具与关键词范围的测量情况')}"><span data-ai-tools>${t('已识别 {n} 个工具／资源类', {n: tools.length})}</span><span data-ai-scope>${STATE.aiToolFilter === 'all' && !q ? t('全部结果') : t('当前筛选')}</span><span data-ai-measured>${t('已测量 {size}', {size: fmtDiskSizeGb(measuredGb)})}${scopedBands.some(band => band.partial) ? t('（含不完整下限）') : ''}</span><span data-ai-reviewable>${t('可审查 {size}', {size: fmtDiskSizeGb(reviewableGb)})}</span><span data-ai-retained>${t('保留（已测）{size}', {size: fmtDiskSizeGb(Math.max(0, measuredGb - reviewableGb))})}</span></div>` : ''}
       ${STATE.scanCompleted && scopedExclusions.length ? `<details class="runtime-evidence clean-exclusions ai-exclusions" ${STATE.aiExcludedOpen ? 'open' : ''} ontoggle="if(this.isConnected)STATE.aiExcludedOpen=this.open"><summary tabindex="0">${t('{n} 个已识别 AI 缓存目录被保护排除 · 体积未测量', {n: scopedExclusions.length})}</summary><p>${t('已识别缓存仍须遵守白名单；不会为了增加清理容量而解除保护。这里只核对默认路径，未列出不代表工具没有数据。')}</p><div class="permission-group-list">${scopedExclusions.map(item => `<div class="permission-group-row"><button class="permission-group-path" onclick="revealInFinder('${jsq(item.path)}')" aria-label="${t('在访达中显示 {path}', {path: escHtml(item.path)})}">${UI_ICON('lock')}<span><b>${escHtml(t(item.tool))} · ${escHtml(displayPath(item.path))}</b><small>${escHtml(t(item.reason))}</small></span></button><span class="row-sub">${t('未测量')}</span></div>`).join('')}</div><div class="permission-recovery-actions"><button class="btn" onclick="switchModule('history')">${t('查看白名单')}</button></div></details>` : ''}
       <label class="ai-tool-filter">${t('工具')} <select tabindex="0" aria-label="${t('筛选已识别 AI 工具')}" onchange="setAIToolFilter(this.value)"><option value="all">${t('全部已识别工具')}</option>${tools.map(tool => `<option value="${escHtml(tool)}" ${STATE.aiToolFilter === tool ? 'selected' : ''}>${escHtml(t(tool))}${uninstalledTools.has(tool) ? ' · ' + t('已卸载') : ''}</option>`).join('')}</select></label>
@@ -5021,9 +5203,9 @@ function renderModule() {
             <span>${t('AI 工具与资料')}</span>
             <div class="segmented-tabs">
               <div class="seg-tab ${STATE.aiFilter === 'all' ? 'active' : ''}" onclick="setAIFilter('all')">${t('全部')}${tabCount(scopedBands.length)}</div>
-              <div class="seg-tab ${STATE.aiFilter === 'safe' ? 'active' : ''}" onclick="setAIFilter('safe')">${t('可重建')}${tabCount(scopedBands.filter(band => band.tier === 'safe').length)}</div>
+              <div class="seg-tab ${STATE.aiFilter === 'safe' ? 'active' : ''}" onclick="setAIFilter('safe')">${t('推荐清理')}${tabCount(scopedBands.filter(band => band.tier === 'safe').length)}</div>
               <div class="seg-tab ${STATE.aiFilter === 'review' ? 'active' : ''}" onclick="setAIFilter('review')">${t('需确认')}${tabCount(scopedBands.filter(band => band.tier === 'review').length)}</div>
-              <div class="seg-tab ${STATE.aiFilter === 'protected' ? 'active' : ''}" onclick="setAIFilter('protected')">${t('保留')}${tabCount(scopedBands.filter(band => band.tier === 'protected').length)}</div>
+              <div class="seg-tab ${STATE.aiFilter === 'protected' ? 'active' : ''}" onclick="setAIFilter('protected')">${t('受保护')}${tabCount(scopedBands.filter(band => band.tier === 'protected').length)}</div>
             </div>
           </div>
           <div class="list-body">
@@ -5038,15 +5220,15 @@ function renderModule() {
                   <div style="min-width:0;">
                     <div class="row-title">${escHtml(t(b.name))}</div>
                     <div class="row-sub">${escHtml(t(b.band))}${b.uninstalled ? ' · ' + t('已卸载') : ''}${b.ageText ? ' · ' + escHtml(ageLabel(b.ageText)) : ''} · ${escHtml(b.path)}</div>
-                    ${b.safetyReason || b.gitState ? `<div class="row-sub" style="color:var(--accent-amber);white-space:normal;">${escHtml(t(b.gitState || b.safetyReason))}</div>` : ''}
+                    ${tierNoteHTML(b, null, true)}${b.gitState && !b.reason && !b.safetyReason ? `<div class="row-sub" style="white-space:normal;">${escHtml(t(b.gitState))}</div>` : ''}
                     ${b.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(b.failedReason))}</div>` : ''}
                   </div>
                 </div>
                 <div class="row-right">
                   <span class="badge ${b.failed ? 'badge-review' : b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-                    ${b.failed ? t('未处理') : b.cleaned ? t('已清理') : b.tier === 'safe' ? t('闲置可重建') : b.tier === 'review' ? t('需确认') : t('保留')}
+                    ${b.failed ? t('未处理') : b.cleaned ? t('已清理') : tierLabel(b.tier)}
                   </span>
-                  <span class="size-cell">${fmtDiskSizeGb(b.sizeGb)}</span>
+                  <span class="size-cell">${fmtPartialGb(b.sizeGb, b.partial)}</span>
                 </div>
               </div>
             `; }).join('')}
@@ -5056,7 +5238,7 @@ function renderModule() {
         <div class="panel-card">
           <div class="panel-header">
             <span>${t('AI 路径安全审查明细')}</span>
-            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selBand ? fmtDiskSizeGb(selBand.sizeGb) : ''}</span>
+            <span style="font-family:var(--font-mono);color:var(--accent-primary);">${selBand ? fmtPartialGb(selBand.sizeGb, selBand.partial) : ''}</span>
           </div>
           ${selBand ? `
           <div class="inspector-content">
@@ -5065,14 +5247,14 @@ function renderModule() {
               <div style="font-size:14px;font-weight:700;margin-top:2px;">${escHtml(t(selBand.name))}</div>
             </div>
             <div class="bento-4">
-              <div class="bento-cell"><div class="bento-label">${t('实际占用（已测量）')}</div><div class="bento-val">${fmtDiskSizeGb(selBand.sizeGb)}${selBand.partial ? ' · ' + t('部分') : ''}</div></div>
+              <div class="bento-cell"><div class="bento-label">${t('实际占用（已测量）')}</div><div class="bento-val">${fmtPartialGb(selBand.sizeGb, selBand.partial)}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('文件与路径')}</div><div class="bento-val">${escHtml(t(selBand.filesCount))}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('最近修改')}</div><div class="bento-val">${escHtml(t(selBand.lastMod))}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('重建与影响')}</div><div class="bento-val">${escHtml(t(selBand.rebuildTime))}</div></div>
             </div>
             <div class="inspector-box" style="border:1px solid var(--border-subtle);background:var(--bg-surface);border-radius:10px;">
               <div style="font-weight:700;margin-bottom:3px;font-size:11px;">${UI_ICON('shield')} ${t('AI 数据安全边界说明')}</div>
-              ${selNote ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(t(selNote))}</div>` : ''}
+              ${selNote ? `<div class="row-sub" style="white-space:normal;color:var(--text-secondary);">${escHtml(t(selNote))}</div>` : ''}
               ${selBand.impact && selBand.impact !== selNote ? `<div style="color:var(--text-secondary);font-size:11px;">${escHtml(t(selBand.impact))}</div>` : ''}
               ${selBand.uninstalled ? `<div style="color:var(--text-secondary);font-size:11px;margin-top:4px;">${t('未检测到 {tool} 的启动器或应用，按已卸载处理；其可重建缓存与日志照常审查。登录凭据、配置与每个项目最新的 5 个会话仍然保留，不会列入清理。', {tool: escHtml(selBand.tool)})}</div>` : ''}
             </div>
@@ -5081,10 +5263,10 @@ function renderModule() {
               ${selBand.subpaths.map((sp, subIdx) => `
                 <div class="subpath-item">
                   <div class="subpath-left">
-                    ${selBand.tier === 'protected' || sp.tier === 'protected' || sp.partial ? `<span class="lock-glyph" title="${escHtml(t(sp.reason || '保持原状'))}">${UI_ICON('lock')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleMoonSubpathCheck(${STATE.selectedMoonIdx}, ${subIdx})" />`}
+                    ${selBand.tier === 'protected' || sp.tier === 'protected' ? `<span class="lock-glyph" title="${escHtml(t(sp.reason || '保持原状'))}">${UI_ICON('lock')}</span>` : `<input type="checkbox" ${sp.checked !== false ? 'checked' : ''} onchange="toggleMoonSubpathCheck(${STATE.selectedMoonIdx}, ${subIdx})" />`}
                     <div style="min-width:0;">
                       <span style="cursor:pointer;overflow-wrap:anywhere;" onclick="revealInFinder('${jsq(sp.path)}')">${UI_ICON(sp.isDir === false ? 'file' : 'folder')} ${escHtml(sp.path)}</span>
-                      ${sp.reason && sp.reason !== selNote && sp.reason !== selBand.impact ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(t(sp.reason))}</div>` : ''}${fullMeasureButton(sp, selBand)}
+                      ${tierNoteHTML(sp, selBand)}${fullMeasureButton(sp, selBand)}
                     </div>
                   </div>
                   <span class="subpath-right">${selBand.cleaned ? '0 MB' : spSizeText(sp)}</span>
@@ -5206,7 +5388,7 @@ function renderModule() {
                 ${selOrphan.subpaths.map((sp, spIdx) => `
                   <div class="subpath-item">
                     <div class="subpath-left">
-                      <input type="checkbox" ${sp.checked !== false && sp.tier !== 'protected' && !sp.partial ? 'checked' : ''} ${selOrphan.tier === 'protected' || sp.tier === 'protected' || sp.partial ? 'disabled' : ''} onchange="toggleOrphanSubpathCheck(${STATE.selectedOrphanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <input type="checkbox" ${sp.checked !== false && sp.tier !== 'protected' ? 'checked' : ''} ${selOrphan.tier === 'protected' || sp.tier === 'protected' ? 'disabled' : ''} onchange="toggleOrphanSubpathCheck(${STATE.selectedOrphanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
                       <span class="badge ${sp.kind === 'cache' ? 'badge-safe' : 'badge-review'}" style="font-size:9px;padding:1px 5px;">
                         ${sp.kind === 'cache' ? t('缓存 / SDK') : t('配置')}
                       </span>
@@ -5291,7 +5473,7 @@ function renderModule() {
                 if (!matchesSearch(app)) return '';
                 const rowGb = calcAppGb(app);
                 const cache = appCacheSummary(app);
-                const selectable = !(app.running && mode !== 'cache_only') && app.subpaths.some(sp => !sp.cleaned && sp.tier !== 'protected' && !sp.partial
+                const selectable = !(app.running && mode !== 'cache_only') && app.subpaths.some(sp => !sp.cleaned && sp.tier !== 'protected'
                   && (mode !== 'cache_only' || sp.kind === 'cache') && (mode !== 'standard' || sp.kind !== 'config' || !app.keepPersonal));
                 return `
                 <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
@@ -5355,7 +5537,7 @@ function renderModule() {
                 ${selApp.subpaths.map((sp, spIdx) => `
                   <div class="app-path-entry"><div class="subpath-item">
                     <div class="subpath-left">
-                      <input type="checkbox" ${selectedSubpaths(selApp, mode).includes(sp) ? 'checked' : ''} ${sp.tier === 'protected' || sp.partial || mode === 'cache_only' && sp.kind !== 'cache' || mode === 'standard' && sp.kind === 'config' && selApp.keepPersonal ? 'disabled' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <input type="checkbox" ${selectedSubpaths(selApp, mode).includes(sp) ? 'checked' : ''} ${sp.tier === 'protected' || mode === 'cache_only' && sp.kind !== 'cache' || mode === 'standard' && sp.kind === 'config' && selApp.keepPersonal ? 'disabled' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
                       <span class="badge ${sp.kind === 'app' || sp.kind === 'launch' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
                         ${sp.kind === 'app' ? t('应用') : sp.kind === 'cache' ? t('缓存') : sp.kind === 'launch' ? t('启动项') : t('个人配置')}
                       </span>
@@ -5694,33 +5876,36 @@ function renderModule() {
     heroHeadline.textContent = totalDevGb > 0
       ? t('发现 {build} GB 项目构建产物 + {inst} GB 独立安装包', {build: purgeGb.toFixed(2), inst: instGb.toFixed(2)})
       : !(STATE.purgeItems.length + STATE.installerFiles.length) ? t('还没有扫描结果') : t('所有勾选的项目构建产物与独立安装包已清理完毕');
-    heroDesc.textContent = t('工作区目录按名称匹配，不保证全部可重建；默认不勾选，未完整测量的目录保留。安装包独立扫描，移动到废纸篓不等于立即释放空间。');
+    heroDesc.textContent = t('工作区目录按名称匹配；推荐清理已默认勾选，其余需确认或受保护。安装包独立扫描，移动到废纸篓不等于立即释放空间。');
     heroStatLabel.textContent = t('已勾选构建与安装包');
     heroStatValue.textContent = `${totalDevGb.toFixed(2)} GB`;
     heroStatSub.textContent = t('二次确认后真实移入 ~/.Trash');
 
     stage.innerHTML = `
+      ${tierSummaryHTML([].concat(STATE.purgeItems, STATE.installerFiles), 'purge')}
       <div class="master-detail-grid">
         <div class="panel-card">
           <div class="panel-header">
             <span>${t('构建产物')}</span>
-            <span class="badge badge-review">${t('按名称匹配 · 需确认')}</span>
+            <span class="badge badge-review">${t('按名称匹配')}</span>
           </div>
           <div class="list-body">
             ${STATE.purgeItems.map((item, idx) => !matchesSearch(item) ? '' : `
               <div class="list-row ${idx === STATE.selectedPurgeIdx ? 'selected' : ''}" onclick="selectPurgeRow(${idx})">
                 <div class="row-left">
-                  <input type="checkbox" ${item.checked && item.tier !== 'protected' && !item.partial ? 'checked' : ''} ${item.tier === 'protected' || item.partial ? 'disabled' : ''} onclick="togglePurgeCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
+                  ${item.tier === 'protected'
+                    ? `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`
+                    : `<input type="checkbox" ${item.checked ? 'checked' : ''} onclick="togglePurgeCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />`}
                   <div style="min-width:0;">
                     <div class="row-title">${escHtml(displayPath(item.project))}/<span style="color:var(--accent-primary);">${escHtml(item.artifact)}</span></div>
                     <div class="row-sub">${escHtml(t(item.kind))} · ${escHtml(t(item.age))} · ${escHtml(t(item.gitClean))}${item.partial ? ' · ' + t('部分测量') : ''}</div>
-                    ${item.safetyReason ? `<div class="row-sub" style="white-space:normal;color:var(--accent-amber);">${escHtml(t(item.safetyReason))}</div>` : ''}
+                    ${tierNoteHTML(item, null, true)}
                     ${item.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(item.failedReason))}</div>` : ''}
                   </div>
                 </div>
                 <div class="row-right">
-                  <span class="badge ${item.tier === 'protected' || item.partial ? 'badge-protected' : 'badge-review'}">${item.failed ? t('未处理') : item.cleaned ? t('已移入') : item.tier === 'protected' || item.partial ? t('保留') : t('需确认')}</span>
-                  <span class="size-cell">${item.partial && !item.sizeGb ? t('未读取') : fmtDiskSizeGb(item.sizeGb)}</span>
+                  <span class="badge ${item.tier === 'safe' ? 'badge-safe' : item.tier === 'protected' ? 'badge-protected' : 'badge-review'}">${item.failed ? t('未处理') : item.cleaned ? t('已移入') : tierLabel(item.tier)}</span>
+                  <span class="size-cell">${fmtPartialGb(item.sizeGb, item.partial)}</span>
                 </div>
               </div>
             `).join('')}
@@ -5739,11 +5924,12 @@ function renderModule() {
               <div style="font-size:14px;font-weight:700;margin-top:2px;">${escHtml(displayPath(selPurge.project))}/${escHtml(selPurge.artifact)}</div>
             </div>
             <div class="bento-4">
-              <div class="bento-cell"><div class="bento-label">${t('产物目录体积')}</div><div class="bento-val" style="color:var(--accent-primary);">${selPurge.partial && !selPurge.sizeGb ? t('未读取') : fmtDiskSizeGb(selPurge.sizeGb)}</div></div>
+              <div class="bento-cell"><div class="bento-label">${t('产物目录体积')}</div><div class="bento-val" style="color:var(--accent-primary);">${fmtPartialGb(selPurge.sizeGb, selPurge.partial)}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('未修改时长')}</div><div class="bento-val">${t(selPurge.age)}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('版本库状态')}</div><div class="bento-val" style="color:var(--text-secondary);">${escHtml(t(selPurge.gitClean))}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('重建方式说明')}</div><div class="bento-val">${t(selPurge.rebuildNote)}</div></div>
             </div>
+            ${tierNoteHTML(selPurge, null, false)}
             ${selPurge.partial && selPurge.subpaths && selPurge.subpaths[0] ? fullMeasureButton(selPurge.subpaths[0]) : ''}
             ` : '<div class="row-sub">' + t('没有构建产物，仍可检查下方安装包。') + '</div>'}
             <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-top:2px;">${t('独立安装包 · 与当前工程无关（最多 20 项，可单独勾选）')}</div>
@@ -5752,11 +5938,16 @@ function renderModule() {
               ${STATE.installerFiles.map((inst, idx) => !matchesSearch(inst) ? '' : `
                 <div class="subpath-item">
                   <div class="subpath-left">
-                    <input type="checkbox" ${inst.checked ? 'checked' : ''} onchange="toggleInstallerCheck(${idx})" style="width:13px;height:13px;cursor:pointer;" />
-                    <span style="overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="revealInFinder('${jsq(inst.path || inst.location + '/' + inst.name)}')">${escHtml(displayPath(inst.location))}/${escHtml(inst.name)}</span>
+                    ${inst.tier === 'protected'
+                      ? `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`
+                      : `<input type="checkbox" ${inst.checked ? 'checked' : ''} onchange="toggleInstallerCheck(${idx})" style="width:13px;height:13px;cursor:pointer;" />`}
+                    <div style="min-width:0;">
+                      <span style="overflow-wrap:anywhere;cursor:pointer;" onclick="revealInFinder('${jsq(inst.path || inst.location + '/' + inst.name)}')">${escHtml(displayPath(inst.location))}/${escHtml(inst.name)}</span>
+                      ${tierNoteHTML(inst, null, false)}
+                    </div>
                     ${inst.failedReason ? `<span style="color:var(--accent-rose);" title="${escHtml(t(inst.failedReason))}">${t('未处理')}</span>` : ''}
                   </div>
-                  <span class="subpath-right">${fmtDiskSizeGb(inst.sizeGb)}</span>
+                  <span class="subpath-right">${fmtPartialGb(inst.sizeGb, inst.partial)}</span>
                 </div>
               `).join('')}
             </div>
@@ -6079,8 +6270,8 @@ function buildCleanEntries(module = STATE.module) {
       if (!entries.length) { showToast(t('这些应用的勾选项里没有可删除的内容（仅清缓存模式需勾选缓存子项）')); return; }
     }
   } else if (module === 'purge') {
-    const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0 && p.tier !== 'protected' && !p.partial);
-    const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0);
+    const selP = STATE.purgeItems.filter(p => p.checked && p.sizeGb > 0 && p.tier !== 'protected');
+    const selI = STATE.installerFiles.filter(i => i.checked && i.sizeGb > 0 && i.tier !== 'protected');
     if (!selP.length && !selI.length) { showToast(t('没有勾选需要清理的构建产物或安装包')); return; }
     actionLabel = '构建产物与遗留安装包清理';
     selP.forEach(p => entries.push({
@@ -6440,7 +6631,7 @@ document.addEventListener('keydown', (e) => {
     clearTimeout(scanTimer);
     scanTimer = setTimeout(() => showToast(t('本机扫描仍在进行，目录较多时需要更久。现有结果仅供查看，请等待回执。')), 20000);
   };
-  window.onNativeRealScanStarted = function () { beginScan(); updateSidebarBadges(); renderModule(); };
+  window.onNativeRealScanStarted = function () { noteNativeScanStarted(); beginScan(); updateSidebarBadges(); renderModule(); };
 
   function listPlaceholder() {
     if (scanning || STATE.module === 'analyze' && STATE.analyzeLoading) {
@@ -6467,7 +6658,7 @@ document.addEventListener('keydown', (e) => {
       act = STATE.module === 'ai_moon' ? "clearAIFilters()" : "setCleanFilter('all')";
     } else if (STATE.scanCompleted) {
       if (STATE.module === 'clean' && STATE.cleanExcludedRoots.length) return '<div class="empty-state">' + UI_ICON('lock') + '<div class="empty-title">' + t('已识别扫描目录被保护排除') + '</div><div class="empty-desc">' + t('没有候选不代表没有缓存；请展开上方排除原因并查看白名单。其它读取限制仍单独显示。') + '</div></div>';
-      if (STATE.scanReadWarnings.length) return '<div class="empty-state">' + UI_ICON('lock') + '<div class="empty-title">' + t('部分目录未能读取') + '</div><div class="empty-desc">' + t('这里只统计可读取的目录。受限目录没有计入体积，请检查下方路径与权限提示。') + '</div></div>';
+      if (warningSummary().actionable) return '<div class="empty-state">' + UI_ICON('lock') + '<div class="empty-title">' + t('部分目录未能读取') + '</div><div class="empty-desc">' + t('这里只统计可读取的目录。受限目录没有计入体积，请检查下方路径与权限提示。') + '</div></div>';
       return '<div class="empty-state">' + UI_ICON('shield') + '<div class="empty-title">' + t('未发现可清理项目') + '</div><div class="empty-desc">' + t('本次扫描没有返回候选项。白名单仍生效，受保护的路径不会出现在清理列表中。') + '</div></div>';
     } else {
       icon = 'folder';
@@ -6504,7 +6695,7 @@ document.addEventListener('keydown', (e) => {
       const needsScan = !STATE.scanCompleted && !items.length;
       pbt.textContent = pendingTrashRequests.size ? t('等待回执') : needsScan && !scanning ? t('开始扫描') : t('预览所选');
       pbtn.disabled = scanning || pendingTrashRequests.size > 0 || (!needsScan && (!STATE.scanCompleted || !eligible));
-      if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : STATE.scanReadWarnings.length ? t('部分路径未完成测量，请先查看原因') : STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描');
+      if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary()) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
     } else {
       pbtn.disabled = STATE.module === 'optimize' && STATE.optimizeTasks.some(t => t.requested);
       pbt.textContent = STATE.module === 'optimize' ? pbtn.disabled ? t('正在维护') : t('重置缩略图') : STATE.module === 'analyze' ? STATE.analyzeLoading ? t('取消扫描') : t('重新扫描') : STATE.module === 'status' ? t('刷新状态') : t('复制记录');
@@ -6517,35 +6708,28 @@ document.addEventListener('keydown', (e) => {
     rescan.closest('button').classList.toggle('busy', scanning);
     rescan.closest('button').setAttribute('aria-busy', scanning ? 'true' : 'false');
     rescan.closest('button').hidden = STATE.module === 'analyze';
-    stage.setAttribute('aria-busy', scanning || pendingTrashRequests.size > 0 || STATE.module === 'analyze' && STATE.analyzeLoading ? 'true' : 'false');
-    document.getElementById('scanSourceBadge').textContent = scanning ? t('正在读取本机') : STATE.scanReadWarnings.length ? t('部分测量受限') : STATE.scanCompleted ? STATE.module === 'ai_moon' ? t('本地 AI 目录审查 · 不等于 CLI 清理') : t('本机扫描已返回') : t('等待本机数据');
+    stage.setAttribute('aria-busy', scanning || refreshing || pendingTrashRequests.size > 0 || STATE.module === 'analyze' && STATE.analyzeLoading ? 'true' : 'false');
+    document.getElementById('scanSourceBadge').textContent = scanning ? t('正在读取本机') : refreshing ? t('正在刷新扫描结果') : warningBadge(warningSummary()) || (STATE.scanCompleted ? STATE.module === 'ai_moon' ? t('本地 AI 目录审查 · 不等于 CLI 清理') : t('本机扫描已返回') : t('等待本机数据'));
     // 历史页没有本机扫描，不显示扫描来源。
     document.getElementById('scanSourceBadge').parentElement.hidden = STATE.module === 'history';
     if (STATE.module === 'analyze') {
       document.getElementById('scanSourceBadge').textContent = STATE.analyzeLoading ? t('正在读取本地目录') : STATE.analyzeError ? t('扫描未完成，旧结果保留') : STATE.analyzeStatus ? t('orbit 本地扫描 · 仅此范围') : t('等待目录扫描');
     }
     if (STATE.scanReadWarnings.length && ['clean', 'ai_moon', 'software', 'purge'].includes(STATE.module)) {
-      const warningGroups = groupRestrictedPaths(STATE.scanReadWarnings);
-      const permissions = warningGroups.some(group => group.pane);
-      const recommendedPane = warningGroups.some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : 'filesAndFolders';
+      const sum = warningSummary();
+      const legacyOnly = sum.legacy === sum.total;
+      const quiet = !sum.actionable && !sum.limit;
       const hint = document.createElement('details');
       hint.className = 'panel-card';
       hint.style.cssText = 'flex:none;padding:12px 16px;font-size:12px;line-height:1.6;';
-      hint.innerHTML = `<summary style="cursor:pointer;color:var(--accent-amber);">${t('本机扫描：{n} 个路径未完成测量，按目录查看原因', { n: STATE.scanReadWarnings.length })}</summary>
-        <div class="row-sub" style="white-space:normal;margin-top:8px;">${t('这是整次本机扫描的告警，包含应用数据、缓存与构建目录，不代表同等数量的应用卸载失败。原因可能是读取权限、超时或文件测量上限；未读取不等于 0 B。')}</div>
-        <div class="permission-group-list">
-          ${warningGroups.map(group => `
-            <div class="permission-group-row">
-              <button class="permission-group-path" onclick="revealInFinder('${jsq(group.path)}')" title="${t('在访达中显示 {path}', { path: escHtml(group.path) })}">
-                ${UI_ICON('folder')}
-                <span><b>${escHtml(group.label)}</b><small>${t('{n} 个路径', { n: group.count })}${group.reason ? ' · ' + escHtml(t(group.reason)) : ''}</small></span>
-              </button>
-              ${group.pane ? `<button class="btn permission-group-pane" onclick="openPrivacySettingsForPane('${group.pane}')">${t(permissionPaneLabel(group.pane))}</button>` : `<span class="row-sub">${t('查看读取原因')}</span>`}
-            </div>`).join('')}
-        </div>
+      const lead = legacyOnly ? t('本机扫描：{n} 个路径未完成测量，按目录查看原因', { n: sum.total }) : quiet ? t('{n} 个位置受 macOS 系统保护，无需处理', { n: sum.system }) : warningHeadline(sum);
+      hint.innerHTML = `<summary style="cursor:pointer;color:var(${quiet ? '--text-muted' : '--accent-amber'});">${lead}</summary>
+        ${legacyOnly ? `<div class="row-sub" style="white-space:normal;margin-top:8px;">${t('这是整次本机扫描的告警，包含应用数据、缓存与构建目录，不代表同等数量的应用卸载失败。原因可能是读取权限、超时或文件测量上限；未读取不等于 0 B。')}</div>` : ''}
+        ${scanWarningSectionsHTML(false)}
         <div class="permission-recovery-actions">
-          ${permissions ? `<button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>
-          <button class="btn" onclick="openPrivacySettingsForPane('${recommendedPane}')">${t('打开{pane}', { pane: t(permissionPaneLabel(recommendedPane)) })}</button>` : `<span class="row-sub">${t('权限设置不会取消遍历上限，可用空间分析按层检查。')}</span>`}
+          ${sum.permission ? `<button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>
+          <button class="btn" onclick="openPrivacySettingsForPane('fullDiskAccess')">${t('打开{pane}', { pane: permissionPaneLabel('fullDiskAccess') })}</button>` : sum.legacy && groupRestrictedPaths(STATE.scanReadWarnings).some(group => group.pane) ? `<button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>
+          <button class="btn" onclick="openPrivacySettingsForPane('${groupRestrictedPaths(STATE.scanReadWarnings).some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : 'filesAndFolders'}')">${t('打开{pane}', { pane: permissionPaneLabel(groupRestrictedPaths(STATE.scanReadWarnings).some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : 'filesAndFolders') })}</button>` : sum.limit || sum.legacy || sum.error ? `<span class="row-sub">${t('权限设置不会取消遍历上限，可用空间分析按层检查。')}</span>` : ''}
         </div>`;
       stage.appendChild(hint);
     }

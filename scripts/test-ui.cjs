@@ -23,6 +23,11 @@ function load(name, target = context) {
   const next = script.indexOf('\nfunction ', start + 1);
   vm.runInContext(script.slice(start, next), target);
 }
+function loadConst(name, target = context) {
+  const m = script.match(new RegExp(`^const ${name} = .*;$`, 'm'));
+  assert.ok(m, `${name} exists`);
+  vm.runInContext(m[0].replace(/^const /, 'var '), target);
+}
 function loadCallback(name, target = context) {
   const start = script.indexOf(`window.${name} = function(`);
   assert.ok(start >= 0, `${name} exists`);
@@ -203,7 +208,7 @@ const receipts = vm.createContext({
   STATE: { module: 'clean', uninstallMode: 'standard', scanCompleted: true, homePath: '/Users/qa', collected: [], historyLogs: [], deletedPathsRegistry: [] },
   pendingTrashRequests: new Map(), pendingRestoreRequests: new Map(), absolutePath: value => value, displayPath: value => value,
   persistState() {}, updateSidebarBadges() {}, renderModule() {}, renderMenuBarTrayContent() {},
-  refreshAfterDestructive() {}, showToast() {}, renderRuntimeBanner() {},
+  scheduleRefresh() {}, reconcileAfterScan() {}, showToast() {}, renderRuntimeBanner() {},
   document: { getElementById() { return { classList: { contains() { return false; } } }; } },
 });
 receipts.window = receipts;
@@ -261,6 +266,75 @@ assert.equal(receipts.pendingRestoreRequests.has('restore-2'), true);
 receipts.resolveRestore({ requestId: 'restore-2', restored: ['/tmp/two'], failed: [] });
 assert.equal(receipts.STATE.historyLogs.length, 0, 'successful retry can finish a partially restored record');
 
+// --- 破坏性操作后的刷新：本地结算、单次兜底重扫、迟到扫描不复活已移走路径 ---------------------------
+{
+  const timers = [];
+  const rescans = [];
+  const refresh = vm.createContext({
+    STATE: { scanRunning: false, homePath: '/Users/qa', module: 'clean', cleanGroups: [{ id: 'c', path: '/tmp/c', sizeGb: 3, checked: true, tier: 'safe', subpaths: [
+      { path: '/tmp/a', sizeGb: 1, checked: true }, { path: '/tmp/b', sizeGb: 2, checked: true }] }] },
+    renderModule() {}, requestDiskAnalyze() {}, sendNativeBridge() {},
+    triggerNativeRescan(quiet) { rescans.push(quiet); },
+    setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout(id) { if (id) timers[id - 1] = null; },
+  });
+  refresh.window = refresh;
+  ['hasNum', 'selectedSubpaths', 'normalizeComparePath', 'markSubpathsMoved', 'endRefreshing', 'armRefreshFallback', 'scheduleRefresh', 'noteNativeScanStarted', 'reconcileAfterScan', 'dropMovedFromLists'].forEach(name => load(name, refresh));
+  vm.runInContext('var recentMoves = new Map(), REFRESH_DEBOUNCE_MS = 2500, refreshing = false, refreshTimer = 0, refreshGuard = 0, scanStartedAt = 0, lastMoveAt = 0', refresh);
+  const fire = () => timers.splice(0).forEach(fn => fn && fn());
+  vm.runInContext('scheduleRefresh(["/tmp/a"]); scheduleRefresh(["/tmp/b"])', refresh);
+  assert.equal(vm.runInContext('refreshing', refresh), true, 'a move enters the quiet refreshing state');
+  fire();
+  assert.equal(rescans.length, 1, 'back-to-back operations cause exactly one fallback rescan');
+  assert.equal(rescans[0], true, 'the fallback rescan is quiet');
+  // Go 的扫描晚于最后一次移动开始：页面兜底作废，不会二次重扫。
+  rescans.length = 0;
+  vm.runInContext('scheduleRefresh(["/tmp/x"]); scanStartedAt = lastMoveAt + 1; noteNativeScanStarted()', refresh);
+  fire();
+  assert.equal(rescans.length, 0, 'a native scan that started after the move owns the refresh');
+  // 扫描在移动之前开始、之后才回来：陈旧结果里的已移走路径要再剔掉一次。
+  vm.runInContext('recentMoves.clear(); scanStartedAt = 0; scheduleRefresh(["/tmp/a"])', refresh);
+  vm.runInContext('STATE.cleanGroups = [{ id: "c", path: "/tmp/c", sizeGb: 3, checked: true, tier: "safe", subpaths: [{ path: "/tmp/a", sizeGb: 1, checked: true }, { path: "/tmp/b", sizeGb: 2, checked: true }] }]; reconcileAfterScan()', refresh);
+  const ghost = vm.runInContext('STATE.cleanGroups[0]', refresh);
+  assert.equal(ghost.subpaths[0].cleaned, true, 'a late scan cannot resurrect a path moved after it began');
+  assert.equal(ghost.sizeGb, 2, 'remaining size is recomputed from what is left');
+  assert.equal(vm.runInContext('refreshing', refresh), true, 'still refreshing until a scan that started after the last move returns');
+  // 开始于最后一次移动之后的扫描是权威的：结果原样采用，刷新态结束。
+  vm.runInContext('scanStartedAt = lastMoveAt + 1; STATE.cleanGroups = [{ id: "c", path: "/tmp/c", sizeGb: 3, checked: true, tier: "safe", subpaths: [{ path: "/tmp/a", sizeGb: 1, checked: true }] }]; reconcileAfterScan()', refresh);
+  assert.equal(vm.runInContext('STATE.cleanGroups[0].subpaths[0].cleaned', refresh), undefined, 'a fresh scan is authoritative');
+  assert.equal(vm.runInContext('refreshing', refresh), false, 'refreshing ends with the authoritative scan');
+}
+
+// --- 分级汇总、≥ 下限、按 kind 分组的测量告警 ---------------------------------------------------------
+{
+  const view = vm.createContext({ STATE: { scanCompleted: true, scanReadWarnings: [] }, UI_ICON: () => '' });
+  view.window = view;
+  ['hasNum', 'fmtDiskSizeGb', 'tierSummary', 'warningKind', 'warningSummary', 'warningHeadline', 'warningBadge'].forEach(name => load(name, view));
+  vm.runInContext(script.slice(script.indexOf('const fmtPartialGb'), script.indexOf('const spSizeText')), view);
+  assert.equal(vm.runInContext('fmtPartialGb(1.5, true)', view), '≥ 1.50 GB', 'a partial size is a lower bound');
+  assert.equal(vm.runInContext('fmtPartialGb(0, true)', view), '未读取', 'nothing read shows no invented number');
+  assert.equal(vm.runInContext('fmtPartialGb(1.5, false)', view), '1.50 GB');
+  vm.runInContext('var TIERS = ["safe", "review", "protected"]', view);
+  view.rows = [
+    { tier: 'safe', checked: true, sizeGb: 3, subpaths: [{ path: '/a', sizeGb: 1, tier: 'safe', partial: true }, { path: '/b', sizeGb: 2 }] },
+    { tier: 'review', sizeGb: 4, subpaths: [{ path: '/c', sizeGb: 4, tier: 'review' }] },
+    { tier: 'protected', sizeGb: 5, subpaths: [{ path: '/d', sizeGb: 5, tier: 'safe' }] },
+    { tier: 'review', sizeGb: 9, cleaned: true, subpaths: [] },
+    { sizeGb: 7 },
+  ];
+  const sum = vm.runInContext('tierSummary(rows)', view);
+  assert.deepEqual([sum.safe.gb, sum.safe.n, sum.safe.partial], [3, 2, true], 'safe sums payload sizes per subpath and flags partial');
+  assert.deepEqual([sum.review.gb, sum.protected.gb], [4, 5], 'a protected row keeps all its subpaths protected');
+  assert.equal(sum.review.n + sum.protected.n + sum.safe.n, 4, 'cleaned and untiered rows are not classified');
+  const only = kind => { view.STATE.scanReadWarnings = [{ path: '/p', reason: 'r', kind }, { path: '/q', reason: 'r', kind }]; return vm.runInContext('warningSummary()', view); };
+  assert.equal(vm.runInContext('warningHeadline(warningSummary())', view), '', 'no warnings, no headline');
+  assert.match(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only('limit') }) && view), /权限正常；2 个较大目录只测量了部分体积（不影响清理）/);
+  assert.equal(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only('system') }) && view), '', 'system locations never reach the headline');
+  assert.equal(only('system').actionable, 0, 'system is not actionable');
+  assert.match(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only('permission') }) && view), /2 个路径没有读取权限/);
+  assert.equal(only('weird').legacy, 2, 'unknown kinds fall back to the legacy summary');
+  assert.equal(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only(undefined) }) && view), '部分路径未完成测量，请先查看原因', 'payloads without kind keep the old headline');
+}
+
 receipts.recomputeDiskAnalyzeTotals = () => {};
 receipts.STATE.appsList = [];
 receipts.STATE.orphanLeftoversList = [];
@@ -315,7 +389,8 @@ analysis.window = analysis;
 ['hasNum', 'escHtml', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'uiLocale', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
   'currentTiles', 'currentAggregated', 'analyzeScopeTotal', 'matchesSearch', 'analysisSelectedSmallItem', 'analysisVisibleTiles', 'restoreAnalysisSelection', 'currentLargeFiles', 'scanRowsWithFailures',
   'normalizeAggregated', 'squarifyRects', 'foldedTreemapTile', 'layoutTreemap', 'treemapPreviewHTML', 'absolutePath', 'permissionPaneForPath',
-  'groupRestrictedPaths', 'protectionReason'].forEach(name => load(name, analysis));
+  'warningKind', 'groupRestrictedPaths', 'protectionReason'].forEach(name => load(name, analysis));
+loadConst('WARNING_KIND_ORDER', analysis);
 loadCallback('onNativeDiskAnalyze', analysis);
 loadCallback('onNativeAnalyzeProgress', analysis);
 analysis.onNativeDiskAnalyze({ requestId: 'root-1', root: '~', scanStatus: 'ok', totalGb: 8, totalSizeGb: 8, totalLogicalGb: 10, fileCount: 23,
