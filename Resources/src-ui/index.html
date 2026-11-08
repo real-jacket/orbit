@@ -1819,18 +1819,18 @@ const GLYPHS = {
   // far arc: its centre is on the ring's centreline and the band is drawn over
   // it, so the ball shows above and below the band. Same geometry as
   // scripts/generate-app-icon.swift (ellipse 26.5 x 10.2, tilted 25 degrees up
-  // to the right, sphere r 14, companion r 4).
+  // to the right, sphere r 14, companion r 5.8).
   brand: (p) => `
     <defs><radialGradient id="${p}-s" cx="0.34" cy="0.28" r="0.95">
       <stop stop-color="${GLYPH_INK.sphereLight}"/><stop offset="0.5" stop-color="${GLYPH_INK.clay}"/><stop offset="1" stop-color="${GLYPH_INK.sphereDeep}"/>
     </radialGradient>
     <linearGradient id="${p}-ro" gradientUnits="userSpaceOnUse" x1="8" y1="43" x2="56" y2="21"><stop stop-color="#e9b43c"/><stop offset="1" stop-color="#ffe08a"/></linearGradient>
     <linearGradient id="${p}-rf" gradientUnits="userSpaceOnUse" x1="8" y1="43" x2="56" y2="21"><stop stop-color="#7a5410"/><stop offset="1" stop-color="#b98a22"/></linearGradient>
-    <clipPath id="${p}-cc"><circle cx="52.65" cy="18.15" r="3.85"/></clipPath></defs>
-    <circle cx="52.65" cy="18.15" r="4" fill="${GLYPH_INK.ice}"/>
+    <clipPath id="${p}-cc"><circle cx="48.27" cy="17.48" r="5.6"/></clipPath></defs>
+    <circle cx="48.27" cy="17.48" r="5.8" fill="${GLYPH_INK.ice}"/>
     <path d="M56.02 20.8 A26.5 10.2 -25 0 0 7.98 43.2" stroke="#0b4a73" stroke-width="3.7" clip-path="url(#${p}-cc)"/>
     <path d="M56.02 20.8 A26.5 10.2 -25 0 0 7.98 43.2" stroke="url(#${p}-rf)" stroke-width="2.8" stroke-linecap="round"/>
-    <circle cx="51.45" cy="16.15" r="0.75" fill="#fff" fill-opacity="0.85"/>
+    <circle cx="46.53" cy="14.58" r="1.05" fill="#fff" fill-opacity="0.85"/>
     <circle cx="32" cy="32" r="14" fill="url(#${p}-s)"/>
     <path d="M7.98 43.2 A26.5 10.2 -25 0 0 56.02 20.8" stroke="url(#${p}-ro)" stroke-width="3.8" stroke-linecap="round"/>
 `,

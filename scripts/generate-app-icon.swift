@@ -143,10 +143,10 @@ enum OrbitMark {
     static let orbitTilt: CGFloat = 25
 
     /// Parameter (radians) of the companion on the far arc, just short of the
-    /// right-hand end of the major axis. Its centre is (52.65, 18.15), the same
+    /// right-hand end of the major axis. Its centre is (48.27, 17.48), the same
     /// circle the sidebar SVG draws; it is always taken from orbitPoint, never
     /// placed by eye.
-    static let companionParam: CGFloat = -22 * .pi / 180
+    static let companionParam: CGFloat = -38 * .pi / 180
 
     /// A point on the orbit ellipse, in 64-grid SVG coordinates (y down).
     /// `t` is the ellipse parameter; sin(t) > 0 is the near (lower) half.
@@ -189,14 +189,14 @@ struct IconProfile {
     /// 128pt and up: the mark at full detail.
     static let full = IconProfile(
         planetRadius: 14, ringWidth: 3.8, backRingWidth: 2.6, orbitStretch: 1.0,
-        showsShading: true, castsShadow: true, companionRadius: 4.0,
+        showsShading: true, castsShadow: true, companionRadius: 5.8,
         plateTop: Brand.plateTop, plateMid: Brand.plateMid, plateEnd: Brand.plateEnd
     )
 
     /// 32–64pt: the same drawing, a touch heavier so it survives downscaling.
     static let compact = IconProfile(
         planetRadius: 14.4, ringWidth: 4.4, backRingWidth: 3.4, orbitStretch: 1.06,
-        showsShading: true, castsShadow: false, companionRadius: 4.6,
+        showsShading: true, castsShadow: false, companionRadius: 6.4,
         plateTop: Brand.hex(0x36363C), plateMid: Brand.hex(0x0E0E11), plateEnd: Brand.hex(0x4E230F)
     )
 
