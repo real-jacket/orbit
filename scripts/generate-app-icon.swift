@@ -14,9 +14,14 @@
 //       half and in front of it for its near half (三.3 真实空间遮挡关系). It
 //       tapers continuously with depth: thinner and dimmer far away, thicker
 //       and brighter near, so there is no visible step at the seams.
-//    4  an ice-blue companion riding the far arc, from 32pt up, lit from the
-//       same upper-left key as the sphere (a pale face, a deeper limb and, from
-//       64pt, one tiny specular)
+//    4  an ice-blue companion threaded on the far arc, from 32pt up. Its centre
+//       is computed on the ring's own centreline (same ellipse, tilt and
+//       stretch) and the band is painted over its middle, so the ball shows
+//       above and below the band and the ring plainly runs through it. From
+//       128pt a thin dark seam edges the band and the band throws a soft shadow
+//       onto the ball; below that the bare band is the cue. Lit from the same
+//       upper-left key as the sphere (a pale face, a deeper limb and, from
+//       64pt, one tiny specular kept clear of the band)
 //
 //  Refinement pass: the ring carries a soft highlight along its near arc (a
 //  gold is never one gold), and its shadow on the sphere is narrow and soft, so
@@ -139,7 +144,8 @@ enum OrbitMark {
 
     /// Parameter (radians) of the companion on the far arc, just short of the
     /// right-hand end of the major axis. Its centre is (52.65, 18.15), the same
-    /// circle the sidebar SVG draws.
+    /// circle the sidebar SVG draws; it is always taken from orbitPoint, never
+    /// placed by eye.
     static let companionParam: CGFloat = -22 * .pi / 180
 
     /// A point on the orbit ellipse, in 64-grid SVG coordinates (y down).
@@ -183,14 +189,14 @@ struct IconProfile {
     /// 128pt and up: the mark at full detail.
     static let full = IconProfile(
         planetRadius: 14, ringWidth: 3.8, backRingWidth: 2.6, orbitStretch: 1.0,
-        showsShading: true, castsShadow: true, companionRadius: 3.6,
+        showsShading: true, castsShadow: true, companionRadius: 4.0,
         plateTop: Brand.plateTop, plateMid: Brand.plateMid, plateEnd: Brand.plateEnd
     )
 
     /// 32–64pt: the same drawing, a touch heavier so it survives downscaling.
     static let compact = IconProfile(
         planetRadius: 14.4, ringWidth: 4.4, backRingWidth: 3.4, orbitStretch: 1.06,
-        showsShading: true, castsShadow: false, companionRadius: 4.0,
+        showsShading: true, castsShadow: false, companionRadius: 4.6,
         plateTop: Brand.hex(0x36363C), plateMid: Brand.hex(0x0E0E11), plateEnd: Brand.hex(0x4E230F)
     )
 
@@ -284,7 +290,7 @@ func drawSphere(in ctx: CGContext, profile: IconProfile) {
 /// from one smoothstep of depth, so far -> near is a continuous ramp: the seams
 /// sit exactly on the ends of the major axis and nothing steps there. 三.3 asks
 /// for the far half behind the sphere and the near half in front of it.
-struct OrbitSegment { let path: CGPath; let width: CGFloat; let color: CGColor }
+struct OrbitSegment { let path: CGPath; let width: CGFloat; let color: CGColor; let at: CGPoint }
 
 func orbitSegments(profile: IconProfile, near: Bool, steps: Int = 360) -> [OrbitSegment] {
     // A gold ring is not one gold: the near arc brightens toward the key light
@@ -313,12 +319,14 @@ func orbitSegments(profile: IconProfile, near: Bool, steps: Int = 360) -> [Orbit
                                       OrbitMark.orbitPoint(t0 - pad, stretch: profile.orbitStretch).y))
         path.addLine(to: OrbitMark.point(OrbitMark.orbitPoint(t1 + pad, stretch: profile.orbitStretch).x,
                                          OrbitMark.orbitPoint(t1 + pad, stretch: profile.orbitStretch).y))
+        let mid = OrbitMark.orbitPoint((t0 + t1) / 2, stretch: profile.orbitStretch)
         out.append(OrbitSegment(
             path: path,
             width: OrbitMark.length(profile.backRingWidth + (profile.ringWidth - profile.backRingWidth) * k),
             color: near
                 ? mix(0x9C6B12, 0xF7C24A, k, lift: 0.34 * sin(.pi * CGFloat(index - lo) / CGFloat(hi - lo)) * (1 - 0.35 * CGFloat(index - lo) / CGFloat(hi - lo)))
-                : mix(0x9C6B12, 0xF7C24A, k)))
+                : mix(0x9C6B12, 0xF7C24A, k),
+            at: OrbitMark.point(mid.x, mid.y)))
     }
     return out
 }
@@ -355,9 +363,17 @@ func drawOrbit(in ctx: CGContext, profile: IconProfile) {
     }
     // Far half first, then the sphere, then the near half: the sphere paints
     // over the far arc, which is what produces the occlusion seam.
-    for segment in orbitSegments(profile: profile, near: false) {
+    // The far arc, minus the stretch that threads the companion: that stretch is
+    // painted once, over the ball, so no clip edge prints a hairline on the band.
+    let (back, through) = orbitSegments(profile: profile, near: false).reduce(into: ([OrbitSegment](), [OrbitSegment]())) { acc, segment in
+        let c = companionFrame(profile: profile)
+        let near = c.radius > 0 && hypot(segment.at.x - c.centre.x, segment.at.y - c.centre.y) < c.radius * 1.5
+        if near { acc.1.append(segment) } else { acc.0.append(segment) }
+    }
+    for segment in back {
         stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt)
     }
+    drawCompanion(in: ctx, profile: profile, ring: through)
     drawSphere(in: ctx, profile: profile)
     let front = orbitSegments(profile: profile, near: true)
     if profile.castsShadow { drawRingShadow(in: ctx, profile: profile, front: front) }
@@ -385,11 +401,16 @@ func drawRingShadow(in ctx: CGContext, profile: IconProfile, front: [OrbitSegmen
 /// A small lit ball: pale upper-left face, brand blue, deeper limb, a darker rim,
 /// and one tiny specular from 64pt. It borrows the sphere's key light so the two
 /// read as one scene; below 64pt it stays a flat disc.
-func drawCompanion(in ctx: CGContext, profile: IconProfile) {
-    guard profile.companionRadius > 0 else { return }
+/// The companion sits exactly on the ring's centreline: the same ellipse, the
+/// same tilt and the same stretch the ring segments use.
+func companionFrame(profile: IconProfile) -> (home: CGPoint, centre: CGPoint, radius: CGFloat) {
     let home = OrbitMark.orbitPoint(OrbitMark.companionParam, stretch: profile.orbitStretch)
-    let centre = OrbitMark.point(home.x, home.y)
-    let radius = OrbitMark.length(profile.companionRadius)
+    return (home, OrbitMark.point(home.x, home.y), OrbitMark.length(profile.companionRadius))
+}
+
+func drawCompanion(in ctx: CGContext, profile: IconProfile, ring: [OrbitSegment]) {
+    guard profile.companionRadius > 0 else { return }
+    let (home, centre, radius) = companionFrame(profile: profile)
     let extent = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
 
     ctx.saveGState()
@@ -417,11 +438,39 @@ func drawCompanion(in ctx: CGContext, profile: IconProfile) {
     ctx.restoreGState()
 
     // The tiny highlight: only where it is large enough to be seen (64pt up).
-    guard profile.companionRadius >= 3.6, radius >= 6 else { return }
-    let spec = OrbitMark.point(home.x - profile.companionRadius * 0.32, home.y - profile.companionRadius * 0.36)
-    let sr = radius * 0.2
-    ctx.setFillColor(Brand.hex(0xFFFFFF, 0.85))
-    ctx.fillEllipse(in: CGRect(x: spec.x - sr, y: spec.y - sr, width: sr * 2, height: sr * 2))
+    if profile.companionRadius >= 3.6, radius >= 6 {
+        let spec = OrbitMark.point(home.x - profile.companionRadius * 0.3, home.y - profile.companionRadius * 0.5)
+        let sr = radius * 0.18
+        ctx.setFillColor(Brand.hex(0xFFFFFF, 0.85))
+        ctx.fillEllipse(in: CGRect(x: spec.x - sr, y: spec.y - sr, width: sr * 2, height: sr * 2))
+    }
+
+    // The ring runs THROUGH the ball: the band is drawn again over the ball's
+    // middle, so the ball shows above and below it. From 128pt a thin dark seam
+    // edges the band and the band throws a soft shadow onto the ball; below that
+    // the bare band is the whole cue.
+    if profile.castsShadow {
+        ctx.saveGState()
+        ctx.addEllipse(in: extent.insetBy(dx: radius * 0.04, dy: radius * 0.04))
+        ctx.clip()
+        for segment in ring {
+            stroke(ctx, path: segment.path, width: segment.width + OrbitMark.length(0.9), color: Brand.hex(0x0B4A73), cap: .butt)
+        }
+        ctx.restoreGState()
+    }
+    if profile.castsShadow {
+        ctx.saveGState()
+        ctx.addEllipse(in: extent)
+        ctx.clip()
+        ctx.setShadow(offset: CGSize(width: OrbitMark.length(0.2), height: -OrbitMark.length(0.55)),
+                      blur: OrbitMark.length(1.1), color: Brand.hex(0x03233A, 0.5))
+        // One layer, so the band casts a single shadow instead of one per segment.
+        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+        for segment in ring { stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt) }
+        ctx.endTransparencyLayer()
+        ctx.restoreGState()
+    }
+    for segment in ring { stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt) }
 }
 
 // MARK: - Composition
@@ -435,7 +484,6 @@ func drawMark(in ctx: CGContext, size: Int) {
     ctx.addPath(squircle(center: centre, radius: bodyRadius - 2))
     ctx.clip()
     drawOrbit(in: ctx, profile: profile)
-    drawCompanion(in: ctx, profile: profile)
     ctx.restoreGState()
 }
 
