@@ -18,6 +18,10 @@ type CatalogSpec struct {
 	Impact         string
 	Rebuild        string
 	ExpandChildren bool
+	// Reason explains a review verdict of the whole spec; Classify, when set,
+	// decides each path on its own (the user cache folders).
+	Reason   string
+	Classify func(s *Scanner, path string, size dirSize) verdict
 }
 
 // The file budget of a catalog root, a single child of an expanded root, and an
@@ -90,7 +94,6 @@ type catalogChild struct {
 // emitted; one that is only protected because a child is protected is replaced
 // by its unprotected children, because the folder can never be moved whole.
 func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []string) map[string]any {
-	checkedByTier := spec.Tier == "safe"
 	var subpaths []map[string]any
 	var total int64
 	var files int
@@ -103,10 +106,21 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 		files += size.files
 		latest = max(latest, size.modified)
 		partial = partial || size.partial
-		subpaths = append(subpaths, map[string]any{
+		v := verdict{tier: spec.Tier, reason: spec.Reason}
+		if spec.Classify != nil {
+			v = spec.Classify(s, path, size)
+		}
+		item := map[string]any{
 			"path": s.relativize(path), "size": formatBytes(size.bytes), "sizeGb": plainGB(size.bytes),
-			"checked": checkedByTier && !size.partial, "partial": size.partial, "tier": spec.Tier, "isDir": size.directory,
-		})
+			"checked": v.tier == "safe", "partial": size.partial, "tier": v.tier, "isDir": size.directory,
+		}
+		if v.reason != "" {
+			item["reason"] = v.reason
+		}
+		if v.unlock != "" {
+			item["unlock"] = v.unlock
+		}
+		subpaths = append(subpaths, item)
 	}
 
 	for _, root := range spec.Roots {
@@ -173,7 +187,7 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 		"rebuildTime": spec.Rebuild,
 		"tier":        spec.Tier,
 		"baseTier":    spec.Tier, // tier before measurement protection; the UI never lifts a "protected" spec
-		"checked":     checkedByTier,
+		"checked":     spec.Tier == "safe",
 		"cleaned":     false,
 		"impact":      spec.Impact,
 		"subpaths":    subpaths,
@@ -250,7 +264,8 @@ func cleanGroupSpecs() []CatalogSpec {
 			Roots:          []string{"~/Library/Caches", "~/Library/Logs"},
 			Tier:           "review",
 			ExpandChildren: true,
-			Impact:         "按缓存与日志的直接子路径审查；目录名称不能证明可删除，未知用途默认不选。核心资料和活跃缓存保持原状。",
+			Classify:       (*Scanner).cacheVerdict,
+			Impact:         "逐个子路径给出建议：可重建的工具缓存与未运行应用的缓存直接推荐，未识别的缓存说明原因后由你确认，运行中的应用和账户同步数据保持原状。",
 			Rebuild:        "重建行为依应用而定，未知用途不处理",
 		},
 		{
@@ -292,7 +307,8 @@ func cleanGroupSpecs() []CatalogSpec {
 				"~/.cargo/registry/cache",
 				"~/Library/Caches/Homebrew",
 			},
-			Tier:    "review",
+			Tier:    "safe",
+			Reason:  "包管理器下载缓存，下次安装依赖时会自动重新下载",
 			Impact:  "包管理器缓存可以重新下载。",
 			Rebuild: "下次安装时重新下载",
 		},
@@ -517,7 +533,7 @@ func (s *Scanner) scanInstallerPackages() []map[string]any {
 	}
 	items := []map[string]any{}
 	for i, c := range candidates {
-		items = append(items, map[string]any{
+		item := map[string]any{
 			"id":       "installer_" + itoa64(int64(i)),
 			"name":     c.name,
 			"location": dirName(c.path),
@@ -525,7 +541,12 @@ func (s *Scanner) scanInstallerPackages() []map[string]any {
 			"sizeGb":   gb(c.bytes),
 			"age":      ageText(c.modified),
 			"checked":  !c.zip,
-		})
+			"tier":     "safe",
+		}
+		if c.zip {
+			item["tier"], item["reason"] = "review", "压缩包不一定是安装包，可能是下载的资料，请确认后再清理"
+		}
+		items = append(items, item)
 	}
 	return items
 }
@@ -558,9 +579,17 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 	}
 	items := []map[string]any{}
 	for i, c := range candidates {
+		project := dirName(c.path)
+		// The artifact's own mtime says when it was last rebuilt; the project
+		// says whether anyone still works in it.
+		v := artifactVerdict(c.path, max(c.modified, projectActivity(project)))
+		sub := map[string]any{
+			"path": s.relativize(c.path), "sizeGb": plainGB(c.bytes), "partial": c.partial,
+			"tier": v.tier, "checked": v.tier == "safe", "reason": v.reason,
+		}
 		row := map[string]any{
 			"id":          "artifact_" + itoa64(int64(i)),
-			"project":     dirName(c.path),
+			"project":     project,
 			"artifact":    c.name,
 			"name":        c.name,
 			"path":        s.relativize(c.path),
@@ -569,13 +598,13 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 			"origSizeGb":  gb(c.bytes),
 			"age":         ageText(c.modified),
 			"rebuildNote": "删除后可重新安装或重新编译",
-			"gitClean":    "未检查版本库",
-			"tier":        "review",
+			"gitClean":    gitCleanState(project),
+			"tier":        v.tier,
+			"baseTier":    v.tier,
 			"partial":     c.partial,
-			"checked":     false,
-			"subpaths": []map[string]any{{
-				"path": s.relativize(c.path), "sizeGb": plainGB(c.bytes), "partial": c.partial, "tier": "review", "checked": false,
-			}},
+			"checked":     v.tier == "safe",
+			"reason":      v.reason,
+			"subpaths":    []map[string]any{sub},
 		}
 		s.applyCleanupProtection(row)
 		items = append(items, row)
