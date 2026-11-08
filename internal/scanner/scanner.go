@@ -5,10 +5,13 @@
 package scanner
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -248,30 +251,39 @@ type dirSize struct {
 	files     int
 	modified  int64
 	partial   bool
+	timedOut  bool // the walk budget ran out; partial is set too
 	directory bool
 	deadline  time.Time
 	linked    map[[2]uint64]bool
 }
 
-// walkSlots bounds how many directory walks run at once. Walks are kernel bound,
-// and past two of them each slows the others toward the walk deadline.
+// walkSlots bounds how many directory walks run at once; each one fans out over
+// the shared walkWorkers.
 var walkSlots = make(chan struct{}, 2)
 
-// fastDirectorySize measures how large a directory is, walking at most
-// maxFiles regular files. A path that is not a directory reports its own size
-// and one entry, which is what the Swift app did.
+// walkWorkers is the process-wide pool of extra goroutines walks may spawn; a
+// walk that finds it empty descends inline, so it never waits on it.
+var walkWorkers = make(chan struct{}, 8)
+
+// scanWalkBudget is how long one measured root may be walked. A full scan has
+// no file cap: a big cache is measured completely unless this runs out.
+const scanWalkBudget = 15 * time.Second
+
+// fastDirectorySize measures how large a directory is within scanWalkBudget,
+// walking at most maxFiles regular files (0 means no cap). A path that is not a
+// directory reports its own size and one entry, which is what the Swift app did.
 func (s *Scanner) fastDirectorySize(path string, maxFiles int) dirSize {
-	return s.measureDirectory(path, maxFiles, 5*time.Second)
+	return s.measureDirectory(path, maxFiles, scanWalkBudget)
 }
 
-// measureDirectory is fastDirectorySize with the walk budget as a parameter;
-// maxFiles <= 0 means no file cap.
+// measureDirectory is fastDirectorySize with the walk budget as a parameter.
+// A root that comes back partial leaves exactly one read warning, on the root.
 func (s *Scanner) measureDirectory(path string, maxFiles int, budget time.Duration) dirSize {
 	path = s.expand(path)
 	info, err := os.Lstat(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			recordReadWarning(path, err.Error())
+			recordReadError(path, err)
 			return dirSize{partial: true}
 		}
 		return dirSize{}
@@ -290,66 +302,109 @@ func (s *Scanner) measureDirectory(path string, maxFiles int, budget time.Durati
 	walkSlots <- struct{}{}
 	defer func() { <-walkSlots }()
 	total := dirSize{modified: info.ModTime().Unix(), deadline: time.Now().Add(budget), directory: true}
-	walkDir(path, maxFiles, &total)
+	readErr := walkDir(path, maxFiles, &total)
+	switch {
+	case readErr != nil:
+		recordReadError(path, readErr)
+	case total.timedOut:
+		recordReadWarning(path, "目录测量超时；只计入已读取部分")
+	case total.partial:
+		recordReadWarning(path, "达到文件测量上限；只计入已读取部分")
+	}
 	return total
 }
 
-// walkDir accumulates the sizes of the regular files under dir. The cap counts
-// regular files; directories cost nothing and are still visited while the file
-// budget lasts.
-func walkDir(dir string, maxFiles int, total *dirSize) {
-	if !total.deadline.IsZero() && time.Now().After(total.deadline) {
-		total.partial = true
-		recordReadWarning(dir, "目录测量超时；只计入已读取部分")
+// walkDir accumulates the sizes of the regular files under dir into total, and
+// returns the first directory read error. A zero total.deadline means no budget.
+func walkDir(dir string, maxFiles int, total *dirSize) error {
+	run := &walkRun{total: total, maxFiles: maxFiles}
+	run.visit(dir, true)
+	run.wg.Wait()
+	return run.err
+}
+
+// walkRun is one parallel walk of a directory tree into total.
+type walkRun struct {
+	mu       sync.Mutex // guards total, err
+	total    *dirSize
+	maxFiles int
+	stop     atomic.Bool // the cap or the deadline was hit
+	err      error       // the first directory that could not be read
+	wg       sync.WaitGroup
+}
+
+// visit adds the regular files of dir to the total and descends into its
+// subdirectories, in parallel while walkWorkers has room. The cap counts regular
+// files; directories cost nothing and are still visited while the budget lasts.
+func (r *walkRun) visit(dir string, root bool) {
+	if r.stop.Load() {
 		return
 	}
-	entries, err := readDirEntries(dir)
-	if err != nil {
-		total.partial = true
+	if !r.total.deadline.IsZero() && time.Now().After(r.total.deadline) {
+		r.mu.Lock()
+		r.total.partial, r.total.timedOut = true, true
+		r.mu.Unlock()
+		r.stop.Store(true)
 		return
 	}
-	for _, entry := range entries {
-		if !total.deadline.IsZero() && time.Now().After(total.deadline) {
-			total.partial = true
-			recordReadWarning(dir, "目录测量超时；只计入已读取部分")
-			return
-		}
-		if maxFiles > 0 && total.files >= maxFiles {
-			total.partial = true
-			recordReadWarning(dir, "达到文件测量上限；只计入已读取部分")
-			return
-		}
-		path := filepath.Join(dir, entry.Name())
-		info, err := entry.Info()
-		if err != nil {
-			total.partial = true
-			recordReadWarning(path, err.Error())
-			continue
-		}
-		total.count++
-		if entry.IsDir() {
-			walkDir(path, maxFiles, total)
-			continue
-		}
-		if !info.Mode().IsRegular() {
-			continue
-		}
-		total.files++
-		if modified := info.ModTime().Unix(); modified > total.modified {
-			total.modified = modified
-		}
-		if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink > 1 {
-			if total.linked == nil {
-				total.linked = make(map[[2]uint64]bool)
-			}
-			key := [2]uint64{uint64(stat.Dev), uint64(stat.Ino)}
-			if total.linked[key] {
-				continue
-			}
-			total.linked[key] = true
-		}
-		total.bytes += allocatedSize(info)
+	list := listDirItems
+	if root {
+		list = listDirGuarded
 	}
+	items, err := list(dir)
+	r.mu.Lock()
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		r.total.partial = true
+		if r.err == nil {
+			r.err = err
+		}
+	}
+	var subdirs []string
+	for _, item := range items {
+		if r.maxFiles > 0 && r.total.files >= r.maxFiles {
+			r.total.partial = true
+			r.stop.Store(true)
+			break
+		}
+		r.total.count++
+		switch item.kind {
+		case itemDir:
+			subdirs = append(subdirs, dir+"/"+item.name)
+		case itemFile:
+			r.addFile(item)
+		}
+	}
+	r.mu.Unlock()
+	for _, sub := range subdirs {
+		select {
+		case walkWorkers <- struct{}{}:
+			r.wg.Add(1)
+			go func() {
+				defer func() { <-walkWorkers; r.wg.Done() }()
+				r.visit(sub, false)
+			}()
+		default:
+			r.visit(sub, false)
+		}
+	}
+}
+
+// addFile counts one regular file; r.mu is held.
+func (r *walkRun) addFile(item dirItem) {
+	total := r.total
+	total.files++
+	total.modified = max(total.modified, item.mtime)
+	if item.nlink > 1 {
+		if total.linked == nil {
+			total.linked = make(map[[2]uint64]bool)
+		}
+		key := [2]uint64{item.dev, item.ino}
+		if total.linked[key] {
+			return
+		}
+		total.linked[key] = true
+	}
+	total.bytes += item.bytes
 }
 
 // scanProtection reports how the whitelist covers path. LoadWhitelist stores

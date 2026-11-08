@@ -42,14 +42,15 @@ func TestMeasurePathFullyScope(t *testing.T) {
 func TestMeasurePathFullyIgnoresTheScanFileCap(t *testing.T) {
 	home := fixtureHome(t)
 	dir := filepath.Join(home, "Library/Application Support/Big")
-	for i := 0; i < orphanFileCap+5; i++ {
+	const scanCap = 10
+	for i := 0; i < scanCap+5; i++ {
 		writeTestFile(t, filepath.Join(dir, "d", strings.Repeat("a", 1)+itoa64(int64(i))), 0)
 	}
 	s := &Scanner{home: home}
-	if capped := s.fastDirectorySize(dir, orphanFileCap); !capped.partial {
+	if capped := s.fastDirectorySize(dir, scanCap); !capped.partial {
 		t.Fatalf("fixture must exceed the scan cap: %+v", capped)
 	}
-	if got := s.measureFully(dir, time.Minute); !got.OK || got.Partial || got.Files != orphanFileCap+5 {
+	if got := s.measureFully(dir, time.Minute); !got.OK || got.Partial || got.Files != scanCap+5 {
 		t.Fatalf("full measurement stayed capped: %+v", got)
 	}
 }

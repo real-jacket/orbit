@@ -1,9 +1,11 @@
 package scanner
 
 import (
-	"os"
+	"errors"
+	"io/fs"
 	"sort"
 	"strings"
+	"time"
 )
 
 // largeFile is one file the large file list shows.
@@ -17,9 +19,11 @@ type largeFile struct {
 func (s *Scanner) scanLargeFiles() []map[string]any {
 	roots := []string{"~/Downloads", "~/Documents", "~/Desktop", "~/Movies"}
 	var candidates []largeFile
-	scanned := 0
 	for _, root := range roots {
-		s.collectLargeFiles(s.expand(root), 1800, &scanned, &candidates)
+		path := s.expand(root)
+		if !s.collectLargeFiles(path, path, time.Now().Add(largeFileBudget), &candidates) {
+			recordReadWarning(path, "大文件遍历达到扫描上限；只统计已访问路径")
+		}
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
 		return candidates[i].bytes > candidates[j].bytes
@@ -50,38 +54,39 @@ func gb02(bytes int64) float64 {
 	return value
 }
 
+// largeFileBudget is how long the large file walk may spend in one folder.
+const largeFileBudget = 20 * time.Second
+
 // collectLargeFiles walks dir looking for regular files bigger than 15 MB, and
-// does not descend into app bundles or hidden directories.
-func (s *Scanner) collectLargeFiles(dir string, maxFiles int, scanned *int, out *[]largeFile) {
-	entries := readDir(dir)
-	for _, entry := range entries {
-		if *scanned >= maxFiles {
-			recordReadWarning(dir, "大文件遍历达到扫描上限；只统计已访问路径")
-			return
-		}
-		*scanned++
-		name := entry.name
-		if isHidden(name) {
-			continue
-		}
-		path := dir + "/" + name
-		if entry.isDir {
-			if isPackage(name) {
-				continue
-			}
-			s.collectLargeFiles(path, maxFiles, scanned, out)
-			continue
-		}
-		info, err := os.Stat(path)
-		if err != nil || !info.Mode().IsRegular() {
-			continue
-		}
-		size := allocatedSize(info)
-		if size <= 15_000_000 {
-			continue
-		}
-		*out = append(*out, largeFile{path: path, bytes: size, kind: largeFileKind(name)})
+// does not descend into app bundles or hidden directories. It reports false when
+// it stopped at the deadline; the caller records the single warning for root.
+func (s *Scanner) collectLargeFiles(root, dir string, deadline time.Time, out *[]largeFile) bool {
+	list := listDirItems
+	if dir == root {
+		list = listDirGuarded
 	}
+	items, err := list(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		recordReadError(dir, err)
+	}
+	for _, item := range items {
+		if time.Now().After(deadline) {
+			return false
+		}
+		if isHidden(item.name) {
+			continue
+		}
+		path := dir + "/" + item.name
+		switch {
+		case item.kind == itemDir:
+			if !isPackage(item.name) && !s.collectLargeFiles(root, path, deadline, out) {
+				return false
+			}
+		case item.kind == itemFile && item.bytes > 15_000_000:
+			*out = append(*out, largeFile{path: path, bytes: item.bytes, kind: largeFileKind(item.name)})
+		}
+	}
+	return true
 }
 
 // largeFileKind names the file type the large file list shows.

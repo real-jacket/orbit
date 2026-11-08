@@ -1,9 +1,12 @@
 package scanner
 
 import (
+	"errors"
+	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,17 +23,17 @@ type CatalogSpec struct {
 	ExpandChildren bool
 }
 
-// The file budget of a catalog root, a single child of an expanded root, and an
-// app bundle. The old 1200/1500/2500 budgets counted directory entries as well,
-// so a tree with many folders ran out before it counted a meaningful number of
-// files: ~/Library/Caches reported 0.89 GB of an actual 2.18 GB and
-// GarageBand.app reported 0.039 GB of an actual 1.13 GB.
+// The file cap of a catalog root, a single child of an expanded root, an app
+// bundle, an app's leftovers and an orphan folder. Zero is no cap: the walk is
+// bounded by scanWalkBudget instead, so big package-manager and AI caches are
+// measured completely. Counting directory entries against a file budget made
+// ~/Library/Caches report 0.89 GB of an actual 2.18 GB.
 const (
-	catalogRootFileCap  = 100000
-	catalogChildFileCap = 100000
-	appBundleFileCap    = 50000
-	appLeftoverFileCap  = 20000
-	orphanFileCap       = 20000
+	catalogRootFileCap  = 0
+	catalogChildFileCap = 0
+	appBundleFileCap    = 0
+	appLeftoverFileCap  = 0
+	orphanFileCap       = 0
 	installerFileCap    = 25000
 )
 
@@ -541,20 +544,31 @@ var artifactKinds = map[string]string{
 	"build":        "构建产物",
 }
 
+// artifactSkipDirs are heavy directories that are not projects and hold no
+// build artifacts worth listing; discovery never descends into them.
+var artifactSkipDirs = map[string]bool{
+	"Pods": true, "Carthage": true, "vendor": true, "__pycache__": true, "site-packages": true, "Library": true,
+}
+
+// artifactDiscoveryBudget is how long discovery may walk one project root.
+const artifactDiscoveryBudget = 30 * time.Second
+
+// maxArtifactItems is how many build artifacts the purge list keeps.
+const maxArtifactItems = 300
+
 // scanBuildArtifacts lists the build artifacts in the project folders that are
 // big enough to be worth removing.
 func (s *Scanner) scanBuildArtifacts() []map[string]any {
 	roots := []string{"~/Projects", "~/GitHub", "~/Developer", "~/code", "~/src"}
 	var candidates []artifactCandidate
 	for _, root := range roots {
-		scanned := 0
-		s.walkArtifacts(s.expand(root), 4000, &scanned, &candidates)
+		candidates = append(candidates, s.discoverArtifacts(s.expand(root))...)
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
 		return candidates[i].bytes > candidates[j].bytes
 	})
-	if len(candidates) > 20 {
-		candidates = candidates[:20]
+	if len(candidates) > maxArtifactItems {
+		candidates = candidates[:maxArtifactItems]
 	}
 	items := []map[string]any{}
 	for i, c := range candidates {
@@ -583,6 +597,42 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 	return items
 }
 
+// discoverArtifacts finds the build artifacts under root and measures the ones
+// that are big enough to list.
+func (s *Scanner) discoverArtifacts(root string) []artifactCandidate {
+	var found []artifactCandidate
+	s.walkArtifacts(root, time.Now().Add(artifactDiscoveryBudget), &found)
+	var (
+		mu   sync.Mutex
+		wg   sync.WaitGroup
+		out  []artifactCandidate
+		jobs = make(chan artifactCandidate)
+	)
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for c := range jobs {
+				size := s.fastDirectorySize(c.path, 0)
+				if size.bytes < 20_000_000 && !size.partial {
+					continue
+				}
+				c.bytes, c.partial, c.modified = size.bytes, size.partial, modifiedTime(c.path)
+				mu.Lock()
+				out = append(out, c)
+				mu.Unlock()
+			}
+		}()
+	}
+	for _, c := range found {
+		jobs <- c
+	}
+	close(jobs)
+	wg.Wait()
+	sort.Slice(out, func(i, j int) bool { return out[i].path < out[j].path }) // stable input for the size sort
+	return out
+}
+
 // artifactCandidate is one build artifact the scan found.
 type artifactCandidate struct {
 	path     string
@@ -593,41 +643,46 @@ type artifactCandidate struct {
 	partial  bool
 }
 
-// walkArtifacts walks dir looking for build artifacts, and does not descend
-// into a directory it already counts as one.
-func (s *Scanner) walkArtifacts(dir string, maxDirectories int, scanned *int, out *[]artifactCandidate) {
-	entries := readDir(dir)
-	for _, entry := range entries {
-		if !entry.isDir {
+// walkArtifacts lists the unprotected build artifact directories under dir. It
+// never descends into an artifact, a hidden directory, a bundle or one of
+// artifactSkipDirs, so a project tree is a few thousand listings, not a walk of
+// every dependency. Running past the deadline leaves one warning on the root.
+func (s *Scanner) walkArtifacts(root string, deadline time.Time, out *[]artifactCandidate) {
+	if !s.walkArtifactsIn(root, root, deadline, out) {
+		recordReadWarning(root, "构建目录遍历达到扫描上限；只统计已访问路径")
+	}
+}
+
+// walkArtifactsIn reports false when it stopped at the deadline.
+func (s *Scanner) walkArtifactsIn(root, dir string, deadline time.Time, out *[]artifactCandidate) bool {
+	list := listDirItems
+	if dir == root {
+		list = listDirGuarded
+	}
+	items, err := list(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		recordReadError(dir, err)
+	}
+	for _, item := range items {
+		if item.kind != itemDir {
 			continue
 		}
-		if *scanned >= maxDirectories {
-			recordReadWarning(dir, "构建目录遍历达到扫描上限；只统计已访问路径")
-			return
+		if time.Now().After(deadline) {
+			return false
 		}
-		*scanned++
-		name := entry.name
-		path := dir + "/" + name
-		kind, isArtifact := artifactKinds[name]
-		if isArtifact {
-			if _, protected := s.scanProtection(path); protected {
-				continue
-			}
-			size := s.fastDirectorySize(path, catalogChildFileCap)
-			if size.bytes >= 20_000_000 || size.partial {
-				*out = append(*out, artifactCandidate{
-					path:     path,
-					name:     name,
-					kind:     kind,
-					bytes:    size.bytes,
-					modified: modifiedTime(path),
-					partial:  size.partial,
-				})
+		name, path := item.name, dir+"/"+item.name
+		if kind, isArtifact := artifactKinds[name]; isArtifact {
+			if _, protected := s.scanProtection(path); !protected {
+				*out = append(*out, artifactCandidate{path: path, name: name, kind: kind})
 			}
 			continue
 		}
-		if !isHidden(name) {
-			s.walkArtifacts(path, maxDirectories, scanned, out)
+		if isHidden(name) || isBundleDir(name) || artifactSkipDirs[name] {
+			continue
+		}
+		if !s.walkArtifactsIn(root, path, deadline, out) {
+			return false
 		}
 	}
+	return true
 }
