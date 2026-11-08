@@ -38,6 +38,7 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 
 		var subpaths []map[string]any
 		var totalBytes int64
+		partial := false
 		for _, candidate := range candidates {
 			if claimed(claimedPaths, candidate.path) {
 				continue
@@ -49,43 +50,48 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 				continue
 			}
 			size := s.fastDirectorySize(candidate.path, orphanFileCap)
-			if size.bytes <= 0 {
+			if size.bytes <= 0 && !size.partial {
 				continue
 			}
 			claimedPaths[candidate.path] = struct{}{}
 			totalBytes += size.bytes
-			// A leftover whose owner is still installed is shown but never
-			// pre-checked.
+			partial = partial || size.partial
+			// An absent bundle does not prove its data is disposable.
 			subpaths = append(subpaths, map[string]any{
 				"path":    s.relativize(candidate.path),
 				"kind":    candidate.kind,
 				"size":    formatBytes(size.bytes),
-				"checked": !stillInstalled,
+				"sizeGb":  plainGB(size.bytes),
+				"checked": false,
+				"partial": size.partial,
 			})
+			if size.partial && size.bytes == 0 {
+				subpaths[len(subpaths)-1]["size"], subpaths[len(subpaths)-1]["sizeGb"] = "未读取", nil
+			}
 		}
 
 		if len(subpaths) == 0 {
 			continue
 		}
-		statusText := "主程序已卸载 · 孤立残留"
+		statusText := "未发现主程序 · 签名残留候选"
 		if stillInstalled {
 			statusText = "深层容器与 SDK 残留"
 		}
-		leftoverGB := round2(float64(totalBytes) / 1_000_000_000)
-		if leftoverGB < 0.01 {
-			leftoverGB = 0.01
-		}
-		orphans = append(orphans, map[string]any{
+		leftoverGB := plainGB(totalBytes)
+		row := map[string]any{
 			"id":             uniqueOrphanID(usedIDs, signature.ID),
 			"name":           signature.Name,
 			"category":       signature.Category,
 			"bundleId":       signature.BundleID,
 			"statusText":     statusText,
 			"leftoverSizeGb": leftoverGB,
-			"checked":        !stillInstalled,
+			"checked":        false,
 			"impact":         signature.Impact,
 			"subpaths":       subpaths,
-		})
+			"partial":        partial,
+		}
+		s.applyCleanupProtection(row)
+		orphans = append(orphans, row)
 	}
 
 	containerOrphans := s.scanUnclaimedContainers(home, claimedPaths, installedNames, installedBundleIDs, usedIDs)
@@ -122,7 +128,7 @@ func signatureStillInstalled(
 // scan already counted.
 func claimed(claimedPaths map[string]struct{}, path string) bool {
 	for existing := range claimedPaths {
-		if strings.HasPrefix(path, existing+"/") || strings.HasPrefix(existing, path+"/") {
+		if withinPath(path, existing) || withinPath(existing, path) {
 			return true
 		}
 	}
@@ -229,34 +235,40 @@ func (s *Scanner) scanUnclaimedContainers(
 				continue
 			}
 			size := s.fastDirectorySize(fullPath, orphanFileCap)
-			if size.bytes < 15_000_000 {
+			if size.bytes < 15_000_000 && !size.partial {
 				continue
 			}
 			claimedNow[fullPath] = struct{}{}
-			leftoverGB := round2(float64(size.bytes) / 1_000_000_000)
-			if leftoverGB < 0.01 {
-				leftoverGB = 0.01
-			}
-			found = append(found, map[string]any{
+			leftoverGB := plainGB(size.bytes)
+			row := map[string]any{
 				// Two roots can hold a directory with the same name, so the
 				// root is part of the id (S-12).
 				"id":             uniqueOrphanID(usedIDs, "orphan_"+target.key+"_"+item),
 				"name":           item,
 				"category":       target.category,
 				"bundleId":       item,
-				"statusText":     "主程序已卸载 · 孤立残留",
+				"statusText":     "未发现对应主程序 · 待确认",
 				"leftoverSizeGb": leftoverGB,
 				// A directory without a signature match is only a candidate:
 				// it is shown, but the user has to select it (S-06).
 				"checked": false,
-				"impact":  "经与已安装应用列表比对，该目录对应的主程序未发现，属于卸载后遗留的无主目录；请确认后再勾选。",
+				"impact":  "已检查的应用目录中未发现对应主程序，不能证明数据已经弃用；外置卷、自定义安装位置与共享容器可能未被识别，请先确认。",
+				"partial": size.partial,
 				"subpaths": []map[string]any{{
 					"path":    s.relativize(fullPath),
 					"kind":    target.kind,
 					"size":    formatBytes(size.bytes),
+					"sizeGb":  plainGB(size.bytes),
 					"checked": false,
+					"partial": size.partial,
 				}},
-			})
+			}
+			if size.partial && size.bytes == 0 {
+				sp := row["subpaths"].([]map[string]any)[0]
+				sp["size"], sp["sizeGb"] = "未读取", nil
+			}
+			s.applyCleanupProtection(row)
+			found = append(found, row)
 			if len(found) >= 18 {
 				return found
 			}

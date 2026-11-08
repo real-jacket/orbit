@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"encoding/json"
 	"runtime"
 	"strings"
 	"testing"
@@ -44,11 +45,14 @@ func TestParseProcessesSkipsRowsItCannotUse(t *testing.T) {
 	}
 }
 
-func TestParseProcessesKeepsTenBusiest(t *testing.T) {
+func TestParseProcessesKeepsTheFullSampleForMemorySorting(t *testing.T) {
 	_, processes := parseProcesses(psOutput, 8)
 
-	if len(processes) != 10 {
-		t.Fatalf("got %d processes, want the first 10: %v", len(processes), processes)
+	if len(processes) != 16 {
+		t.Fatalf("got %d processes, want all 16 usable rows: %v", len(processes), processes)
+	}
+	if processes[len(processes)-1]["name"] != "twelve" {
+		t.Fatal("a low-CPU process must remain available for memory sorting and search")
 	}
 	// The list keeps the order ps printed, so the rows after launchd lead.
 	if name := processes[0]["name"].(string); name != "logd" {
@@ -144,6 +148,55 @@ func TestVMStatistics(t *testing.T) {
 	}
 	if usedPages <= 0 {
 		t.Errorf("usedPages = %d, want a positive count", usedPages)
+	}
+}
+
+func TestVMStatisticsMemoryAccountingMatchesNativePages(t *testing.T) {
+	pageSize, pages, ok := parseVMStatistics(`Mach Virtual Memory Statistics: (page size of 4096 bytes)
+Pages active: 20.
+Pages inactive: 40.
+Pages speculative: 2.
+Pages wired down: 10.
+Pages occupied by compressor: 5.
+File-backed pages: 25.
+Pages purgeable: 5.
+`)
+	if !ok || pageSize != 4096 || pages != 47 {
+		t.Fatalf("memory fallback = %d-byte pages, %d used, ready=%v", pageSize, pages, ok)
+	}
+	if _, _, ready := parseVMStatistics("not a memory reading"); ready {
+		t.Fatal("a missing reading became an idle sample")
+	}
+}
+
+func TestTelemetryIncludesDiskCapacityAndMemoryBreakdown(t *testing.T) {
+	reading := Shared.BuildTelemetry(true)
+	if reading.TotalDiskGb <= 0 || reading.FreeDiskGb > reading.TotalDiskGb {
+		t.Fatalf("disk capacity = %v free / %v total", reading.FreeDiskGb, reading.TotalDiskGb)
+	}
+	if reading.Memory == nil || reading.MemUsedGb == nil {
+		t.Fatal("native memory breakdown was not included in telemetry")
+	}
+	parts := reading.Memory.AppGB + reading.Memory.WiredGB + reading.Memory.CompressedGB
+	if difference := parts - *reading.MemUsedGb; difference < -0.01 || difference > 0.01 {
+		t.Fatalf("memory parts %v GiB do not match used %v GiB", parts, *reading.MemUsedGb)
+	}
+}
+
+// A tick inside the process cache window must not resend the ~64 KB table the
+// page already has, but a page that just opened asks for it explicitly.
+func TestTelemetryOmitsCachedProcessesUnlessAsked(t *testing.T) {
+	scanner := &Scanner{home: t.TempDir()}
+	if first := scanner.BuildTelemetry(false); first.Processes == nil {
+		t.Skip("ps produced no process table on this machine")
+	}
+	tick, _ := json.Marshal(scanner.BuildTelemetry(false))
+	if strings.Contains(string(tick), `"processes"`) {
+		t.Fatal("a cached process table was resent on a plain tick")
+	}
+	opened, _ := json.Marshal(scanner.BuildTelemetry(true))
+	if !strings.Contains(string(opened), `"processes":[`) {
+		t.Fatal("a page that just opened did not get the process table")
 	}
 }
 

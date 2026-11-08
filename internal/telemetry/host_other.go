@@ -14,17 +14,19 @@ type Host struct {
 	CPUPercent float64
 	CPUReady   bool
 
-	// MemUsedGB is what the machine reports as used: active + wired + compressed
-	// pages. MemAvailableGB is the memory a new process could claim before
-	// swapping. They are two different accounting views and do not add up to
-	// MemTotalGB.
+	// MemUsedGB is application + wired + compressed memory in GiB. MemAvailableGB
+	// is the remaining capacity, including reusable caches, not just free pages.
 	MemUsedGB      float64
 	MemAvailableGB float64
 	MemTotalGB     float64
 	MemReady       bool
+	Memory         *Memory
 }
 
 // HostSample reports no counters on platforms without the mach host statistics
 // this app is built for. The zero Host has every Ready flag false, which the
 // caller reads as "no reading" rather than "zero usage".
 func HostSample() Host { return Host{} }
+
+// SysctlUint reports no value away from macOS.
+func SysctlUint(name string) (uint64, bool) { return 0, false }

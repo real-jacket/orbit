@@ -3,10 +3,54 @@
 package telemetry
 
 import (
+	"math"
 	"testing"
 	"time"
 	"unsafe"
 )
+
+func TestHostSampleMemoryAccounting(t *testing.T) {
+	if err := loadHostSymbols(); err != nil {
+		t.Fatal(err)
+	}
+	totalGB, pageSize, ok := loadMemInfo()
+	if !ok {
+		t.Fatal("installed memory is unavailable")
+	}
+	totalPages := totalGB * gibibyte / pageSize
+	original := hostStatistics64
+	t.Cleanup(func() { hostStatistics64 = original })
+	for _, test := range []struct {
+		name  string
+		stats vmStatistics64
+	}{
+		{"above 96 percent", vmStatistics64{activeCount: uint32(totalPages * 0.99)}},
+		{"inactive apps and reusable cache", vmStatistics64{
+			activeCount: uint32(totalPages * 0.20), inactiveCount: uint32(totalPages * 0.40),
+			speculativeCount: uint32(totalPages * 0.02), wireCount: uint32(totalPages * 0.10),
+			compressorPageCount: uint32(totalPages * 0.05), externalPageCount: uint32(totalPages * 0.25),
+			purgeableCount: uint32(totalPages * 0.05),
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			hostStatistics64 = func(_ uint32, _ int32, output unsafe.Pointer, _ *uint32) int32 {
+				*(*vmStatistics64)(output) = test.stats
+				return 0
+			}
+			stats := test.stats
+			pages := float64(stats.activeCount) + float64(stats.inactiveCount) + float64(stats.speculativeCount) +
+				float64(stats.wireCount) + float64(stats.compressorPageCount) - float64(stats.externalPageCount) - float64(stats.purgeableCount)
+			want := pages * pageSize / gibibyte
+			host := HostSample()
+			if !host.MemReady || math.Abs(host.MemUsedGB-want) > 0.000001 {
+				t.Fatalf("used memory = %v GiB, want %v GiB without a display cap or cached-file overlap", host.MemUsedGB, want)
+			}
+			if host.Memory == nil || math.Abs(host.Memory.AppGB+host.Memory.WiredGB+host.Memory.CompressedGB-host.MemUsedGB) > 0.000001 || math.Abs(host.MemUsedGB+host.MemAvailableGB-totalGB) > 0.000001 {
+				t.Fatal("memory components overlap or fail to account for installed capacity")
+			}
+		})
+	}
+}
 
 // TestVMStatistics64Layout pins the hand-written struct to the C layout in
 // <mach/vm_statistics.h>. host_statistics64 writes raw bytes into it, so a
@@ -48,7 +92,15 @@ func TestVMStatistics64Layout(t *testing.T) {
 // TestHostSampleMemorySane checks that the four page counters are decoded from
 // the right places and that the derived numbers are physically possible. The
 // free-page counter is cross-checked against the vm.page_free_count sysctl,
-// which is a different kernel interface for the same number.
+// which is a different kernel interface for the free list.
+//
+// The two do not count the same pages: host_statistics64 publishes
+// vm_page_free_count + speculative_count as free_count (xnu, osfmk/kern/host.c
+// in vm_stats), while the sysctl exposes vm_page_free_count alone (xnu,
+// bsd/vm/vm_unix.c). Subtracting the speculative count before comparing matters
+// on small machines, where the speculative cache is a sizeable share of RAM:
+// the raw difference on a 7 GB CI runner was several percent of installed
+// memory, which says nothing about the struct layout.
 func TestHostSampleMemorySane(t *testing.T) {
 	host := HostSample()
 	if !host.MemReady {
@@ -63,9 +115,8 @@ func TestHostSampleMemorySane(t *testing.T) {
 	if host.MemAvailableGB <= 0 || host.MemAvailableGB > host.MemTotalGB {
 		t.Fatalf("MemAvailableGB = %v, want 0 < available <= %v", host.MemAvailableGB, host.MemTotalGB)
 	}
-	// The two views overlap (wired pages are neither free nor reclaimable, but
-	// both counters count the file cache differently), so the only invariant is
-	// that together they cannot describe more memory than is installed.
+	// Remaining capacity includes reusable file caches; it complements used
+	// memory instead of adding the cached pages to the occupied components.
 	if sum := host.MemUsedGB + host.MemAvailableGB; sum > host.MemTotalGB*1.05 {
 		t.Fatalf("used+available = %v GB > total %v GB", sum, host.MemTotalGB)
 	}
@@ -99,11 +150,18 @@ func TestHostSampleMemorySane(t *testing.T) {
 	if !ok {
 		t.Skip("vm.page_free_count sysctl unavailable")
 	}
-	// Pages move between the free lists while the two readings are taken, so a
-	// couple of percent of installed memory of slop is expected; a layout
-	// mistake would be off by a factor, not by a page migration.
-	if diff := float64(stats.freeCount) - float64(freeSysctl); diff < -totalPages*0.02 || diff > totalPages*0.02 {
-		t.Errorf("free_count = %d pages, vm.page_free_count = %d: layout or read is wrong", stats.freeCount, freeSysctl)
+	// host_statistics64's free_count is vm_page_free_count + speculative_count,
+	// so subtract the speculative pages before comparing against the sysctl,
+	// which reports the free list alone. Pages move between the lists while the
+	// two readings are taken, so a couple of percent of installed memory of slop
+	// is expected; a layout mistake would be off by a factor, not by a page
+	// migration.
+	if stats.freeCount < stats.speculativeCount {
+		t.Fatalf("free_count = %d pages < speculative_count = %d, impossible", stats.freeCount, stats.speculativeCount)
+	}
+	freeList := uint64(stats.freeCount - stats.speculativeCount)
+	if diff := float64(freeList) - float64(freeSysctl); diff < -totalPages*0.02 || diff > totalPages*0.02 {
+		t.Errorf("free_count - speculative_count = %d pages, vm.page_free_count = %d: layout or read is wrong", freeList, freeSysctl)
 	}
 }
 

@@ -1,9 +1,16 @@
 package scanner
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/mymoles/mole-studio/internal/fsread"
 )
 
 // fileEntry is one entry of a directory listing.
@@ -12,9 +19,13 @@ type fileEntry struct {
 	isDir bool
 }
 
-// readDir lists a directory, and reports nothing for one it cannot read.
+var directoryReads = struct {
+	sync.Mutex
+	failed map[string]string
+}{failed: map[string]string{}}
+
 func readDir(dir string) []fileEntry {
-	entries, err := os.ReadDir(dir)
+	entries, err := readDirEntries(dir)
 	if err != nil {
 		return nil
 	}
@@ -25,17 +36,60 @@ func readDir(dir string) []fileEntry {
 	return out
 }
 
+func readDirEntries(dir string) ([]os.DirEntry, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	entries, err := fsread.ReadDir(ctx, dir)
+	directoryReads.Lock()
+	delete(directoryReads.failed, dir)
+	if err != nil && !os.IsNotExist(err) {
+		directoryReads.failed[dir] = err.Error()
+		if errors.Is(err, context.DeadlineExceeded) {
+			directoryReads.failed[dir] = "目录读取超时，可能正在等待 macOS 授权；未计入本次扫描"
+		}
+	}
+	directoryReads.Unlock()
+	return entries, err
+}
+
+func recordReadWarning(path, reason string) {
+	directoryReads.Lock()
+	directoryReads.failed[path] = reason
+	directoryReads.Unlock()
+}
+
+func scanReadWarnings(home string) []map[string]any {
+	directoryReads.Lock()
+	defer directoryReads.Unlock()
+	var paths []string
+	for path := range directoryReads.failed {
+		if path == home || strings.HasPrefix(path, home+string(os.PathSeparator)) {
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	warnings := make([]map[string]any, 0, len(paths))
+	for _, path := range paths {
+		warnings = append(warnings, map[string]any{"path": path, "reason": directoryReads.failed[path]})
+	}
+	return warnings
+}
+
 // walkFiles calls visit for every regular file under dir, up to maxFiles
 // entries, and reports each file's size and modification time.
 func walkFiles(dir string, maxFiles int, scanned *int, visit func(file string, bytes, modified int64)) {
 	entries := readDir(dir)
 	for _, entry := range entries {
-		if maxFiles > 0 && *scanned > maxFiles {
+		if maxFiles > 0 && *scanned >= maxFiles {
+			recordReadWarning(dir, "安装包遍历达到扫描上限；只统计已访问路径")
 			return
 		}
 		*scanned++
 		path := dir + "/" + entry.name
 		if entry.isDir {
+			if isBundleDir(entry.name) {
+				continue // a bundle is one thing, never a folder of installer candidates
+			}
 			walkFiles(path, maxFiles, scanned, func(file string, bytes, modified int64) {
 				if !isHidden(baseName(file)) {
 					visit(file, bytes, modified)
@@ -43,12 +97,23 @@ func walkFiles(dir string, maxFiles int, scanned *int, visit func(file string, b
 			})
 			continue
 		}
-		info, err := os.Stat(path)
+		info, err := os.Lstat(path)
 		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
 		visit(path, allocatedSize(info), info.ModTime().Unix())
 	}
+}
+
+var bundleExtensions = map[string]bool{
+	"app": true, "pkg": true, "mpkg": true, "framework": true, "bundle": true, "xcarchive": true,
+	"plugin": true, "appex": true, "xpc": true, "kext": true, "prefpane": true, "saver": true,
+	"component": true, "dsym": true, "xcodeproj": true, "xcworkspace": true, "photoslibrary": true,
+}
+
+// isBundleDir reports whether a directory name is a macOS bundle or package.
+func isBundleDir(name string) bool {
+	return bundleExtensions[strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))]
 }
 
 // hasExtension reports whether file's extension is in extensions.

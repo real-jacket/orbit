@@ -47,10 +47,10 @@ body:
       required: true
 
   - type: input
-    id: mo-version
+    id: orbit-version
     attributes:
-      label: "`mo --version` output"
-      placeholder: "e.g. Mole version 1.56.1"
+      label: orbit version
+      placeholder: "e.g. 0.3.0 (About orbit)"
     validations:
       required: true
 
@@ -60,7 +60,7 @@ body:
       label: How are you running it?
       options:
         - "make run (from a checkout)"
-        - "make app / dist/MoleStudio.app"
+        - "make app / build/darwin-*/orbit.app"
         - "Copied to /Applications"
         - Other
     validations:
@@ -72,7 +72,7 @@ body:
       label: Logs
       description: |
         Relevant output from `~/Library/Logs/mole/operations.log`, or Console.app entries for the
-        MoleStudio process.
+        orbit process.
       render: shell
     validations:
       required: false

@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/egoist/mygo"
 )
@@ -33,8 +34,8 @@ const (
 	lightBackground = "#faf8f5"
 )
 
-// applyTheme sets the app appearance, remembers the choice when asked to, and
-// repaints the window background.
+// applyTheme sets the app appearance, remembers the choice when asked to,
+// repaints the window background and tells the menu-bar panel.
 func applyTheme(theme string, remember bool) {
 	switch theme {
 	case themeDark:
@@ -52,6 +53,7 @@ func applyTheme(theme string, remember bool) {
 		}
 	}
 	setWindowBackground(windowBackground(theme))
+	pushFlyoutTheme(theme)
 }
 
 // windowBackground returns the background colour for a theme. Asking the system
@@ -82,9 +84,11 @@ func setWindowBackground(color string) {
 	_ = w.SetBackgroundColor(color)
 }
 
-// preferences is the shape of the file the chosen theme is kept in.
+// preferences is the shape of the file the app's own choices are kept in: the
+// theme and the interface language, each empty while the user has made no choice.
 type preferences struct {
-	Theme string `json:"theme"`
+	Theme string `json:"theme,omitempty"`
+	Lang  string `json:"lang,omitempty"`
 }
 
 // preferencesPath returns the file the app's own preferences live in, creating
@@ -100,47 +104,67 @@ func preferencesPath() (string, error) {
 	return filepath.Join(dir, "preferences.json"), nil
 }
 
+// prefsMu serialises read-modify-write of the file, since the theme and the
+// language are saved from different bridge calls.
+var prefsMu sync.Mutex
+
+func readPreferences() preferences {
+	var saved preferences
+	if path, err := preferencesPath(); err == nil {
+		if data, err := os.ReadFile(path); err == nil {
+			_ = json.Unmarshal(data, &saved)
+		}
+	}
+	return saved
+}
+
+// updatePreferences changes one field and keeps the others; an emptied file is
+// removed so a default install leaves nothing behind.
+func updatePreferences(change func(*preferences)) {
+	prefsMu.Lock()
+	defer prefsMu.Unlock()
+	path, err := preferencesPath()
+	if err != nil {
+		return
+	}
+	saved := readPreferences()
+	change(&saved)
+	if saved == (preferences{}) {
+		_ = os.Remove(path)
+		return
+	}
+	if data, err := json.Marshal(saved); err == nil {
+		_ = os.WriteFile(path, data, 0o644)
+	}
+}
+
 // loadSavedTheme returns the theme the user last chose, or the system theme
 // when none has been stored or the file cannot be read.
 func loadSavedTheme() string {
-	path, err := preferencesPath()
-	if err != nil {
-		return themeSystem
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return themeSystem
-	}
-	var saved preferences
-	if err := json.Unmarshal(data, &saved); err != nil {
-		return themeSystem
-	}
-	switch saved.Theme {
+	switch theme := readPreferences().Theme; theme {
 	case themeDark, themeLight:
-		return saved.Theme
+		return theme
 	}
 	return themeSystem
 }
 
 // saveTheme stores an explicit theme choice.
-func saveTheme(theme string) {
-	path, err := preferencesPath()
-	if err != nil {
-		return
-	}
-	data, err := json.Marshal(preferences{Theme: theme})
-	if err != nil {
-		return
-	}
-	_ = os.WriteFile(path, data, 0o644)
-}
+func saveTheme(theme string) { updatePreferences(func(p *preferences) { p.Theme = theme }) }
 
 // clearSavedTheme drops the stored choice, which is what choosing the system
 // theme means: follow the system from now on.
-func clearSavedTheme() {
-	path, err := preferencesPath()
-	if err != nil {
-		return
+func clearSavedTheme() { updatePreferences(func(p *preferences) { p.Theme = "" }) }
+
+// loadSavedLanguage returns the language the user picked, or "" when they have
+// not and the system's should be followed.
+func loadSavedLanguage() string {
+	switch lang := readPreferences().Lang; lang {
+	case langZH, langEN:
+		return lang
 	}
-	_ = os.Remove(path)
+	return ""
 }
+
+func saveLanguage(lang string) { updatePreferences(func(p *preferences) { p.Lang = lang }) }
+
+func clearSavedLanguage() { updatePreferences(func(p *preferences) { p.Lang = "" }) }

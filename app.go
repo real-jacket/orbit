@@ -9,21 +9,43 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 
 	"github.com/mymoles/mole-studio/internal/analyze"
+	"github.com/mymoles/mole-studio/internal/scanner"
 	"github.com/mymoles/mole-studio/internal/trayicon"
 )
 
 // The windows and the menu-bar item the bridge and the push helpers talk to.
 var (
 	mainWindow   *mygo.Window
-	flyoutWindow *mygo.Window
+	flyoutWindow atomic.Pointer[mygo.Window]
 	trayItem     *mygo.Tray
 )
 
 // appName is what the app calls itself in the menu bar, the About panel and the
 // window title. It is the name the Swift app used.
 const appName = "orbit"
+
+// fillBuildInfo stamps the running build into the scanner so the 体检 panel can
+// report it. The commit comes from the linker when a release build sets it;
+// otherwise the executable's mtime is the honest answer.
+func fillBuildInfo() {
+	scanner.BuildTime = scanner.DescribeExecutable()
+}
+
+// buildVersion is the version the running build reports. `mygo build` writes
+// mygo.json's version into the bundle's Info.plist and this reads it back, so
+// the number in the About panel and the 体检 row is the number of the code that
+// actually ran. A plain `go run` has no bundle to read, and says "dev" rather
+// than a version nobody bumped. The release workflow stamps mygo.json from the
+// tag before it builds (see .github/workflows/release.yml).
+func buildVersion() string {
+	if version := mygo.App.Version(); version != "" {
+		return version
+	}
+	return "dev"
+}
 
 // quitting is set while a quit is in progress. The window's close handler
 // normally hides the window instead of closing it, and without this flag that
@@ -32,10 +54,38 @@ var quitting atomic.Bool
 
 // run wires the app up and starts its event loop.
 func run() {
+	// The update window is Sparkle-style and reads releases from the repo in
+	// mygo.json's updates block. Dev builds carry no key, so it only says that
+	// updates are unavailable. No fixed Language: the window follows the app's
+	// locale, which initLanguage keeps on the interface language (see lang.go).
+	mygo.Use(updater.New(updater.Options{}))
+
 	mygo.Bind(&NativeBridge{})
 
 	mygo.App.SetName(appName)
-	mygo.App.SetVersion("0.1.0")
+
+	// A second launch (a double click while the menu-bar app is running) hands
+	// over to the first instance and exits, instead of showing two menu-bar
+	// items that each rescan the disk. The lock key comes from the name above.
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
+	}
+	mygo.App.OnSecondInstance(func([]string, string) {
+		if w := activeMainWindow(); w != nil {
+			w.Restore()
+		}
+		showMainWindow("")
+	})
+
+	// App icons are served from Go instead of being inlined as base64 in the
+	// scan payload. The scheme must exist before the first window is created.
+	if err := mygo.Protocol.Handle(scanner.IconScheme, scanner.IconHandler()); err != nil {
+		panic(err)
+	}
+
+	version := buildVersion()
+	mygo.App.SetVersion(version)
+	scanner.BuildVersion = version
 
 	// Without a listener MyGo quits when the last window closes. The Swift
 	// app returned false from applicationShouldTerminateAfterLastWindowClosed
@@ -64,6 +114,8 @@ func run() {
 // buildUI creates the windows and the menu bar. It runs once, on the main
 // thread, right before the event loop starts.
 func buildUI() {
+	fillBuildInfo()
+	initLanguage()
 	createTray()
 
 	// Main window. The Swift app used a full-size content view with a
@@ -100,6 +152,7 @@ func buildUI() {
 	mainWindow.Page().OnDidFinishLoad(func() {
 		pushRealTelemetryNow()
 		pushRealSystemScanNow()
+		pushRuntimeStatus("", false)
 	})
 
 	// The page's first paint should already sit on the right background,
@@ -129,7 +182,7 @@ func createTray() {
 		ID:             appName,
 		Icon:           icon,
 		IconIsTemplate: true,
-		ToolTip:        "orbit · 点击展开系统状态栏",
+		ToolTip:        trayDefaultToolTip(),
 	})
 	if err != nil {
 		panic(err)
@@ -142,39 +195,47 @@ func createTray() {
 // ?mode=menubar, which is how it knows to draw the compact layout instead of
 // the full window.
 func toggleFlyout() {
-	w := flyoutWindow
+	w := flyoutWindow.Load()
 	if w != nil && !w.IsDestroyed() {
 		if w.IsVisible() {
 			w.Hide()
 			return
 		}
 	}
-	w = ensureFlyout()
+	showFlyout()
+}
+
+func showFlyout() {
+	w, fresh := ensureFlyout()
 	if w == nil {
 		return
 	}
 	w.Show()
-	// The Swift app refreshed both payloads when its popover opened, since
-	// the panel is a snapshot of the moment it was opened.
+	w.Focus()
+	if fresh {
+		return // the new page asks for its state in OnDidFinishLoad; pushing now would send the payload twice
+	}
 	pushRealTelemetryNow()
-	pushRealSystemScanNow()
+	pushCachedSystemScan(w.Page())
+	pushCaffeinateState(currentCaffeinateActive())
 }
 
 // ensureFlyout returns the menu-bar panel, creating it the first time. A
 // popover that the system closed may take its window with it, so a destroyed
-// panel is replaced rather than reused.
-func ensureFlyout() *mygo.Window {
-	if flyoutWindow != nil && !flyoutWindow.IsDestroyed() {
-		return flyoutWindow
+// panel is replaced rather than reused. fresh reports a panel created by this
+// call, whose page has not loaded yet.
+func ensureFlyout() (panel *mygo.Window, fresh bool) {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
+		return w, false
 	}
 	if trayItem == nil {
-		return nil
+		return nil, false
 	}
-	panel := mygo.NewFlyout(mygo.FlyoutOptions{
+	panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:         trayItem,
 		URL:          "/?mode=menubar",
-		Width:        356,
-		Height:       480,
+		Width:        380,
+		Height:       588,
 		Placement:    mygo.PlacementBottom,
 		Popover:      true,
 		Focusable:    true,
@@ -186,15 +247,16 @@ func ensureFlyout() *mygo.Window {
 	})
 	panel.Page().OnDidFinishLoad(func() {
 		pushRealTelemetryNow()
-		pushRealSystemScanNow()
+		pushCachedSystemScan(panel.Page())
+		pushCaffeinateState(currentCaffeinateActive())
+		pushFlyoutTheme(loadSavedTheme())
+		pushFlyoutLanguage(language())
 	})
 	panel.OnClosed(func() {
-		if flyoutWindow == panel {
-			flyoutWindow = nil
-		}
+		flyoutWindow.CompareAndSwap(panel, nil)
 	})
-	flyoutWindow = panel
-	return panel
+	flyoutWindow.Store(panel)
+	return panel, true
 }
 
 // startTelemetryTimer refreshes the live numbers every 1.5 seconds, the
@@ -204,12 +266,12 @@ func startTelemetryTimer() {
 		ticker := time.NewTicker(1500 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			// Sampling costs four subprocesses (ps, vm_stat, ioreg, sysctl) per
-			// tick, so it only runs while a window actually shows the numbers.
+			// Sampling still walks the process table and reads IOKit every tick,
+			// so it only runs while a window actually shows the numbers.
 			if !appVisible() {
 				continue
 			}
-			pushRealTelemetryNow()
+			pushRealTelemetry(false)
 		}
 	}()
 }
@@ -220,7 +282,7 @@ func appVisible() bool {
 	if w := activeMainWindow(); w != nil && w.IsVisible() {
 		return true
 	}
-	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
 		return true
 	}
 	return false
@@ -233,35 +295,43 @@ func buildApplicationMenu() *mygo.Menu {
 		{
 			Role: mygo.RoleAppMenu,
 			Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleAbout, Label: "关于 " + appName},
+				{Role: mygo.RoleAbout, Label: L("关于 ", "About ") + appName},
+				updater.MenuItem(),
 				mygo.Separator(),
-				{Role: mygo.RoleHide, Label: "隐藏 " + appName},
-				{Role: mygo.RoleHideOthers, Label: "隐藏其他"},
-				{Role: mygo.RoleUnhide, Label: "全部显示"},
+				{Role: mygo.RoleHide, Label: L("隐藏 ", "Hide ") + appName},
+				{Role: mygo.RoleHideOthers, Label: L("隐藏其他", "Hide others")},
+				{Role: mygo.RoleUnhide, Label: L("全部显示", "Show all")},
 				mygo.Separator(),
-				{Role: mygo.RoleQuit, Label: "退出 " + appName},
+				{Role: mygo.RoleQuit, Label: L("退出 ", "Quit ") + appName},
 			},
 		},
 		{
 			Role:  mygo.RoleEditMenu,
-			Label: "编辑",
+			Label: L("编辑", "Edit"),
 			Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleUndo, Label: "撤销"},
-				{Role: mygo.RoleRedo, Label: "重做"},
+				{Role: mygo.RoleUndo, Label: L("撤销", "Undo")},
+				{Role: mygo.RoleRedo, Label: L("重做", "Redo")},
 				mygo.Separator(),
-				{Role: mygo.RoleCut, Label: "剪切"},
-				{Role: mygo.RoleCopy, Label: "拷贝"},
-				{Role: mygo.RolePaste, Label: "粘贴"},
-				{Role: mygo.RoleSelectAll, Label: "全选"},
+				{Role: mygo.RoleCut, Label: L("剪切", "Cut")},
+				{Role: mygo.RoleCopy, Label: L("拷贝", "Copy")},
+				{Role: mygo.RolePaste, Label: L("粘贴", "Paste")},
+				{Role: mygo.RoleSelectAll, Label: L("全选", "Select all")},
+			},
+		},
+		{
+			Label: L("工具", "Tools"),
+			Submenu: []*mygo.MenuItem{
+				{Label: L("菜单栏工具", "Menu bar panel"), Click: func(*mygo.MenuItem, *mygo.Window) { showFlyout() }},
+				{Label: L("运行与权限", "Runtime and permissions"), Click: func(*mygo.MenuItem, *mygo.Window) { showMainWindow("openRuntimePanel();") }},
 			},
 		},
 		{
 			Role:  mygo.RoleWindowMenu,
-			Label: "窗口",
+			Label: L("窗口", "Window"),
 			Submenu: []*mygo.MenuItem{
-				{Role: mygo.RoleMinimize, Label: "最小化"},
-				{Role: mygo.RoleZoom, Label: "缩放"},
-				{Role: mygo.RoleClose, Label: "关闭"},
+				{Role: mygo.RoleMinimize, Label: L("最小化", "Minimize")},
+				{Role: mygo.RoleZoom, Label: L("缩放", "Zoom")},
+				{Role: mygo.RoleClose, Label: L("关闭", "Close")},
 			},
 		},
 	})

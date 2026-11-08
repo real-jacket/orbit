@@ -49,39 +49,54 @@ func evaluate(script string) {
 	if w := activeMainWindow(); w != nil {
 		run(w.Page())
 	}
-	if w := flyoutWindow; w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
 		run(w.Page())
 	}
 }
 
-// pushRealTelemetryNow sends the live CPU, memory, disk, process and power
+// pushRealTelemetryNow sends the full live snapshot, process list included.
+func pushRealTelemetryNow() { pushRealTelemetry(true) }
+
+// pushRealTelemetry sends the live CPU, memory, disk, process and power
 // snapshot to the page and updates the menu-bar tooltip. It does its measuring
 // on its own goroutine, since sampling processes and the battery takes long
 // enough to be felt on the main thread — the Swift app used a background queue
-// for the same reason.
-func pushRealTelemetryNow() {
+// for the same reason. The timer passes withProcesses=false: the process list
+// is cached for several ticks and is 90% of the payload, so a tick that has no
+// fresh list omits it and the page keeps the one it has.
+func pushRealTelemetry(withProcesses bool) {
 	go func() {
-		snapshot := scanner.Shared.BuildTelemetry()
+		snapshot := scanner.Shared.BuildTelemetry(withProcesses)
 		if trayItem != nil {
-			trayItem.SetToolTip(fmt.Sprintf("orbit · CPU %.1f%% · 剩余 %.1f GB", snapshot.CPU, snapshot.FreeDiskGb))
+			trayItem.SetToolTip(telemetryToolTip(snapshot.CPU, snapshot.Power.MemPressure, snapshot.FreeDiskGb))
 		}
 		evaluate("window.onNativeRealTelemetry ? window.onNativeRealTelemetry(" + jsonOf(snapshot) + ") : undefined")
 	}()
 }
 
-// analyzeQueue keeps at most one `mo analyze` running. Each run can take half a
+// analyzeQueue keeps at most one disk scan running. Each run can take half a
 // minute on a big directory, and the page asks again on every drill-down, so
 // without this the requests pile up behind each other and the last answer
 // arrives long after the one the user is waiting for.
 var analyzeQueue struct {
 	mu      sync.Mutex
 	running bool
-	next    *string
+	current analyzeRequest
+	next    *analyzeRequest
+}
+
+type analyzeRequest struct {
+	path    string
+	refresh bool
+	id      string
 }
 
 // pushAnalyzeProgress forwards one scan progress tick to the page, which only
 // redraws the "已扫描 N 个文件" line: the treemap waits for the finished tree.
 func pushAnalyzeProgress(progress analyze.Progress) {
+	analyzeQueue.mu.Lock()
+	progress.RequestID = analyzeQueue.current.id
+	analyzeQueue.mu.Unlock()
 	evaluate("window.onNativeAnalyzeProgress ? window.onNativeAnalyzeProgress(" + jsonOf(progress) + ") : undefined")
 }
 
@@ -89,26 +104,42 @@ func pushAnalyzeProgress(progress analyze.Progress) {
 // for the overview of the root volume; anything else analyses that directory
 // and the page hangs the result under the tile it already has for it. A request
 // that arrives while one is running replaces the pending one, so the newest
-// click wins instead of every click being queued.
-func pushDiskAnalyze(path string) {
+// click wins instead of every click being queued. The running scan is only
+// canceled when the new request cannot use its tree.
+func pushDiskAnalyze(path string, refresh bool, requestID string) {
+	request := analyzeRequest{path: path, refresh: refresh, id: requestID}
 	analyzeQueue.mu.Lock()
 	if analyzeQueue.running {
-		pending := path
-		analyzeQueue.next = &pending
+		analyzeQueue.next = &request
+		analyze.Shared.CancelUnlessCovering(expandTilde(path), refresh)
 		analyzeQueue.mu.Unlock()
 		return
 	}
 	analyzeQueue.running = true
+	analyzeQueue.current = request
 	analyzeQueue.mu.Unlock()
 
 	go func() {
-		current := path
+		current := request
 		for {
-			var payload analyze.Payload
-			if current == "" {
-				payload = analyze.Overview()
-			} else {
-				payload = analyze.Children(expandTilde(current))
+			payload := analyze.PayloadFor(expandTilde(current.path), current.refresh)
+			payload.RequestID = current.id
+			for i := range payload.Treemap2D {
+				tile := &payload.Treemap2D[i]
+				tile.ProtectionReason = scanner.Shared.CleanupReason(tile.Path)
+				if tile.Partial {
+					tile.ProtectionReason = "目录尚未完整读取，进入检查或重新扫描后再处理"
+				}
+			}
+			for i := range payload.LargeFiles {
+				file := &payload.LargeFiles[i]
+				file.ProtectionReason = scanner.Shared.CleanupReason(file.Path)
+			}
+			if payload.Aggregated != nil {
+				for i := range payload.Aggregated.Items {
+					item := &payload.Aggregated.Items[i]
+					item.ProtectionReason = scanner.Shared.CleanupReason(item.Path)
+				}
 			}
 			evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
 
@@ -119,10 +150,27 @@ func pushDiskAnalyze(path string) {
 				return
 			}
 			current = *analyzeQueue.next
+			analyzeQueue.current = current
 			analyzeQueue.next = nil
 			analyzeQueue.mu.Unlock()
 		}
 	}()
+}
+
+func cancelDiskAnalyze(requestID string) {
+	analyzeQueue.mu.Lock()
+	dropped := analyzeQueue.next != nil && analyzeQueue.next.id == requestID
+	if dropped {
+		analyzeQueue.next = nil
+	}
+	if requestID == "" || requestID == analyzeQueue.current.id {
+		analyze.Shared.Cancel()
+	}
+	analyzeQueue.mu.Unlock()
+	if dropped {
+		payload := analyze.Payload{RequestID: requestID, ScanStatus: "canceled", Error: "扫描请求已取消，尚未开始读取；旧结果保持原状"}
+		evaluate("window.onNativeDiskAnalyze ? window.onNativeDiskAnalyze(" + jsonOf(payload) + ") : undefined")
+	}
 }
 
 // pushTrashResult sends the receipt for one trash request. The page only
@@ -139,15 +187,16 @@ func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
 	}
 	failed := make([]map[string]any, 0, len(outcome.Failed))
 	for _, entry := range outcome.Failed {
-		failed = append(failed, map[string]any{"path": entry.Path, "error": entry.Error})
+		failed = append(failed, map[string]any{"path": entry.Path, "error": entry.Error, "pane": entry.Pane})
 	}
 	payload := map[string]any{
-		"requestId":  requestID,
-		"requested":  outcome.Requested,
-		"movedCount": len(outcome.Moved),
-		"moved":      moved,
-		"skipped":    skipped,
-		"failed":     failed,
+		"requestId":    requestID,
+		"requested":    outcome.Requested,
+		"movedCount":   len(outcome.Moved),
+		"moved":        moved,
+		"skipped":      skipped,
+		"failed":       failed,
+		"restoreError": outcome.RestoreError,
 	}
 	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult(" + jsonOf(payload) + ") : undefined")
 }
@@ -169,12 +218,40 @@ func pushRestoreResult(requestID string, outcome scanner.RestoreOutcome) {
 	evaluate("window.onNativeRestoreResult ? window.onNativeRestoreResult(" + jsonOf(payload) + ") : undefined")
 }
 
+// pushMeasureResult sends the receipt for one on-demand full measurement.
+func pushMeasureResult(requestID string, outcome scanner.MeasureOutcome) {
+	payload := map[string]any{
+		"requestId": requestID, "path": outcome.Path, "ok": outcome.OK, "bytes": outcome.Bytes,
+		"sizeGb": outcome.SizeGb, "files": outcome.Files, "partial": outcome.Partial, "reason": outcome.Reason,
+	}
+	evaluate("window.onNativeMeasureResult ? window.onNativeMeasureResult(" + jsonOf(payload) + ") : undefined")
+}
+
 // pushDoctorReport sends the 体检 rows the page renders.
-func pushDoctorReport(checks []map[string]any) {
+func pushDoctorReport(requestID string, checks []map[string]any) {
 	if checks == nil {
 		checks = []map[string]any{}
 	}
-	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport(" + jsonOf(map[string]any{"checks": checks}) + ") : undefined")
+	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport(" + jsonOf(map[string]any{"requestId": requestID, "checks": checks}) + ") : undefined")
+}
+
+// pushFlyoutTheme tells the menu-bar panel which theme the main window chose.
+// The panel is usually hidden when that happens, so it cannot go through
+// evaluate, and a hidden popover's prefers-color-scheme is not something to
+// rely on: it gets the theme itself, "system" meaning follow the media query.
+func pushFlyoutTheme(theme string) {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
+		_, _ = w.Page().Eval("window.onNativeTheme ? window.onNativeTheme(" + jsonOf(theme) + ") : undefined")
+	}
+}
+
+// pushFlyoutLanguage tells the menu-bar panel which language the main window
+// chose, the way pushFlyoutTheme does: the panel is usually hidden, so it cannot
+// go through evaluate.
+func pushFlyoutLanguage(lang string) {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
+		_, _ = w.Page().Eval("window.onNativeLanguage ? window.onNativeLanguage(" + jsonOf(lang) + ") : undefined")
+	}
 }
 
 // pushCaffeinateState tells both pages whether the display is being kept awake.
@@ -202,10 +279,61 @@ func pushWhitelistChanged(action, path string, policy scanner.Whitelist, err err
 
 // pushRealSystemScanNow scans installed apps, leftovers, large files, installer
 // packages and the clean groups, then sends the whole payload to the page.
+var systemScanQueue struct {
+	sync.Mutex
+	running    bool
+	again      bool
+	lastScript string
+}
+
+func pushCachedSystemScan(page *mygo.Page) {
+	systemScanQueue.Lock()
+	script := systemScanQueue.lastScript
+	systemScanQueue.Unlock()
+	if script != "" {
+		go func() { _, _ = page.Eval(script) }()
+	}
+}
+
+func queueSystemScan() bool {
+	systemScanQueue.Lock()
+	defer systemScanQueue.Unlock()
+	if systemScanQueue.running {
+		systemScanQueue.again = true
+		return false
+	}
+	systemScanQueue.running = true
+	return true
+}
+
+func nextSystemScan() bool {
+	systemScanQueue.Lock()
+	defer systemScanQueue.Unlock()
+	if systemScanQueue.again {
+		systemScanQueue.again = false
+		return true
+	}
+	systemScanQueue.running = false
+	return false
+}
+
 func pushRealSystemScanNow() {
+	if !queueSystemScan() {
+		return
+	}
 	go func() {
-		payload := scanner.Shared.BuildFullScanPayload()
-		evaluate("window.onNativeRealScanComplete ? window.onNativeRealScanComplete(" + jsonOf(payload) + ") : undefined")
+		for {
+			evaluate("window.onNativeRealScanStarted ? window.onNativeRealScanStarted() : undefined")
+			payload := scanner.Shared.BuildFullScanPayload()
+			script := "window.onNativeRealScanComplete ? window.onNativeRealScanComplete(" + jsonOf(payload) + ") : undefined"
+			systemScanQueue.Lock()
+			systemScanQueue.lastScript = script
+			systemScanQueue.Unlock()
+			evaluate(script)
+			if !nextSystemScan() {
+				return
+			}
+		}
 	}()
 }
 

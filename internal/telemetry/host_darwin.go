@@ -24,17 +24,14 @@ type Host struct {
 	CPUPercent float64
 	CPUReady   bool
 
-	// MemUsedGB is what the machine reports as used: active + wired + compressed
-	// pages, capped at 96% of installed memory so a leaky accounting can never
-	// draw a bar past the end. MemAvailableGB is the memory a new process could
-	// claim before swapping: free + inactive + speculative pages.
-	//
-	// They are two different accounting views, not halves of one pie: they do
-	// not add up to MemTotalGB.
+	// MemUsedGB is application + wired + compressed memory in GiB. File-backed
+	// and purgeable pages are excluded from application memory. MemAvailableGB
+	// is the remaining capacity, including reusable caches, not just free pages.
 	MemUsedGB      float64
 	MemAvailableGB float64
 	MemTotalGB     float64
 	MemReady       bool
+	Memory         *Memory
 }
 
 // mach host calls. HOST_CPU_LOAD_INFO is the aggregate per-state tick counter
@@ -135,6 +132,9 @@ func sysctlUint64(name string) (uint64, bool) {
 	return binary.LittleEndian.Uint64(buf[:]), true
 }
 
+// SysctlUint reads one integer sysctl without forking sysctl(8).
+func SysctlUint(name string) (uint64, bool) { return sysctlUint64(name) }
+
 // loadMemInfo reads the installed memory and the vm page size once. Both are
 // constants for the life of the machine, so paying a syscall per tick would be
 // pure waste.
@@ -226,13 +226,21 @@ func HostSample() Host {
 	if totalGB, pageSize, ok := loadMemInfo(); ok {
 		host.MemTotalGB = totalGB
 		if stats, ok := readVMStatistics(); ok {
-			usedPages := float64(stats.activeCount) + float64(stats.wireCount) +
-				float64(stats.compressorPageCount)
-			availablePages := float64(stats.freeCount) + float64(stats.inactiveCount) +
-				float64(stats.speculativeCount)
-			host.MemUsedGB = math.Min(totalGB*0.96, usedPages*pageSize/gibibyte)
-			host.MemAvailableGB = availablePages * pageSize / gibibyte
-			host.MemReady = true
+			pagesToGB := pageSize / gibibyte
+			appPages := math.Max(0, float64(stats.activeCount)+float64(stats.inactiveCount)+float64(stats.speculativeCount)-
+				float64(stats.purgeableCount)-float64(stats.externalPageCount))
+			memory := &Memory{
+				AppGB:        appPages * pagesToGB,
+				WiredGB:      float64(stats.wireCount) * pagesToGB,
+				CompressedGB: float64(stats.compressorPageCount) * pagesToGB,
+				CacheGB:      (float64(stats.purgeableCount) + float64(stats.externalPageCount)) * pagesToGB,
+			}
+			host.MemUsedGB = memory.AppGB + memory.WiredGB + memory.CompressedGB
+			if host.MemUsedGB <= totalGB && memory.CacheGB <= totalGB {
+				host.MemAvailableGB = totalGB - host.MemUsedGB
+				host.MemReady = true
+				host.Memory = memory
+			}
 		}
 	}
 	host.CPUPercent, host.CPUReady = cpuShare()

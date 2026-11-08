@@ -1,21 +1,17 @@
 package main
 
-// This file holds the preload script, the one seam that lets the frontend stay
-// byte-identical to the one the Swift app shipped.
+// This file holds the preload script: the flags and window chrome the page
+// expects from a native shell.
 //
-// Resources/src-ui/index.html talks to its shell through WebKit's own message
-// handler, which the AppKit app registered as "moleNative":
-//
-//	window.webkit.messageHandlers.moleNative.postMessage(payload)
-//
-// MyGo owns the web view instead and registers its handler as "mygo", so that
-// name is taken. A preload script runs after MyGo's bridge installs window.mygo
-// and before the page's own scripts, which is early enough to add a second
-// entry to the same messageHandlers object. Assigning a NEW property there
-// works; replacing window.webkit does not, since it is non-configurable.
+// The page reaches Go through window.mygo.call('NativeBridge.Dispatch', ...),
+// which MyGo defines at document start (see sendNativeBridge in index.html), so
+// no bridge shim is injected here. An earlier shim faked
+// window.webkit.messageHandlers.moleNative, but WebKit replaces that object when
+// the load finishes and silently drops what was attached, which needed a 500ms
+// polling watchdog; window.mygo is not replaced, so the page uses it directly.
 //
 // Everything the old shell injected from AppKit — the isNativeMacApp flag, the
-// hidden fake traffic lights, the menubar-mode class — happens here too, so the
+// hidden fake traffic lights, the menubar-mode class — happens here, so the
 // page sees the same environment it always did.
 
 // preloadScript returns the JavaScript injected into the windows that show the
@@ -31,15 +27,12 @@ package main
 func preloadScript(menubar bool) string {
 	if menubar {
 		return `(function () {
-  var runtime = window.mygo;
   window.isNativeMacApp = true;
   window.isMenuBarPopover = true;
-  installNativeBridge(runtime);
   onReady(function () {
     document.body.classList.add('menubar-mode');
     installDragRegions();
   });
-  function installNativeBridge(runtime) {` + nativeBridgeShim + `}
   function onReady(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn);
@@ -51,15 +44,12 @@ func preloadScript(menubar bool) string {
 })();`
 	}
 	return `(function () {
-  var runtime = window.mygo;
   window.isNativeMacApp = true;
-  installNativeBridge(runtime);
   onReady(function () {
     var lights = document.querySelector('.traffic-lights');
     if (lights) lights.style.visibility = 'hidden';
     installDragRegions();
   });
-  function installNativeBridge(runtime) {` + nativeBridgeShim + `}
   function onReady(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn);
@@ -70,23 +60,6 @@ func preloadScript(menubar bool) string {
   function installDragRegions() {` + dragRegions + `}
 })();`
 }
-
-// nativeBridgeShim defines window.webkit.messageHandlers.moleNative as a
-// forwarder into the one bound Go method that handles every action. It is a
-// function body so both preload variants can share it.
-const nativeBridgeShim = `
-    try {
-      window.webkit.messageHandlers.moleNative = {
-        postMessage: function (payload) {
-          if (!runtime || typeof runtime.call !== 'function') return;
-          try {
-            var pending = runtime.call('NativeBridge.Dispatch', payload);
-            if (pending && typeof pending.catch === 'function') pending.catch(function () {});
-          } catch (e) {}
-        }
-      };
-    } catch (e) {}
-`
 
 // dragRegions marks the window chrome as a native drag region. MyGo's bridge
 // turns a mousedown inside one into a real window drag, which is how the old

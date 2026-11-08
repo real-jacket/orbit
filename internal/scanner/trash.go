@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -23,11 +24,17 @@ const trashManifestVersion = 1
 // restorable rather than growing the file forever.
 const trashManifestLimit = 1000
 
+// The main window, tray, and late file moves can all record receipts at once.
+var trashManifestMu sync.Mutex
+var trashOperationMu sync.Mutex
+
 // TrashEntry records one trashed item: where it came from and where it is now.
 type TrashEntry struct {
 	Original string `json:"original"`
 	Trashed  string `json:"trashed"`
 	At       int64  `json:"at"`
+	Device   uint64 `json:"device,omitempty"`
+	Inode    uint64 `json:"inode,omitempty"`
 }
 
 // TrashFailure is one path the app could not move.
@@ -47,10 +54,11 @@ type TrashSkip struct {
 
 // TrashOutcome is the receipt the page waits for before it claims success.
 type TrashOutcome struct {
-	Requested int
-	Moved     []TrashEntry
-	Skipped   []TrashSkip
-	Failed    []TrashFailure
+	Requested    int
+	Moved        []TrashEntry
+	Skipped      []TrashSkip
+	Failed       []TrashFailure
+	RestoreError string
 }
 
 // RestoreOutcome is the receipt for a restore request.
@@ -85,21 +93,23 @@ type trashManifest struct {
 	Entries []TrashEntry `json:"entries"`
 }
 
-// readTrashManifest loads the receipts, and treats a corrupt file as empty: a
-// receipt we cannot read must not stop the app from cleaning up.
-func readTrashManifest() trashManifest {
+// Unreadable receipts must not be silently replaced or guessed from filenames.
+func readTrashManifest() (trashManifest, error) {
 	manifest := trashManifest{Version: trashManifestVersion}
 	data, err := os.ReadFile(trashManifestPath())
+	if os.IsNotExist(err) {
+		return manifest, nil
+	}
 	if err != nil {
-		return manifest
+		return manifest, err
 	}
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return trashManifest{Version: trashManifestVersion}
+		return manifest, fmt.Errorf("还原清单损坏：%w", err)
 	}
 	if manifest.Version != trashManifestVersion {
-		return trashManifest{Version: trashManifestVersion}
+		return manifest, fmt.Errorf("不支持的还原清单版本 %d", manifest.Version)
 	}
-	return manifest
+	return manifest, nil
 }
 
 // writeTrashManifest saves the receipts atomically, so a crash cannot leave a
@@ -125,21 +135,31 @@ func writeTrashManifest(manifest trashManifest) error {
 
 // recordTrash adds entries to the manifest, newest first.
 func recordTrash(entries []TrashEntry) error {
-	manifest := readTrashManifest()
+	trashManifestMu.Lock()
+	defer trashManifestMu.Unlock()
+	manifest, err := readTrashManifest()
+	if err != nil {
+		return err
+	}
 	manifest.Entries = append(entries, manifest.Entries...)
 	return writeTrashManifest(manifest)
 }
 
 // forgetTrash drops the receipts for originals that were restored.
-func forgetTrash(originals []string) error {
-	restored := make(map[string]struct{}, len(originals))
-	for _, original := range originals {
-		restored[original] = struct{}{}
+func forgetTrash(restored []TrashEntry) error {
+	trashManifestMu.Lock()
+	defer trashManifestMu.Unlock()
+	done := make(map[[2]string]struct{}, len(restored))
+	for _, entry := range restored {
+		done[[2]string{entry.Original, entry.Trashed}] = struct{}{}
 	}
-	manifest := readTrashManifest()
+	manifest, err := readTrashManifest()
+	if err != nil {
+		return err
+	}
 	kept := manifest.Entries[:0]
 	for _, entry := range manifest.Entries {
-		if _, ok := restored[entry.Original]; ok {
+		if _, ok := done[[2]string{entry.Original, entry.Trashed}]; ok {
 			continue
 		}
 		kept = append(kept, entry)
@@ -153,11 +173,23 @@ func forgetTrash(originals []string) error {
 // enforces the same protection `mo` does, because it does the deleting itself.
 func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 	outcome := TrashOutcome{Requested: len(rawPaths)}
-	policy := s.whitelist()
+	if !trashOperationMu.TryLock() {
+		for _, path := range rawPaths {
+			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: s.expand(path), Reason: "已有文件操作等待系统结果，不能重复处理"})
+		}
+		return outcome
+	}
+	defer trashOperationMu.Unlock()
+	if _, err := readTrashManifest(); err != nil {
+		for _, path := range rawPaths {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: s.expand(path), Error: "无法读取还原清单，未移动：" + err.Error()})
+		}
+		return outcome
+	}
 	entries := make([]TrashEntry, 0, len(rawPaths))
 	for _, raw := range rawPaths {
-		path := strings.TrimSpace(raw)
-		if path == "" {
+		path := raw
+		if strings.TrimSpace(path) == "" {
 			continue
 		}
 		path = s.expand(path)
@@ -170,27 +202,39 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "拒绝整根移动废纸篓与家目录"})
 			continue
 		}
-		if policy.Protects(path) {
-			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "白名单保护"})
+		if reason := s.cleanupReason(path, true); reason != "" {
+			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: reason})
 			continue
 		}
 		if !exists(path) {
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: path, Error: "路径不存在"})
 			continue
 		}
+		// Dispatch runs off the UI thread; a timeout cannot cancel rename(2).
 		trashed, err := moveToTrash(path)
 		if err != nil {
 			outcome.Failed = append(outcome.Failed, trashFailure(path, err))
 			continue
 		}
-		outcome.Moved = append(outcome.Moved, TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix()})
+		entry := TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix()}
+		if info, err := os.Lstat(trashed); err == nil {
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				entry.Device, entry.Inode = uint64(stat.Dev), uint64(stat.Ino)
+			}
+		}
+		if entry.Inode == 0 {
+			outcome.RestoreError = "文件已移动，但废纸篓中的文件身份无法核验；请在访达检查"
+		}
+		outcome.Moved = append(outcome.Moved, entry)
 		entries = append(entries, outcome.Moved[len(outcome.Moved)-1])
 	}
+	defer func() { logTrashOutcome("trash", outcome) }()
 	if len(entries) > 0 {
 		if err := recordTrash(entries); err != nil {
 			// The files are already gone; recording the receipt is best effort,
 			// but say so instead of silently losing the ability to restore.
-			outcome.Failed = append(outcome.Failed, TrashFailure{Path: trashManifestPath(), Error: "写入还原清单失败：" + err.Error()})
+			outcome.RestoreError = "写入还原清单失败：" + err.Error()
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: trashManifestPath(), Error: outcome.RestoreError})
 		}
 	}
 	return outcome
@@ -199,27 +243,87 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 // RestoreTrash moves originals back out of the Trash using the manifest. Items
 // that are no longer there, or that would overwrite something, are reported
 // instead of guessed at.
-func (s *Scanner) RestoreTrash(originals []string) RestoreOutcome {
+func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string]string) RestoreOutcome {
 	outcome := RestoreOutcome{Requested: len(originals)}
-	manifest := readTrashManifest()
-	byOriginal := make(map[string]TrashEntry, len(manifest.Entries))
-	for _, entry := range manifest.Entries {
-		if _, ok := byOriginal[entry.Original]; !ok {
-			byOriginal[entry.Original] = entry
+	if !trashOperationMu.TryLock() {
+		for _, path := range originals {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: s.expand(path), Error: "已有文件操作等待系统结果，不能同时还原"})
 		}
+		return outcome
 	}
-	restored := make([]string, 0, len(originals))
+	defer trashOperationMu.Unlock()
+	manifest, err := readTrashManifest()
+	if err != nil {
+		for _, path := range originals {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: s.expand(path), Error: err.Error()})
+		}
+		return outcome
+	}
+	trash, err := trashDir()
+	if err != nil {
+		for _, path := range originals {
+			outcome.Failed = append(outcome.Failed, trashFailure(s.expand(path), err))
+		}
+		return outcome
+	}
+	byOriginal := make(map[string][]TrashEntry, len(manifest.Entries))
+	for _, entry := range manifest.Entries {
+		byOriginal[entry.Original] = append(byOriginal[entry.Original], entry)
+	}
+	restored := make([]TrashEntry, 0, len(originals))
 	for _, raw := range originals {
-		original := filepath.Clean(s.expand(strings.TrimSpace(raw)))
-		if original == "" || original == "." {
+		original := filepath.Clean(s.expand(raw))
+		if strings.TrimSpace(raw) == "" {
 			continue
 		}
-		entry, ok := byOriginal[original]
-		if !ok {
-			entry = TrashEntry{Original: original, Trashed: filepath.Join(s.home, ".Trash", filepath.Base(original))}
+		if !filepath.IsAbs(original) || isTrashRoot(original, s.home) {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: raw, Error: "还原目标不是可核验的绝对路径"})
+			continue
 		}
+		if _, protected := builtinCleanupProtection(original, s.home); protected {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "应用不会移动的核心路径不能通过还原清单写入；请在访达中检查"})
+			continue
+		}
+		candidates := byOriginal[original]
+		if len(expectedTrashed) > 0 {
+			wanted := expectedTrashed[0][original]
+			if wanted == "" {
+				outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "这条历史记录未保存具体废纸篓路径，不能区分版本；请在访达中检查"})
+				continue
+			}
+			candidates = nil
+			for _, entry := range byOriginal[original] {
+				if entry.Trashed == wanted {
+					candidates = append(candidates, entry)
+				}
+			}
+		}
+		if len(candidates) == 0 {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "没有匹配的还原清单；请在访达中检查废纸篓，不按同名文件猜测"})
+			continue
+		}
+		if len(candidates) != 1 {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "同一原始路径有多份清单，无法判断这条记录对应哪份；请在访达中检查"})
+			continue
+		}
+		entry := candidates[0]
+		if !filepath.IsAbs(entry.Trashed) || filepath.Dir(filepath.Clean(entry.Trashed)) != filepath.Clean(trash) {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "还原清单的来源不在当前废纸篓中，保持原状"})
+			continue
+		}
+		entry.Trashed = filepath.Clean(entry.Trashed)
 		if !exists(entry.Trashed) {
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "废纸篓中已找不到该项"})
+			continue
+		}
+		info, err := os.Lstat(entry.Trashed)
+		if err != nil {
+			outcome.Failed = append(outcome.Failed, trashFailure(original, err))
+			continue
+		}
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || entry.Inode == 0 || uint64(stat.Dev) != entry.Device || uint64(stat.Ino) != entry.Inode {
+			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "废纸篓文件身份已变化或旧版清单未保存身份，不能确认这份数据；请在访达中检查"})
 			continue
 		}
 		if err := moveBack(entry); err != nil {
@@ -227,27 +331,68 @@ func (s *Scanner) RestoreTrash(originals []string) RestoreOutcome {
 			continue
 		}
 		outcome.Restored = append(outcome.Restored, original)
-		restored = append(restored, original)
+		restored = append(restored, entry)
 	}
 	if len(restored) > 0 {
 		_ = forgetTrash(restored)
 	}
+	logTrashOutcome("restore", TrashOutcome{Requested: outcome.Requested, Failed: outcome.Failed})
 	return outcome
 }
 
-// moveBack returns one trashed item to its original path, renaming it if
-// something already occupies that path.
-func moveBack(entry TrashEntry) error {
-	target := entry.Original
-	if exists(target) {
-		target = uniqueSibling(target)
+// logTrashOutcome appends one JSON line to <state>/trash.log so a refusal can be
+// diagnosed later without reproducing it in a debugger. It is best effort and
+// caps the file so it cannot grow without bound.
+func logTrashOutcome(action string, outcome TrashOutcome) {
+	record := map[string]any{
+		"at":           time.Now().Format(time.RFC3339),
+		"action":       action,
+		"requested":    outcome.Requested,
+		"moved":        len(outcome.Moved),
+		"skipped":      outcome.Skipped,
+		"failed":       outcome.Failed,
+		"restoreError": outcome.RestoreError,
 	}
-	if dir := filepath.Dir(target); dir != "" {
+	line, err := json.Marshal(record)
+	if err != nil {
+		return
+	}
+	path := filepath.Join(StateDir(), "trash.log")
+	if info, err := os.Stat(path); err == nil && info.Size() > 256*1024 {
+		_ = os.Remove(path)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	_, _ = file.Write(append(line, '\n'))
+}
+
+// moveBack returns one trashed item to its original path without replacing it.
+func moveBack(entry TrashEntry) error {
+	for parent := filepath.Dir(entry.Original); ; parent = filepath.Dir(parent) {
+		resolved, err := filepath.EvalSymlinks(parent)
+		if os.IsNotExist(err) && parent != "/" {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if resolved != parent && (resolved != "/private"+parent || !(withinPath(parent, "/var") || withinPath(parent, "/tmp"))) {
+			return fmt.Errorf("还原目标的父目录经过符号链接，不能确认原路还原；请在访达中检查")
+		}
+		break
+	}
+	if dir := filepath.Dir(entry.Original); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
 	}
-	return os.Rename(entry.Trashed, target)
+	return renameWithoutOverwrite(entry.Trashed, entry.Original)
 }
 
 // uniqueSibling returns path with " 2", " 3", … appended to the stem until it
@@ -291,24 +436,48 @@ func humanizeTrashError(path string, err error) (string, string) {
 	switch {
 	case errors.Is(err, os.ErrPermission), errors.Is(err, syscall.EPERM), errors.Is(err, syscall.EACCES):
 		if isAppBundle(path) {
-			return "macOS 拒绝移动应用：需要在「系统设置 › 隐私与安全性 › App 管理」里允许 MoleStudio。" +
+			return "macOS 拒绝移动应用：需要在「系统设置 › 隐私与安全性 › App 管理」里允许 orbit。" +
 				"本地签名版本每次重新打包后系统会当成新应用，需要重新授权。", "appManagement"
 		}
 		if needsFolderAccess(path) {
-			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 MoleStudio 访问。", "filesAndFolders"
+			return "权限不足：macOS 把「桌面 / 文稿 / 下载」当作受保护文件夹，需要在「系统设置 › 隐私与安全性 › 文件与文件夹」里允许 orbit 访问。", "filesAndFolders"
+		}
+		if needsAppDataAccess(path) {
+			// An uninstalled app's container belongs to another app. macOS keeps
+			// those under its App Data policy even after the owning app is gone,
+			// so a "permission denied" here is not a broken file: it is a switch.
+			return "这是其它应用留下的数据容器，macOS 需要「完全磁盘访问权限」（部分系统版本在「App 管理」）才能移动。" +
+				"授权后重试即可，已经移入废纸篓的条目不受影响。", "fullDiskAccess"
 		}
 		if needsFullDiskAccess(path) {
-			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 MoleStudio。", "fullDiskAccess"
+			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 orbit。", "fullDiskAccess"
 		}
 		return "权限不足，可能需要在系统设置里授予完全磁盘访问权限", "fullDiskAccess"
 	case errors.Is(err, syscall.EXDEV):
+		if isSystemVolume(path) {
+			return "这是 macOS 系统卷上的文件（只读保护），不能移入废纸篓", ""
+		}
 		return "跨卷移动失败，请手动处理", ""
 	case errors.Is(err, syscall.ENOSPC):
 		return "磁盘空间不足", ""
+	case errors.Is(err, os.ErrExist):
+		return "还原目标已存在，原文件与废纸篓条目均保留；请在访达中处理同名文件后重试", ""
 	case errors.Is(err, os.ErrNotExist):
 		return "路径不存在", ""
 	}
 	return err.Error(), ""
+}
+
+// isSystemVolume reports whether path lives on the read-only system volume,
+// where a move to the Trash can only ever fail with EXDEV.
+func isSystemVolume(path string) bool {
+	cleaned := filepath.Clean(path)
+	for _, prefix := range []string{"/System/", "/usr/", "/bin/", "/sbin/", "/Library/Apple/"} {
+		if strings.HasPrefix(cleaned, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // isAppBundle reports whether path is an application bundle, the kind of item
@@ -329,6 +498,18 @@ func needsFolderAccess(path string) bool {
 		}
 	}
 	return false
+}
+
+// needsAppDataAccess reports whether path is another app's data container. macOS
+// keeps ~/Library/Containers and ~/Library/Group Containers under the App Data
+// policy, and that policy outlives the app that owned the directory, so leftover
+// cleanup from the uninstall module always runs into it.
+func needsAppDataAccess(path string) bool {
+	cleaned := filepath.Clean(path)
+	return strings.Contains(cleaned, "/Library/Containers/") ||
+		strings.Contains(cleaned, "/Library/Group Containers/") ||
+		strings.HasSuffix(cleaned, "/Library/Containers") ||
+		strings.HasSuffix(cleaned, "/Library/Group Containers")
 }
 
 // needsFullDiskAccess reports whether reading path is gated by Full Disk Access:

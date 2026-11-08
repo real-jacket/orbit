@@ -8,13 +8,38 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
 
 // Scanner measures the disk. Use Shared.
 type Scanner struct {
-	home string
+	home         string
+	processProbe func() (string, error)
+	handleProbe  func(string) (bool, error)
+	installProbe func(aiInstall) bool
+	builderProbe func() ([]builderProc, error)
+	aiUnits      []aiSessionUnit // set only on a scan-scoped view, never on Shared
+
+	// processTTL is how long display-time checks may reuse one `ps` table; zero
+	// means always ask. The move boundary (live) never reads the cached table.
+	processTTL time.Duration
+	psMu       sync.Mutex
+	psOutput   string
+	psAt       time.Time
+
+	builderMu    sync.Mutex // display-time cache of the builder attribution snapshot
+	builderProcs []builderProc
+	builderAt    time.Time
+
+	// openSnapshot answers display-time open-file checks from one system-wide
+	// lsof taken on first use; set only on a scan-scoped view.
+	openSnapshot func(string) (bool, error)
+
+	unitMu    sync.Mutex // guards the short-lived session enumeration cache
+	unitCache []aiSessionUnit
+	unitAt    time.Time
 
 	// Telemetry is sampled on every tick, but not everything has to be measured
 	// that often: the process table costs a `ps` fork (~15 ms), so it is reused
@@ -23,7 +48,7 @@ type Scanner struct {
 }
 
 // Shared is the app's scanner.
-var Shared = &Scanner{home: homeDir()}
+var Shared = &Scanner{home: homeDir(), processTTL: 2 * time.Second}
 
 // homeDir returns the user's home directory.
 func homeDir() string {
@@ -90,24 +115,24 @@ func roundPtr(v *float64, places int) *float64 {
 	return &rounded
 }
 
-// gb converts bytes to gigabytes, rounding to two decimals and never
-// reporting less than 0.01 GB.
-func gb(bytes int64) float64 {
-	value := round2(float64(bytes) / 1_000_000_000)
-	if value < 0.01 {
-		return 0.01
-	}
-	return value
-}
+// Keep measured sizes exact; round only when displaying them.
+func gb(bytes int64) float64 { return plainGB(bytes) }
 
-// plainGB converts bytes to gigabytes, rounding to two decimals without a
-// floor. The analyze bridge reports sizes this way.
 func plainGB(bytes int64) float64 {
-	return round2(float64(bytes) / 1_000_000_000)
+	return float64(bytes) / 1_000_000_000
 }
 
 // formatBytes renders bytes the way the app's lists show them.
 func formatBytes(bytes int64) string {
+	if bytes <= 0 {
+		return "0 B"
+	}
+	if bytes < 1000 {
+		return itoa64(bytes) + " B"
+	}
+	if bytes < 1_000_000 {
+		return formatFloat(float64(bytes)/1000, 1) + " KB"
+	}
 	value := float64(bytes) / 1_000_000_000
 	if value >= 0.1 {
 		return formatFloat(value, 2) + " GB"
@@ -218,24 +243,53 @@ func isDir(path string) bool {
 // before a single byte was counted, which is how a 2.1 GB cache directory was
 // reported as 0.89 GB.
 type dirSize struct {
-	bytes int64
-	count int
-	files int
+	bytes     int64
+	count     int
+	files     int
+	modified  int64
+	partial   bool
+	directory bool
+	deadline  time.Time
+	linked    map[[2]uint64]bool
 }
+
+// walkSlots bounds how many directory walks run at once. Walks are kernel bound,
+// and past two of them each slows the others toward the walk deadline.
+var walkSlots = make(chan struct{}, 2)
 
 // fastDirectorySize measures how large a directory is, walking at most
 // maxFiles regular files. A path that is not a directory reports its own size
 // and one entry, which is what the Swift app did.
 func (s *Scanner) fastDirectorySize(path string, maxFiles int) dirSize {
+	return s.measureDirectory(path, maxFiles, 5*time.Second)
+}
+
+// measureDirectory is fastDirectorySize with the walk budget as a parameter;
+// maxFiles <= 0 means no file cap.
+func (s *Scanner) measureDirectory(path string, maxFiles int, budget time.Duration) dirSize {
 	path = s.expand(path)
-	info, err := os.Stat(path)
+	info, err := os.Lstat(path)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			recordReadWarning(path, err.Error())
+			return dirSize{partial: true}
+		}
+		return dirSize{}
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
 		return dirSize{}
 	}
 	if !info.IsDir() {
-		return dirSize{bytes: info.Size(), count: 1, files: 1}
+		if !info.Mode().IsRegular() {
+			return dirSize{}
+		}
+		return dirSize{bytes: allocatedSize(info), count: 1, files: 1, modified: info.ModTime().Unix()}
 	}
-	var total dirSize
+	// The budget starts once a slot is free, so a full scan running its
+	// sections side by side spends it walking, not queueing.
+	walkSlots <- struct{}{}
+	defer func() { <-walkSlots }()
+	total := dirSize{modified: info.ModTime().Unix(), deadline: time.Now().Add(budget), directory: true}
 	walkDir(path, maxFiles, &total)
 	return total
 }
@@ -244,17 +298,32 @@ func (s *Scanner) fastDirectorySize(path string, maxFiles int) dirSize {
 // regular files; directories cost nothing and are still visited while the file
 // budget lasts.
 func walkDir(dir string, maxFiles int, total *dirSize) {
-	entries, err := os.ReadDir(dir)
+	if !total.deadline.IsZero() && time.Now().After(total.deadline) {
+		total.partial = true
+		recordReadWarning(dir, "目录测量超时；只计入已读取部分")
+		return
+	}
+	entries, err := readDirEntries(dir)
 	if err != nil {
+		total.partial = true
 		return
 	}
 	for _, entry := range entries {
+		if !total.deadline.IsZero() && time.Now().After(total.deadline) {
+			total.partial = true
+			recordReadWarning(dir, "目录测量超时；只计入已读取部分")
+			return
+		}
 		if maxFiles > 0 && total.files >= maxFiles {
+			total.partial = true
+			recordReadWarning(dir, "达到文件测量上限；只计入已读取部分")
 			return
 		}
 		path := filepath.Join(dir, entry.Name())
 		info, err := entry.Info()
 		if err != nil {
+			total.partial = true
+			recordReadWarning(path, err.Error())
 			continue
 		}
 		total.count++
@@ -266,6 +335,19 @@ func walkDir(dir string, maxFiles int, total *dirSize) {
 			continue
 		}
 		total.files++
+		if modified := info.ModTime().Unix(); modified > total.modified {
+			total.modified = modified
+		}
+		if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink > 1 {
+			if total.linked == nil {
+				total.linked = make(map[[2]uint64]bool)
+			}
+			key := [2]uint64{uint64(stat.Dev), uint64(stat.Ino)}
+			if total.linked[key] {
+				continue
+			}
+			total.linked[key] = true
+		}
 		total.bytes += allocatedSize(info)
 	}
 }
@@ -275,6 +357,12 @@ func walkDir(dir string, maxFiles int, total *dirSize) {
 // split, so protection decisions split them too, otherwise a line such as
 // "~/Library/Caches & ~/Library/Logs" would protect nothing.
 func (s *Scanner) scanProtection(path string) (Protection, bool) {
+	if protection, protected := builtinCleanupProtection(path, s.home); protected {
+		return protection, true
+	}
+	if protection, protected := runtimeCleanupProtection(path); protected {
+		return protection, true
+	}
 	policy := s.whitelist()
 	if protection, protected := policy.Protection(path); protected {
 		return protection, true
@@ -324,13 +412,11 @@ func (s *Scanner) scanMayOffer(path string) (expandChildren bool, ok bool) {
 }
 
 // allocatedSize is a file's size on disk, blocks times block size, which is
-// what FileManager's totalFileAllocatedSize reported. It falls back to the
-// file's length for a file whose stat has no block count.
+// what FileManager's totalFileAllocatedSize reported. Zero blocks are valid
+// for a sparse file, not a reason to substitute its logical length.
 func allocatedSize(info os.FileInfo) int64 {
 	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		if allocated := int64(stat.Blocks) * 512; allocated > 0 {
-			return allocated
-		}
+		return max(0, int64(stat.Blocks)*512)
 	}
 	if size := info.Size(); size > 0 {
 		return size

@@ -55,7 +55,8 @@ func gb02(bytes int64) float64 {
 func (s *Scanner) collectLargeFiles(dir string, maxFiles int, scanned *int, out *[]largeFile) {
 	entries := readDir(dir)
 	for _, entry := range entries {
-		if *scanned > maxFiles {
+		if *scanned >= maxFiles {
+			recordReadWarning(dir, "大文件遍历达到扫描上限；只统计已访问路径")
 			return
 		}
 		*scanned++

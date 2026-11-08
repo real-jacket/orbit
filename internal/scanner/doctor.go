@@ -1,12 +1,15 @@
 package scanner
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/mymoles/mole-studio/internal/fsread"
 	"github.com/mymoles/mole-studio/internal/power"
 )
 
@@ -15,11 +18,13 @@ import (
 // with passed=nil ("未知") instead of being counted as a pass, because a report
 // that always says "全部通过" is worth nothing.
 func (s *Scanner) DoctorChecks() []map[string]any {
-	checks := []map[string]any{}
+	checks := []map[string]any{
+		// 先说清楚「你在跑的是哪一版」：这一行让「是不是旧构建」不再靠猜。
+		buildCheck(),
+	}
 
-	// 完全磁盘访问权限: a TCC-protected folder is readable only when the app has
-	// been granted it. ~/Library/Mail exists on every account that has Mail set
-	// up, so fall back to the Safari folder, then to the TCC database itself.
+	// Readability probes describe this process's current access, not the TCC
+	// switch itself. Check both available locations so one cannot hide another.
 	checks = append(checks, s.fdaCheck())
 
 	powerState := power.Take()
@@ -42,27 +47,69 @@ func (s *Scanner) DoctorChecks() []map[string]any {
 
 // fdaCheck answers whether this process can read TCC-protected locations.
 func (s *Scanner) fdaCheck() map[string]any {
-	candidates := []string{
-		filepath.Join(s.home, "Library", "Mail"),
-		filepath.Join(s.home, "Library", "Safari"),
+	checks := []map[string]any{
+		s.directoryReadCheck("Mail", "Library/Mail"),
+		s.directoryReadCheck("Safari", "Library/Safari"),
 	}
-	for _, path := range candidates {
-		entries, err := os.ReadDir(path)
-		if err == nil {
-			return doctorRow("完全磁盘访问权限", pass(),
-				fmt.Sprintf("可读取 %s（%d 项）", displayHomePath(path, s.home), len(entries)))
-		}
-		if os.IsNotExist(err) {
-			continue
-		}
-		// A permission error is the answer; anything else is not.
-		if os.IsPermission(err) {
-			return doctorRow("完全磁盘访问权限", fail(),
-				"无法读取受保护目录，请在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 orbit")
-		}
-		return doctorRow("完全磁盘访问权限", nil, "受保护目录不可用："+err.Error())
+	readable, denied, unknown := false, false, false
+	for _, check := range checks {
+		readable = readable || check["status"] == "readable"
+		denied = denied || check["status"] == "denied"
+		unknown = unknown || check["status"] == "unknown"
 	}
-	return doctorRow("完全磁盘访问权限", nil, "本机没有可判定的受保护目录（未找到 ~/Library/Mail 或 ~/Library/Safari）")
+	result := doctorRow("完全磁盘访问权限", nil, "本机没有可判定的受保护目录（未找到 ~/Library/Mail 或 ~/Library/Safari）")
+	result["status"] = "missing"
+	switch {
+	case denied:
+		result["passed"], result["status"] = false, "denied"
+		result["detail"] = "受保护目录读取被拒绝，请在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」核对当前应用；目录访问控制也可能限制读取。"
+	case unknown:
+		result["status"] = "unknown"
+		result["detail"] = "部分受保护目录未完成读取，可能正在等待 macOS 授权；未将缺失结果视为通过。"
+	case readable:
+		result["passed"], result["status"] = true, "readable"
+		result["detail"] = "已验证可读取本机存在的受保护目录；只证明本次读取，不等于系统开关已经授予。"
+	}
+	result["checks"], result["checkedAt"] = checks, time.Now().UnixMilli()
+	return result
+}
+
+func (s *Scanner) FullDiskReadCheck() map[string]any {
+	return s.fdaCheck()
+}
+
+func (s *Scanner) directoryReadCheck(title, relativePath string) map[string]any {
+	path := filepath.Join(s.home, relativePath)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	entries, err := fsread.ReadDir(ctx, path)
+	result := doctorRow(title, nil, "")
+	result["path"], result["checkedAt"] = displayHomePath(path, s.home), time.Now().UnixMilli()
+	switch {
+	case err == nil:
+		result["passed"], result["status"] = true, "readable"
+		result["detail"] = fmt.Sprintf("可读取目录（%d 项）；未打开文件内容", len(entries))
+	case os.IsNotExist(err):
+		result["status"], result["detail"] = "missing", "未找到该目录，不能据此判断是否授权"
+	case os.IsPermission(err):
+		result["passed"], result["status"] = false, "denied"
+		result["detail"] = "目录读取被拒绝；请核对系统权限和目录访问控制"
+	default:
+		result["status"], result["detail"] = "unknown", "读取未完成（可能正在等待系统授权）："+err.Error()
+	}
+	return result
+}
+
+func (s *Scanner) FolderReadChecks() []map[string]any {
+	checks := make([]map[string]any, 0, 3)
+	for _, folder := range []struct{ id, title, path string }{
+		{"desktop", "桌面", "Desktop"}, {"documents", "文稿", "Documents"}, {"downloads", "下载", "Downloads"},
+	} {
+		check := s.directoryReadCheck(folder.title, folder.path)
+		check["id"] = folder.id
+		checks = append(checks, check)
+	}
+	return checks
 }
 
 func thermalCheck(state string) map[string]any {

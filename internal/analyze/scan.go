@@ -18,7 +18,7 @@ package analyze
 // Directories are the unit of work. A fixed pool of workers pops directory
 // jobs from a queue, reads one directory, counts its files inline (a file's
 // lstat is cheap next to shipping it to another goroutine) and pushes child
-// directories back onto the queue. There is no goroutine parked per directory:
+// directories back onto the queue. There is no goroutine waiting for each child directory:
 // a 2.3M-file home directory has hundreds of thousands of directories, and a
 // goroutine each would cost more memory than the tree itself.
 //
@@ -54,6 +54,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mymoles/mole-studio/internal/fsread"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -75,6 +76,8 @@ const (
 	// thousands of small children would otherwise dominate the treemap and the
 	// payload that crosses the bridge.
 	maxChildren = 60
+	// maxOtherItems keeps a bounded inspection sample for folded children.
+	maxOtherItems = 5
 
 	// progressEveryFiles and progressEvery are the two triggers for the
 	// Progress callback: every 2000 files or every 200 ms, whichever comes
@@ -126,6 +129,22 @@ type Node struct {
 	Dir       bool
 	Partial   bool    // some directory in the subtree could not be read
 	Children  []*Node // directories only: aggregated, sorted by DiskBytes desc
+	Modified  int64   // newest file or directory mtime below this node
+	// OtherChildren samples items folded into "其它" without retaining every
+	// tiny path in a large home directory.
+	OtherChildren []OtherChild
+}
+
+// OtherChild is one folded direct child. Its path is reconstructed from the
+// parent, keeping this bounded list compact.
+type OtherChild struct {
+	Name      string
+	DiskBytes int64
+	LogBytes  int64
+	FileCount int64
+	Modified  int64
+	Dir       bool
+	Partial   bool
 }
 
 // LargeFile is one entry of the Top 50 large-file list. SizeBytes uses the
@@ -218,7 +237,7 @@ func ScanTree(ctx context.Context, opts ScanOptions) (*Node, *ScanStats, error) 
 	}
 
 	rootRecord := &dirRecord{
-		node: &Node{Name: rootName(root), Path: root, Dir: true},
+		node: &Node{Name: rootName(root), Path: root, Dir: true, Modified: info.ModTime().Unix()},
 	}
 	queue := newDirQueue()
 	queue.push(dirJob{path: root, record: rootRecord})
@@ -306,7 +325,9 @@ type dirRecord struct {
 	smallLog   int64
 	smallCount int64
 	childNodes []*Node // file nodes that survived the threshold
+	smallNodes []OtherChild
 	partial    bool
+	modified   int64
 	scanned    bool // false when cancellation dropped this directory's job
 }
 
@@ -314,11 +335,12 @@ type dirRecord struct {
 // the walk and resolved afterwards so the counted path does not depend on which
 // worker happened to see it first.
 type hardOccurrence struct {
-	key    fileKey
-	path   string
-	parent *dirRecord
-	disk   int64
-	log    int64
+	key      fileKey
+	path     string
+	parent   *dirRecord
+	disk     int64
+	log      int64
+	modified int64
 }
 
 // dirQueue is an unbounded directory work queue with a live-job counter. It is
@@ -435,6 +457,7 @@ func (s *treeScanner) worker(queue *dirQueue) {
 		}
 		if s.ctx.Err() != nil {
 			s.markCanceled()
+			job.record.partial = true
 			queue.shutdown()
 			queue.finish()
 			continue
@@ -451,10 +474,11 @@ func (s *treeScanner) scanDir(job dirJob, queue *dirQueue) {
 	s.dirs.Add(1) // 含根目录；ReadDir 失败也计入，因为它确实被访问过
 	record := job.record
 	record.scanned = true
-	entries, err := os.ReadDir(job.path)
+	entries, err := fsread.ReadDir(s.ctx, job.path)
 	if err != nil {
 		if s.ctx.Err() != nil {
 			s.markCanceled()
+			record.partial = true
 			queue.shutdown()
 		} else {
 			s.restrict(job.path, err)
@@ -468,6 +492,7 @@ func (s *treeScanner) scanDir(job dirJob, queue *dirQueue) {
 	for index, entry := range entries {
 		if index%cancelCheckEvery == 0 && s.ctx.Err() != nil {
 			s.markCanceled()
+			record.partial = true
 			queue.shutdown()
 			break
 		}
@@ -513,7 +538,7 @@ func (s *treeScanner) scanDir(job dirJob, queue *dirQueue) {
 		switch {
 		case mode.IsDir():
 			child := &dirRecord{
-				node:   &Node{Name: childName, Path: childPath, Dir: true},
+				node:   &Node{Name: childName, Path: childPath, Dir: true, Modified: info.ModTime().Unix()},
 				parent: record,
 			}
 			record.childRecords = append(record.childRecords, child)
@@ -523,16 +548,18 @@ func (s *treeScanner) scanDir(job dirJob, queue *dirQueue) {
 		case mode.IsRegular():
 			diskBytes := allocatedBytes(stat)
 			logBytes := info.Size()
+			record.modified = max(record.modified, info.ModTime().Unix())
 			if uint64(stat.Nlink) > 1 {
 				// The same inode may show up under several paths. Defer it so
 				// the counted path is chosen by path order, not by which
 				// worker ran first.
 				s.addHardLink(hardOccurrence{
-					key:    fileKey{dev: dev, ino: uint64(stat.Ino)},
-					path:   childPath,
-					parent: record,
-					disk:   diskBytes,
-					log:    logBytes,
+					key:      fileKey{dev: dev, ino: uint64(stat.Ino)},
+					path:     childPath,
+					parent:   record,
+					disk:     diskBytes,
+					log:      logBytes,
+					modified: info.ModTime().Unix(),
 				})
 				s.reportProgress(childPath)
 				continue
@@ -553,11 +580,15 @@ func (s *treeScanner) scanDir(job dirJob, queue *dirQueue) {
 					DiskBytes: diskBytes,
 					LogBytes:  logBytes,
 					FileCount: 1,
+					Modified:  info.ModTime().Unix(),
 				})
 			} else {
 				smallDisk += diskBytes
 				smallLog += logBytes
 				smallCount++
+				record.smallNodes = retainOtherChild(record.smallNodes, OtherChild{
+					Name: childName, DiskBytes: diskBytes, LogBytes: logBytes, FileCount: 1, Modified: info.ModTime().Unix(),
+				}, maxOtherItems)
 			}
 			s.reportProgress(childPath)
 
@@ -626,6 +657,7 @@ func (s *treeScanner) attributeHardLink(occurrence hardOccurrence) {
 	record.disk += occurrence.disk
 	record.log += occurrence.log
 	record.files++
+	record.modified = max(record.modified, occurrence.modified)
 	s.considerLarge(filepath.Base(occurrence.path), occurrence.path, occurrence.disk)
 	if occurrence.disk >= s.opts.MinKeepBytes {
 		record.childNodes = append(record.childNodes, &Node{
@@ -634,12 +666,17 @@ func (s *treeScanner) attributeHardLink(occurrence hardOccurrence) {
 			DiskBytes: occurrence.disk,
 			LogBytes:  occurrence.log,
 			FileCount: 1,
+			Modified:  occurrence.modified,
 		})
 		return
 	}
 	record.smallDisk += occurrence.disk
 	record.smallLog += occurrence.log
 	record.smallCount++
+	record.smallNodes = retainOtherChild(record.smallNodes, OtherChild{
+		Name: filepath.Base(occurrence.path), DiskBytes: occurrence.disk, LogBytes: occurrence.log,
+		FileCount: 1, Modified: occurrence.modified,
+	}, maxOtherItems)
 }
 
 // finalizeDir turns a record into a Node: recurse into the subdirectories first,
@@ -650,15 +687,18 @@ func (s *treeScanner) finalizeDir(record *dirRecord) *Node {
 	disk, log, files := record.disk, record.log, record.files
 	children := record.childNodes // file nodes: this worker's, plus hard-link winners
 	partial := record.partial
+	modified := max(record.modified, node.Modified)
 
 	for _, childRecord := range record.childRecords {
 		if !childRecord.scanned {
+			partial = true
 			continue // cancellation dropped this directory's job
 		}
 		child := s.finalizeDir(childRecord)
 		disk += child.DiskBytes
 		log += child.LogBytes
 		files += child.FileCount
+		modified = max(modified, child.Modified)
 		if child.Partial {
 			partial = true
 		}
@@ -668,8 +708,11 @@ func (s *treeScanner) finalizeDir(record *dirRecord) *Node {
 	node.DiskBytes = disk
 	node.LogBytes = log
 	node.FileCount = files
+	node.Modified = modified
 	node.Partial = partial
-	node.Children = aggregateChildren(children, s.opts.MinKeepBytes, record.smallDisk, record.smallLog, record.smallCount)
+	node.Children, node.OtherChildren = aggregateChildren(
+		children, s.opts.MinKeepBytes, record.smallDisk, record.smallLog, record.smallCount, record.smallNodes,
+	)
 	return node
 }
 
@@ -680,9 +723,9 @@ func (s *treeScanner) finalizeDir(record *dirRecord) *Node {
 // The comparator is a total order (DiskBytes desc, Name asc, Path asc) because
 // the input order depends on which goroutine saw which directory first: without
 // the name tie-break, two scans of the same tree could produce different JSON.
-func aggregateChildren(children []*Node, minKeep, smallDisk, smallLog, smallCount int64) []*Node {
+func aggregateChildren(children []*Node, minKeep, smallDisk, smallLog, smallCount int64, smallNodes []OtherChild) ([]*Node, []OtherChild) {
 	if len(children) == 0 && smallCount == 0 {
-		return nil
+		return nil, nil
 	}
 	sort.Slice(children, func(i, j int) bool {
 		left, right := children[i], children[j]
@@ -698,6 +741,7 @@ func aggregateChildren(children []*Node, minKeep, smallDisk, smallLog, smallCoun
 	kept := make([]*Node, 0, len(children)+1)
 	folded := smallCount
 	othersDisk, othersLog, othersCount := smallDisk, smallLog, smallCount
+	others := append([]OtherChild(nil), smallNodes...)
 	for _, child := range children {
 		if len(kept) < maxChildren && child.DiskBytes >= minKeep {
 			kept = append(kept, child)
@@ -706,6 +750,7 @@ func aggregateChildren(children []*Node, minKeep, smallDisk, smallLog, smallCoun
 		othersDisk += child.DiskBytes
 		othersLog += child.LogBytes
 		othersCount += child.FileCount
+		others = retainOtherChild(others, otherChildFromNode(child), maxOtherItems)
 		folded++
 	}
 	if folded > 0 {
@@ -716,7 +761,51 @@ func aggregateChildren(children []*Node, minKeep, smallDisk, smallLog, smallCoun
 			FileCount: othersCount,
 		})
 	}
-	return kept
+	return kept, sortOtherChildren(others)
+}
+
+func retainOtherChild(list []OtherChild, candidate OtherChild, limit int) []OtherChild {
+	if limit <= 0 || candidate.Name == "" {
+		return list
+	}
+	if len(list) < limit {
+		return append(list, candidate)
+	}
+	worst := 0
+	for i := 1; i < len(list); i++ {
+		if otherBefore(list[worst], list[i]) {
+			worst = i
+		}
+	}
+	if otherBefore(candidate, list[worst]) {
+		list[worst] = candidate
+	}
+	return list
+}
+
+func otherBefore(left, right OtherChild) bool {
+	if left.DiskBytes != right.DiskBytes {
+		return left.DiskBytes > right.DiskBytes
+	}
+	return left.Name < right.Name
+}
+
+func sortOtherChildren(list []OtherChild) []OtherChild {
+	if len(list) == 0 {
+		return nil
+	}
+	sort.Slice(list, func(i, j int) bool { return otherBefore(list[i], list[j]) })
+	if len(list) > maxOtherItems {
+		list = list[:maxOtherItems]
+	}
+	return list
+}
+
+func otherChildFromNode(node *Node) OtherChild {
+	return OtherChild{
+		Name: node.Name, DiskBytes: node.DiskBytes, LogBytes: node.LogBytes,
+		FileCount: node.FileCount, Modified: node.Modified, Dir: node.Dir, Partial: node.Partial,
+	}
 }
 
 // reportProgress is called once per counted entry; the throttle decides
@@ -812,9 +901,6 @@ func (s *treeScanner) largeSnapshot() []LargeFile {
 		}
 		return files[i].Path < files[j].Path
 	})
-	if len(files) > maxLargeFiles {
-		files = files[:maxLargeFiles]
-	}
 	return files
 }
 
