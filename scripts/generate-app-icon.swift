@@ -293,7 +293,7 @@ func orbitSegments(profile: IconProfile, near: Bool, steps: Int = 360) -> [Orbit
         func ch(_ v: UInt32, _ s: UInt32) -> CGFloat { CGFloat((v >> s) & 0xFF) }
         func c(_ s: UInt32) -> CGFloat {
             let base = ch(a, s) + (ch(b, s) - ch(a, s)) * k
-            return (base + (ch(0xFFF1BF, s) - base) * lift) / 255        // toward a pale gold
+            return (base + (ch(0xFFD770, s) - base) * lift) / 255        // toward a warm, saturated gold (never cream)
         }
         return CGColor(red: c(16), green: c(8), blue: c(0), alpha: 1)
     }
@@ -317,7 +317,7 @@ func orbitSegments(profile: IconProfile, near: Bool, steps: Int = 360) -> [Orbit
             path: path,
             width: OrbitMark.length(profile.backRingWidth + (profile.ringWidth - profile.backRingWidth) * k),
             color: near
-                ? mix(0x9C6B12, 0xF7C24A, k, lift: 0.28 * sin(.pi * CGFloat(index - lo) / CGFloat(hi - lo)) * (1 - 0.35 * CGFloat(index - lo) / CGFloat(hi - lo)))
+                ? mix(0x9C6B12, 0xF7C24A, k, lift: 0.34 * sin(.pi * CGFloat(index - lo) / CGFloat(hi - lo)) * (1 - 0.35 * CGFloat(index - lo) / CGFloat(hi - lo)))
                 : mix(0x9C6B12, 0xF7C24A, k)))
     }
     return out

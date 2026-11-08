@@ -1455,7 +1455,7 @@
     <div class="nav-list">
       <div class="nav-item active" data-mod="clean" data-code="Airlock · 气闸舱" onclick="switchModule('clean')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #2563eb 55%, #1e3a8a 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #22d3ee 0%, #0e9ab8 55%, #155e75 100%);padding:1.5px;">
             <span class="glyph" data-icon="clean"></span>
           </span>
           <span id="navLabelClean" data-i18n>深度清理</span>
@@ -1465,7 +1465,7 @@
 
       <div class="nav-item" data-mod="ai_moon" data-code="Cortex · 智核舱" onclick="switchModule('ai_moon')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb923c 0%, #ea580c 55%, #7c2d12 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb923c 0%, #f26a1b 55%, #7c2d12 100%);padding:1.5px;">
             <span class="glyph" data-icon="ai_moon"></span>
           </span>
           <span id="navLabelMoon" data-i18n>AI 清理</span>
@@ -1475,7 +1475,7 @@
 
       <div class="nav-item" data-mod="software" data-code="Jettison · 分离器" onclick="switchModule('software')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb7185 0%, #e11d48 55%, #881337 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb7185 0%, #be123c 55%, #881337 100%);padding:1.5px;">
             <span class="glyph" data-icon="software"></span>
           </span>
           <span id="navLabelSoftware" data-i18n>应用卸载</span>
@@ -1485,7 +1485,7 @@
 
       <div class="nav-item" data-mod="optimize" data-code="Thruster · 推进器" onclick="switchModule('optimize')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #818cf8 0%, #4f46e5 55%, #1e1b4b 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #60a5fa 0%, #2563eb 55%, #1e3a8a 100%);padding:1.5px;">
             <span class="glyph" data-icon="optimize"></span>
           </span>
           <span id="navLabelOptimize" data-i18n>系统加速</span>
@@ -1495,7 +1495,7 @@
 
       <div class="nav-item" data-mod="analyze" data-code="Astrolabe · 星图仪" onclick="switchModule('analyze')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fbbf24 0%, #d97706 55%, #78350f 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fde047 0%, #e3b50f 55%, #713f12 100%);padding:1.5px;">
             <span class="glyph" data-icon="analyze"></span>
           </span>
           <span id="navLabelAnalyze" data-i18n>空间分析</span>
@@ -1505,7 +1505,7 @@
 
       <div class="nav-item" data-mod="status" data-code="Telemetry · 遥测台" onclick="switchModule('status')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #34d399 0%, #059669 55%, #064e3b 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #4ade80 0%, #16a34a 55%, #14532d 100%);padding:1.5px;">
             <span class="glyph" data-icon="status"></span>
           </span>
           <span id="navLabelStatus" data-i18n>状态监控</span>
@@ -1517,7 +1517,7 @@
 
       <div class="nav-item" data-mod="purge" data-code="Payload · 载荷舱" onclick="switchModule('purge')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #38bdf8 0%, #0284c7 55%, #0c4a6e 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #4a6bb5 0%, #172554 55%, #0a1128 100%);padding:1.5px;">
             <span class="glyph" data-icon="purge"></span>
           </span>
           <span id="navLabelPurge" data-i18n>构建清理</span>
@@ -1527,7 +1527,7 @@
 
       <div class="nav-item" data-mod="history" data-code="Blackbox · 黑匣子" onclick="switchModule('history')">
         <div class="nav-item-left">
-          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #71717a 0%, #3f3f46 55%, #18181b 100%);padding:1.5px;">
+          <span class="nav-svg-icon" style="background:linear-gradient(145deg, #78716c 0%, #57534e 55%, #1c1917 100%);padding:1.5px;">
             <span class="glyph" data-icon="history"></span>
           </span>
           <span id="navLabelHistory" data-i18n>历史与白名单</span>
@@ -1721,14 +1721,14 @@ I18N.apply();   // translate the static markup (data-i18n) before anything draws
 //
 // Each module is a spaceflight codename, drawn as that one object:
 //   brand     orbit        terracotta sphere, gold ring with a real occlusion seam, ice companion
-//   clean     Airlock      round hatch, door swung open, gold fragments blasting out
+//   clean     Airlock      round hatch, door standing open, gold shards blasting out
 //   ai_moon   Cortex       crescent moon with a three-star AI spark in its hollow
-//   software  Jettison     app tile leaving a craft hull, streaks behind, eject mark on it
+//   software  Jettison     app tile thrown out of a shuttle bay, bold streaks, eject mark on it
 //   optimize  Thruster     rocket tilted up-right, big gold plume with a cream core
 //   analyze   Astrolabe    star-chart dial in a graduated ring, alidade out to its sight
 //   status    Telemetry    screen on a stand, mint pulse trace, gold live dot
 //   purge     Payload      isometric crate with a </> badge
-//   history   Blackbox     orange flight recorder (stripes, beacon) with a restore-arrow badge
+//   history   Blackbox     orange flight recorder (two bands) with a restore-arrow badge
 //   file      -            plain document, the large-file row marker
 // Light comes from the upper left everywhere, as on the brand sphere.
 // ---------------------------------------------------------------------------
@@ -1748,13 +1748,13 @@ function UI_ICON(name) {
 // One flat tint per module: a 15% accent wash over the card surface. No gloss,
 // no bevel - the glyph carries the colour, the plate only names the section.
 const MODULE_PLATE = {
-  clean:    'color-mix(in srgb, #5b8def 15%, #1b1a18)',
-  ai_moon:  'color-mix(in srgb, #d99b26 15%, #1b1a18)',
+  clean:    'color-mix(in srgb, #0e9ab8 15%, #1b1a18)',
+  ai_moon:  'color-mix(in srgb, #f26a1b 15%, #1b1a18)',
   software: 'color-mix(in srgb, #e05263 15%, #1b1a18)',
-  optimize: 'color-mix(in srgb, #4f46e5 18%, #1b1a18)',
-  analyze:  'color-mix(in srgb, #d97757 15%, #1b1a18)',
-  status:   'color-mix(in srgb, #34a277 15%, #1b1a18)',
-  purge:    'color-mix(in srgb, #5b8def 12%, #1b1a18)',
+  optimize: 'color-mix(in srgb, #2563eb 18%, #1b1a18)',
+  analyze:  'color-mix(in srgb, #e3b50f 15%, #1b1a18)',
+  status:   'color-mix(in srgb, #16a34a 15%, #1b1a18)',
+  purge:    'color-mix(in srgb, #3b5ba8 18%, #1b1a18)',
   history:  'color-mix(in srgb, #a8a49b 14%, #1b1a18)',
   brand:    'color-mix(in srgb, #d97757 18%, #1b1a18)'
 };
@@ -1809,6 +1809,9 @@ const glyph_shadow = (p, cx, cy, rx, ry) => `<ellipse cx="${cx}" cy="${cy}" rx="
 // The corner badge every glyph shares: r 11.5 at (46, 46), inner marks 2.4 round.
 const glyph_badge = (p, inner) =>
   `<circle cx="46" cy="46" r="11.5" fill="url(#${p}-bd)" stroke="url(#${p}-rim)" stroke-width="1.2"/>${inner}`;
+// A gold debris shard: a faceted chip with a bright top edge, scaled and turned in place.
+const glyph_shard = (x, y, k, deg) =>
+  `<g transform="translate(${x} ${y}) rotate(${deg}) scale(${k})"><path d="M-4.2 -0.6 L-0.8 -4.6 L4.4 -1.6 L3.4 3.4 L-2.6 4Z" fill="${GLYPH_INK.gold}" stroke="#fde68a" stroke-width="0.9" stroke-linejoin="round" stroke-opacity="0.9"/><path d="M-0.8 -4.6 L4.4 -1.6 L0.4 0Z" fill="#fff4c2" fill-opacity="0.8"/></g>`;
 const glyph_star = (cx, cy, R, fill) => { const k = R * 0.2;
   return `<path d="M${cx} ${cy - R} Q${cx + k} ${cy - k} ${cx + R} ${cy} Q${cx + k} ${cy + k} ${cx} ${cy + R} Q${cx - k} ${cy + k} ${cx - R} ${cy} Q${cx - k} ${cy - k} ${cx} ${cy - R}Z" fill="${fill}"/>`; };
 // A tapered streak trailing behind (x, y): wide at the object, a point `len` away at `deg`.
@@ -1833,25 +1836,32 @@ const GLYPHS = {
     <circle cx="52.65" cy="18.15" r="3.6" fill="${GLYPH_INK.ice}"/>
     <circle cx="51.6" cy="17" r="1.1" fill="#fff" fill-opacity="0.85"/>`,
 
-  // Airlock: a round spacecraft hatch seen at a slight angle. Thick pale rim,
-  // dark opening, the door leaf swung open on its hinge (a bolted ellipse at the
-  // upper left); three gold fragments blast out up and to the right, each with
-  // a tapered trail.
+  // Airlock: a round spacecraft hatch seen at a slight angle. Thick pale rim
+  // with bolts, a lip, and an opening onto deep space (navy to cyan, a few
+  // stars) so it is not a black hole; the door leaf stands open on two hinge
+  // blocks at the left, a slab with a lit edge. Three gold shards, big and
+  // tapered-trailed, blast out up and to the right and overlap the rim.
   clean: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 'f')}${glyph_ramp(p, 'd', '#e2e8f0', '#7c8da6')}${glyph_gap(p, 'g', 50, 28, 7)}</defs>
-    ${glyph_shadow(p, 28, 60, 18, 2.4)}
+    <defs>${glyph_defs(p)}${glyph_ramp(p, 'f')}${glyph_ramp(p, 'd', '#f1f5f9', '#8aa0bd')}${glyph_gap(p, 'g', 48, 26, 8.5)}
+      <linearGradient id="${p}-i" x1="0" y1="0" x2="0.5" y2="1"><stop stop-color="#0b2d4d"/><stop offset="1" stop-color="#2a9bbd"/></linearGradient></defs>
+    ${glyph_shadow(p, 30, 60.5, 18, 2.4)}
     <g mask="url(#${p}-g)">
-      <circle cx="27" cy="37" r="20.5" fill="url(#${p}-f)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-      <ellipse cx="29" cy="37" rx="11.5" ry="15" fill="${GLYPH_INK.night}"/>
-      <g fill="${GLYPH_INK.slateDeep}"><circle cx="27" cy="19.5" r="1.6"/><circle cx="27" cy="54.5" r="1.6"/><circle cx="9.5" cy="37" r="1.6"/></g>
+      <ellipse cx="30" cy="38" rx="19.5" ry="21.5" fill="url(#${p}-f)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
+      <ellipse cx="31" cy="38" rx="13.6" ry="16" fill="${GLYPH_INK.slateDeep}" fill-opacity="0.55"/>
+      <ellipse cx="31.8" cy="38" rx="11.4" ry="13.6" fill="url(#${p}-i)"/>
+      <circle cx="26" cy="30" r="0.9" fill="#fff"/><circle cx="36" cy="44" r="1.1" fill="#fff" fill-opacity="0.9"/><circle cx="24" cy="46" r="0.7" fill="#fff" fill-opacity="0.8"/>
+      <g fill="${GLYPH_INK.slateDeep}"><circle cx="30" cy="20.2" r="1.5"/><circle cx="30" cy="55.8" r="1.5"/><circle cx="46.5" cy="38" r="1.5"/></g>
     </g>
-    <g transform="rotate(-38 12 22)"><ellipse cx="12" cy="22" rx="14" ry="5.2" fill="url(#${p}-d)" stroke="${GLYPH_INK.slateDeep}" stroke-width="1.6"/></g>
-    ${glyph_trail(50, 28, 3.8, 150, 8, GLYPH_INK.gold, 0.55)}
-    ${glyph_trail(57, 19, 2.8, 140, 7, GLYPH_INK.gold, 0.55)}
-    ${glyph_trail(51, 12, 2.6, 115, 7, GLYPH_INK.gold, 0.55)}
-    <circle cx="50" cy="28" r="4.4" fill="${GLYPH_INK.gold}"/>
-    <circle cx="57" cy="19" r="3.1" fill="${GLYPH_INK.gold}"/>
-    <circle cx="51" cy="12" r="3" fill="${GLYPH_INK.gold}"/>`,
+    <rect x="9.5" y="21" width="6" height="5.6" rx="1.6" fill="${GLYPH_INK.slateDeep}"/><rect x="9.5" y="45.4" width="6" height="5.6" rx="1.6" fill="${GLYPH_INK.slateDeep}"/>
+    <g transform="rotate(-14 8 36)">
+      <ellipse cx="9.8" cy="36" rx="5.4" ry="15.6" fill="${GLYPH_INK.slateDeep}"/>
+      <ellipse cx="7.2" cy="36" rx="5.2" ry="15.4" fill="url(#${p}-d)"/>
+      <path d="M4.6 23 Q3 36 4.6 49" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-opacity="0.95"/>
+    </g>
+    ${glyph_trail(50, 26, 5, 152, 12, GLYPH_INK.gold, 0.6)}
+    ${glyph_trail(59, 14, 3.8, 142, 10, GLYPH_INK.gold, 0.6)}
+    ${glyph_trail(46.5, 11, 3.2, 118, 9, GLYPH_INK.gold, 0.6)}
+    ${glyph_shard(50, 26, 1.5, 10)}${glyph_shard(59, 14, 1.15, -25)}${glyph_shard(46.5, 11, 1, 35)}`,
 
   // Cortex: a strong crescent (cut from a disc by an offset disc) with an AI
   // spark cluster of three four-point stars floating in its hollow.
@@ -1864,22 +1874,25 @@ const GLYPHS = {
     ${glyph_star(53.5, 36, 4.6, GLYPH_INK.ice)}
     ${glyph_star(33, 12, 3.6, GLYPH_INK.ice)}`,
 
-  // Jettison: a craft hull (capsule body, porthole, a dark hatch slot on top)
-  // with the app tile leaving it diagonally, tilted, two streaks trailing back
-  // to the hull. The tile carries the eject mark (triangle over bar).
+  // Jettison: a shuttle-style craft (black nose cone, delta wing, tail fin,
+  // porthole, open payload-bay slot) throwing the app tile out diagonally,
+  // tilted, with two bold light streaks trailing back. The tile carries the
+  // eject mark.
   software: (p) => `
-    <defs>${glyph_defs(p)}${glyph_ramp(p, 't')}${glyph_ramp(p, 'h', '#e2e8f0', '#8394ad')}</defs>
-    ${glyph_shadow(p, 26, 60.5, 21, 2.4)}
-    <rect x="4" y="37" width="46" height="22" rx="11" fill="url(#${p}-h)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-    <circle cx="15" cy="48" r="5.2" fill="${GLYPH_INK.night}" stroke="${GLYPH_INK.slateDeep}" stroke-width="1.8"/>
-    <path d="M28 37.6 H44" stroke="${GLYPH_INK.night}" stroke-width="3.6" stroke-linecap="round"/>
-    <path d="M26 47 H48" stroke="#94a3b8" stroke-width="1.4" stroke-opacity="0.8"/>
-    <path d="M25 30 L19 36" stroke="#fff" stroke-opacity="0.85" stroke-width="2.8" stroke-linecap="round"/>
-    <path d="M33 28 L29 32" stroke="#fff" stroke-opacity="0.5" stroke-width="2.8" stroke-linecap="round"/>
-    <g transform="rotate(16 39 18)">
-      <rect x="26" y="5" width="26" height="26" rx="8" fill="url(#${p}-t)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-      <path d="M39 11.5 L45.2 19.5 H32.8 Z" fill="${GLYPH_INK.iceDeep}" stroke="${GLYPH_INK.iceDeep}" stroke-width="1.6" stroke-linejoin="round"/>
-      <rect x="33" y="22.2" width="12" height="3.4" rx="1.7" fill="${GLYPH_INK.iceDeep}"/>
+    <defs>${glyph_defs(p)}${glyph_ramp(p, 't')}${glyph_ramp(p, 'h', '#f1f5f9', '#8394ad')}</defs>
+    ${glyph_shadow(p, 28, 61, 22, 2.4)}
+    <path d="M6 46 L2 34 H12 L18 46Z" fill="#64748b" stroke="#475569" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M22 52 L40 62 H22Z" fill="#475569"/>
+    <path d="M4 50 C4 44 9 41 15 41 H38 C47 41 54 46 58 51 C54 55 47 58 38 58 H15 C9 58 4 56 4 50Z" fill="url(#${p}-h)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
+    <path d="M48 44 C53 46 56 48 58 51 C56 53 53 55 48 56Z" fill="${GLYPH_INK.night}"/>
+    <path d="M14 41 H36" stroke="${GLYPH_INK.night}" stroke-width="3.6" stroke-linecap="round"/>
+    <circle cx="40" cy="50" r="2.4" fill="${GLYPH_INK.night}"/>
+    <path d="M14 36 L20 29" stroke="#fff" stroke-opacity="0.95" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M24 34 L30 27" stroke="#fff" stroke-opacity="0.7" stroke-width="3.4" stroke-linecap="round"/>
+    <g transform="rotate(20 43 17)">
+      <rect x="28" y="2" width="30" height="30" rx="9" fill="url(#${p}-t)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
+      <path d="M43 9 L49.6 17.4 H36.4 Z" fill="${GLYPH_INK.iceDeep}" stroke="${GLYPH_INK.iceDeep}" stroke-width="1.6" stroke-linejoin="round"/>
+      <rect x="36.3" y="20.6" width="13.4" height="3.8" rx="1.9" fill="${GLYPH_INK.iceDeep}"/>
     </g>`,
 
   // Thruster: a rocket tilted 45 degrees up and to the right, finned and
@@ -1943,18 +1956,16 @@ const GLYPHS = {
     </g>
     ${glyph_badge(p, `<path d="M43 41.6 l-4 4.6 l4 4.6 M49 41.6 l4 4.6 l-4 4.6 M47.4 40.8 l-2.8 10.8" stroke="${GLYPH_INK.white}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)}`,
 
-  // Blackbox: a flight recorder (orange case, carry handle, two reflective
-  // bands) with a bold counter-clockwise restore arrow in the shared badge.
+  // Blackbox: a flight recorder reduced to its two marks, the orange case and
+  // two reflective bands, with a bold counter-clockwise restore arrow in the
+  // shared badge as the single accent.
   history: (p) => `
-    <defs>${glyph_defs(p)}${glyph_gap(p, 'g', 46, 46, 14.5)}${glyph_ramp(p, 'u', '#e2e8f0', '#94a3b8')}
+    <defs>${glyph_defs(p)}${glyph_gap(p, 'g', 46, 46, 14.5)}
       <linearGradient id="${p}-o" x1="0.15" y1="0.05" x2="0.85" y2="1"><stop stop-color="#fb923c"/><stop offset="1" stop-color="${GLYPH_INK.clayDeep}"/></linearGradient></defs>
-    ${glyph_shadow(p, 27, 56.5, 22, 2.6)}
+    ${glyph_shadow(p, 28, 54, 22, 2.6)}
     <g mask="url(#${p}-g)">
-      <rect x="3" y="45" width="48" height="8" rx="4" fill="url(#${p}-u)"/>
-      <rect x="6" y="12" width="42" height="36" rx="9" fill="url(#${p}-o)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
-      <path d="M14.5 12 V48 M22.5 12 V48" stroke="${GLYPH_INK.white}" stroke-width="4.4"/>
-      <circle cx="36" cy="23" r="7.5" fill="${GLYPH_INK.night}"/>
-      <circle cx="36" cy="23" r="3.2" fill="${GLYPH_INK.ice}"/>
+      <rect x="4" y="14" width="48" height="36" rx="10" fill="url(#${p}-o)" stroke="url(#${p}-rim)" stroke-width="1.2"/>
+      <path d="M17 14 V50 M30 14 V50" stroke="${GLYPH_INK.white}" stroke-width="6"/>
     </g>
     ${glyph_badge(p, `<path d="M51.36 50.52 A7 7 0 1 0 41.48 51.36" stroke="${GLYPH_INK.gold}" stroke-width="3.2" stroke-linecap="round"/>
     <path d="M44.4 53.9 L38.1 53.5 L42.85 47.9 Z" fill="${GLYPH_INK.gold}" stroke="${GLYPH_INK.gold}" stroke-width="1.2" stroke-linejoin="round"/>`)}`,
