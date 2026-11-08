@@ -2058,5 +2058,26 @@ for (const mod of modules) scenarios.push({ name: `en-empty-${mod}`, width: 1380
 add('en-no-matches', `switchModule('software');handleSearch('unmatched-keyword');await qaEn('no matches');switchModule('clean');handleSearch('unmatched-keyword');await qaEn('no matches clean');switchModule('analyze');handleSearch('no-such-path');await qaEn('no matches analyze');`);
 add('en-trash-failure', `switchModule('clean');await qaEn('partial trash failure',async()=>{openConfirmSheet();executeConfirmedClean();const request=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:request.requestId,moved:[{original:request.paths[0],trashed:'/trash/one'}],movedCount:1,failed:request.paths.slice(1).map(path=>({path,error:'Permission denied',pane:'fullDiskAccess'}))});});qaAssert(document.getElementById('permHint'),'recovery action is still offered in English');`);
 add('en-scan-permission-partial', `I18N.add({'目录读取超时，未计入本次扫描':'Fixture text'});onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Desktop',reason:'目录读取超时，未计入本次扫描'}]});switchModule('clean');await qaEn('scan permission partial');`);
+// Icon contact sheet: every module glyph on its real plates (sidebar gradient, palette/hero wash) at 28 and 56px.
+function iconSheet(theme) {
+  document.documentElement.dataset.theme = theme;
+  const kinds = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history', 'file'];
+  const side = (k) => (document.querySelector(`.nav-item[data-mod="${k === 'file' ? 'analyze' : k}"] .nav-svg-icon`) || {}).style.background;
+  const cell = (k, px, plate, pad, r, i) => `<span style="display:inline-flex;width:${px}px;height:${px}px;padding:${pad}px;border-radius:${r}px;background:${plate};overflow:hidden">${get_skeuo_svg(k, 'sheet' + px + i + k)}</span>`;
+  const rows = [
+    ['sidebar 28', (k, i) => cell(k, 28, side(k), 1.5, 7, i)],
+    ['sidebar 56', (k, i) => cell(k, 56, side(k), 3, 14, i)],
+    ['palette 28', (k, i) => cell(k, 28, MODULE_PLATE[k] || MODULE_PLATE.analyze, 2, 7, i)],
+    ['palette 56', (k, i) => cell(k, 56, MODULE_PLATE[k] || MODULE_PLATE.analyze, 4, 14, i)],
+    ['sidebar 112', (k, i) => cell(k, 112, side(k), 6, 26, i)],
+    ['row 20', (k, i) => `<span style="display:inline-flex;width:20px;height:20px;opacity:.85">${get_skeuo_svg(k, 'sheetrow' + i)}</span>`]
+  ];
+  const el = document.createElement('div');
+  el.id = 'iconSheet';
+  el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:var(--bg-window);color:var(--text-secondary);font:11px var(--font-mono,monospace);padding:20px;display:grid;grid-template-columns:90px repeat(' + kinds.length + ',1fr);gap:14px 8px;align-items:center;justify-items:center';
+  el.innerHTML = '<span></span>' + kinds.map((k) => `<span>${k}</span>`).join('') + rows.map(([label, fn]) => `<span>${label}</span>` + kinds.map((k, i) => fn(k, i)).join('')).join('');
+  document.body.appendChild(el);
+}
+for (const theme of ['light', 'dark']) scenarios.push({ name: 'icons-sheet-' + theme, width: 1300, height: 500, script: `qaReset();(${iconSheet.toString()})('${theme}');` });
 fs.writeFileSync(dir + '/suite.json', JSON.stringify(scenarios));
 console.log(`${scenarios.length} scenarios generated, isolated fixture data only.`);
