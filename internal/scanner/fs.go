@@ -118,6 +118,10 @@ func isSystemProtected(path string) bool {
 		return false
 	}
 	name, _, _ := strings.Cut(rest, "/")
+	// Safari's caches open once Full Disk Access is granted, so a denial there is a missing grant.
+	if strings.HasPrefix(name, "com.apple.Safari") {
+		return false
+	}
 	return strings.HasPrefix(name, "com.apple.") || name == "familycircled"
 }
 

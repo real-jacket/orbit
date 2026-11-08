@@ -596,7 +596,8 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 		project := dirName(c.path)
 		// The artifact's own mtime says when it was last rebuilt; the project
 		// says whether anyone still works in it.
-		v := artifactVerdict(c.path, max(c.modified, projectActivity(project)))
+		active := max(c.modified, projectActivity(project))
+		v := artifactVerdict(c.path, active)
 		sub := map[string]any{
 			"path": s.relativize(c.path), "sizeGb": plainGB(c.bytes), "partial": c.partial,
 			"tier": v.tier, "checked": v.tier == "safe", "reason": v.reason,
@@ -610,7 +611,7 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 			"kind":        c.kind,
 			"sizeGb":      gb(c.bytes),
 			"origSizeGb":  gb(c.bytes),
-			"age":         ageText(c.modified),
+			"age":         ageText(active),
 			"rebuildNote": "删除后可重新安装或重新编译",
 			"gitClean":    gitCleanState(project),
 			"tier":        v.tier,
