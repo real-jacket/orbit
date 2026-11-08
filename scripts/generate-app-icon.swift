@@ -9,10 +9,32 @@
 //  The mark is deliberately built from four elements and nothing else:
 //
 //    1  obsidian squircle plate: one 145° ramp and one lit top edge
-//    2  a terracotta sphere, lit from the upper left
-//    3  a gold orbit, drawn behind the sphere for its far half and in front of
-//       it for its near half (三.3 真实空间遮挡关系)
-//    4  a flat ice-blue companion riding the orbit, from 32pt up
+//    2  a terracotta sphere, lit from the upper left, with a soft terminator
+//    3  a gold orbit rising to the right, drawn behind the sphere for its far
+//       half and in front of it for its near half (三.3 真实空间遮挡关系). It
+//       tapers continuously with depth: thinner and dimmer far away, thicker
+//       and brighter near, so there is no visible step at the seams.
+//    4  an ice-blue companion threaded on the far arc, from 32pt up, like a bead
+//       on a hoop. Its centre is computed on the ring's own centreline (same
+//       ellipse, tilt and stretch). The band is a flat strip in the orbit plane,
+//       so only its near edge laps over the ball: the ball is painted over the
+//       ring, then the band is painted again where it is in front of the ball
+//       (the viewer's side of the ring, outside the ball's equator ellipse). The
+//       ring therefore enters the ball at its two sides and the ball shows both
+//       above and below it. The lap fades out toward the ball's middle rather
+//       than ending in a hard wedge, and from 128pt two faint dark pools on the
+//       ball where the band goes in tuck it in (no seam line, no shadow). Lit
+//       from the same upper-left key as the sphere (a pale face, a deeper limb
+//       and, from 64pt, one tiny specular)
+//
+//  Refinement pass: the ring carries a soft highlight along its near arc (a
+//  gold is never one gold), and its shadow on the sphere is narrow and soft, so
+//  the sphere below the ring stays warm instead of reading as a dark cap.
+//
+//  One subtle addition over the previous revision, justified by meaning: from
+//  128pt up the near arc casts a soft shadow onto the sphere. It is the only
+//  cue that says the ring is in front of the planet and not merely over it, and
+//  it is dropped below 128pt where it would turn into a dirty smudge.
 //
 //  Everything an earlier revision carried — a second orbit, a dashed airlock
 //  ring, corner gauge ticks, a warm bloom, a vignette, a specular hotspot, limb
@@ -31,6 +53,7 @@
 //    swift scripts/generate-app-icon.swift sheet   <out.png>
 //    swift scripts/generate-app-icon.swift single  <out.png> <size>
 //    swift scripts/generate-app-icon.swift zoom    <out.png> <size> <factor>
+//    swift scripts/generate-app-icon.swift check
 //
 import CoreGraphics
 import Foundation
@@ -51,14 +74,15 @@ enum Brand {
 
     // Plate: the spec's three-stop ramp (四.4.1 row 0), with the terracotta kept
     // to the last fifth so it reads as obsidian with a warm corner, not as brown.
-    static let plateTop = hex(0x2E2E33)
-    static let plateMid = hex(0x0A0A0C)
-    static let plateEnd = hex(0x6E2910)
+    static let plateTop = hex(0x303036)
+    static let plateMid = hex(0x0D0D10)
+    static let plateEnd = hex(0x6A2A12)
 
     // Sphere: one terracotta family, three steps from the key light to the limb.
-    static let sphereLight = hex(0xFDBA74)
+    static let sphereLight = hex(0xFFC58A)
     static let sphereWarm = hex(0xF97316)
     static let sphereDeep = hex(0xC2410C)
+    static let sphereLimb = hex(0xB93A0B)
 
     // Orbit: one gold and its darker far-side twin, so the ring reads as a
     // single object crossing behind the sphere rather than two different bands.
@@ -118,13 +142,26 @@ enum OrbitMark {
     static let unit: CGFloat = 824 / 64
 
     /// Orbit: the ellipse from 三.3, shared with the sidebar brand SVG.
-    static let orbitRx: CGFloat = 26
-    static let orbitRy: CGFloat = 10.5
-    static let orbitTilt: CGFloat = -26
+    static let orbitRx: CGFloat = 26.5
+    static let orbitRy: CGFloat = 10.2
+    /// Degrees, counter-clockwise on screen: the right end of the ring rises.
+    static let orbitTilt: CGFloat = 25
 
-    /// The ice-blue companion sits on the orbit where it clears the sphere,
-    /// matching the sidebar SVG's circle at (50, 21).
-    static let companionHome = CGPoint(x: 50, y: 21)
+    /// Parameter (radians) of the companion on the far arc, just short of the
+    /// right-hand end of the major axis. Its centre is (48.27, 17.48), the same
+    /// circle the sidebar SVG draws; it is always taken from orbitPoint, never
+    /// placed by eye.
+    static let companionParam: CGFloat = -38 * .pi / 180
+
+    /// A point on the orbit ellipse, in 64-grid SVG coordinates (y down).
+    /// `t` is the ellipse parameter; sin(t) > 0 is the near (lower) half.
+    static func orbitPoint(_ t: CGFloat, stretch: CGFloat = 1, rx: CGFloat = orbitRx) -> CGPoint {
+        let phi = orbitTilt * .pi / 180
+        let lx = rx * cos(t)
+        let ly = orbitRy * stretch * sin(t)
+        return CGPoint(x: 32 + lx * cos(phi) + ly * sin(phi),
+                       y: 32 - lx * sin(phi) + ly * cos(phi))
+    }
 
     static func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
         CGPoint(x: 100 + x * unit, y: 924 - y * unit)
@@ -140,10 +177,13 @@ enum OrbitMark {
 /// what that size cannot resolve.
 struct IconProfile {
     let planetRadius: CGFloat
+    /// Ring width on the near (front) side and on the far side, in 64-grid units.
     let ringWidth: CGFloat
     let backRingWidth: CGFloat
     let orbitStretch: CGFloat
     let showsShading: Bool
+    /// The near arc's shadow on the sphere (128pt and up only).
+    let castsShadow: Bool
     /// Radius of the ice-blue companion on the 64-grid. Zero means "do not draw
     /// it": at 16pt a companion is a stray dot beside the sphere, not a symbol.
     let companionRadius: CGFloat
@@ -153,23 +193,23 @@ struct IconProfile {
 
     /// 128pt and up: the mark at full detail.
     static let full = IconProfile(
-        planetRadius: 12.6, ringWidth: 3.2, backRingWidth: 3.2, orbitStretch: 1.0,
-        showsShading: true, companionRadius: 3.3,
+        planetRadius: 14, ringWidth: 3.8, backRingWidth: 2.6, orbitStretch: 1.0,
+        showsShading: true, castsShadow: true, companionRadius: 5.8,
         plateTop: Brand.plateTop, plateMid: Brand.plateMid, plateEnd: Brand.plateEnd
     )
 
     /// 32–64pt: the same drawing, a touch heavier so it survives downscaling.
     static let compact = IconProfile(
-        planetRadius: 13.0, ringWidth: 3.6, backRingWidth: 3.6, orbitStretch: 1.06,
-        showsShading: true, companionRadius: 3.7,
-        plateTop: Brand.hex(0x34341F), plateMid: Brand.hex(0x0C0C0E), plateEnd: Brand.hex(0x3A1A0A)
+        planetRadius: 14.4, ringWidth: 4.4, backRingWidth: 3.4, orbitStretch: 1.06,
+        showsShading: true, castsShadow: false, companionRadius: 6.4,
+        plateTop: Brand.hex(0x36363C), plateMid: Brand.hex(0x0E0E11), plateEnd: Brand.hex(0x4E230F)
     )
 
     /// 16pt: a pictogram. One uniform ring, opened far enough to clear the
     /// sphere, because at this size a thin occluded band degenerates into mush.
     static let mini = IconProfile(
-        planetRadius: 12.6, ringWidth: 4.2, backRingWidth: 4.2, orbitStretch: 1.46,
-        showsShading: false, companionRadius: 0,
+        planetRadius: 14, ringWidth: 4.6, backRingWidth: 4.6, orbitStretch: 1.46,
+        showsShading: false, castsShadow: false, companionRadius: 0,
         plateTop: Brand.hex(0x3E3E45), plateMid: Brand.hex(0x17171A), plateEnd: Brand.hex(0x4A2110)
     )
 
@@ -197,7 +237,7 @@ func drawPlate(in ctx: CGContext, profile: IconProfile) {
     let direction = CGPoint(x: sin(angle), y: cos(angle))
     let reach = bodyRadius * 1.15
     ctx.drawLinearGradient(
-        gradient([profile.plateTop, profile.plateMid, profile.plateEnd], [0, 0.90, 1]),
+        gradient([profile.plateTop, profile.plateMid, Brand.hex(0x150E0B), profile.plateEnd], [0, 0.56, 0.87, 1]),
         start: CGPoint(x: centre.x - direction.x * reach, y: centre.y - direction.y * reach),
         end: CGPoint(x: centre.x + direction.x * reach, y: centre.y + direction.y * reach),
         options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
@@ -220,18 +260,22 @@ func drawSphere(in ctx: CGContext, profile: IconProfile) {
     let radius = OrbitMark.length(profile.planetRadius)
     let centre = OrbitMark.point(32, 32)
     let extent = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
-    // Key light at 35% / 30% of the bounding box, as in the sidebar SVG.
+    // Key light at 34% / 28% of the bounding box, as in the sidebar SVG.
     let svg = profile.planetRadius
-    let light = OrbitMark.point((32 - svg) + 0.35 * svg * 2, (32 - svg) + 0.30 * svg * 2)
+    let light = OrbitMark.point((32 - svg) + 0.34 * svg * 2, (32 - svg) + 0.28 * svg * 2)
 
     ctx.saveGState()
     ctx.addEllipse(in: extent)
     ctx.clip()
     if profile.showsShading {
+        // Five eased stops: a broad soft key light, then a gentle terminator
+        // that only deepens in the last fifth. startRadius 0 matters: a positive
+        // radius leaves a transparent pinhole at the centre of the highlight.
         ctx.drawRadialGradient(
-            gradient([Brand.sphereLight, Brand.sphereWarm, Brand.sphereDeep], [0, 0.62, 1]),
-            startCenter: light, startRadius: 1,
-            endCenter: light, endRadius: radius * 1.06,
+            gradient([Brand.sphereLight, Brand.hex(0xFC9A4E), Brand.sphereWarm, Brand.sphereDeep, Brand.sphereLimb],
+                     [0, 0.24, 0.55, 0.93, 1]),
+            startCenter: light, startRadius: 0,
+            endCenter: light, endRadius: radius * 1.65,
             options: [.drawsAfterEndLocation]
         )
     } else {
@@ -245,68 +289,71 @@ func drawSphere(in ctx: CGContext, profile: IconProfile) {
 
 // MARK: - Element 3: the orbit
 
-/// Splits the orbit at the two points where it crosses the sphere's silhouette.
+/// The orbit as depth-tapered segments, split at the major-axis ends.
 ///
-/// For a tilted circle seen in projection the near half is exactly the 180° of
-/// parameter space centred on the lowest projected point, so the seams land on
-/// the ends of the major axis and the two halves abut with no gap. 三.3 asks for
-/// this: the far half runs behind the sphere, the near half in front of it.
-func orbitHalves(stretch: CGFloat, steps: Int = 720) -> (front: CGPath, back: CGPath) {
-    let phi = OrbitMark.orbitTilt * .pi / 180
-    var points: [CGPoint] = []
-    points.reserveCapacity(steps)
-    for index in 0..<steps {
-        let t = CGFloat(index) / CGFloat(steps) * 2 * .pi
-        let localX = OrbitMark.orbitRx * cos(t)
-        let localY = OrbitMark.orbitRy * stretch * sin(t)
-        let x = 32 + localX * cos(phi) + localY * sin(phi)
-        let y = 32 - localX * sin(phi) + localY * cos(phi)
-        points.append(OrbitMark.point(x, y))
-    }
+/// sin(t) > 0 is the near half. Each short segment carries width and colour
+/// from one smoothstep of depth, so far -> near is a continuous ramp: the seams
+/// sit exactly on the ends of the major axis and nothing steps there. 三.3 asks
+/// for the far half behind the sphere and the near half in front of it.
+struct OrbitSegment { let path: CGPath; let width: CGFloat; let color: CGColor; let at: CGPoint }
 
-    // This canvas is y-up, so the near half is centred on the smallest y.
-    var near = 0
-    for index in points.indices where points[index].y < points[near].y { near = index }
-
-    let seamA = ((near - steps / 4) % steps + steps) % steps
-    let seamB = (near + steps / 4) % steps
-
-    func walk(from: Int, to: Int) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: points[from])
-        var index = (from + 1) % steps
-        while index != (to + 1) % steps {
-            path.addLine(to: points[index])
-            index = (index + 1) % steps
+func orbitSegments(profile: IconProfile, near: Bool, steps: Int = 360) -> [OrbitSegment] {
+    // A gold ring is not one gold: the near arc brightens toward the key light
+    // (upper left of its run) and settles back to the base tone at both seams.
+    func mix(_ a: UInt32, _ b: UInt32, _ k: CGFloat, lift: CGFloat = 0) -> CGColor {
+        func ch(_ v: UInt32, _ s: UInt32) -> CGFloat { CGFloat((v >> s) & 0xFF) }
+        func c(_ s: UInt32) -> CGFloat {
+            let base = ch(a, s) + (ch(b, s) - ch(a, s)) * k
+            return (base + (ch(0xFFD770, s) - base) * lift) / 255        // toward a warm, saturated gold (never cream)
         }
-        path.addLine(to: points[to])
-        return path
+        return CGColor(red: c(16), green: c(8), blue: c(0), alpha: 1)
     }
-    return (walk(from: seamA, to: seamB), walk(from: seamB, to: seamA))
+    var out: [OrbitSegment] = []
+    let lo = near ? 0 : steps / 2, hi = near ? steps / 2 : steps
+    for index in lo..<hi {
+        let t0 = CGFloat(index) / CGFloat(steps) * 2 * .pi
+        let t1 = CGFloat(index + 1) / CGFloat(steps) * 2 * .pi
+        let depth = sin((t0 + t1) / 2)
+        // Butt caps, so each piece overlaps its neighbour by a hair instead of
+        // a round cap printing a disc where the colour ramp changes.
+        let pad = 0.4 * (t1 - t0)                      // -1 far ... +1 near
+        let x = max(0, min(1, (depth + 0.7) / 1.4))
+        let k = x * x * (3 - 2 * x)
+        let path = CGMutablePath()
+        path.move(to: OrbitMark.point(OrbitMark.orbitPoint(t0 - pad, stretch: profile.orbitStretch).x,
+                                      OrbitMark.orbitPoint(t0 - pad, stretch: profile.orbitStretch).y))
+        path.addLine(to: OrbitMark.point(OrbitMark.orbitPoint(t1 + pad, stretch: profile.orbitStretch).x,
+                                         OrbitMark.orbitPoint(t1 + pad, stretch: profile.orbitStretch).y))
+        let mid = OrbitMark.orbitPoint((t0 + t1) / 2, stretch: profile.orbitStretch)
+        out.append(OrbitSegment(
+            path: path,
+            width: OrbitMark.length(profile.backRingWidth + (profile.ringWidth - profile.backRingWidth) * k),
+            color: near
+                ? mix(0x9C6B12, 0xF7C24A, k, lift: 0.34 * sin(.pi * CGFloat(index - lo) / CGFloat(hi - lo)) * (1 - 0.35 * CGFloat(index - lo) / CGFloat(hi - lo)))
+                : mix(0x9C6B12, 0xF7C24A, k),
+            at: OrbitMark.point(mid.x, mid.y)))
+    }
+    return out
 }
 
 /// The 16pt pictogram: one closed ring, stroked flat, drawn clear of the sphere.
 func orbitPictogram(stretch: CGFloat, steps: Int = 360) -> CGPath {
-    let phi = OrbitMark.orbitTilt * .pi / 180
     let path = CGMutablePath()
     for index in 0...steps {
         let t = CGFloat(index) / CGFloat(steps) * 2 * .pi
-        let localX = OrbitMark.orbitRx * 0.94 * cos(t)
-        let localY = OrbitMark.orbitRy * stretch * sin(t)
-        let x = 32 + localX * cos(phi) + localY * sin(phi)
-        let y = 32 - localX * sin(phi) + localY * cos(phi)
-        let point = OrbitMark.point(x, y)
+        let p = OrbitMark.orbitPoint(t, stretch: stretch, rx: OrbitMark.orbitRx * 0.94)
+        let point = OrbitMark.point(p.x, p.y)
         if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
     }
     path.closeSubpath()
     return path
 }
 
-func stroke(_ ctx: CGContext, path: CGPath, width: CGFloat, color: CGColor) {
+func stroke(_ ctx: CGContext, path: CGPath, width: CGFloat, color: CGColor, cap: CGLineCap = .round) {
     ctx.saveGState()
     ctx.setStrokeColor(color)
     ctx.setLineWidth(width)
-    ctx.setLineCap(.round)
+    ctx.setLineCap(cap)
     ctx.addPath(path)
     ctx.strokePath()
     ctx.restoreGState()
@@ -319,30 +366,89 @@ func drawOrbit(in ctx: CGContext, profile: IconProfile) {
                width: OrbitMark.length(profile.ringWidth), color: Brand.ringGold)
         return
     }
-    let halves = orbitHalves(stretch: profile.orbitStretch)
     // Far half first, then the sphere, then the near half: the sphere paints
     // over the far arc, which is what produces the occlusion seam.
-    stroke(ctx, path: halves.back, width: OrbitMark.length(profile.backRingWidth),
-           color: Brand.ringGoldDim)
+    // The whole far arc, then the companion over it (which re-lays the band where
+    // it passes in front of the ball).
+    let far = orbitSegments(profile: profile, near: false)
+    for segment in far {
+        stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt)
+    }
+    drawCompanion(in: ctx, profile: profile, ring: far)
     drawSphere(in: ctx, profile: profile)
-    stroke(ctx, path: halves.front, width: OrbitMark.length(profile.ringWidth),
-           color: Brand.ringGold)
+    let front = orbitSegments(profile: profile, near: true)
+    if profile.castsShadow { drawRingShadow(in: ctx, profile: profile, front: front) }
+    for segment in front {
+        stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt)
+    }
+}
+
+/// The near arc's shadow on the sphere: the ring itself, shifted away from the
+/// key light and blurred, clipped to the sphere so it never touches the plate.
+func drawRingShadow(in ctx: CGContext, profile: IconProfile, front: [OrbitSegment]) {
+    let radius = OrbitMark.length(profile.planetRadius)
+    let centre = OrbitMark.point(32, 32)
+    ctx.saveGState()
+    ctx.addEllipse(in: CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2))
+    ctx.clip()
+    ctx.setShadow(offset: CGSize(width: OrbitMark.length(0.25), height: -OrbitMark.length(0.6)),
+                  blur: OrbitMark.length(2.2), color: Brand.hex(0x3A0F00, 0.3))
+    for segment in front { stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt) }
+    ctx.restoreGState()
 }
 
 // MARK: - Element 4: the ice-blue companion
 
-/// A flat disc and a slightly darker rim. No highlight: the companion carries
-/// the brand's cool accent, and a second light source inside one 28pt badge
-/// would fight the sphere for attention.
-func drawCompanion(in ctx: CGContext, profile: IconProfile) {
+/// A small lit ball: pale upper-left face, brand blue, deeper limb, a darker rim,
+/// and one tiny specular from 64pt. It borrows the sphere's key light so the two
+/// read as one scene; below 64pt it stays a flat disc.
+/// The companion sits exactly on the ring's centreline: the same ellipse, the
+/// same tilt and the same stretch the ring segments use.
+func companionFrame(profile: IconProfile) -> (home: CGPoint, centre: CGPoint, radius: CGFloat) {
+    let home = OrbitMark.orbitPoint(OrbitMark.companionParam, stretch: profile.orbitStretch)
+    return (home, OrbitMark.point(home.x, home.y), OrbitMark.length(profile.companionRadius))
+}
+
+/// The ball's local axes in canvas space: t along the ring, n across the band
+/// toward the viewer, and k, the ring's screen aspect (minor / major).
+///
+/// The ring is a circle in the orbit plane seen obliquely, and the near half of
+/// that circle is the viewer's side. On the far arc, where the ball sits, that
+/// is the INNER edge of the ring, toward the ellipse centre, so n is the
+/// perpendicular of t that points at (32, 32).
+func companionAxes(profile: IconProfile) -> (t: CGPoint, n: CGPoint, k: CGFloat) {
+    func canvasPoint(_ param: CGFloat) -> CGPoint {
+        let p = OrbitMark.orbitPoint(param, stretch: profile.orbitStretch)
+        return OrbitMark.point(p.x, p.y)
+    }
+    let a = canvasPoint(OrbitMark.companionParam - 0.01), b = canvasPoint(OrbitMark.companionParam + 0.01)
+    let len = hypot(b.x - a.x, b.y - a.y)
+    let t = CGPoint(x: (b.x - a.x) / len, y: (b.y - a.y) / len)
+    var n = CGPoint(x: -t.y, y: t.x)
+    let c = companionFrame(profile: profile).centre, ring = OrbitMark.point(32, 32)
+    if n.x * (ring.x - c.x) + n.y * (ring.y - c.y) < 0 { n = CGPoint(x: -n.x, y: -n.y) }
+    return (t, n, OrbitMark.orbitRy * profile.orbitStretch / OrbitMark.orbitRx)
+}
+
+func drawCompanion(in ctx: CGContext, profile: IconProfile, ring: [OrbitSegment]) {
     guard profile.companionRadius > 0 else { return }
-    let centre = OrbitMark.point(OrbitMark.companionHome.x, OrbitMark.companionHome.y)
-    let radius = OrbitMark.length(profile.companionRadius)
+    let (home, centre, radius) = companionFrame(profile: profile)
     let extent = CGRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
 
     ctx.saveGState()
-    ctx.setFillColor(Brand.companion)
-    ctx.fillEllipse(in: extent)
+    if profile.showsShading {
+        // Same key light as the sphere: a pale upper-left, the brand blue, a deeper limb.
+        let key = OrbitMark.point(home.x - profile.companionRadius * 0.32, home.y - profile.companionRadius * 0.34)
+        ctx.addEllipse(in: extent)
+        ctx.clip()
+        ctx.drawRadialGradient(
+            gradient([Brand.hex(0xA5E8FF), Brand.companion, Brand.hex(0x0EA5E9)], [0, 0.55, 1]),
+            startCenter: key, startRadius: 0, endCenter: key, endRadius: radius * 1.5,
+            options: [.drawsAfterEndLocation])
+    } else {
+        ctx.setFillColor(Brand.companion)
+        ctx.fillEllipse(in: extent)
+    }
     ctx.restoreGState()
 
     guard profile.showsShading else { return }
@@ -351,6 +457,62 @@ func drawCompanion(in ctx: CGContext, profile: IconProfile) {
     ctx.setStrokeColor(Brand.companionRim)
     ctx.setLineWidth(max(1, radius * 0.16))
     ctx.strokePath()
+    ctx.restoreGState()
+
+    // The tiny highlight: only where it is large enough to be seen (64pt up).
+    if profile.companionRadius >= 3.6, radius >= 6 {
+        let spec = OrbitMark.point(home.x - profile.companionRadius * 0.3, home.y - profile.companionRadius * 0.5)
+        let sr = radius * 0.18
+        ctx.setFillColor(Brand.hex(0xFFFFFF, 0.85))
+        ctx.fillEllipse(in: CGRect(x: spec.x - sr, y: spec.y - sr, width: sr * 2, height: sr * 2))
+    }
+
+    // Where the band is in FRONT of the ball: the viewer's half of the ring
+    // (n > 0) outside the equator ellipse E (semi-axis R along t, R*k along n).
+    // Inside E the band is inside the ball; on the far half it is behind it.
+    let (t, n, k) = companionAxes(profile: profile)
+    let at = { (a: CGFloat, b: CGFloat) in CGPoint(x: centre.x + t.x * a + n.x * b, y: centre.y + t.y * a + n.y * b) }
+    let reach = radius * 1.15
+    let lap = CGMutablePath()
+    lap.addLines(between: [at(-reach, 0), at(reach, 0), at(reach, reach), at(-reach, reach)])
+    lap.closeSubpath()
+    lap.move(to: at(radius, 0))
+    for i in 0...48 {
+        let a = CGFloat(i) / 48 * .pi
+        lap.addLine(to: at(radius * cos(a), radius * k * sin(a)))
+    }
+    lap.closeSubpath()
+
+    // Ambient occlusion: two very soft dark pools on the ball where the band
+    // goes in, so the ring looks tucked into it. No line, about 15% at the core.
+    if profile.castsShadow {
+        ctx.saveGState()
+        ctx.addEllipse(in: extent)
+        ctx.clip()
+        let pool = radius * 0.4
+        for side in [CGFloat(1), -1] {
+            let p = at(side * radius * 0.93, radius * k * 0.3)
+            ctx.drawRadialGradient(
+                gradient([Brand.hex(0x03233A, 0.16), Brand.hex(0x03233A, 0)], [0, 1]),
+                startCenter: p, startRadius: 0, endCenter: p, endRadius: pool, options: [])
+        }
+        ctx.restoreGState()
+    }
+
+    // The lap fades out toward the ball's middle (radial, from 0.8R to 0.93R), so
+    // its inner tip dissolves into the ball instead of ending in a hard wedge.
+    ctx.saveGState()
+    ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+    ctx.saveGState()
+    ctx.addPath(lap)
+    ctx.clip(using: .evenOdd)
+    for segment in ring { stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt) }
+    ctx.restoreGState()
+    ctx.setBlendMode(.destinationOut)
+    ctx.drawRadialGradient(
+        gradient([Brand.hex(0x000000, 1), Brand.hex(0x000000, 1), Brand.hex(0x000000, 0)], [0, 0.8 / 0.93, 1]),
+        startCenter: centre, startRadius: 0, endCenter: centre, endRadius: radius * 0.93, options: [])
+    ctx.endTransparencyLayer()
     ctx.restoreGState()
 }
 
@@ -365,7 +527,6 @@ func drawMark(in ctx: CGContext, size: Int) {
     ctx.addPath(squircle(center: centre, radius: bodyRadius - 2))
     ctx.clip()
     drawOrbit(in: ctx, profile: profile)
-    drawCompanion(in: ctx, profile: profile)
     ctx.restoreGState()
 }
 
@@ -444,7 +605,7 @@ func fail(_ message: String) -> Never {
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first else {
-    fail("usage: generate-app-icon.swift <iconset|icns|sheet|single|zoom> ...")
+    fail("usage: generate-app-icon.swift <iconset|icns|sheet|single|zoom|check> ...")
 }
 
 switch command {
@@ -515,6 +676,29 @@ case "zoom":
     guard let zoomed = ctx.makeImage() else { fail("no zoom image") }
     guard writePNG(zoomed, to: URL(fileURLWithPath: arguments[1])) else { fail("write failed") }
     print("wrote \(arguments[1]) (\(size)px at \(factor)x)")
+
+case "check":
+    // Self-check for the companion: its centre must lie on the ring centreline,
+    // and "toward the viewer" must be the inner edge on the far arc.
+    for (name, profile) in [("full", IconProfile.full), ("compact", IconProfile.compact)] {
+        let c = companionFrame(profile: profile).centre
+        var best = CGFloat.infinity
+        for i in 0..<20000 {
+            let p = OrbitMark.orbitPoint(CGFloat(i) / 20000 * 2 * .pi, stretch: profile.orbitStretch)
+            let q = OrbitMark.point(p.x, p.y)
+            best = min(best, hypot(q.x - c.x, q.y - c.y))
+        }
+        let ax = companionAxes(profile: profile)
+        // Inward normal in the orbit plane, (-cos t, -sin t); its ly part is the
+        // depth toward the viewer (sin t > 0 is near), its screen image is below.
+        let tp = OrbitMark.companionParam
+        let depth = -sin(tp)
+        let p0 = OrbitMark.orbitPoint(tp, stretch: profile.orbitStretch), p1 = OrbitMark.orbitPoint(tp, stretch: 0.9 * profile.orbitStretch, rx: 0.9 * OrbitMark.orbitRx)
+        let a = OrbitMark.point(p0.x, p0.y), b = OrbitMark.point(p1.x, p1.y)
+        let dot = ax.n.x * (b.x - a.x) + ax.n.y * (b.y - a.y)
+        print("\(name): centre-to-centreline \(String(format: "%.4f", best / OrbitMark.unit)) units (\(String(format: "%.3f", best)) px); k \(String(format: "%.3f", ax.k)); inward normal depth \(String(format: "%+.3f", depth)) (+ = toward viewer); n . inward screen dir \(String(format: "%+.1f", dot)) (+ = n is the inner edge)")
+        precondition(best < 0.5 && depth > 0 && dot > 0, "companion geometry check failed")
+    }
 
 case "sheet":
     guard arguments.count >= 2 else { fail("sheet requires an output path") }
