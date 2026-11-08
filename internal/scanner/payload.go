@@ -44,13 +44,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	fullScanMu.Lock()
 	defer fullScanMu.Unlock()
 	policy := s.refreshWhitelist()
-	directoryReads.Lock()
-	for path := range directoryReads.failed {
-		if withinPath(path, s.home) {
-			delete(directoryReads.failed, path)
-		}
-	}
-	directoryReads.Unlock()
+	clearReadWarnings(s.home)
 	freeGB, totalGB := s.queryDiskSpace()
 	_, memTotalGB := s.queryMemoryUsage()
 	payload := FullScanPayload{
@@ -215,7 +209,7 @@ func (s *Scanner) scanHomeTreemap() []map[string]any {
 		if !exists(path) {
 			continue
 		}
-		size := s.fastDirectorySize(path, 1800)
+		size := s.fastDirectorySize(path, catalogRootFileCap)
 		if size.bytes > 0 {
 			rows = append(rows, row{name: name, path: "~/" + name, bytes: size.bytes})
 		}

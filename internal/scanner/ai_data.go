@@ -24,7 +24,7 @@ func aiCacheSpecs() []aiDataSpec {
 		owners                   []string
 	}{
 		{"codex", "Codex", "Codex", "", []string{"Codex", "codex", "ChatGPT"}},
-		{"claude", "Claude Desktop", "Claude", "com.anthropic.claudefordesktop", []string{"Claude", "claude"}},
+		{"claude", "Claude Desktop", "Claude", "com.anthropic.claudefordesktop", []string{"Claude"}},
 		{"cursor", "Cursor / Cursor Agent", "Cursor", "Cursor", []string{"Cursor", "cursor", "cursor-agent"}},
 		{"windsurf", "Windsurf", "Windsurf", "Windsurf", []string{"Windsurf", "windsurf"}},
 		{"chatgpt", "ChatGPT", "ChatGPT", "com.openai.chat", []string{"ChatGPT"}},
@@ -43,9 +43,10 @@ func aiCacheSpecs() []aiDataSpec {
 			}
 		}
 		specs = append(specs, aiDataSpec{
-			spec: CatalogSpec{ID: "ai_" + tool.id + "_cache", Category: tool.name, Name: tool.name + " · 可重建缓存", Roots: roots, Tier: "review",
-				Impact:  "只检查已识别的程序缓存、代码缓存与 GPU 缓存，不包含 Cookies、IndexedDB、Local Storage、会话或模型。工具运行、文件仍被打开或状态不明时保留；处理后可能需要重新下载并暂时变慢。",
-				Rebuild: "退出工具并核对用途后选择；下次运行按需重建"},
+			spec: CatalogSpec{ID: "ai_" + tool.id + "_cache", Category: tool.name, Name: tool.name + " · 可重建缓存", Roots: roots, Tier: "safe",
+				Reason:  "程序缓存、代码缓存与 GPU 缓存，工具下次运行时会自动重建；不含 Cookies、会话、登录或模型",
+				Impact:  "只检查已识别的程序缓存、代码缓存与 GPU 缓存，不包含 Cookies、IndexedDB、Local Storage、会话或模型。工具运行、文件仍被打开或状态不明时保留；处理后可能暂时变慢。",
+				Rebuild: "下次运行按需重建"},
 			tool: tool.name, band: "可重建缓存", owners: tool.owners,
 		})
 	}
@@ -58,11 +59,12 @@ func aiCacheSpecs() []aiDataSpec {
 		{"claude_code", "Claude Code", []string{"~/.claude/debug"}, []string{"Claude", "claude"}},
 		{"copilot", "GitHub Copilot CLI", []string{"~/.copilot/logs"}, []string{"copilot", "github-copilot"}},
 		{"opencode", "OpenCode", []string{"~/.local/share/opencode/log"}, []string{"opencode", "OpenCode"}},
-		{"claude_desktop", "Claude Desktop", []string{"~/Library/Logs/Claude"}, []string{"Claude", "claude"}},
+		{"claude_desktop", "Claude Desktop", []string{"~/Library/Logs/Claude"}, []string{"Claude"}},
 	} {
 		specs = append(specs, aiDataSpec{
-			spec: CatalogSpec{ID: "ai_" + tool.id + "_logs", Category: tool.name, Name: tool.name + " · 诊断日志", Roots: tool.roots, Tier: "review",
-				Impact:  "只列出日志目录内最多 40 个已识别普通文件；保留最近 30 天、最新一份、latest 指向的文件及运行中或被打开的日志。不会读取日志内容；移除旧日志会失去相应排障记录，默认不选。",
+			spec: CatalogSpec{ID: "ai_" + tool.id + "_logs", Category: tool.name, Name: tool.name + " · 诊断日志", Roots: tool.roots, Tier: "safe",
+				Reason:  "超过 30 天的旧诊断日志，只影响回看旧排障记录，新日志会自动生成",
+				Impact:  "只列出日志目录内最多 40 个已识别普通文件；保留最近 30 天、最新一份、latest 指向的文件及运行中或被打开的日志。不会读取日志内容。",
 				Rebuild: "新日志会重新生成；旧诊断内容不可重建"},
 			tool: tool.name, band: "诊断日志", owners: tool.owners, logFiles: true,
 		})
@@ -90,6 +92,7 @@ func aiCacheSpecs() []aiDataSpec {
 	} {
 		specs = append(specs, aiDataSpec{
 			spec: CatalogSpec{ID: "ai_" + tool.id, Category: tool.name, Name: tool.name + " · " + strings.TrimSuffix(tool.band, "（仅检查）"), Roots: tool.roots, Tier: "protected",
+				Reason:  "会话、历史、扩展或模型：可能仍被恢复或共享使用，不能凭年龄或目录名判断可删，只做检查",
 				Impact:  "这里只测量已识别路径，不读取会话或凭据内容。会话、任务历史、文件历史、快照、索引、扩展和模型可能被恢复或共享使用，不以年龄或目录名推断可删除。",
 				Rebuild: "由对应工具管理；历史和工作成果不能按缓存重建"},
 			tool: tool.name, band: tool.band,
@@ -181,10 +184,10 @@ func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec, live 
 		return "进程状态未知，不能证明 AI 数据闲置，保持原状"
 	}
 	for _, command := range strings.Split(processes, "\n") {
-		name := strings.ToLower(filepath.Base(strings.TrimSpace(command)))
+		// Case matters: the Claude Desktop app is "Claude", the Claude Code CLI is "claude".
+		name := filepath.Base(strings.TrimSpace(command))
 		for _, owner := range entry.owners {
-			owner = strings.ToLower(owner)
-			if name == owner || strings.HasPrefix(name, owner+" ") || strings.HasPrefix(name, owner+".") || strings.Contains(strings.ToLower(command), "/"+owner+".app/") {
+			if name == owner || strings.HasPrefix(name, owner+" ") || strings.HasPrefix(name, owner+".") || strings.Contains(command, "/"+owner+".app/") {
 				return entry.tool + " 正在运行，暂缓清理"
 			}
 		}

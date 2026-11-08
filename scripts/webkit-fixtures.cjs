@@ -38,7 +38,7 @@ const dominantTiles = [
 const telemetry = { cpu: 24, freeDiskGb: 128, memUsedGb: 16, memTotalGb: 32, processes: [{ pid: 8123, name: 'Canvas Editor', cpu: 12, memory_mb: 384, path: '/Applications/Canvas Editor.app', power: null }, { pid: 8234, name: 'Canvas Helper', cpu: 4, memory_mb: 128, path: '/Applications/Canvas Helper.app', power: null }], power: { thermal: 'nominal', memPressure: 'normal', battery: { percent: 80, healthPct: 84, cycles: 439, charging: false, source: 'battery' } }, net: { rxBytesPerSec: 1048576, txBytesPerSec: 131072 }, diskIo: { readBytesPerSec: 2097152, writeBytesPerSec: 1048576 }, gpuPct: 20, cpuTempC: 52, fans: [1200] };
 const setup = `const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.appendChild(style);window.qaFixture=${JSON.stringify(fixture)}; window.qaTelemetry=${JSON.stringify(telemetry)}; window.qaTiles=${JSON.stringify(tiles)}; window.qaDominantTiles=${JSON.stringify(dominantTiles)};
 window.qaAssert=(condition,message)=>{if(!condition)throw new Error(message)};
-window.qaReset=()=>{ I18N.setLang('zh',false); document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
+window.qaReset=()=>{ I18N.setLang('zh',false); document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();recentMoves.clear();clearTimeout(refreshTimer);clearTimeout(refreshGuard);refreshTimer=refreshGuard=0;refreshing=false;scanStartedAt=lastMoveAt=0;clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
 // English walk helpers (installed into the page). The fixture is Chinese user data plus Chinese backend
 // sentences; backend sentences without a dictionary entry get a placeholder so only the page's own text is judged.
 function installEnglishWalk() {
@@ -1852,12 +1852,12 @@ add('ai-tool-scope-statistics',`
   const coverage=()=>document.querySelector('.ai-scan-coverage');
   qaAssert(coverage().querySelector('[data-ai-measured]').textContent.includes('2.00 GB')&&coverage().querySelector('[data-ai-reviewable]').textContent.includes('1.00 GB')&&coverage().querySelector('[data-ai-retained]').textContent.includes('1.00 GB'),'tool-filtered measurements must not include another tool’s caches or sessions');
   const tabs=()=>[...document.querySelectorAll('#moduleStage .seg-tab')].map(tab=>tab.textContent.trim());
-  qaAssert(tabs()[0]==='全部 (1)'&&tabs()[2]==='需确认 (1)'&&tabs()[3]==='保留 (0)','safety-category counts follow the current tool rather than the full AI inventory');
+  qaAssert(tabs()[0]==='全部 (1)'&&tabs()[2]==='需确认 (1)'&&tabs()[3]==='受保护 (0)','safety-category counts follow the current tool rather than the full AI inventory');
   qaAssert(coverage().querySelector('[data-ai-scope]').textContent.includes('当前筛选'),'filtered capacity explicitly names its scope');
   document.getElementById('searchInput').value='Gemini';handleSearch('Gemini');
   qaAssert(coverage().querySelector('[data-ai-measured]').textContent.includes('0 B')&&tabs()[0]==='全部 (0)'&&!document.querySelector('#moduleStage .list-row'),'search and tool scope compose without silently reusing global totals');
   setAIToolFilter('all');
-  qaAssert(coverage().querySelector('[data-ai-measured]').textContent.includes('3.00 GB')&&tabs()[3]==='保留 (1)','keyword scope reports the measured session row without claiming it is removable');
+  qaAssert(coverage().querySelector('[data-ai-measured]').textContent.includes('3.00 GB')&&tabs()[3]==='受保护 (1)','keyword scope reports the measured session row without claiming it is removable');
   qaAssert(STATE.aiMoonBands.every(item=>!item.checked),'scope and capacity changes do not authorize cleanup');
 `);
 add('ai-tool-scope-exclusions',`
@@ -2058,6 +2058,153 @@ for (const mod of modules) scenarios.push({ name: `en-empty-${mod}`, width: 1380
 add('en-no-matches', `switchModule('software');handleSearch('unmatched-keyword');await qaEn('no matches');switchModule('clean');handleSearch('unmatched-keyword');await qaEn('no matches clean');switchModule('analyze');handleSearch('no-such-path');await qaEn('no matches analyze');`);
 add('en-trash-failure', `switchModule('clean');await qaEn('partial trash failure',async()=>{openConfirmSheet();executeConfirmedClean();const request=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:request.requestId,moved:[{original:request.paths[0],trashed:'/trash/one'}],movedCount:1,failed:request.paths.slice(1).map(path=>({path,error:'Permission denied',pane:'fullDiskAccess'}))});});qaAssert(document.getElementById('permHint'),'recovery action is still offered in English');`);
 add('en-scan-permission-partial', `I18N.add({'目录读取超时，未计入本次扫描':'Fixture text'});onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Desktop',reason:'目录读取超时，未计入本次扫描'}]});switchModule('clean');await qaEn('scan permission partial');`);
+// ── 分级汇总 / ≥ 下限 / 受保护解锁 / 按 kind 的测量告警 / 清理后的刷新态（赛道 C）──
+// 载荷在场景内就地构造：reason、unlock、partial 都是 Go 侧才有的字段，基础夹具保持旧形态以覆盖旧载荷的兜底。
+const tierEnglish = {
+  '与当前项目绑定，确认不再需要后再清理。': 'Tied to the current project. Clean it once you are sure it is no longer needed.',
+  '正在被运行中的应用使用，保持原状。': 'In use by a running app, so it stays as it is.',
+  '退出相关应用后重新扫描即可解锁。': 'Quit the related apps and rescan to unlock.',
+  '构建产物可由依赖清单重新生成。': 'Build output can be regenerated from the dependency manifest.',
+  '安装包已经装过，确认后再删除。': 'Already installed. Confirm before deleting the installer.',
+};
+const tierSetup = `
+  const R_REVIEW='与当前项目绑定，确认不再需要后再清理。',R_PROT='正在被运行中的应用使用，保持原状。',UNLOCK='退出相关应用后重新扫描即可解锁。';
+  I18N.add(${JSON.stringify(tierEnglish)});
+  const tp=structuredClone(qaFixture),mark=(row,extra)=>{Object.assign(row,extra);row.subpaths.forEach(sp=>Object.assign(sp,extra,{checked:row.tier==='safe'}));return row;};
+  tp.cleanGroups[1].partial=true;tp.cleanGroups[1].subpaths[0].partial=true;
+  mark(tp.cleanGroups[2],{reason:R_REVIEW});
+  tp.cleanGroups.push(mark({...tp.cleanGroups[0],id:'locked',name:'应用运行缓存',path:'~/Library/Caches/Locked',sizeGb:4,tier:'protected',checked:false,subpaths:[{...tp.cleanGroups[0].subpaths[0],path:'~/Library/Caches/Locked/one',sizeGb:4}]},{reason:R_PROT,unlock:UNLOCK}));
+  tp.aiMoonBands[0].partial=true;tp.aiMoonBands[0].subpaths[0].partial=true;
+  tp.aiMoonBands[2].unlock=UNLOCK;tp.aiMoonBands[2].reason='正在被运行中的应用使用，保持原状。';
+  const pi=tp.purgeItems[0];
+  tp.purgeItems=[{...pi,tier:'safe',checked:true,reason:'构建产物可由依赖清单重新生成。'},{...pi,id:'p2',artifact:'target',path:'~/Projects/Canvas/target',sizeGb:3,origSizeGb:3,tier:'review',checked:false,reason:R_REVIEW},{...pi,id:'p3',artifact:'.venv',path:'~/Projects/Canvas/.venv',sizeGb:1.5,origSizeGb:1.5,tier:'protected',checked:false,reason:R_PROT,unlock:UNLOCK},{...pi,id:'p4',artifact:'build',path:'~/Projects/Canvas/build',sizeGb:0.6,origSizeGb:0.6,tier:'safe',checked:true,partial:true,reason:'构建产物可由依赖清单重新生成。'}];
+  tp.installerFiles=[{...tp.installerFiles[0],tier:'review',checked:false,reason:'安装包已经装过，确认后再删除。'}];
+  onNativeRealScanComplete(tp);
+`;
+const tierExpect = {
+  clean: { safe: 4, review: 2, protected: 4, rows: 'STATE.cleanGroups' },
+  ai_moon: { safe: 1, review: 0.2, protected: 5.6, rows: 'STATE.aiMoonBands' },
+  purge: { safe: 2.6, review: 4, protected: 1.5, rows: '[].concat(STATE.purgeItems,STATE.installerFiles)' },
+};
+for (const mod of Object.keys(tierExpect)) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  const e = tierExpect[mod];
+  add(`tier-summary-${mod}-${theme}-${lang}`, `
+    document.documentElement.dataset.theme='${theme}';${tierSetup}switchModule('${mod}');await qaSettle();
+    const bar=document.querySelector('[data-tier-summary="${mod}"]');
+    qaAssert(bar,'${mod} shows the recommendation summary');
+    const chip=k=>bar.querySelector('[data-tier-'+k+']').textContent;
+    qaAssert(chip('safe').includes(fmtDiskSizeGb(${e.safe})),'recommended size is the sum of safe paths: '+chip('safe'));
+    qaAssert(chip('review').includes(fmtDiskSizeGb(${e.review})),'review size: '+chip('review'));
+    qaAssert(chip('protected').includes(fmtDiskSizeGb(${e.protected})),'protected size: '+chip('protected'));
+    qaAssert(chip('safe').includes('≥ ')&&bar.querySelector('[data-tier-partial-note]'),'a partial safe path turns the recommended size into a lower bound');
+    qaAssert(!chip('review').includes('≥ ')&&!chip('protected').includes('≥ '),'tiers without partial paths keep exact sizes');
+    const rows=${e.rows};
+    qaAssert(rows.filter(r=>r.tier==='safe').every(r=>r.checked)&&rows.filter(r=>r.tier!=='safe').every(r=>!r.checked),'safe rows arrive checked and nothing else does');
+    qaAssert(document.querySelectorAll('#moduleStage .tier-unlock').length>=1,'a protected row says how to unlock it');
+    qaAssert(document.querySelector('#moduleStage .lock-glyph'),'protected rows show a lock instead of a checkbox');
+    qaAssert(/≥ /.test(document.getElementById('moduleStage').textContent),'a partial size is shown as a lower bound');
+    // 勾上需确认项再点「只选推荐项」：恰好回到推荐集合。
+    rows.forEach(r=>{if(r.tier==='review'){r.checked=true;(r.subpaths||[]).forEach(sp=>{sp.checked=true;});}});
+    bar.querySelector('[data-tier-select]').click();await qaSettle();
+    qaAssert(rows.filter(r=>r.tier==='safe').every(r=>r.checked)&&rows.filter(r=>r.tier!=='safe').every(r=>!r.checked&&(r.subpaths||[]).every(sp=>!sp.checked)),'select recommended leaves exactly the safe set checked');
+    ${lang === 'en' ? `await qaEn('tier summary ${mod}');qaAssert(document.querySelector('[data-tier-summary="${mod}"] [data-tier-safe]').textContent.startsWith('Recommended'),'English summary reads Recommended');` : `qaAssert(document.querySelector('[data-tier-summary="${mod}"] [data-tier-safe]').textContent.startsWith('推荐清理'),'summary headline');`}
+  `);
+}
+add('tier-partial-does-not-block-clean', `
+  ${tierSetup}switchModule('clean');await qaSettle();
+  qaAssert(!document.getElementById('btnPrimary')?.disabled&&!document.querySelector('.top-header .btn-primary:disabled'),'a partial path never disables the primary action');
+  openConfirmSheet();await qaSettle();qaAssert(document.querySelector('.modal-backdrop.open'),'confirm opens with a partial path selected');
+  executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');
+  qaAssert(req&&req.paths.some(p=>p.endsWith('/Canvas/one')),'the partial path is sent to the Trash like any other');
+  qaAssert(!req.paths.some(p=>p.includes('/Locked/')||p.endsWith('/target/one')),'protected and review paths are never sent');
+`);
+add('tier-legacy-payload-no-summary', `
+  const lp=structuredClone(qaFixture);lp.cleanGroups.forEach(g=>{delete g.tier;g.subpaths.forEach(sp=>delete sp.tier);});
+  onNativeRealScanComplete(lp);switchModule('clean');await qaSettle();
+  qaAssert(!document.querySelector('[data-tier-summary]'),'a payload without tiers gets no invented summary');
+  qaAssert(!document.querySelector('#moduleStage .tier-note'),'and no invented per-row tier note');
+`);
+add('tier-generic-sentence-without-reason', `
+  ${tierSetup}tp.cleanGroups[2].reason='';tp.cleanGroups[2].subpaths.forEach(sp=>{sp.reason='';});onNativeRealScanComplete(tp);switchModule('clean');selectCleanRow(2);await qaSettle();
+  qaAssert(document.querySelector('[data-tier-note="review"]')?.textContent.includes('用途需要你确认'),'a review row without reason gets the generic per-tier sentence');
+  await qaEn('generic tier sentence',async()=>{});
+  qaAssert(document.querySelector('[data-tier-note="review"]')?.textContent.includes('confirm'),'the generic sentence is translated');
+`);
+// 测量告警按 kind 分组：每种 kind 的标题、徽章、模块内提示、运行时横幅各自独立。
+const warnKinds = {
+  permission: { warnings: `[{path:qaFixture.homePath+'/Library/Mail',reason:'读取被拒绝（permission denied）',kind:'permission'},{path:qaFixture.homePath+'/Library/Safari',reason:'读取被拒绝（permission denied）',kind:'permission'}]`, head: '2 个路径没有读取权限，请授予完全磁盘访问权限', badge: '部分路径无读取权限', banner: true, pane: true },
+  limit: { warnings: `[{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量',kind:'limit'},{path:qaFixture.homePath+'/Projects/Huge Cache',reason:'达到目录探索上限，未完成测量',kind:'limit'}]`, head: '权限正常；2 个较大目录只测量了部分体积（不影响清理）', badge: '部分体积为下限', banner: false, pane: false },
+  system: { warnings: `[{path:'/Library/Application Support/com.apple.TCC',reason:'macOS 系统保护，无法读取',kind:'system'}]`, head: '1 个位置受 macOS 系统保护，无需处理', badge: '', banner: false, pane: false },
+  error: { warnings: `[{path:qaFixture.homePath+'/Projects/Broken',reason:'读取失败（i/o error）',kind:'error'}]`, head: '部分路径未完成测量，请先查看原因', badge: '部分测量受限', banner: true, pane: false },
+  legacy: { warnings: `[{path:qaFixture.homePath+'/Library/Containers/Denied App/Data',reason:'读取被拒绝（permission denied）'},{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量'}]`, head: '本机扫描：2 个路径未完成测量，按目录查看原因', badge: '部分测量受限', banner: true, pane: true },
+};
+for (const kind of Object.keys(warnKinds)) for (const lang of ['zh', 'en']) {
+  const w = warnKinds[kind];
+  add(`warnings-kind-${kind}-${lang}`, `
+    I18N.add({'读取被拒绝（permission denied）':'Read denied (permission denied)','达到目录探索上限，未完成测量':'Hit the folder exploration cap; not fully measured','macOS 系统保护，无法读取':'Protected by macOS; cannot be read','读取失败（i/o error）':'Read failed (i/o error)'});
+    onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:${w.warnings}});switchModule('clean');await qaSettle();
+    const hint=[...document.querySelectorAll('#moduleStage details.panel-card')].find(d=>d.querySelector('summary'));
+    qaAssert(hint,'${kind}: the module shows a measurement hint');
+    ${lang === 'zh' ? `
+    qaAssert(hint.querySelector('summary').textContent.trim()==='${w.head}','${kind}: hint headline is "'+hint.querySelector('summary').textContent.trim()+'"');
+    qaAssert(document.getElementById('scanSourceBadge').textContent==='${w.badge || '本机扫描已返回'}','${kind}: badge is "'+document.getElementById('scanSourceBadge').textContent+'"');
+    qaAssert(document.getElementById('runtimeBanner').hidden===${!w.banner},'${kind}: the runtime banner ${w.banner ? 'is' : 'is not'} raised');
+    qaAssert(!!hint.querySelector('[onclick*="openPrivacySettings"]')===${w.pane},'${kind}: ${w.pane ? 'links' : 'does not link'} to a privacy pane');
+    ${kind === 'limit' ? `qaAssert(!hint.textContent.includes('读取被拒绝')&&hint.textContent.includes('不影响清理'),'limit says cleanup is unaffected and never claims a denial');` : ''}
+    ${kind === 'system' ? `qaAssert(hint.textContent.includes('无需处理'),'system locations are explained as needing no action');` : ''}
+    ${kind === 'permission' ? `qaAssert(hint.querySelector('[onclick*="fullDiskAccess"]'),'permission links to Full Disk Access');` : ''}
+    ` : `await qaEn('warnings ${kind}',async()=>{});`}
+    hint.open=true;
+    switchModule('clean');
+  `);
+  Object.assign(scenarios.at(-1), { width: 1060, height: 760 });
+}
+add('warnings-empty-state-limit', `
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'x',kind:'limit'}]});
+  switchModule('clean');await qaSettle();
+  qaAssert(document.getElementById('heroHeadline').textContent.includes('权限正常；1 个较大目录只测量了部分体积'),'an empty list with only limit warnings never says permission is missing: '+document.getElementById('heroHeadline').textContent);
+`);
+add('warnings-system-only-not-in-headline', `
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:'/Library/Application Support/com.apple.TCC',reason:'x',kind:'system'}]});
+  switchModule('clean');await qaSettle();
+  qaAssert(!/测量|权限/.test(document.getElementById('heroHeadline').textContent),'system-protected locations are not counted in the headline: '+document.getElementById('heroHeadline').textContent);
+`);
+// 清理之后：本地先结算、顶栏安静地显示刷新态、不切模块、不复活已移走的行；兜底重扫只发一次。
+for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) add(`refresh-after-trash-${theme}-${lang}`, `
+  document.documentElement.dataset.theme='${theme}';${tierSetup}switchModule('clean');await qaSettle();
+  ${lang === 'en' ? "qaEnglishFixture();I18N.setLang('en',false);await qaSettle();" : ''}
+  const modBefore=STATE.module;
+  openConfirmSheet();executeConfirmedClean();
+  const req=__qa.actions.find(a=>a.action==='trashRealPaths');
+  onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[]});
+  await qaSettle();
+  qaAssert(STATE.module===modBefore,'refresh never switches module');
+  ${lang === 'zh' ? `qaAssert(document.getElementById('scanSourceBadge').textContent==='正在刷新扫描结果','the header says the scan is refreshing');` : ''}
+  qaAssert(document.getElementById('moduleStage').getAttribute('aria-busy')==='true','the stage is marked busy while refreshing');
+  qaAssert(STATE.cleanGroups.filter(g=>g.tier==='safe').every(g=>g.cleaned||g.sizeGb===0),'trashed rows are settled locally before any rescan returns');
+  ${lang === 'en' ? `await qaEn('refreshing',async()=>{});qaAssert(document.getElementById('scanSourceBadge').textContent==='Refreshing scan results','English refreshing badge');` : ''}
+  // 迟到的旧扫描结果（里面还有已移走的路径）不能复活它们。
+  onNativeRealScanComplete(structuredClone(tp));await qaSettle();
+  qaAssert(STATE.cleanGroups.filter(g=>g.tier==='safe').every(g=>g.cleaned||g.sizeGb===0||g.subpaths.every(sp=>sp.cleaned)),'a stale scan cannot resurrect rows trashed after it began');
+  qaAssert(refreshing===true,'still refreshing: the stale scan began before the move');
+  // Go 的新扫描开始并返回：刷新态结束，结果原样采用。
+  const fresh=structuredClone(tp);fresh.cleanGroups=fresh.cleanGroups.filter(g=>g.tier!=='safe');
+  onNativeRealScanStarted({});onNativeRealScanComplete(fresh);await qaSettle();
+  qaAssert(refreshing===false,'the authoritative scan ends the refreshing state');
+  qaAssert(document.getElementById('scanSourceBadge').textContent!==${lang === 'zh' ? "'正在刷新扫描结果'" : "'Refreshing scan results'"},'badge leaves the refreshing state');
+  endRefreshing();
+`);
+add('refresh-fallback-single-rescan', `
+  ${tierSetup}switchModule('clean');await qaSettle();
+  openConfirmSheet();executeConfirmedClean();
+  const req=__qa.actions.find(a=>a.action==='trashRealPaths');
+  onNativeTrashResult({requestId:req.requestId,moved:[{original:req.paths[0],trashed:'/trash/a'}],movedCount:1,failed:[]});
+  scheduleRefresh([req.paths[1]]);scheduleRefresh([req.paths[2]]);
+  __qa.actions=[];
+  await new Promise(r=>setTimeout(r,REFRESH_DEBOUNCE_MS+300));
+  qaAssert(__qa.actions.filter(a=>a.action==='requestRealSystemScan').length===1,'back-to-back operations cause exactly one fallback rescan, got '+__qa.actions.filter(a=>a.action==='requestRealSystemScan').length);
+  endRefreshing();
+`);
 // Icon contact sheet: every module glyph on its real plates (sidebar gradient, palette/hero wash) at 28 and 56px.
 function iconSheet(theme) {
   document.documentElement.dataset.theme = theme;
