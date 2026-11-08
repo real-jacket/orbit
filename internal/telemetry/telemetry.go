@@ -26,6 +26,19 @@ const (
 	smcEvery  = 5 * time.Second
 )
 
+// noSensorRetry is how long a source that failed is left alone. A Mac with no
+// GPU or storage driver entry answers ioreg with nothing every time, and
+// without this each 1.5 s tick forked it again.
+const noSensorRetry = 30 * time.Second
+
+// due reports whether a source read at `at` (successfully or not) must be read again.
+func due(at time.Time, ok bool, every time.Duration, now time.Time) bool {
+	if !ok && !at.IsZero() {
+		every = noSensorRetry
+	}
+	return at.IsZero() || now.Sub(at) >= every
+}
+
 // Net is bytes per second across all interfaces.
 type Net struct {
 	RxBytesPerSec float64 `json:"rxBytesPerSec"`
@@ -36,6 +49,13 @@ type Net struct {
 type DiskIO struct {
 	ReadBytesPerSec  float64 `json:"readBytesPerSec"`
 	WriteBytesPerSec float64 `json:"writeBytesPerSec"`
+}
+
+type Memory struct {
+	AppGB        float64 `json:"appGb"`
+	WiredGB      float64 `json:"wiredGb"`
+	CompressedGB float64 `json:"compressedGb"`
+	CacheGB      float64 `json:"cacheGb"`
 }
 
 // Sample is one reading of the machine. Every field is omitted when this
@@ -57,9 +77,10 @@ type Sampler struct {
 	netPrevAt time.Time
 	netOK     bool
 
-	diskPrev   diskCounters
-	diskPrevAt time.Time
-	diskOK     bool
+	diskPrev      diskCounters
+	diskPrevAt    time.Time
+	diskOK        bool
+	diskRateCache *DiskIO
 
 	diskCache   diskCounters
 	diskCacheAt time.Time
@@ -79,8 +100,8 @@ type Sampler struct {
 }
 
 // New returns a sampler with no previous reading: the first Snapshot reports
-// temperatures, fan speeds and utilisation, but throughput rates start at zero
-// and become meaningful on the second call.
+// temperatures, fan speeds and utilisation, but throughput rates stay unknown
+// until two distinct counter readings are available.
 func New() *Sampler { return &Sampler{} }
 
 // Shared is the process-wide sampler, so consecutive telemetry ticks share the
@@ -114,6 +135,7 @@ func (s *Sampler) netRate(now time.Time) *Net {
 		return nil
 	}
 	net := &Net{}
+	ready := s.netOK && !s.netPrevAt.IsZero()
 	if s.netOK && !s.netPrevAt.IsZero() {
 		rx, tx := netDelta(s.netPrev, counters)
 		elapsed := now.Sub(s.netPrevAt)
@@ -121,6 +143,9 @@ func (s *Sampler) netRate(now time.Time) *Net {
 		net.TxBytesPerSec = rate(0, tx, elapsed)
 	}
 	s.netPrev, s.netPrevAt, s.netOK = counters, now, true
+	if !ready {
+		return nil
+	}
 	return net
 }
 
@@ -168,15 +193,24 @@ func (s *Sampler) diskRate(now time.Time) *DiskIO {
 	counter, sampledAt, ok := s.diskCounters(now)
 	if !ok {
 		s.diskOK = false
+		s.diskRateCache = nil
 		return nil
 	}
+	if s.diskOK && sampledAt.Equal(s.diskPrevAt) {
+		return s.diskRateCache
+	}
 	io := &DiskIO{}
+	ready := s.diskOK && !s.diskPrevAt.IsZero()
 	if s.diskOK && !s.diskPrevAt.IsZero() {
 		elapsed := sampledAt.Sub(s.diskPrevAt)
 		io.ReadBytesPerSec = rate(s.diskPrev.read, counter.read, elapsed)
 		io.WriteBytesPerSec = rate(s.diskPrev.write, counter.write, elapsed)
 	}
 	s.diskPrev, s.diskPrevAt, s.diskOK = counter, sampledAt, true
+	if !ready {
+		return nil
+	}
+	s.diskRateCache = io
 	return io
 }
 
@@ -184,8 +218,8 @@ func (s *Sampler) diskRate(now time.Time) *DiskIO {
 // Each `ioreg` invocation costs ~25 ms, so serialising them would spend a third
 // of every 1.5 s telemetry tick waiting on the kernel to describe itself.
 func (s *Sampler) prefetchIOReg(now time.Time) {
-	needDisk := !s.diskCacheOK || now.Sub(s.diskCacheAt) >= diskEvery
-	needGPU := !s.gpuCacheOK || now.Sub(s.gpuCacheAt) >= gpuEvery
+	needDisk := due(s.diskCacheAt, s.diskCacheOK, diskEvery, now)
+	needGPU := due(s.gpuCacheAt, s.gpuCacheOK, gpuEvery, now)
 	if !needDisk && !needGPU {
 		return
 	}
@@ -211,8 +245,8 @@ func (s *Sampler) prefetchIOReg(now time.Time) {
 
 // diskCounters returns the latest counter reading and when it was taken.
 func (s *Sampler) diskCounters(now time.Time) (diskCounters, time.Time, bool) {
-	if s.diskCacheOK && now.Sub(s.diskCacheAt) < diskEvery {
-		return s.diskCache, s.diskCacheAt, true
+	if !due(s.diskCacheAt, s.diskCacheOK, diskEvery, now) {
+		return s.diskCache, s.diskCacheAt, s.diskCacheOK
 	}
 	counter, ok := readDiskCounters()
 	s.diskCache, s.diskCacheAt, s.diskCacheOK = counter, now, ok
@@ -220,7 +254,7 @@ func (s *Sampler) diskCounters(now time.Time) (diskCounters, time.Time, bool) {
 }
 
 func (s *Sampler) gpuPercent(now time.Time) (float64, bool) {
-	if !s.gpuCacheOK || now.Sub(s.gpuCacheAt) >= gpuEvery {
+	if due(s.gpuCacheAt, s.gpuCacheOK, gpuEvery, now) {
 		value, ok := readGPUPercent()
 		s.gpuCache, s.gpuCacheAt, s.gpuCacheOK = value, now, ok
 	}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mymoles/mole-studio/internal/smc"
+	"github.com/mymoles/mole-studio/internal/telemetry"
 )
 
 // NSProcessInfoThermalState, the values -[NSProcessInfo thermalState] returns.
@@ -55,9 +56,10 @@ func Take() Snapshot {
 	return s
 }
 
-// batteryTTL is how long a battery reading is reused. ioreg costs ~17ms, which
-// is the single most expensive part of a 1.5s telemetry tick, and charge,
-// cycles and capacity move slowly: thermal and memory pressure stay live.
+// batteryTTL is how long a battery reading is reused, including "no battery".
+// ioreg costs ~17ms, which is the single most expensive part of a 1.5s telemetry
+// tick, and charge, cycles and capacity move slowly: thermal and memory
+// pressure stay live.
 const batteryTTL = 30 * time.Second
 
 var (
@@ -66,11 +68,12 @@ var (
 	batteryReadAt time.Time
 )
 
-// batteryCached returns the battery, re-reading it at most every batteryTTL.
+// batteryCached returns the battery, re-reading it at most every batteryTTL. A
+// Mac without one caches nil too, or every tick would fork ioreg for nothing.
 func batteryCached() *Battery {
 	batteryMu.Lock()
 	defer batteryMu.Unlock()
-	if batteryValue != nil && time.Since(batteryReadAt) < batteryTTL {
+	if !batteryReadAt.IsZero() && time.Since(batteryReadAt) < batteryTTL {
 		return batteryValue
 	}
 	batteryValue = batteryInfo()
@@ -110,22 +113,15 @@ func thermalLabel() string {
 // while the app runs, and caching it froze the status page on the value the
 // first scan happened to see.
 func thermalPressureLevel() int {
-	out, err := exec.Command("sysctl", "-n", "kern.thermal_pressure_level").Output()
-	if err != nil {
-		return 0
-	}
-	level, _ := strconv.Atoi(strings.TrimSpace(string(out)))
-	return level
+	level, _ := telemetry.SysctlUint("kern.thermal_pressure_level")
+	return int(level)
 }
 
 // memoryPressureLabel is the memory pressure the kernel reports, as the
 // frontend names it. Like the thermal level it is read every time: pressure
 // falls back to normal on its own, and a cached value would never show it.
 func memoryPressureLabel() string {
-	level := 0
-	if out, err := exec.Command("sysctl", "-n", "kern.memorystatus_vm_pressure_level").Output(); err == nil {
-		level, _ = strconv.Atoi(strings.TrimSpace(string(out)))
-	}
+	level, _ := telemetry.SysctlUint("kern.memorystatus_vm_pressure_level")
 	switch level {
 	case 4:
 		return "critical"

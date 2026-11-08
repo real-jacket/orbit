@@ -1,5 +1,4 @@
-// Command mole-studio is the native macOS front end for the Mole CLI, built on
-// MyGo.
+// Command mole-studio is the native macOS disk cleaner, built on MyGo.
 //
 // The app is a shell around Resources/src-ui/index.html: the page draws the
 // whole interface and posts actions to Go through the bridge in bridge.go, and
@@ -7,9 +6,9 @@
 // The page itself is unchanged from the version the AppKit app shipped — the
 // preload script in preload.go gives it the environment it expects.
 //
-// Nothing here reimplements the Mole CLI. `mo analyze --json` supplies the disk
-// analysis, and everything else is measured with the standard tools the Swift
-// app used: ps, vm_stat, statfs, sysctl and ioreg.
+// Nothing here shells out to the Mole CLI: the disk analysis and the cleanup
+// scanners run in-process (internal/analyze, internal/scanner), and telemetry
+// comes from sysctl, statfs, IOKit and a few ps/ioreg calls.
 package main
 
 func main() {

@@ -1,7 +1,8 @@
-# orbit — native macOS client for the `mo` CLI.
+# orbit — native macOS storage and system tools.
 #
 #   make            build the Go executable
-#   make run        build and launch straight from the checkout
+#   make run        build and launch a permission-identifiable .app bundle
+#   make run-raw    launch a temporary executable for bridge debugging
 #   make test       run the unit test suite
 #   make vet        run the Go static checker
 #   make dev        run the MyGo dev server (live reload, needs the `mygo` CLI)
@@ -29,16 +30,17 @@
 # `make doctor` reports whether the CLI and the rest of the toolchain are there.
 #
 # `make app` writes into $(OUT_DIR)/<goos>-<goarch>/ — on Apple silicon that is
-# build/darwin-arm64/MoleStudio.app plus a .dmg beside it. The per-platform
-# subdirectory comes from MyGo, so do not expect build/MoleStudio.app.
+# build/darwin-arm64/orbit.app plus a .dmg beside it. The per-platform
+# subdirectory comes from MyGo, so do not expect build/orbit.app.
 
-APP_NAME := MoleStudio
+APP_NAME := orbit
 BIN      := mole-studio
 OUT_DIR  := build
 MYGO     ?= mygo
 GO       ?= go
+NODE     ?= node
 
-.PHONY: all build run test vet dev app app-nodmg generate doctor check clean help
+.PHONY: all build run run-raw test test-ui-webkit vet dev app app-nodmg generate set-version doctor check clean help
 
 all: build
 
@@ -48,16 +50,27 @@ all: build
 build:
 	$(GO) build -v -o $(BIN) .
 
-## Build and launch the app straight from the checkout. No `mygo` CLI needed:
-## a plain `go run` has no embedded frontend (mygo_frontend_gen.go is only
-## written by `mygo build`, and it is gitignored), so point MyGo's dev fallback
-## at the files on disk. Without this the window shows its "No frontend" page.
+## Build and launch a stable macOS app bundle so permission ownership is explicit.
 run:
+	GO="$(GO)" MYGO="$(MYGO)" OUT_DIR="$(OUT_DIR)" bash scripts/run-app.sh
+
+## Temporary plain executable for bridge debugging; permissions belong to its launcher.
+run-raw:
 	MYGO_FRONTEND_DIST=Resources/src-ui $(GO) run .
 
 ## Run the unit test suite.
 test:
 	$(GO) test ./... -count=1
+	$(NODE) scripts/test-ui.cjs
+	$(NODE) scripts/test-run.cjs
+	$(NODE) scripts/test-i18n.cjs
+	$(NODE) scripts/test-i18n-go.cjs
+
+## Render and verify isolated UI fixtures in macOS WebKit (requires the Xcode command-line tools).
+test-ui-webkit:
+	$(NODE) scripts/webkit-fixtures.cjs .review/webkit
+	xcrun swiftc scripts/test-webkit.swift -o .review/webkit/test-webkit
+	.review/webkit/test-webkit Resources/src-ui/index.html .review/webkit
 
 ## Run the Go static checker.
 vet:
@@ -67,7 +80,7 @@ vet:
 dev:
 	$(MYGO) dev
 
-## Package the app bundle and a .dmg (build/darwin-arm64/MoleStudio.app).
+## Package the app bundle and a .dmg (build/darwin-arm64/orbit.app).
 app:
 	$(MYGO) build
 
@@ -78,6 +91,12 @@ app-nodmg:
 ## Regenerate the typed TypeScript client (mygo.ts) from the bound services.
 generate:
 	$(MYGO) generate
+
+## Write a version into mygo.json — the one place the version lives locally.
+## Releases take their version from the Git tag instead; see README "Releases".
+set-version:
+	@test -n "$(VERSION)" || { echo "usage: make set-version VERSION=x.y.z" >&2; exit 2; }
+	scripts/set-version.sh "$(VERSION)"
 
 ## Check the toolchain MyGo needs (Go, the CLI, packaging dependencies).
 doctor:

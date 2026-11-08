@@ -1,0 +1,408 @@
+name: Release
+
+# A release is driven by main, never by a branch or a hand-made tag. Merging a
+# version bump into main is the release gesture:
+#
+#   make set-version VERSION=0.2.0   # in the pull request
+#
+# A push to main that changes mygo.json asks one question: has that version
+# been released yet? If not, this workflow builds that commit, verifies the
+# bundle and the disk image, creates the tag, and publishes the GitHub Release.
+# If it has, the push is a no-op. The tag is an output here, not an input, so
+# code that never reached main cannot be released, and a failed build leaves no
+# tag behind — re-run the workflow from main to retry once the fix has landed.
+# Only macOS is built; the app is a macOS-only MyGo/WKWebView bundle.
+
+on:
+  push:
+    branches: [main]
+    # A release is a version bump: a push to main that changes mygo.json.
+    # Other merges leave the release alone instead of re-checking it on every
+    # commit.
+    paths: ['mygo.json']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the GitHub release (off = build and verify only)
+        type: boolean
+        default: true
+
+# Two merges landing together must not race for the same tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  MYGO_VERSION: v0.6.4
+  BUNDLE: orbit.app
+  PLATFORM_DIR: build/darwin-universal
+
+jobs:
+  release:
+    name: Build & release
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Tags are the release ledger, so the whole history has to come along.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Decide what this push releases
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          INPUT_PUBLISH: ${{ github.event.inputs.publish }}
+        run: |
+          set -euo pipefail
+
+          # The push trigger only fires for main; a hand-started run can be
+          # pointed at any branch, so it is checked here and fails loudly.
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::releases are cut from main; this run is for $GITHUB_REF"
+            exit 1
+          fi
+
+          version="$(jq -r .version mygo.json)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::mygo.json version '$version' is not MAJOR.MINOR.PATCH (CFBundleShortVersionString holds three numbers)"
+            exit 1
+          fi
+          tag="v$version"
+
+          # Releases only move forward. Reverting mygo.json on main is a
+          # mistake, not a downgrade: fail loudly instead of shipping it.
+          all_tags="$(git tag --list 'v[0-9]*' --sort=-version:refname)"
+          latest=""
+          if [[ -n "$all_tags" ]]; then
+            latest="${all_tags%%$'\n'*}"
+            latest="${latest#v}"
+            first="$(printf '%s\n%s\n' "$version" "$latest" | sort -t. -k1,1n -k2,2n -k3,3n | sed -n 1p)"
+            if [[ "$first" == "$version" && "$version" != "$latest" ]]; then
+              echo "::error::main is at $version but the newest release is v$latest; bump mygo.json forward instead of moving backwards"
+              exit 1
+            fi
+          fi
+
+          tag_exists=false
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            tag_exists=true
+          fi
+
+          release_exists=false
+          if [[ "$tag_exists" == true ]] && gh release view "$tag" > /dev/null 2>&1; then
+            release_exists=true
+          fi
+
+          publish=true
+          if [[ "$EVENT" == "workflow_dispatch" && "$INPUT_PUBLISH" == "false" ]]; then
+            publish=false
+          fi
+
+          # A push that changes nothing about the released version (mygo.json
+          # touched, version unchanged) is a no-op. A hand-started run always
+          # rebuilds, which is how a failed build or a release whose assets went
+          # missing gets repaired.
+          skip=false
+          if [[ "$EVENT" == "push" && "$tag_exists" == true && "$release_exists" == true ]]; then
+            skip=true
+          fi
+
+          if [[ "$tag_exists" == true ]]; then
+            # Rebuild the tagged commit, not whatever main has grown since.
+            build_ref="$(git rev-parse "refs/tags/$tag")"
+            # A hand-pushed tag could point anywhere; only commits that are
+            # already on main may be released.
+            if ! git merge-base --is-ancestor "$build_ref" "$GITHUB_SHA"; then
+              echo "::error::$tag points at $build_ref, which is not on main"
+              exit 1
+            fi
+          else
+            build_ref="$GITHUB_SHA"
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "tag_exists=$tag_exists"
+            echo "release_exists=$release_exists"
+            echo "publish=$publish"
+            echo "skip=$skip"
+            echo "build_ref=$build_ref"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$skip" == true ]]; then
+            {
+              echo "### Skipped: $tag is already released"
+              echo
+              echo "main is at \`$version\` and \`$tag\` already has a GitHub Release, so this push had nothing to publish."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          {
+            echo "### Releasing $tag"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Version | \`$version\` |"
+            echo "| Building | \`$build_ref\` |"
+            echo "| Tag already exists | \`$tag_exists\` |"
+            echo "| Release already exists | \`$release_exists\` |"
+            echo "| Publish | \`$publish\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Export the release facts
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          {
+            echo "VERSION=${{ steps.decide.outputs.version }}"
+            echo "TAG=${{ steps.decide.outputs.tag }}"
+            echo "BUILD_REF=${{ steps.decide.outputs.build_ref }}"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v7
+        if: steps.decide.outputs.skip != 'true'
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # MyGo is not vendored; install the version the build uses, as CI does.
+      - name: Install the MyGo CLI
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/mygo" version
+
+      # The tagged commit is rebuilt for repairs, so the version is checked
+      # against what that commit claims, not against what main has now.
+      - name: Check out the commit being released
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          git checkout -q "$BUILD_REF"
+          got="$(jq -r .version mygo.json)"
+          [[ "$got" == "$VERSION" ]] || { echo "::error::the commit being built says $got, not $VERSION"; exit 1; }
+
+      - name: Vet and test
+        if: steps.decide.outputs.skip != 'true'
+        run: make check
+
+      # The 体检 panel shows the commit, so a bug report names the code.
+      - name: Stamp the commit into the build
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          echo "MYGO_LDFLAGS=-X github.com/mymoles/mole-studio/internal/scanner.BuildCommit=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_ENV"
+
+      # Ad-hoc signatures ("-") are pinned to each build's cdhash, so every update
+      # would look like a new app to macOS and Full Disk Access would be lost.
+      # The release is signed with one fixed self-signed certificate instead (made
+      # once by scripts/make-signing-cert.sh): its designated requirement names
+      # the certificate, so it is the same in every version. Not notarized, so
+      # Gatekeeper still asks once before the first launch.
+      - name: Import the signing certificate
+        if: steps.decide.outputs.skip != 'true'
+        env:
+          P12_BASE64: ${{ secrets.MACOS_SIGNING_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [[ -n "$P12_BASE64" ]] || { echo "::error::secret MACOS_SIGNING_P12 is empty; releases are signed with a fixed certificate so permissions survive updates"; exit 1; }
+          [[ -n "$P12_PASSWORD" ]] || { echo "::error::secret MACOS_SIGNING_P12_PASSWORD is empty"; exit 1; }
+
+          keychain="$RUNNER_TEMP/orbit-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          echo "::add-mask::$keychain_password"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/orbit-signing.p12"
+          security import "$RUNNER_TEMP/orbit-signing.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/orbit-signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+
+          # codesign finds identities through the search list: put this keychain
+          # in front, and keep login so nothing else on the runner changes.
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          security find-identity -p codesigning "$keychain" | grep -q "orbit Self-Signed" \
+            || { echo "::error::the imported certificate is not named 'orbit Self-Signed'"; exit 1; }
+
+      # -sign overrides macos.signingIdentity ("-" for local builds) in mygo.json.
+      # With updates configured and the key in MYGO_UPDATER_PRIVATE_KEY, mygo also
+      # writes the signed update archive, delta updates from the versions already
+      # published (it reads them through GH_TOKEN) and update-darwin-universal.json,
+      # next to the app and the disk image in $PLATFORM_DIR.
+      - name: Build the app, the disk image and the update files
+        if: steps.decide.outputs.skip != 'true'
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ -n "$MYGO_UPDATER_PRIVATE_KEY" ]] || { echo "::error::secret MYGO_UPDATER_PRIVATE_KEY is empty; without it mygo builds no update files and the app could never update"; exit 1; }
+          mygo build --platform darwin/universal -sign "orbit Self-Signed"
+
+      - name: Verify the artifacts
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          app="$PLATFORM_DIR/$BUNDLE"
+          binary="$app/Contents/MacOS/orbit"
+          plist="$app/Contents/Info.plist"
+
+          test -d "$app"
+          test -x "$binary"
+          plutil -lint "$plist" > /dev/null
+
+          # Apple silicon and Intel in one bundle: lipo is the only honest check.
+          archs="$(lipo -archs "$binary")"
+          echo "architectures: $archs"
+          for arch in arm64 x86_64; do
+            [[ " $archs " == *" $arch "* ]] || { echo "::error::$binary has no $arch slice"; exit 1; }
+          done
+
+          # The version is the one main declared, stamped into the bundle by mygo.
+          for key in CFBundleShortVersionString CFBundleVersion; do
+            got="$(plutil -extract "$key" raw "$plist")"
+            [[ "$got" == "$VERSION" ]] || { echo "::error::$key is '$got', want '$VERSION'"; exit 1; }
+          done
+          [[ "$(plutil -extract CFBundleIdentifier raw "$plist")" == "com.mymoles.mole-studio" ]]
+          test -f "$app/Contents/Resources/AppIcon.icns"
+          case "$(plutil -extract CFBundleIconFile raw "$plist")" in
+            AppIcon|AppIcon.icns) ;;
+            *) echo "::error::CFBundleIconFile does not point at AppIcon"; exit 1 ;;
+          esac
+
+          # The page is embedded in the binary, not copied next to it.
+          grep -aq "MOLE_STUDIO_STATE_V8" "$binary"
+
+          # The signature is intact and certificate-based. A cdhash requirement
+          # (ad-hoc) would silently break permissions on every update. spctl would
+          # reject a self-signed app, which is not what is being tested here.
+          codesign --verify --deep --strict "$app"
+          requirement="$(codesign -d -r- "$app" 2>&1)"
+          echo "$requirement"
+          [[ "$requirement" == *'identifier "com.mymoles.mole-studio" and certificate leaf = H"'* ]] \
+            || { echo "::error::the designated requirement is not tied to the signing certificate"; exit 1; }
+
+          dmg=("$PLATFORM_DIR"/*.dmg)
+          [[ ${#dmg[@]} -eq 1 ]] || { echo "::error::expected one .dmg, found ${#dmg[@]}"; exit 1; }
+
+          # The disk image is the download: mount it, look at what users get,
+          # and detach it again even when a check fails.
+          mount="$RUNNER_TEMP/dmg"
+          mkdir -p "$mount"
+          hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$mount" "${dmg[0]}" > /dev/null
+          trap 'hdiutil detach "$mount" > /dev/null 2>&1 || true' EXIT
+          test -d "$mount/$BUNDLE"
+          test -L "$mount/Applications"
+          # The copy inside the download is the one users get: check it too.
+          [[ "$(plutil -extract CFBundleShortVersionString raw "$mount/$BUNDLE/Contents/Info.plist")" == "$VERSION" ]]
+          codesign --verify --deep --strict "$mount/$BUNDLE"
+          hdiutil detach "$mount" > /dev/null
+          trap - EXIT
+
+          # The update feed: the manifest the installed apps read, the archive
+          # (and deltas) it points at. Every URL must end in a file that is
+          # uploaded under exactly that name, or updating 404s.
+          manifest="$PLATFORM_DIR/update-darwin-universal.json"
+          test -f "$manifest" || { echo "::error::mygo wrote no $manifest"; exit 1; }
+          got="$(jq -r .version "$manifest")"
+          [[ "$got" == "$VERSION" ]] || { echo "::error::the update manifest says $got, not $VERSION"; exit 1; }
+          base="https://github.com/real-jacket/orbit/releases/download/$TAG/"
+          urls="$(jq -r '[.url] + [.deltas[]?.url] | .[]' "$manifest")"
+          while IFS= read -r url; do
+            [[ "$url" == "$base"* ]] || { echo "::error::$url is not under $base"; exit 1; }
+            name="$(python3 -c 'import sys,urllib.parse as u; print(u.unquote(sys.argv[1].rsplit("/",1)[1]))' "$url")"
+            test -f "$PLATFORM_DIR/$name" || { echo "::error::manifest points at $name, which the build did not write"; exit 1; }
+          done <<< "$urls"
+          archives=("$PLATFORM_DIR"/*.tar.gz)
+          [[ ${#archives[@]} -eq 1 ]] || { echo "::error::expected one update archive, found ${#archives[@]}"; exit 1; }
+
+      - name: Collect the release assets
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          dmg=("$PLATFORM_DIR"/*.dmg)
+          asset="orbit-${VERSION}-universal.dmg"
+          mkdir -p "$RUNNER_TEMP/release"
+          cp "${dmg[0]}" "$RUNNER_TEMP/release/$asset"
+          ( cd "$RUNNER_TEMP/release" && shasum -a 256 "$asset" > "$asset.sha256" )
+          # The update files keep the names mygo gave them: the manifest's URLs
+          # are those names under releases/download/$TAG/.
+          cp "$PLATFORM_DIR"/*.tar.gz "$PLATFORM_DIR"/update-darwin-universal.json "$RUNNER_TEMP/release/"
+          # The first release has no deltas; the glob then matches nothing.
+          shopt -s nullglob
+          for delta in "$PLATFORM_DIR"/*.delta; do
+            cp "$delta" "$RUNNER_TEMP/release/"
+          done
+          # Last guard: every manifest URL is an asset about to be uploaded.
+          jq -r '[.url] + [.deltas[]?.url] | .[]' "$PLATFORM_DIR/update-darwin-universal.json" | while IFS= read -r url; do
+            name="$(python3 -c 'import sys,urllib.parse as u; print(u.unquote(sys.argv[1].rsplit("/",1)[1]))' "$url")"
+            test -f "$RUNNER_TEMP/release/$name" || { echo "::error::$name is in the manifest but not in the release assets"; exit 1; }
+          done
+
+      - name: Write the run summary
+        if: steps.decide.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          {
+            echo "## orbit $TAG"
+            echo
+            echo "Built \`$(git rev-parse --short=7 HEAD)\` from main."
+            echo
+            echo "| Asset | SHA-256 |"
+            echo "| --- | --- |"
+            for file in "$RUNNER_TEMP/release"/*; do
+              echo "| $(basename "$file") | \`$(shasum -a 256 "$file" | cut -d' ' -f1)\` |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the artifacts on the run
+        if: steps.decide.outputs.skip != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: orbit-${{ env.VERSION }}
+          path: ${{ runner.temp }}/release/*
+          if-no-files-found: error
+          retention-days: 14
+          # Re-running the job for the same version replaces the previous upload
+          # instead of failing because the artifact name is taken.
+          overwrite: true
+
+      # The tag is the receipt for a build that passed, not an input: it is
+      # created here, after verification, and only then does the release exist.
+      - name: Tag the verified commit
+        if: steps.decide.outputs.skip != 'true' && steps.decide.outputs.publish == 'true' && steps.decide.outputs.tag_exists == 'false'
+        run: |
+          set -euo pipefail
+          git tag "$TAG" "$BUILD_REF"
+          git push origin "refs/tags/$TAG"
+
+      # gh is on every runner and authenticates with GITHUB_TOKEN, so no
+      # third-party action gets to see the token.
+      - name: Publish the release
+        if: steps.decide.outputs.skip != 'true' && steps.decide.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=("$RUNNER_TEMP/release"/*)
+          (( ${#assets[@]} )) || { echo "::error::no assets to publish"; exit 1; }
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # Re-running a release (or repairing one whose assets were lost):
+            # replace the assets instead of failing.
+            gh release upload "$TAG" "${assets[@]}" --clobber
+            gh release edit "$TAG" --draft=false --latest
+          else
+            gh release create "$TAG" "${assets[@]}" --title "orbit $TAG" --generate-notes --latest
+          fi

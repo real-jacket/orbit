@@ -22,6 +22,24 @@ func TestRateTurnsCountersIntoPerSecondBytes(t *testing.T) {
 	}
 }
 
+func TestDiskRateDoesNotInventZeroBetweenCounterReads(t *testing.T) {
+	s := New()
+	now := time.Unix(100, 0)
+	s.diskCache, s.diskCacheAt, s.diskCacheOK = diskCounters{read: 100, write: 50}, now, true
+	if s.diskRate(now) != nil || s.diskRate(now.Add(time.Second)) != nil {
+		t.Fatal("a counter baseline is not a measured zero rate")
+	}
+	s.diskCache, s.diskCacheAt = diskCounters{read: 400, write: 200}, now.Add(3*time.Second)
+	first := s.diskRate(s.diskCacheAt)
+	if first == nil || first.ReadBytesPerSec != 100 || first.WriteBytesPerSec != 50 {
+		t.Fatalf("measured rate = %+v", first)
+	}
+	held := s.diskRate(s.diskCacheAt.Add(100 * time.Millisecond))
+	if held != first || held.ReadBytesPerSec != 100 {
+		t.Fatalf("reusing the same IORegistry reading fabricated idle I/O: %+v", held)
+	}
+}
+
 func TestNetDeltaSumsCountingInterfacesOnly(t *testing.T) {
 	previous := netCounters{
 		"en0":   {rx: 1000, tx: 500},
@@ -66,5 +84,21 @@ func TestCountsForNetSkipsLoopbackAndPeerToPeer(t *testing.T) {
 		if got := countsForNet(name); got != want {
 			t.Errorf("countsForNet(%q) = %v, want %v", name, got, want)
 		}
+	}
+}
+
+func TestDueBacksOffSourcesThatFailed(t *testing.T) {
+	now := time.Unix(1000, 0)
+	if !due(time.Time{}, false, diskEvery, now) {
+		t.Error("a source never read must be read")
+	}
+	if due(now.Add(-diskEvery-time.Second), false, diskEvery, now) {
+		t.Error("a failed source was retried at the normal interval")
+	}
+	if !due(now.Add(-noSensorRetry), false, diskEvery, now) {
+		t.Error("a failed source was never retried")
+	}
+	if !due(now.Add(-diskEvery), true, diskEvery, now) {
+		t.Error("a working source was not refreshed")
 	}
 }

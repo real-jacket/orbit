@@ -2,25 +2,30 @@ package scanner
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/mymoles/mole-studio/internal/power"
 	"github.com/mymoles/mole-studio/internal/telemetry"
 )
 
+var fullScanMu sync.Mutex
+
 // FullScanPayload is what the frontend's onNativeRealScanComplete receives: the
 // state of the whole machine, as the Swift app's buildFullScanPayload sent it.
 type FullScanPayload struct {
-	FreeDiskGb      float64          `json:"freeDiskGb"`
-	TotalDiskGb     float64          `json:"totalDiskGb"`
-	MemTotalGb      float64          `json:"memTotalGb"`
-	CPUModel        string           `json:"cpuModel"`
-	AppsList        []map[string]any `json:"appsList"`
-	OrphanLeftovers []map[string]any `json:"orphanLeftoversList"`
-	LargeFiles      []map[string]any `json:"largeFiles"`
-	InstallerFiles  []map[string]any `json:"installerFiles"`
-	PurgeItems      []map[string]any `json:"purgeItems"`
-	CleanGroups     []map[string]any `json:"cleanGroups"`
-	AIMoonBands     []map[string]any `json:"aiMoonBands"`
+	FreeDiskGb         float64          `json:"freeDiskGb"`
+	TotalDiskGb        float64          `json:"totalDiskGb"`
+	MemTotalGb         float64          `json:"memTotalGb"`
+	CPUModel           string           `json:"cpuModel"`
+	AppsList           []map[string]any `json:"appsList"`
+	OrphanLeftovers    []map[string]any `json:"orphanLeftoversList"`
+	LargeFiles         []map[string]any `json:"largeFiles"`
+	InstallerFiles     []map[string]any `json:"installerFiles"`
+	PurgeItems         []map[string]any `json:"purgeItems"`
+	CleanGroups        []map[string]any `json:"cleanGroups"`
+	CleanExcludedRoots []map[string]any `json:"cleanExcludedRoots"`
+	AIMoonBands        []map[string]any `json:"aiMoonBands"`
+	AIExcludedRoots    []map[string]any `json:"aiExcludedRoots"`
 	// HomePath is the absolute home directory. The page cannot expand ~ on its
 	// own, so without it every "move to Trash" in the space analyzer failed.
 	HomePath string `json:"homePath"`
@@ -29,40 +34,84 @@ type FullScanPayload struct {
 	Whitelist []string `json:"whitelist"`
 	// WhitelistWarnings are the entries mole refused to load, so the page can
 	// say why a line it shows is not protecting anything.
-	WhitelistWarnings []string `json:"whitelistWarnings"`
+	WhitelistWarnings []string         `json:"whitelistWarnings"`
+	ReadWarnings      []map[string]any `json:"readWarnings"`
 }
 
 // BuildFullScanPayload measures the whole machine for the frontend's scan
 // complete event.
 func (s *Scanner) BuildFullScanPayload() FullScanPayload {
+	fullScanMu.Lock()
+	defer fullScanMu.Unlock()
+	policy := s.refreshWhitelist()
+	directoryReads.Lock()
+	for path := range directoryReads.failed {
+		if withinPath(path, s.home) {
+			delete(directoryReads.failed, path)
+		}
+	}
+	directoryReads.Unlock()
 	freeGB, totalGB := s.queryDiskSpace()
 	_, memTotalGB := s.queryMemoryUsage()
-	return FullScanPayload{
-		FreeDiskGb:        round2(freeGB),
-		TotalDiskGb:       round2(totalGB),
-		MemTotalGb:        round2(memTotalGB),
-		CPUModel:          s.queryCPUModel(),
-		AppsList:          s.scanInstalledApps(),
-		OrphanLeftovers:   s.scanOrphanedLeftovers(),
-		LargeFiles:        s.scanLargeFiles(),
-		InstallerFiles:    s.scanInstallerPackages(),
-		PurgeItems:        s.scanBuildArtifacts(),
-		CleanGroups:       s.scanCleanGroups(),
-		AIMoonBands:       s.scanAICaches(),
-		HomePath:          s.home,
-		Whitelist:         s.UserWhitelistPaths(),
-		WhitelistWarnings: s.refreshWhitelist().Warnings,
+	payload := FullScanPayload{
+		FreeDiskGb:  round2(freeGB),
+		TotalDiskGb: round2(totalGB),
+		MemTotalGb:  round2(memTotalGB),
+		CPUModel:    s.queryCPUModel(),
+		HomePath:    s.home,
 	}
+	// The sections read the disk independently: each keeps its own claims and
+	// shares only locked state (whitelist, read warnings, icon cache), so they
+	// run side by side, slowest first. The view shares one `ps` table and one
+	// lsof snapshot between them.
+	view := s.scanView()
+	var wg sync.WaitGroup
+	for _, section := range []func(){
+		func() { payload.CleanGroups = view.scanCleanGroups() },
+		func() { payload.AppsList = view.scanInstalledApps() },
+		func() { payload.AIMoonBands = view.scanAICaches() },
+		func() { payload.PurgeItems = view.scanBuildArtifacts() },
+		func() { payload.OrphanLeftovers = view.scanOrphanedLeftovers() },
+		func() { payload.LargeFiles = view.scanLargeFiles() },
+		func() { payload.InstallerFiles = view.scanInstallerPackages() },
+		func() { payload.CleanExcludedRoots = view.cleanExcludedRoots() },
+		func() { payload.AIExcludedRoots = view.aiExcludedRoots() },
+	} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			section()
+		}()
+	}
+	wg.Wait()
+	payload.Whitelist = s.UserWhitelistPaths()
+	payload.WhitelistWarnings = policy.Warnings
+	payload.ReadWarnings = scanReadWarnings(s.home)
+	return payload
+}
+
+// scanView is the scanner a full scan runs its sections on: the same probes and
+// process cache setting, plus one lazily taken system-wide open-file snapshot
+// for display-time checks. It is never used at the move boundary.
+func (s *Scanner) scanView() *Scanner {
+	view := &Scanner{home: s.home, processProbe: s.processProbe, handleProbe: s.handleProbe, installProbe: s.installProbe, builderProbe: s.builderProbe, aiUnits: s.aiUnits, processTTL: s.processTTL}
+	snapshot := sync.OnceValue(openFileSnapshot)
+	view.openSnapshot = func(path string) (bool, error) { return snapshot()(path) }
+	return view
 }
 
 // Telemetry is what the frontend's onNativeRealTelemetry receives.
 type Telemetry struct {
-	CPU        float64          `json:"cpu"`
-	FreeDiskGb float64          `json:"freeDiskGb"`
-	MemUsedGb  float64          `json:"memUsedGb"`
-	MemTotalGb float64          `json:"memTotalGb"`
-	Processes  []map[string]any `json:"processes"`
-	Power      PowerPayload     `json:"power"`
+	CPU         *float64          `json:"cpu"`
+	FreeDiskGb  float64           `json:"freeDiskGb"`
+	TotalDiskGb float64           `json:"totalDiskGb"`
+	MemUsedGb   *float64          `json:"memUsedGb"`
+	MemTotalGb  float64           `json:"memTotalGb"`
+	Memory      *telemetry.Memory `json:"memory"`
+	// Omitted while the cached table is unchanged: the page keeps its list on
+	// undefined, and a pointer to a nil slice still sends null to clear it.
+	Processes *[]map[string]any `json:"processes,omitempty"`
+	Power     PowerPayload      `json:"power"`
 
 	// Hardware counters beyond CPU/memory/disk. Each is omitted when this Mac
 	// does not expose it, so the page can say "no sensor" instead of zero.
@@ -110,12 +159,14 @@ func batteryPayload(b *power.Battery) map[string]any {
 	return out
 }
 
-// BuildTelemetry samples the machine for the telemetry event.
-func (s *Scanner) BuildTelemetry() Telemetry {
+// BuildTelemetry samples the machine for the telemetry event. The process list
+// (~64 KB) is left out when it is the cached one, unless withProcesses asks for
+// it, as a page that has just opened needs.
+func (s *Scanner) BuildTelemetry(withProcesses bool) Telemetry {
 	host := telemetry.HostSample()
 	cpu := s.cpuShare(host)
-	processes := s.cachedProcesses()
-	freeGB, _ := s.queryDiskSpace()
+	processes, freshProcesses := s.cachedProcesses()
+	freeGB, totalDiskGB := s.queryDiskSpace()
 	usedGB, totalGB := s.memoryUsage(host)
 	snapshot := power.Take()
 	payload := PowerPayload{
@@ -126,19 +177,24 @@ func (s *Scanner) BuildTelemetry() Telemetry {
 		payload.Battery = batteryPayload(snapshot.Battery)
 	}
 	hardware := telemetry.Shared.Snapshot()
-	return Telemetry{
-		CPU:        round1(cpu),
-		FreeDiskGb: round2(freeGB),
-		MemUsedGb:  round2(usedGB),
-		MemTotalGb: round2(totalGB),
-		Processes:  processes,
-		Power:      payload,
-		Net:        hardware.Net,
-		DiskIO:     hardware.DiskIO,
-		GPUPct:     roundPtr(hardware.GPUPct, 0),
-		CPUTempC:   roundPtr(hardware.CPUTempC, 1),
-		Fans:       hardware.Fans,
+	reading := Telemetry{
+		CPU:         roundPtr(cpu, 1),
+		FreeDiskGb:  round2(freeGB),
+		TotalDiskGb: round2(totalDiskGB),
+		MemUsedGb:   roundPtr(usedGB, 2),
+		MemTotalGb:  round2(totalGB),
+		Memory:      host.Memory,
+		Power:       payload,
+		Net:         hardware.Net,
+		DiskIO:      hardware.DiskIO,
+		GPUPct:      roundPtr(hardware.GPUPct, 0),
+		CPUTempC:    roundPtr(hardware.CPUTempC, 1),
+		Fans:        hardware.Fans,
 	}
+	if withProcesses || freshProcesses {
+		reading.Processes = &processes
+	}
+	return reading
 }
 
 // scanHomeTreemap measures the user's top-level folders for the disk analyzer's

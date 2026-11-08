@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -62,8 +63,9 @@ func WhitelistPath(home string) string {
 // Whitelist is the set of protection patterns in effect, plus whatever mole
 // refused to load so the UI can show it.
 type Whitelist struct {
-	Patterns []string
-	Warnings []string
+	Patterns  []string
+	Warnings  []string
+	LoadError string
 }
 
 // ProtectsFinderMetadata reports whether .DS_Store cleanup must be skipped.
@@ -95,6 +97,10 @@ func LoadWhitelist(home string) Whitelist {
 	whitelist := Whitelist{}
 	file, err := os.ReadFile(WhitelistPath(home))
 	if err != nil {
+		if !os.IsNotExist(err) {
+			whitelist.LoadError = "无法读取白名单，已停止清理：" + err.Error()
+			whitelist.Warnings = append(whitelist.Warnings, whitelist.LoadError)
+		}
 		for _, pattern := range whitelistDefaultPatterns {
 			whitelist.Patterns = append(whitelist.Patterns, expandWhitelistPattern(pattern, home))
 		}
@@ -210,16 +216,21 @@ type Protection struct {
 	// children is: the path itself may still be cleaned, one child at a time,
 	// but it may never be moved as a whole.
 	Descendant bool
+	Reason     string
 }
 
 // Protection reports whether path is covered by a pattern and how. Callers that
 // delete need this distinction: "protected because a child is" means the folder
 // must be cleaned by contents rather than moved as a whole.
 func (w Whitelist) Protection(path string) (Protection, bool) {
+	if w.LoadError != "" {
+		return Protection{Reason: w.LoadError}, true
+	}
 	if path == "" {
 		return Protection{}, false
 	}
 	target := normalizeWhitelistTarget(path)
+	descendant := Protection{}
 	for _, pattern := range w.Patterns {
 		if pattern == finderMetadataSentinel {
 			continue
@@ -232,13 +243,15 @@ func (w Whitelist) Protection(path string) (Protection, bool) {
 		// The target is a parent of a protected path: it may not be moved
 		// whole, because that would take the protected child with it.
 		if strings.HasPrefix(candidate, target+"/") {
-			return Protection{Pattern: pattern, Descendant: true}, true
+			if !descendant.Descendant {
+				descendant = Protection{Pattern: pattern, Descendant: true}
+			}
 		}
 		if !hasGlob && strings.HasPrefix(target, candidate+"/") {
 			return Protection{Pattern: pattern}, true
 		}
 	}
-	return Protection{}, false
+	return descendant, descendant.Descendant
 }
 
 // Protects reports whether path is covered by one of the patterns. It follows
@@ -256,12 +269,14 @@ func (w Whitelist) AllowsWhole(path string) bool {
 	return !protected || protection.Descendant == false
 }
 
-// normalizeWhitelistTarget trims a trailing slash and collapses runs of
-// slashes, exactly as mole does before comparing.
+// normalizeWhitelistTarget also folds case on macOS so APFS aliases cannot bypass protection.
 func normalizeWhitelistTarget(path string) string {
 	path = strings.TrimSuffix(path, "/")
 	for strings.Contains(path, "//") {
 		path = strings.ReplaceAll(path, "//", "/")
+	}
+	if runtime.GOOS == "darwin" {
+		path = strings.ToLower(path)
 	}
 	return path
 }

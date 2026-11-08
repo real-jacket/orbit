@@ -267,6 +267,14 @@ func TestScanTreeAggregatesSmallChildren(t *testing.T) {
 	if others.FileCount != 3 {
 		t.Fatalf("聚合节点 FileCount = %d, want 3", others.FileCount)
 	}
+	if len(node.OtherChildren) != 3 {
+		t.Fatalf("OtherChildren = %d, want 3 inspectable items", len(node.OtherChildren))
+	}
+	for i, name := range []string{"a.bin", "b.bin", "c.bin"} {
+		if node.OtherChildren[i].Name != name {
+			t.Fatalf("OtherChildren[%d] = %q, want %q", i, node.OtherChildren[i].Name, name)
+		}
+	}
 
 	wantDisk := scanTestDisk(t, bigPath) + scanTestDisk(t, smallPaths[0])*3
 	if node.DiskBytes != wantDisk {
@@ -274,6 +282,23 @@ func TestScanTreeAggregatesSmallChildren(t *testing.T) {
 	}
 	if wantOthers := scanTestDisk(t, smallPaths[0]) * 3; others.DiskBytes != wantOthers {
 		t.Fatalf("聚合节点 DiskBytes = %d, want %d", others.DiskBytes, wantOthers)
+	}
+}
+
+func TestScanTreeRetainsOnlyLargestInspectableOtherItems(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i < maxOtherItems+3; i++ {
+		scanTestWrite(t, filepath.Join(root, fmt.Sprintf("small-%02d.bin", i)), (i+1)*(1<<20))
+	}
+	node, _ := scanTestTree(t, root, 1<<30)
+	if len(node.OtherChildren) != maxOtherItems {
+		t.Fatalf("OtherChildren = %d, want %d", len(node.OtherChildren), maxOtherItems)
+	}
+	if node.OtherChildren[0].Name != "small-07.bin" || node.OtherChildren[maxOtherItems-1].Name != "small-03.bin" {
+		t.Fatalf("OtherChildren are not the largest direct items: %+v", node.OtherChildren)
+	}
+	if node.OtherChildren[0].Modified == 0 {
+		t.Fatal("inspectable child lost its modification time")
 	}
 }
 
@@ -557,5 +582,132 @@ func TestScanTreeFanOutTotals(t *testing.T) {
 	}
 	if childFiles != stats.Files || childDisk != node.DiskBytes {
 		t.Fatalf("子项合计 Files=%d Disk=%d，根 Files=%d Disk=%d", childFiles, childDisk, stats.Files, node.DiskBytes)
+	}
+}
+
+// A root scan must not report a path: the page reads "has path" as "this is a
+// drill-down", and a root payload that claimed "~" was thrown away, leaving the
+// analyzer showing 0.00 GB while Go had measured 711 GB.
+func TestPayloadForNodeLeavesTheRootPathEmpty(t *testing.T) {
+	root := &Node{Path: "/Users/me", Dir: true, Partial: false}
+	child := &Node{Path: "/Users/me/Documents", Dir: true, Name: "Documents"}
+	root.Children = []*Node{child}
+	stats := &ScanStats{}
+
+	rootPayload := payloadForNode(root, stats, "scan-1", "/Users/me", "")
+	if rootPayload.Path != "" {
+		t.Fatalf("root payload path = %q, want empty", rootPayload.Path)
+	}
+	if rootPayload.TotalSizeGb == 0 && root.DiskBytes > 0 {
+		t.Fatal("root payload lost its size")
+	}
+
+	drill := payloadForNode(child, stats, "scan-1", "/Users/me", "")
+	if drill.Path == "" {
+		t.Fatal("drill-down payload lost its path, so the page cannot place the tiles")
+	}
+}
+
+func TestPayloadExposesAggregatedItemsAndModificationTime(t *testing.T) {
+	root := t.TempDir()
+	childPath := filepath.Join(root, "small")
+	scanTestWrite(t, filepath.Join(childPath, "payload.bin"), 4096)
+	node := &Node{
+		Name: "fixture", Path: root, Dir: true, DiskBytes: 4096, LogBytes: 4096, FileCount: 1, Modified: 1_700_000_123,
+		Children:      []*Node{{Name: "…其它 1 项", DiskBytes: 4096, LogBytes: 4096, FileCount: 1}},
+		OtherChildren: []OtherChild{{Name: "small", Dir: true, DiskBytes: 4096, LogBytes: 4096, FileCount: 1, Modified: 1_700_000_123}},
+	}
+	payload := payloadForNode(node, &ScanStats{}, "scan-1", root, "")
+	if payload.Aggregated == nil || len(payload.Aggregated.Items) != 1 {
+		t.Fatalf("aggregated items missing: %+v", payload.Aggregated)
+	}
+	item := payload.Aggregated.Items[0]
+	if item.Path != relativize(childPath, mustHome(t)) || !item.IsDir || item.Modified != node.Modified {
+		t.Fatalf("aggregated item = %+v", item)
+	}
+}
+
+func TestTilePreviewIsBoundedToDirectChildren(t *testing.T) {
+	sizes := []int64{100, 90, 80, 70, 60, 50}
+	parent := &Node{Name: "Large", Path: "/Users/me/Large", Dir: true}
+	var total int64
+	for i, size := range sizes {
+		total += size
+		parent.Children = append(parent.Children, &Node{
+			Name: fmt.Sprintf("child-%d", i), Path: filepath.Join(parent.Path, fmt.Sprintf("child-%d", i)),
+			Dir: i%2 == 0, DiskBytes: size, LogBytes: size,
+		})
+	}
+	parent.DiskBytes, parent.LogBytes = total, total
+
+	tile := tileFor(parent, total, mustHome(t))
+	if len(tile.Preview) != maxTilePreview {
+		t.Fatalf("preview = %d entries, want %d", len(tile.Preview), maxTilePreview)
+	}
+	var previewBytes float64
+	for i, child := range tile.Preview {
+		previewBytes += child.DiskGb * 1e9
+		if child.Preview != nil {
+			t.Fatalf("preview[%d] recursively included another preview", i)
+		}
+	}
+	if previewBytes < float64(total)-1000 || previewBytes > float64(total)+1000 {
+		t.Fatalf("preview bytes = %.0f, want approximately %d", previewBytes, total)
+	}
+	if last := tile.Preview[len(tile.Preview)-1]; last.Name != "其它" || last.Path != "" {
+		t.Fatalf("preview remainder = %+v, want a synthetic 其它 tile", last)
+	}
+}
+
+func mustHome(t *testing.T) string {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
+
+func TestAnalyzerRefreshDoesNotReuseAnOldOrCanceledTree(t *testing.T) {
+	root := t.TempDir()
+	scanTestWrite(t, filepath.Join(root, "first.bin"), 4096)
+	a := NewAnalyzer()
+	_, _, firstID, err := a.Tree(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scanTestWrite(t, filepath.Join(root, "second.bin"), 4096)
+	_, _, cachedID, err := a.Tree(root, false)
+	if err != nil || cachedID != firstID {
+		t.Fatalf("drill lookup should reuse the tree: %s, %v", cachedID, err)
+	}
+	node, _, freshID, err := a.Tree(root, true)
+	if err != nil || freshID == firstID || node.FileCount != 2 {
+		t.Fatalf("explicit refresh must walk the disk: %s, %v, %+v", freshID, err, node)
+	}
+	a.stats.Canceled = true
+	_, stats, retryID, err := a.Tree(root, false)
+	if err != nil || retryID == freshID || stats.Canceled {
+		t.Fatalf("a canceled result cannot masquerade as a complete cached scan: %s, %v", retryID, err)
+	}
+}
+
+func TestAnalysisDrillScopesFactsAndLargeFiles(t *testing.T) {
+	root := "/Users/me"
+	child := &Node{Path: root + "/Projects", Dir: true, DiskBytes: 3_000_000_000, LogBytes: 4_000_000_000}
+	stats := &ScanStats{Restricted: []Restriction{{Path: root + "/Documents", Reason: "denied"}}, LargeFiles: []LargeFile{
+		{Name: "in.bin", Path: child.Path + "/in.bin", SizeBytes: 2_000_000_000},
+		{Name: "outside.bin", Path: root + "/Projects-other/outside.bin", SizeBytes: 5_000_000_000},
+	}}
+	payload := payloadForNode(child, stats, "scan-1", root, child.Path)
+	if payload.TotalSizeGb != 3 || payload.TotalLogicalGb != 4 || len(payload.LargeFiles) != 1 || len(payload.Restricted) != 0 {
+		t.Fatalf("drill-down facts must describe this directory only: %+v", payload)
+	}
+	child.DiskBytes = 0
+	if got := payloadForNode(child, stats, "scan-1", root, child.Path); got.TotalGb != 0 {
+		t.Fatalf("zero allocation cannot fall back to logical bytes: %+v", got)
+	}
+	if !covers("/", "/Users/me") || covers(root, root+"-other") {
+		t.Fatal("root and sibling boundaries are not directory-prefix comparisons")
 	}
 }
