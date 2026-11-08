@@ -99,7 +99,7 @@ func TestUnclaimedPartialContainersRemainUnselectable(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(path, 0o755) })
 	s := &Scanner{home: home}
 	rows := s.scanUnclaimedContainers(home, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
-	if len(rows) != 1 || rows[0]["partial"] != true || rows[0]["tier"] != "protected" || rows[0]["checked"] != false {
+	if len(rows) != 1 || rows[0]["partial"] != true || rows[0]["tier"] == "safe" || rows[0]["checked"] != false {
 		t.Fatalf("incomplete container was hidden or authorized: %+v", rows)
 	}
 	sp := rows[0]["subpaths"].([]map[string]any)[0]
@@ -114,7 +114,7 @@ func TestBuildAndSignatureCandidatesNeedExplicitSelection(t *testing.T) {
 	fixtureDir(t, home, "Library/Containers/com.docker.docker", 4096)
 	s := &Scanner{home: home, processProbe: func() (string, error) { return "/sbin/launchd\n", nil }}
 	rows := s.scanBuildArtifacts()
-	if len(rows) != 1 || rows[0]["checked"] != false || rows[0]["tier"] != "review" || rows[0]["gitClean"] != "未检查版本库" {
+	if len(rows) != 1 || rows[0]["checked"] != false || rows[0]["tier"] != "review" || rows[0]["gitClean"] != "非 Git 项目" || rows[0]["reason"] == "" {
 		t.Fatalf("directory names cannot authorize building cleanup: %+v", rows)
 	}
 	orphans := s.scanOrphanedLeftovers()
@@ -311,7 +311,7 @@ func TestAppCacheIncompleteMeasurementRemainsVisible(t *testing.T) {
 	if got := s.appendExisting([]string{path}, "cache", true, &paths); got != 0 {
 		t.Fatalf("unread bytes = %d", got)
 	}
-	if len(paths) != 1 || paths[0]["partial"] != true || paths[0]["checked"] != false || paths[0]["sizeGb"] != nil {
+	if len(paths) != 1 || paths[0]["partial"] != true || paths[0]["tier"] == "protected" || paths[0]["sizeGb"] != nil {
 		t.Fatalf("an unread cache must not be hidden or reported as zero: %v", paths)
 	}
 }
@@ -578,12 +578,12 @@ func TestCleanGroupsReportEachRootOnce(t *testing.T) {
 	if !ok {
 		t.Fatalf("package_caches row missing, got ids %v", rowIDs(groups))
 	}
-	if checked, _ := pkg["checked"].(bool); checked {
-		t.Error("review-tier package_caches must not be pre-checked (S-09)")
+	if checked, _ := pkg["checked"].(bool); !checked || pkg["tier"] != "safe" {
+		t.Errorf("regenerable package caches are recommended: %v", pkg["tier"])
 	}
 	for _, subpath := range pkg["subpaths"].([]map[string]any) {
-		if checked, _ := subpath["checked"].(bool); checked {
-			t.Errorf("review-tier subpath %v must not be pre-checked", subpath["path"])
+		if checked, _ := subpath["checked"].(bool); !checked {
+			t.Errorf("safe subpath %v must be pre-checked", subpath["path"])
 		}
 	}
 

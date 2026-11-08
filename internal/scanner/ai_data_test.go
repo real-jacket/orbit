@@ -27,8 +27,8 @@ func TestAIDesktopCachesHaveNarrowIdleCleanupScopes(t *testing.T) {
 		for _, path := range row["subpaths"].([]map[string]any) {
 			if path["path"] == scanner.relativize(cache) {
 				found = true
-				if row["tool"] != "Claude Desktop" || row["tier"] != "review" || row["checked"] != false || path["checked"] != false {
-					t.Fatalf("new app caches must identify their tool and require selection: %v", row)
+				if row["tool"] != "Claude Desktop" || row["tier"] != "safe" || row["checked"] != true || path["checked"] != true || path["reason"] == "" {
+					t.Fatalf("an idle app cache is recommended with a reason: %v", row)
 				}
 			}
 		}
@@ -88,8 +88,8 @@ func TestAIAgentDiagnosticsUseExactFilesAndRetention(t *testing.T) {
 			continue
 		}
 		found = true
-		if row["checked"] != false {
-			t.Fatal("old logs are never preselected")
+		if row["checked"] != true || row["tier"] != "safe" {
+			t.Fatalf("closed logs older than 30 days are recommended: %v", row)
 		}
 		for _, path := range row["subpaths"].([]map[string]any) {
 			if path["path"] == scanner.relativize(transcript) {

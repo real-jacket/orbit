@@ -70,6 +70,11 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 	if _, _, known := aiCleanupData(path, home); known || aiSessionShape(path, home) {
 		return Protection{}, false
 	}
+	// Build artifacts inside an agent worktree are regenerable; CleanupReason
+	// checks git-ignore and builders. The worktree's own source stays protected.
+	if isAgentWorktreeArtifact(path, home) || isAgentWorktreeRoot(path, home) {
+		return Protection{}, false
+	}
 	for _, entry := range aiCacheSpecs() {
 		if !entry.logFiles {
 			continue
@@ -253,26 +258,7 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 		}
 		return "版本状态无法核验，保持原状"
 	}
-	for _, rule := range []struct{ roots, owners []string }{
-		{[]string{"Library/Caches/com.apple.Safari"}, []string{"Safari"}},
-		{[]string{"Library/Caches/Google"}, []string{"Google Chrome"}},
-		{[]string{"Library/Caches/Firefox"}, []string{"Firefox"}},
-		{[]string{"Library/Developer/Xcode/DerivedData"}, []string{"Xcode", "xcodebuild", "swift-frontend"}},
-		{[]string{"Library/Developer/CoreSimulator/Caches"}, []string{"Simulator", "CoreSimulatorService"}},
-		{[]string{"Library/Caches/Cursor"}, []string{"Cursor", "cursor-agent"}},
-		{[]string{"Library/Logs/Claude"}, []string{"Claude", "claude"}},
-		{[]string{"Library/Caches/com.openai.chat"}, []string{"ChatGPT"}},
-		{[]string{"Library/Caches/com.anthropic.claudefordesktop"}, []string{"Claude"}},
-		{[]string{"Library/Caches/com.lmstudio.lmstudio"}, []string{"LM Studio", "LMStudio"}},
-		{[]string{".npm/_cacache"}, []string{"npm", "pnpm", "node"}},
-		{[]string{"Library/Caches/Yarn"}, []string{"yarn"}},
-		{[]string{".bun/install/cache"}, []string{"bun"}},
-		{[]string{"Library/Caches/pip"}, []string{"pip", "python", "python3"}},
-		{[]string{".cache/uv"}, []string{"uv"}},
-		{[]string{"go/pkg/mod/cache/download"}, []string{"go"}},
-		{[]string{".cargo/registry/cache"}, []string{"cargo", "rustc"}},
-		{[]string{"Library/Caches/Homebrew"}, []string{"brew", "ruby"}},
-	} {
+	for _, rule := range cacheOwnerRules {
 		for _, root := range rule.roots {
 			if !withinPath(path, filepath.Join(s.home, root)) && !withinPath(filepath.Join(s.home, root), path) {
 				continue
@@ -289,9 +275,40 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 					}
 				}
 			}
+			if rule.cli != "" {
+				builders, err := s.builderSnapshot(live)
+				if err != nil {
+					return "无法确认 " + rule.cli + " 是否在运行，保持原状"
+				}
+				if cliRunning(builders, rule.cli) {
+					return rule.cli + " 正在运行，暂缓清理"
+				}
+			}
 		}
 	}
-	if derived := inDerivedData(path); withinPath(path, s.home) && (derived || artifactKinds[filepath.Base(path)] != "") {
+	if reason := s.cacheOwnerRunningReason(path, live); reason != "" {
+		return reason
+	}
+	if isAgentWorktreeRoot(path, s.home) {
+		// Only a clean, long-idle checkout nobody is working in may move.
+		if state := worktreeState(path); !strings.HasPrefix(state, "工作区干净") {
+			return worktreeKept(state)
+		}
+		if idleDays(projectActivity(path)) < 30 {
+			return "工作树最近 30 天内有活动，保持原状"
+		}
+		builders, err := s.builderSnapshot(live)
+		if err != nil {
+			return "无法确认构建工具闲置，保持原状"
+		}
+		if builder, busy := builderUsing(builders, path); busy {
+			return "构建或依赖工具（" + builder + "）正在运行并使用这个项目，暂缓清理"
+		}
+	}
+	if isAgentWorktreeArtifact(path, s.home) && ambiguousArtifactName(filepath.Base(path)) && !gitIgnored(path) {
+		return "该目录没有被 .gitignore 忽略，可能是源码的一部分，保持原状"
+	}
+	if derived := inDerivedData(path); withinPath(path, s.home) && (derived || isArtifactName(filepath.Base(path))) {
 		builders, err := s.builderSnapshot(live)
 		if err != nil {
 			return "无法确认构建工具闲置，保持原状"
@@ -329,26 +346,97 @@ func (s *Scanner) aiVersionHasOpenHandle(path string) (bool, error) {
 	return true, err
 }
 
+// applyCleanupProtection lets the live safety check demote a subpath to
+// protected. A partial measurement is only a lower bound and never changes a
+// tier: removal moves the whole directory to the Trash either way.
 func (s *Scanner) applyCleanupProtection(row map[string]any) {
 	paths, _ := row["subpaths"].([]map[string]any)
-	selectable, checked := 0, false
+	selectable, checked, allSafe := 0, false, true
 	for _, path := range paths {
 		reason := s.CleanupReason(path["path"].(string))
-		if path["partial"] == true {
-			reason = "测量未完成，体积只是已读取部分；重新扫描完整后再处理"
-		}
-		if reason != "" || row["tier"] == "protected" {
+		verdictProtected := path["tier"] == "protected" && reason == ""
+		if reason != "" || row["tier"] == "protected" || path["tier"] == "protected" {
+			if reason == "" {
+				reason, _ = path["reason"].(string)
+			}
+			if reason == "" {
+				reason, _ = row["impact"].(string)
+			}
 			path["tier"], path["checked"], path["reason"] = "protected", false, reason
+			unlock := unlockHint(reason)
+			if kept, _ := path["unlock"].(string); kept != "" && unlock == "" && verdictProtected {
+				unlock = kept
+			}
+			if unlock != "" {
+				path["unlock"] = unlock
+				if row["unlock"] == nil {
+					row["unlock"] = unlock
+				}
+			}
 			if reason != "" && row["safetyReason"] == nil {
 				row["safetyReason"] = reason
 			}
 			continue
 		}
+		if path["tier"] == nil && row["tier"] != nil {
+			path["tier"] = row["tier"]
+		}
+		if path["tier"] == "review" {
+			allSafe = false
+			if r, _ := path["reason"].(string); r == "" {
+				path["reason"] = row["impact"]
+			}
+		}
 		selectable++
 		checked = checked || path["checked"] == true
 	}
 	row["checked"] = checked
-	if selectable == 0 {
+	switch {
+	case selectable == 0:
 		row["tier"] = "protected"
+	case row["tier"] == nil: // orphan rows carry no tier of their own
+	case allSafe && row["tier"] != "protected":
+		row["tier"] = "safe"
+	case row["tier"] == "safe":
+		row["tier"] = "review"
 	}
+	if row["tier"] == "review" || row["tier"] == "protected" {
+		row["reason"] = rowReason(row, paths)
+	}
+}
+
+// rowReason summarises why a row is not recommended: the first reason a path
+// of that tier gives, else what the row says it is.
+func rowReason(row map[string]any, paths []map[string]any) string {
+	for _, path := range paths {
+		if path["tier"] == row["tier"] {
+			if reason, _ := path["reason"].(string); reason != "" {
+				return reason
+			}
+		}
+	}
+	reason, _ := row["impact"].(string)
+	return reason
+}
+
+// unlockHint turns a "busy" reason into what the user can do about it.
+func unlockHint(reason string) string {
+	switch {
+	case strings.HasSuffix(reason, " 正在运行，暂缓清理"):
+		name := strings.TrimSuffix(reason, " 正在运行，暂缓清理")
+		if name == strings.ToLower(name) && !strings.ContainsAny(name, " ") {
+			return "等 " + name + " 运行结束后重新扫描即可清理"
+		}
+		return "退出 " + name + " 后重新扫描即可清理"
+	case reason == "应用仍在运行，请先正常退出后重新扫描":
+		return "正常退出该应用后重新扫描即可处理"
+	case strings.HasPrefix(reason, "构建或依赖工具（"):
+		name, _, _ := strings.Cut(strings.TrimPrefix(reason, "构建或依赖工具（"), "）")
+		return "等 " + name + " 运行结束或手动结束后重新扫描即可清理"
+	case strings.HasPrefix(reason, "Xcode 或其构建服务"):
+		return "退出 Xcode 并等构建结束后重新扫描即可清理"
+	case strings.HasPrefix(reason, "仍有进程打开"):
+		return "关闭正在使用它的程序后重新扫描即可处理"
+	}
+	return ""
 }

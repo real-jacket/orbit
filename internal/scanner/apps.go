@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// appendExisting measures known app paths, keeping incomplete and protected
-// entries visible but out of the removal selection.
+// appendExisting measures known app paths, keeping protected entries visible
+// but out of the removal selection.
 func (s *Scanner) appendExisting(candidates []string, kind string, checked bool, into *[]map[string]any) int64 {
 	var total int64
 	seen := map[string]bool{}
@@ -21,10 +21,8 @@ func (s *Scanner) appendExisting(candidates []string, kind string, checked bool,
 		if size.bytes <= 0 && !size.partial {
 			continue
 		}
+		// A partial size is a lower bound; it never makes a path protected.
 		reason := s.CleanupReason(candidate)
-		if size.partial {
-			reason = "测量未完成，体积只是已读取部分；重新扫描完整后再处理"
-		}
 		total += size.bytes
 		entry := map[string]any{
 			"path":    s.relativize(candidate),
@@ -124,17 +122,14 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 				"size":    formatBytes(appBytes),
 				"sizeGb":  plainGB(appBytes),
 				"kind":    "app",
-				"checked": !size.partial,
+				"checked": true,
 				"partial": size.partial,
 			}}
 			if reason := s.CleanupReason(fullPath); reason != "" {
 				subpaths[0]["tier"], subpaths[0]["reason"], subpaths[0]["checked"] = "protected", reason, false
 			}
-			if size.partial {
-				subpaths[0]["tier"], subpaths[0]["reason"] = "protected", "应用包测量未完成，体积只是已读取部分；完成测量后再处理"
-				if appBytes == 0 {
-					subpaths[0]["size"], subpaths[0]["sizeGb"] = "未读取", nil
-				}
+			if size.partial && appBytes == 0 {
+				subpaths[0]["size"], subpaths[0]["sizeGb"] = "未读取", nil
 			}
 			cacheCandidates := s.appCacheCandidates(name, bundleID)
 			configCandidates := s.appConfigCandidates(name, bundleID)
@@ -147,7 +142,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			// config totals. Root-owned ones are refused by CleanupReason.
 			launchPaths := launchPathsFor(launchItems, fullPath, bundleID)
 			s.appendExisting(launchPaths, "launch", true, &subpaths)
-			impact := "仅把勾选的应用、缓存或配置路径移入废纸篓；受保护或未完成测量的路径保留。"
+			impact := "仅把勾选的应用、缓存或配置路径移入废纸篓；受保护的路径保留。"
 			if len(launchPaths) > 0 {
 				impact += "启动项已被系统加载时，移入废纸篓后仍会保持加载，直到注销或重启。"
 			}

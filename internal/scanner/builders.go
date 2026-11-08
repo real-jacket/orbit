@@ -16,6 +16,95 @@ var builderNames = map[string]bool{
 	"node": true, "npm": true, "pnpm": true, "yarn": true, "bun": true, "cargo": true, "rustc": true,
 	"java": true, "gradle": true, "python": true, "python3": true, "uv": true, "xcodebuild": true, "swift-frontend": true,
 	"xcode": true, "sourcekitservice": true, "xcbbuildservice": true,
+	"ruby": true, "npx": true,
+}
+
+// isBuilderName also admits versioned interpreters such as python3.12.
+func isBuilderName(name string) bool {
+	return builderNames[name] || strings.HasPrefix(name, "python")
+}
+
+// cacheOwnerRules say which running processes hold a cache open. owners match
+// the executable name; cli matches a tool that runs as a script under a generic
+// interpreter (npm, yarn and pip are `node`/`python` processes), so a bare
+// node or python process never blocks a cache.
+var cacheOwnerRules = []struct {
+	roots, owners []string
+	cli           string
+}{
+	{[]string{"Library/Caches/com.apple.Safari"}, []string{"Safari"}, ""},
+	{[]string{"Library/Caches/Google"}, []string{"Google Chrome"}, ""},
+	{[]string{"Library/Caches/Firefox"}, []string{"Firefox"}, ""},
+	{[]string{"Library/Developer/Xcode/DerivedData"}, []string{"Xcode", "xcodebuild", "swift-frontend"}, ""},
+	{[]string{"Library/Developer/CoreSimulator/Caches"}, []string{"Simulator", "CoreSimulatorService"}, ""},
+	{[]string{"Library/Caches/Cursor"}, []string{"Cursor", "cursor-agent"}, ""},
+	{[]string{"Library/Logs/Claude"}, []string{"Claude"}, ""},
+	{[]string{"Library/Caches/com.openai.chat"}, []string{"ChatGPT"}, ""},
+	{[]string{"Library/Caches/com.anthropic.claudefordesktop"}, []string{"Claude"}, ""},
+	{[]string{"Library/Caches/com.lmstudio.lmstudio"}, []string{"LM Studio", "LMStudio"}, ""},
+	{[]string{".npm/_cacache"}, nil, "npm"},
+	{[]string{"Library/Caches/pnpm"}, nil, "pnpm"},
+	{[]string{"Library/Caches/Yarn"}, nil, "yarn"},
+	{[]string{".bun/install/cache"}, []string{"bun"}, ""},
+	{[]string{"Library/Caches/pip"}, nil, "pip"},
+	{[]string{".cache/uv"}, []string{"uv"}, ""},
+	{[]string{"go/pkg/mod/cache/download", "Library/Caches/go-build"}, []string{"go"}, ""},
+	{[]string{".cargo/registry/cache"}, []string{"cargo", "rustc"}, ""},
+	{[]string{"Library/Caches/Homebrew"}, []string{"brew"}, "brew"},
+}
+
+// installingSubcommands are the package-manager commands that read or write
+// the download cache; `npm run dev` or `pnpm dev` do not.
+var installingSubcommands = map[string]bool{
+	"install": true, "i": true, "add": true, "ci": true, "update": true, "up": true, "upgrade": true,
+	"dlx": true, "exec": true, "x": true, "fetch": true, "cache": true, "dedupe": true, "rebuild": true,
+	"link": true, "create": true, "import": true,
+}
+
+// cliRunning reports whether a running process is tool's own CLI doing work
+// that touches its cache. The command line decides, never the interpreter.
+func cliRunning(procs []builderProc, tool string) bool {
+	for _, p := range procs {
+		fields := strings.Fields(p.args)
+		for i, field := range fields {
+			base := filepath.Base(field)
+			var markers []string
+			bareInstalls := false // `yarn` / `pnpm` alone is an install
+			always := false       // every invocation uses the cache
+			switch tool {
+			case "npm":
+				markers = []string{"npm-cli.js", "npm", "npx-cli.js", "npx"}
+			case "pnpm":
+				markers, bareInstalls = []string{"pnpm", "pnpm.cjs", "pnpm.mjs"}, true
+			case "yarn":
+				markers, bareInstalls = []string{"yarn", "yarn.js", "yarn.cjs", "yarnpkg"}, true
+			case "pip":
+				markers, always = []string{"pip", "pip3"}, true
+				if base == "pip" && i > 0 && fields[i-1] == "-m" {
+					return true
+				}
+			case "brew":
+				markers, always = []string{"brew", "brew.rb", "brew.sh"}, true
+			}
+			if !containsString(markers, base) {
+				continue
+			}
+			if always || base == "npx" || base == "npx-cli.js" {
+				return true
+			}
+			sub := ""
+			for _, next := range fields[i+1:] {
+				if !strings.HasPrefix(next, "-") {
+					sub = next
+					break
+				}
+			}
+			if installingSubcommands[sub] || sub == "" && bareInstalls {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // xcodeNames are the only processes that can be using Xcode's DerivedData: it
@@ -103,7 +192,7 @@ func systemBuilders() ([]builderProc, error) {
 	var procs []builderProc
 	index := map[int]int{}
 	for _, p := range parseProcessLines(string(comm)) {
-		if name := strings.ToLower(filepath.Base(p.path)); p.pid > 0 && builderNames[name] {
+		if name := strings.ToLower(filepath.Base(p.path)); p.pid > 0 && isBuilderName(name) {
 			index[p.pid] = len(procs)
 			procs = append(procs, builderProc{pid: p.pid, name: name})
 		}
