@@ -21,10 +21,11 @@
 //       ring, then the band is painted again where it is in front of the ball
 //       (the viewer's side of the ring, outside the ball's equator ellipse). The
 //       ring therefore enters the ball at its two sides and the ball shows both
-//       above and below it. From 128pt a thin dark seam marks the equator where
-//       the band laps on and the lap throws a soft shadow. Lit from the same
-//       upper-left key as the sphere (a pale face, a deeper limb and, from
-//       64pt, one tiny specular)
+//       above and below it. The lap fades out toward the ball's middle rather
+//       than ending in a hard wedge, and from 128pt two faint dark pools on the
+//       ball where the band goes in tuck it in (no seam line, no shadow). Lit
+//       from the same upper-left key as the sphere (a pale face, a deeper limb
+//       and, from 64pt, one tiny specular)
 //
 //  Refinement pass: the ring carries a soft highlight along its near arc (a
 //  gold is never one gold), and its shadow on the sphere is narrow and soft, so
@@ -482,40 +483,36 @@ func drawCompanion(in ctx: CGContext, profile: IconProfile, ring: [OrbitSegment]
     }
     lap.closeSubpath()
 
-    // The seam: the equator arcs where the band's near edge meets the ball.
-    // Half the band's width is the across-offset of that edge.
-    if profile.castsShadow, let mid = ring.min(by: { hypot($0.at.x - centre.x, $0.at.y - centre.y) < hypot($1.at.x - centre.x, $1.at.y - centre.y) }) {
-        let reachE = asin(min(1, mid.width / 2 / (radius * k)))
-        let seam = CGMutablePath()
-        for side in [CGFloat(1), -1] {
-            for i in 0...12 {
-                let a = reachE * CGFloat(i) / 12
-                let p = at(side * radius * cos(a), radius * k * sin(a))
-                if i == 0 { seam.move(to: p) } else { seam.addLine(to: p) }
-            }
-        }
-        stroke(ctx, path: seam, width: OrbitMark.length(0.7), color: Brand.hex(0x0B4A73), cap: .butt)
-
-        // A soft contact shadow of the lap on the ball, clipped to the ball.
+    // Ambient occlusion: two very soft dark pools on the ball where the band
+    // goes in, so the ring looks tucked into it. No line, about 15% at the core.
+    if profile.castsShadow {
         ctx.saveGState()
         ctx.addEllipse(in: extent)
         ctx.clip()
-        ctx.setShadow(offset: CGSize(width: OrbitMark.length(0.2), height: -OrbitMark.length(0.5)),
-                      blur: OrbitMark.length(1.0), color: Brand.hex(0x03233A, 0.5))
-        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
-        ctx.saveGState()
-        ctx.addPath(lap)
-        ctx.clip(using: .evenOdd)
-        for segment in ring { stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt) }
-        ctx.restoreGState()
-        ctx.endTransparencyLayer()
+        let pool = radius * 0.4
+        for side in [CGFloat(1), -1] {
+            let p = at(side * radius * 0.93, radius * k * 0.3)
+            ctx.drawRadialGradient(
+                gradient([Brand.hex(0x03233A, 0.16), Brand.hex(0x03233A, 0)], [0, 1]),
+                startCenter: p, startRadius: 0, endCenter: p, endRadius: pool, options: [])
+        }
         ctx.restoreGState()
     }
 
+    // The lap fades out toward the ball's middle (radial, from 0.8R to 0.93R), so
+    // its inner tip dissolves into the ball instead of ending in a hard wedge.
+    ctx.saveGState()
+    ctx.beginTransparencyLayer(auxiliaryInfo: nil)
     ctx.saveGState()
     ctx.addPath(lap)
     ctx.clip(using: .evenOdd)
     for segment in ring { stroke(ctx, path: segment.path, width: segment.width, color: segment.color, cap: .butt) }
+    ctx.restoreGState()
+    ctx.setBlendMode(.destinationOut)
+    ctx.drawRadialGradient(
+        gradient([Brand.hex(0x000000, 1), Brand.hex(0x000000, 1), Brand.hex(0x000000, 0)], [0, 0.8 / 0.93, 1]),
+        startCenter: centre, startRadius: 0, endCenter: centre, endRadius: radius * 0.93, options: [])
+    ctx.endTransparencyLayer()
     ctx.restoreGState()
 }
 
