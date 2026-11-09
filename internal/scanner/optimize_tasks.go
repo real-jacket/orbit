@@ -643,7 +643,7 @@ func (s *Scanner) bundleInstalled(ctx context.Context, id string, index map[stri
 		}
 	}
 	out, err := s.runCmd(ctx, "", "/usr/bin/mdfind", "kMDItemCFBundleIdentifier == '"+id+"'")
-	if ctx.Err() != nil || (err == nil && strings.TrimSpace(out) != "") {
+	if ctx.Err() != nil || err != nil || strings.TrimSpace(out) != "" {
 		return true
 	}
 	return false
