@@ -44,7 +44,7 @@ GitHub Releases.
 | --- | --- | --- |
 | **Deep Clean** | `internal/scanner` + native Trash | User caches and logs, browser profiles, developer tools, Xcode, Gradle/CocoaPods, app caches and macOS user state, using Mole's `mo clean` rules; data of a running app is protected until you quit it |
 | **AI Care** | AI catalog + native Trash | Rechecks Claude Code, Cursor Agent, Copilot CLI and Claude Desktop releases against launcher, process and open handles; models/worktrees are inspect-only |
-| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data, lists config files that still reference the app, finds leftovers of apps already gone, and slims universal apps to Apple silicon only (`mo slim`) |
+| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data, stops the app's user-level background services (started again on restore), lists config files that still reference the app, finds leftovers of apps already gone, and slims universal apps to Apple silicon only (`mo slim`) |
 | **Optimize** | Mole's 19 `mo optimize` tasks | Checks each task first; 10 can run (with receipts, and undo where something changed), the rest say why orbit does not run them (administrator rights, or data that cannot be restored) |
 | **Astrolabe** | `internal/analyze` | Allocated/logical size map with current-layer search, inspectable folded items, file counts, mtimes and memory drill-down |
 | **Live Status** | Kernel + `ps` + hardware sensors | CPU, memory, network and supported sensor data; search processes by name/path/PID |

@@ -39,7 +39,7 @@ make mole-sync MOLE_TAG=V1.71.0
 | `mo` 命令 | orbit 对应 | 状态 |
 | --- | --- | --- |
 | `mo clean` | 深度清理、AI 清理 | 用户级规则已移植；需要 sudo 和无法还原的部分不做（见下） |
-| `mo uninstall` | 应用卸载 | 已实现；配置引用、共享数据保护已移植 |
+| `mo uninstall` | 应用卸载 | 已移植：残留文件、配置引用、共享数据保护、停止用户级后台服务、LaunchServices 记录；系统设置里的登录项不做 |
 | `mo optimize` | 系统加速 | 19 项全部列出：10 项可执行，9 项说明原因不执行 |
 | `mo purge` | 构建清理 · 构建产物 | 已移植，扫描目录与 `mo purge` 共用 `~/.config/mole/purge_paths` |
 | `mo installer` | 构建清理 · 安装包 | 已移植 |
@@ -102,7 +102,12 @@ Mole CLI 没有单独的 AI 清理命令；相关规则在 `mo clean` 的 `clean
 | 应用与残留文件 | `scan_applications`、`remove_file_list` | 标准 / 完整 / 仅缓存三种方式，逐个路径勾选，移入废纸篓 |
 | 卸载后列出仍引用该应用的配置行 | `_uninstall_scan_configuration_references` | 卸载回执里列出文件和行号，只读，不改文件 |
 | 同一应用还装着另一份时保留共享数据 | `uninstall_bundles_share_remnants` | 共享的子路径标为受保护 |
-| 需要管理员权限的系统路径 | 用 sudo 删除 | 只列出，不删除 |
+| 停止应用的用户级后台服务 | `unload_launch_plist` | 勾选的 `~/Library/LaunchAgents` 项移入废纸篓前先 `launchctl bootout`；移动失败会重新加载，从废纸篓还原时也会重新加载 |
+| 应用内置的登录项 helper | `discover_login_item_helper_bundle_ids`、`bootout_login_item_helpers` | 应用进入废纸篓后停止；另一份相同标识的应用仍安装时不停止（Mole 的同款保护） |
+| LaunchServices 记录 | `unregister_app_bundle`、`refresh_launch_services_after_uninstall` | 对废纸篓里的应用执行 `lsregister -u`，最后执行一次 `lsregister -gc` |
+| Homebrew 安装的应用 | `brew.sh` 的 cask 识别 | 只读文件判断，回执里给出 `brew uninstall --cask` 命令供复制，orbit 不运行 brew |
+| 系统设置里的登录项 | `remove_login_item` | 不做：要通过 osascript 申请自动化授权，删掉后无法还原；回执提示到系统设置检查 |
+| 需要管理员权限的系统路径（LaunchDaemons、PrivilegedHelperTools） | 用 sudo 删除 | 只列出，不删除 |
 
 ## 系统加速（`mo optimize`）
 
