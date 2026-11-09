@@ -686,6 +686,27 @@
     "launchctl 未能停止这个后台服务": "launchctl could not stop this background service",
     "移入废纸篓失败，且未能重新加载这个后台服务，注销后重新登录即可恢复": "The move to the Trash failed and this background service could not be loaded again. Log out and back in to restore it.",
     "文件已还原，但未能重新加载这个后台服务，注销后重新登录即可恢复": "The file is restored, but this background service could not be loaded again. Log out and back in to restore it.",
+    // ---- Mole parity: gaps ----
+    "设备固件安装包缓存": "Device firmware installers",
+    "访达、iTunes 和 Apple Configurator 缓存的 iPhone、iPad 等设备固件（.ipsw），需要恢复设备时可重新下载。仍被打开的文件保持原状。": "Device firmware (.ipsw) for iPhone, iPad and similar devices, cached by Finder, iTunes and Apple Configurator. It can be downloaded again when you restore a device. Files that are still open are left alone.",
+    "恢复设备时重新下载": "Downloaded again when you restore a device",
+    "设备固件安装包，需要时可以从苹果服务器重新下载": "Device firmware installer, can be downloaded again from Apple when needed",
+    "应用的浏览器内核缓存与崩溃报告": "Browser engine caches and crash reports of apps",
+    "Electron 和 Chromium 内核应用放在 Application Support 里的代码缓存、图形着色器缓存和已完成的崩溃报告，不含账户和文档。运行中的应用保持原状。": "Code caches, graphics shader caches and finished crash reports that Electron and Chromium based apps keep in Application Support. No accounts or documents. Running apps are left alone.",
+    "已卸载应用留下的空沙盒容器": "Empty sandbox containers left by removed apps",
+    "CleanMyMac 卸载后留下的空沙盒容器，里面只有系统元数据文件，不含用户数据。": "Empty sandbox containers left after CleanMyMac was removed. They hold only a system metadata file and no user data.",
+    "无需重建": "Nothing to rebuild",
+    "已卸载应用留下的空沙盒容器，里面只有系统元数据文件，不含用户数据": "Empty sandbox container left by a removed app, it holds only a system metadata file and no user data",
+    "邮件附件的本地副本": "Local copies of mail attachments",
+    "邮件 App 打开附件时在本机留下的副本，超过 30 天且从未改动，可在邮件中重新下载。": "Copies that Mail leaves on this Mac when you open an attachment. They are older than 30 days and were never edited, and can be downloaded again from Mail.",
+    "在邮件中再次打开附件时重新下载": "Downloaded again when you open the attachment in Mail",
+    "邮件附件的本地副本，超过 30 天且未被改动，可以在邮件中重新下载；如果邮件已从服务器删除，这可能是唯一的副本，请确认": "Local copy of a mail attachment, older than 30 days and never edited. It can be downloaded again from Mail, but if the message was deleted from the server this may be the only copy, so please check",
+    "最近使用的项目记录": "Recent items records",
+    "苹果菜单里「最近使用的项目」的记录文件，移到废纸篓后菜单会清空，从废纸篓放回即可恢复。": "The files behind the Recent Items menu. After they move to the Trash the menu is empty, and you can restore them by putting them back from the Trash.",
+    "使用应用和文件时自动重新记录": "Recorded again as you use apps and files",
+    "「最近使用的项目」菜单的记录，清理后菜单会清空，文件进入废纸篓，可以放回恢复": "Record of the Recent Items menu, the menu will be empty after cleaning, and the file goes to the Trash where you can put it back",
+    "无法确认固件文件是否仍被打开，保持原状": "Cannot tell whether the firmware file is still open, so it is left alone",
+    "仍有进程打开这个固件文件，保持原状": "A process still has this firmware file open, so it is left alone",
   };
 
   // doctor.go battery detail: "健康度 N%" + optional cycles + optional charge + optional verdict.
