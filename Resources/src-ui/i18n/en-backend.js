@@ -681,6 +681,11 @@
     "瘦身后签名团队发生了变化": "The signing team changed after slimming",
     "瘦身后的系统安全检查（Gatekeeper）没有通过": "The slimmed copy failed the Gatekeeper check",
     "另一份相同标识的应用仍安装在这台 Mac 上，这些数据还在被它使用": "Another copy of this app is still installed on this Mac and still uses this data",
+    // ---- Mole parity: uninstall ----
+    "勾选的启动项移入废纸篓前，会先停止它在当前用户下的后台服务；系统级启动项需要管理员权限，只列出不处理。": "Before a selected launch item moves to the Trash, its background service in your own user session is stopped. System launch items need administrator rights and are only listed.",
+    "launchctl 未能停止这个后台服务": "launchctl could not stop this background service",
+    "移入废纸篓失败，且未能重新加载这个后台服务，注销后重新登录即可恢复": "The move to the Trash failed and this background service could not be loaded again. Log out and back in to restore it.",
+    "文件已还原，但未能重新加载这个后台服务，注销后重新登录即可恢复": "The file is restored, but this background service could not be loaded again. Log out and back in to restore it.",
   };
 
   // doctor.go battery detail: "健康度 N%" + optional cycles + optional charge + optional verdict.

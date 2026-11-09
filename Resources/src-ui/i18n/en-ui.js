@@ -1061,4 +1061,13 @@ I18N.add({
   "确认瘦身": "Confirm slimming",
   "未瘦身": "Not slimmed",
   "推荐执行": "Recommended",
+  // ---- Mole parity: uninstall ----
+  "已停止 {n} 个后台服务": "{n} background {n|service|services} stopped",
+  "移入废纸篓失败，已重新加载 {n} 个后台服务": "The move to Trash failed, so {n} background {n|service was|services were} loaded again",
+  "Homebrew 仍记录着 {app}，orbit 不会替你运行 brew。需要同步清除时，在终端运行：": "Homebrew still records {app}. orbit never runs brew for you. To clear it, run this in Terminal:",
+  "复制命令": "Copy command",
+  "系统设置 › 通用 › 登录项与扩展 里的启动项 orbit 不会改动，请自己检查是否还有已卸载应用的条目。": "orbit does not change items in System Settings › General › Login Items & Extensions. Check yourself whether entries of the removed app remain.",
+  "卸载回执 · 后台服务": "Uninstall receipt · background services",
+  "已从废纸篓还原 {n} 个路径（{action}），但有 {f} 个后台服务未能重新加载：{error}": "Restored {n} {n|path|paths} from Trash ({action}), but {f} background {f|service|services} could not be loaded again: {error}",
+  "已从废纸篓还原 {n} 个路径（{action}），并重新加载 {s} 个后台服务": "Restored {n} {n|path|paths} from Trash ({action}) and loaded {s} background {s|service|services} again",
 });
