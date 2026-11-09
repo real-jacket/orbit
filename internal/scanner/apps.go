@@ -212,7 +212,15 @@ type bundleInfo struct {
 func readBundleInfo(path string) bundleInfo {
 	props, err := parsePlistFile(filepath.Join(path, "Contents", "Info.plist"))
 	if err != nil {
-		return bundleInfo{}
+		// Ported from tw93/Mole V1.70.0 lib/clean/apps.sh scan_installed_apps: an iOS app on
+		// Apple Silicon keeps its plist under Wrapper/<name>.app, not Contents/.
+		wrapped, _ := filepath.Glob(filepath.Join(path, "Wrapper", "*.app", "Info.plist"))
+		if len(wrapped) == 0 {
+			return bundleInfo{}
+		}
+		if props, err = parsePlistFile(wrapped[0]); err != nil {
+			return bundleInfo{}
+		}
 	}
 	return bundleInfo{
 		displayName:  props["CFBundleDisplayName"],
@@ -251,24 +259,26 @@ func (s *Scanner) installedAppIndex(home string) (names, bundleIDs map[string]st
 	bundleIDs = map[string]struct{}{}
 	appDirs := []string{
 		"/Applications",
-		"/Applications/Utilities",
 		"/System/Applications",
-		"/System/Applications/Utilities",
 		filepath.Join(home, "Applications"),
+		"/opt/homebrew/Caskroom",
+		"/usr/local/Caskroom",
+		filepath.Join(home, "Library/Application Support/Setapp/Applications"),
 	}
-	for _, dir := range appDirs {
-		for _, path := range s.matchingWildcardPaths(dir, "") {
-			item := baseName(path)
-			if !strings.HasSuffix(item, ".app") {
-				continue
+	for _, path := range findAppBundles(appDirs) {
+		names[strings.ToLower(strings.TrimSuffix(baseName(path), filepath.Ext(path)))] = struct{}{}
+		info := readBundleInfo(path)
+		for _, value := range []string{info.identifier, info.displayName, info.bundleName} {
+			if value != "" {
+				bundleIDs[strings.ToLower(value)] = struct{}{}
 			}
-			names[strings.ToLower(strings.TrimSuffix(item, ".app"))] = struct{}{}
-			info := readBundleInfo(path)
-			for _, value := range []string{info.identifier, info.displayName, info.bundleName} {
-				if value != "" {
-					bundleIDs[strings.ToLower(value)] = struct{}{}
-				}
-			}
+		}
+	}
+	// Ported from tw93/Mole V1.70.0 lib/clean/apps.sh scan_installed_apps: a login item's
+	// LaunchAgent label also names an installed owner.
+	for _, path := range s.matchingWildcardPaths(filepath.Join(home, "Library/LaunchAgents"), "") {
+		if label, ok := strings.CutSuffix(baseName(path), ".plist"); ok && label != "" {
+			bundleIDs[strings.ToLower(label)] = struct{}{}
 		}
 	}
 	// Command line tools of Homebrew and /usr/local have no bundle, but their

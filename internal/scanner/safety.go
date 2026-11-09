@@ -75,6 +75,11 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 	if isAgentWorktreeArtifact(path, home) || isAgentWorktreeRoot(path, home) {
 		return Protection{}, false
 	}
+	// A Claude workspace VM bundle is judged by claudeVMReason (app gone, idle),
+	// not by the blanket Claude data rule below.
+	if isClaudeVMBundle(path, home) {
+		return Protection{}, false
+	}
 	for _, entry := range aiCacheSpecs() {
 		if !entry.logFiles {
 			continue
@@ -223,6 +228,9 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 	}
 	if entry, root, known := aiCleanupData(path, s.home); known {
 		return s.aiDataCleanupReason(path, root, entry, live)
+	}
+	if isClaudeVMBundle(path, s.home) {
+		return s.claudeVMReason(path, live)
 	}
 	if isAppBundle(path) {
 		processes, err := s.processSnapshot(live)

@@ -85,6 +85,11 @@ func cliRunning(procs []builderProc, tool string) bool {
 				}
 			case "brew":
 				markers, always = []string{"brew", "brew.rb", "brew.sh"}, true
+			case "gradle":
+				if strings.Contains(field, "org.gradle.") { // the daemon is `java ... org.gradle.launcher...`
+					return true
+				}
+				markers, always = []string{"gradle", "gradlew"}, true
 			}
 			if !containsString(markers, base) {
 				continue
