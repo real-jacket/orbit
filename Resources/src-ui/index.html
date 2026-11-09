@@ -618,6 +618,10 @@
   .insp-tab:hover:not([aria-disabled="true"]) { color: var(--text-primary); }
   .insp-tab.active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 0 0 1px var(--border-subtle); }
   .insp-tab[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+  .seg-tab[aria-disabled="true"], th[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+  /* 等待回执的行：保持原位但退到背景，右侧用一句话代替体积。 */
+  [data-moving] { opacity: 0.6; }
+  .moving-note { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
   .insp-panes { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .insp-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
   .insp-pane > .list-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; padding: 0 var(--space-2) var(--space-2); }
@@ -2350,7 +2354,8 @@ function reconcileAfterScan() {
     if (now - ts > 600000 || ts <= scanStartedAt) recentMoves.delete(p);
     else ghosts.add(p);
   });
-  if (ghosts.size) dropMovedFromLists(ghosts);
+  if (ghosts.size) { dropMovedFromLists(ghosts); pruneCleanedRows(); }
+  prunedRows.length = 0;   // 扫描结果是权威数据，旧的暂存行不再用于还原
   if (!refreshing) return;
   if (scanStartedAt >= lastMoveAt) { clearTimeout(refreshTimer); clearTimeout(refreshGuard); refreshTimer = refreshGuard = 0; refreshing = false; }
   else if (!refreshTimer) armRefreshFallback();
@@ -2365,9 +2370,69 @@ function dropMovedFromLists(moved) {
     });
   });
   ['purgeItems', 'installerFiles'].forEach(key => (STATE[key] || []).forEach(row => {
-    if (hit(row.path) || (row.subpaths || []).some(sp => hit(sp.path))) { row.sizeGb = 0; row.checked = false; row.cleaned = true; row.failed = false; }
+    if (hit(row.path) || (row.subpaths || []).some(sp => hit(sp.path))) { if (!row.cleaned) row.origSizeGb = row.sizeGb; row.sizeGb = 0; row.checked = false; row.cleaned = true; row.failed = false; }
   }));
   STATE.largeFiles = (STATE.largeFiles || []).filter(row => !hit(row.path));
+}
+const rowKey = row => row && (row.appPath || row.path || row.id);
+// 已移走的行直接从列表去掉（连同局部移走的子路径），不留「已清理 0 B」的空壳；
+// 整行移走的先存进 prunedRows，立即还原时还能原样放回（restoreSnapshotEntities）。
+const prunedRows = [];
+const PRUNE_SELECTED_KEY = { cleanGroups: 'selectedCleanIdx', aiMoonBands: 'selectedMoonIdx', purgeItems: 'selectedPurgeIdx', orphanLeftoversList: 'selectedOrphanIdx', appsList: 'selectedAppIdx' };
+// 本模块正在等待回执的那一次移入；没有则 null。其他模块只被「已有操作」守卫拦住，不整页锁定。
+function busyTrash() {
+  for (const p of pendingTrashRequests.values()) if (p.module === STATE.module) return p;
+  return null;
+}
+function movingAttr(row) { return rowMoving(row) ? ' data-moving aria-busy="true"' : ''; }
+function rowMoving(row) {
+  const key = rowKey(row);
+  if (!key) return false;
+  for (const p of pendingTrashRequests.values()) if (p.keys && p.keys.has(key)) return true;
+  return false;
+}
+// 本模块有一次移入在等回执：舞台里能改变选择、范围、排序或再次处理的控件一律真禁用（行本身仍可点开查看）。
+function lockStageForTrash(stage) {
+  stage.dataset.trashBusy = '';
+  stage.querySelectorAll('button, input, select, textarea').forEach(el => { el.disabled = true; });
+  stage.querySelectorAll('.seg-tab, .insp-tab, [role="tab"], th[tabindex]').forEach(el => { el.setAttribute('aria-disabled', 'true'); el.tabIndex = -1; });
+  stage.querySelectorAll('[data-moving]').forEach(row => {
+    const right = row.querySelector('.row-right, .subpath-right');
+    if (right) right.innerHTML = '<span class="moving-note">' + t('正在移入废纸篓…') + '</span>';
+  });
+}
+function trashBusyCopy(busy) {
+  const n = busy.requested;
+  return {
+    badge: busy.timedOut ? t('等待系统回执') : t('正在移入废纸篓'),
+    headline: busy.timedOut ? t('仍在等待系统回执：{n} 个路径', { n }) : t('正在移入废纸篓：{n} 个路径', { n }),
+    desc: busy.timedOut
+      ? t('系统回执超过 {s} 秒未返回，是否已移入废纸篓仍未知。请检查 macOS 授权弹窗；为避免重复处理，本模块保持锁定，回执到达后才会更新。', { s: NATIVE_RESULT_TIMEOUT_MS / 1000 })
+      : t('这一批处理完成前，本模块的勾选、筛选和清理已锁定；回执到达后列表会立即更新。'),
+    statLabel: t('本次移入'),
+    statValue: fmtDiskSizeGb(busy.sizeGb),
+    statSub: t('等待系统回执')
+  };
+}
+function pruneCleanedRows() {
+  Object.keys(PRUNE_SELECTED_KEY).forEach(key => {
+    const list = STATE[key] || [], idxKey = PRUNE_SELECTED_KEY[key], current = list[STATE[idxKey]];
+    const keep = list.filter(row => {
+      if (!row.cleaned) {
+        const gone = (row.subpaths || []).filter(sp => sp.cleaned);
+        if (gone.length) { row.subpaths = row.subpaths.filter(sp => !sp.cleaned); row.prunedSubpaths = (row.prunedSubpaths || []).concat(gone); }
+        return true;
+      }
+      if (key !== 'orphanLeftoversList' && key !== 'appsList') prunedRows.push({ key, row });
+      return false;
+    });
+    if (keep.length === list.length) { STATE[idxKey] = Math.min(STATE[idxKey] || 0, Math.max(0, list.length - 1)); return; }   // 提交时已摘掉的行（残留、应用）也要把选中位置收回范围内
+    STATE[key] = keep;
+    STATE[idxKey] = Math.max(0, keep.indexOf(current));
+  });
+  const installers = STATE.installerFiles || [];
+  installers.filter(row => row.cleaned).forEach(row => prunedRows.push({ key: 'installerFiles', row }));
+  STATE.installerFiles = installers.filter(row => !row.cleaned);
 }
 function submitTrash(entries, opts) {
   if (pendingTrashRequests.size || pendingRestoreRequests.size) { showToast(t('已有文件操作正在等待系统回执，请稍后再试')); return false; }
@@ -2379,7 +2444,9 @@ function submitTrash(entries, opts) {
     return false;
   }
   const requestId = nextRequestId('trash');
-  pendingTrashRequests.set(requestId, { entries: live, options, requested: paths.length });
+  // module / keys：让提交它的模块整页锁定，并认出哪些行正在移动（见 busyTrash / rowMoving）。
+  const keys = new Set(live.map(e => rowKey(e.entity)).filter(Boolean));
+  pendingTrashRequests.set(requestId, { entries: live, options, requested: paths.length, module: STATE.module, keys, sizeGb: live.reduce((n, e) => n + (Number(e.sizeGb) || 0), 0) });
   renderModule();
   window.setTimeout(() => resolveTrash({ requestId, timedOut: true, movedPaths: [], failed: [], skipped: [] }), NATIVE_RESULT_TIMEOUT_MS);
   showToast(t('正在移入废纸篓（{n} 个路径），等待系统回执…', { n: paths.length }));
@@ -2404,6 +2471,7 @@ function resolveTrash(res) {
   const pending = pendingTrashRequests.get(key);
   if (!pending) return;                     // 已结算或重复回执
   if (res.timedOut) {
+    pending.timedOut = true;
     showToast(t('系统回执尚未返回，操作状态未知。请检查 macOS 授权弹窗；为避免重复处理，继续等待实际回执。'));
     renderModule();
     return;
@@ -2449,6 +2517,7 @@ function resolveTrash(res) {
   });
 
   if (typeof pending.options.onDone === 'function') pending.options.onDone(movedEntries, failedEntries, res);
+  pruneCleanedRows();   // 回执一到就让列表、合计、侧栏徽标按「剩下的」重算，不等重扫
   const snapshot = STATE.historyLogs.find(history => history.restoreData?.requestId === key);
   if (snapshot) {
     const originals = new Set((snapshot.restoreData.paths || []).map(normalizeComparePath));
@@ -3926,10 +3995,10 @@ function updateSidebarBadges() {
   const appGb = STATE.softwarePanelMode === 'leftovers' ? orphanGb : installedGb;
   const purgeGb = STATE.purgeItems.filter(p => p.checked).reduce((s, p) => s + p.sizeGb, 0) + STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
 
-  document.getElementById('navMetaClean').textContent = cleanGb > 0 ? fmtDiskSizeGb(cleanGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !STATE.cleanGroups.length ? t('无候选') : STATE.cleanGroups.every(g => g.cleaned) ? t('已清理') : t('未勾选');
-  document.getElementById('navMetaMoon').textContent = moonGb > 0 ? fmtDiskSizeGb(moonGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !STATE.aiMoonBands.length ? t('无候选') : STATE.aiMoonBands.every(b => b.tier === 'protected') ? t('只读保留') : STATE.aiMoonBands.every(b => b.cleaned) ? t('已清理') : t('未勾选');
+  document.getElementById('navMetaClean').textContent = cleanGb > 0 ? fmtDiskSizeGb(cleanGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !STATE.cleanGroups.length ? (refreshing ? t('刷新中') : t('无候选')) : STATE.cleanGroups.every(g => g.cleaned) ? t('已清理') : t('未勾选');
+  document.getElementById('navMetaMoon').textContent = moonGb > 0 ? fmtDiskSizeGb(moonGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !STATE.aiMoonBands.length ? (refreshing ? t('刷新中') : t('无候选')) : STATE.aiMoonBands.every(b => b.tier === 'protected') ? t('只读保留') : STATE.aiMoonBands.every(b => b.cleaned) ? t('已清理') : t('未勾选');
   document.getElementById('navMetaSoftware').textContent = appGb > 0 ? appGb.toFixed(1) + ' GB' : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : t('{n} 应用', { n: STATE.appsList.length });
-  document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !(STATE.purgeItems.length + STATE.installerFiles.length) ? t('无候选') : t('未勾选');
+  document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !(STATE.purgeItems.length + STATE.installerFiles.length) ? (refreshing ? t('刷新中') : t('无候选')) : t('未勾选');
   document.getElementById('navMetaHistory').textContent = t('{n} 快照', { n: STATE.historyLogs.length });
   const opt = STATE.optimize, optNeeded = opt.items.filter(it => it.runnable).length;
   document.getElementById('navMetaOptimize').textContent = opt.running ? t('维护中') : opt.status === 'loading' ? t('检查中') : opt.status === 'error' ? t('检查失败') : opt.status === 'idle' ? t('待检查') : optNeeded ? t('{n} 项待处理', { n: optNeeded }) : t('无需处理');
@@ -3988,6 +4057,9 @@ function markSubpathsMoved(item, paths) {
   const remainingGb = remaining.reduce((sum, sp) => sum + (Number(sp.sizeGb) || 0), 0);
   if ('sizeGb' in item) item.sizeGb = remainingGb;
   if ('leftoverSizeGb' in item) item.leftoverSizeGb = remainingGb;
+  // 应用行的缓存/配置分项也按剩下的子路径重算，详情和合计才不会还带着已移走的体积。
+  for (const kind of ['cache', 'config', 'app']) if (kind + 'SizeGb' in item) item[kind + 'SizeGb'] = remaining.filter(sp => sp.kind === kind).reduce((n, sp) => n + (Number(sp.sizeGb) || 0), 0);
+  if ('cacheSizeGb' in item) item.leftoverSizeGb = item.cacheSizeGb + item.configSizeGb;
   item.checked = selectedSubpaths(item).length > 0;
   item.cleaned = !remaining.length;
   item.failed = false;
@@ -4717,10 +4789,10 @@ function renderBasket() {
   const secs = STATE.trashAt ? Math.max(0, Math.ceil((STATE.trashAt - Date.now()) / 1000)) : 0;
   const unknownCount = STATE.collected.filter(item => !hasNum(item.sizeGb)).length;
   const total = unknownCount === n ? t('总量未知') : unknownCount ? t('已测 {size} · {n} 项未测量', { size: fmtDiskSizeGb(collectedGb()), n: unknownCount }) : fmtDiskSizeGb(collectedGb());
-  const list = STATE.collected.map(c => `<div class="basket-item"${c.failed ? ' style="border-color:var(--accent-rose);"' : ''}><span class="basket-name">${UI_ICON(c.isDir ? 'folder' : 'file')} ${escHtml(c.name)}</span><span class="basket-path">${escHtml(c.path)}</span>${c.failed ? `<span style="color:var(--accent-rose);font-size:10px;white-space:nowrap;">${t('删除失败：{error}', { error: escHtml(c.error ? t(c.error) : t('未知原因')) })}</span>` : `<b>${fmtDiskSizeGb(c.sizeGb)}</b>`}<button class="btn" style="padding:0 6px;" title="${t('移出待清理')}" onclick="removeCollected('${jsq(c.path)}')">×</button></div>`).join('');
+  const list = STATE.collected.map(c => `<div class="basket-item"${movingAttr(c)}${c.failed ? ' style="border-color:var(--accent-rose);"' : ''}><span class="basket-name">${UI_ICON(c.isDir ? 'folder' : 'file')} ${escHtml(c.name)}</span><span class="basket-path">${escHtml(c.path)}</span>${c.failed ? `<span style="color:var(--accent-rose);font-size:10px;white-space:nowrap;">${t('删除失败：{error}', { error: escHtml(c.error ? t(c.error) : t('未知原因')) })}</span>` : rowMoving(c) ? `<span class="moving-note">${t('正在移入废纸篓…')}</span>` : `<b>${fmtDiskSizeGb(c.sizeGb)}</b>`}<button class="btn" style="padding:0 6px;" title="${t('移出待清理')}" onclick="removeCollected('${jsq(c.path)}')">×</button></div>`).join('');
   bar.innerHTML = `<details class="basket-list" ${STATE.basketOpen ? 'open' : ''} ontoggle="STATE.basketOpen = this.open"><summary>${t('待清理 {n} 项 · {total}', { n, total })}</summary><div class="basket-items">${list}</div></details>` +
     `<span class="basket-hint">${t('移入前有 5 秒可撤销；废纸篓与 APFS 快照会影响实际腾出的空间')}</span>` +
-    `<div class="basket-actions">${STATE.trashAt
+    `<div class="basket-actions">${busyTrash() ? `<span class="basket-count">${t('正在移入废纸篓…')}</span>` : STATE.trashAt
       ? `<span class="basket-count">${t('{n} 秒后移入废纸篓', { n: secs })}</span><button class="btn btn-primary" onclick="cancelTrash()">${t('撤销')}</button>`
       : `<button class="btn" onclick="clearCollected()">${t('清空')}</button><button class="btn btn-danger-solid" onclick="startTrash()">${t('移到废纸篓')}</button>`}</div>`;
 }
@@ -5247,6 +5319,27 @@ window.onNativeOptimizeUndo = function(msg) {
   requestOptimizePlan();
 };
 
+function unpruneSubpaths(row) {
+  if (row.prunedSubpaths) {
+    row.prunedSubpaths.forEach(sp => { sp.cleaned = false; sp.checked = true; });
+    row.subpaths = (row.subpaths || []).concat(row.prunedSubpaths);
+    row.prunedSubpaths = null;
+  }
+  const live = (row.subpaths || []).filter(sp => !sp.cleaned), sum = kind => live.filter(sp => !kind || sp.kind === kind).reduce((n, sp) => n + (Number(sp.sizeGb) || 0), 0);
+  if (!live.length) return;
+  if ('sizeGb' in row) row.sizeGb = sum();
+  for (const kind of ['cache', 'config', 'app']) if (kind + 'SizeGb' in row) row[kind + 'SizeGb'] = sum(kind);
+  if ('cacheSizeGb' in row) row.leftoverSizeGb = row.cacheSizeGb + row.configSizeGb;
+}
+function unpruneRows(rd) {
+  const want = new Set((rd.paths || []).map(p => displayPath(p)));
+  const rest = prunedRows.filter(({ key, row }) => {
+    if (!(rd.type === 'purge' ? want.has(row.path) : (rd.ids || []).includes(row.id))) return true;
+    if (!STATE[key].some(x => rowKey(x) === rowKey(row))) { row.cleaned = false; (row.subpaths || []).forEach(sp => { sp.cleaned = false; }); unpruneSubpaths(row); STATE[key].push(row); }
+    return false;
+  });
+  prunedRows.splice(0, prunedRows.length, ...rest);
+}
 // 还原成功后的实体回填：只在 Go 确认路径真的回到原位后调用，绝不提前改列表。
 function restoreSnapshotEntities(snap) {
   const rd = snap && snap.restoreData;
@@ -5257,20 +5350,26 @@ function restoreSnapshotEntities(snap) {
     if (!STATE.largeFiles.some(f => f.path === rd.item.path)) STATE.largeFiles.unshift(rd.item);
     rd.item.failed = false;
   } else if (rd.type === 'clean') {
+    unpruneRows(rd);
     (rd.ids || []).forEach(id => {
       const g = STATE.cleanGroups.find(x => x.id === id);
       if (!g) return;
+      unpruneSubpaths(g);
       g.sizeGb = (typeof g.origSizeGb === 'number') ? g.origSizeGb : g.sizeGb;
       g.checked = true; g.cleaned = false; g.failed = false;
       (g.subpaths || []).forEach(sp => { sp.checked = true; });
     });
   } else if (rd.type === 'ai_moon') {
+    unpruneRows(rd);
     (rd.ids || []).forEach(id => {
       const b = STATE.aiMoonBands.find(x => x.id === id);
       if (!b) return;
+      unpruneSubpaths(b);
       b.sizeGb = (typeof b.origSizeGb === 'number') ? b.origSizeGb : b.sizeGb;
       b.checked = true; b.cleaned = false; b.failed = false;
     });
+  } else if (rd.type === 'cache_only') {
+    (rd.ids || []).forEach(id => { const a = STATE.appsList.find(x => x.id === id); if (a) unpruneSubpaths(a); });
   } else if (rd.type === 'software') {
     (rd.removedApps || []).forEach(a => { if (a && !STATE.appsList.some(x => x.id === a.id)) STATE.appsList.unshift(a); });
     applyAppSort();
@@ -5278,6 +5377,7 @@ function restoreSnapshotEntities(snap) {
   } else if (rd.type === 'orphan_leftovers') {
     (rd.removedOrphans || []).forEach(o => { if (o && !(STATE.orphanLeftoversList || []).some(x => x.id === o.id)) STATE.orphanLeftoversList.unshift(o); });
   } else if (rd.type === 'purge') {
+    unpruneRows(rd);
     const want = new Set((rd.paths || []).map(p => displayPath(p)));
     (STATE.purgeItems || []).forEach(p => { if (want.has(p.path)) { p.sizeGb = (typeof p.origSizeGb === 'number') ? p.origSizeGb : p.sizeGb; p.checked = true; p.cleaned = false; } });
     (STATE.installerFiles || []).forEach(i => { if (want.has(i.path)) { i.checked = true; i.cleaned = false; } });
@@ -5386,7 +5486,7 @@ function renderModule() {
               const pct = totalScanGb > 0 ? Math.min(100, Math.round((g.sizeGb / totalScanGb) * 100)) : 0;
               const barColor = g.tier === 'safe' ? 'var(--accent-emerald)' : 'var(--accent-amber)';
               return `
-                <div class="list-row ${isSel ? 'selected' : ''}" onclick="selectCleanRow(${origIdx})">
+                <div class="list-row ${isSel ? 'selected' : ''}"${movingAttr(g)} onclick="selectCleanRow(${origIdx})">
                   <div class="row-left">
                     ${g.tier === 'protected'
                       ? `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`
@@ -5508,7 +5608,7 @@ function renderModule() {
           <div class="list-body">
             ${filtered.map(b => {
               const idx = STATE.aiMoonBands.indexOf(b);
-              return `<div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}" onclick="selectMoonRow(${idx})">
+              return `<div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}"${movingAttr(b)} onclick="selectMoonRow(${idx})">
                 <div class="row-left">
                   ${b.tier === 'protected'
                     ? `<span class="lock-glyph" title="${t('保持原状，不可勾选')}">${UI_ICON('lock')}</span>`
@@ -5630,7 +5730,7 @@ function renderModule() {
             </div>
             <div class="list-body">
               ${orphans.map((item, idx) => !matchesSearch(item) ? '' : `
-                <div class="list-row ${idx === STATE.selectedOrphanIdx ? 'selected' : ''}" onclick="selectOrphanRow(${idx})">
+                <div class="list-row ${idx === STATE.selectedOrphanIdx ? 'selected' : ''}"${movingAttr(item)} onclick="selectOrphanRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${item.checked && item.tier !== 'protected' ? 'checked' : ''} ${item.tier === 'protected' ? 'disabled' : ''} onclick="toggleOrphanCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
                     <div class="app-squircle-icon" style="background:${iconFor(item.name, item.bundleId, idx).bg};">
@@ -5776,7 +5876,7 @@ function renderModule() {
                 const selectable = !(app.running && mode !== 'cache_only') && app.subpaths.some(sp => !sp.cleaned && sp.tier !== 'protected'
                   && (mode !== 'cache_only' || sp.kind === 'cache') && (mode !== 'standard' || sp.kind !== 'config' || !app.keepPersonal));
                 return `
-                <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}" onclick="selectAppRow(${idx})">
+                <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}"${movingAttr(app)} onclick="selectAppRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${app.checked && selectable ? 'checked' : ''} ${selectable ? '' : 'disabled'} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
                     ${app.icon
@@ -6079,7 +6179,7 @@ function renderModule() {
               <div class="insp-note">${t('{n} 项 · {size} · 分配超过 100 MB，最多 50 项', {n: largeFiles.length, size: fmtDiskSizeGb(totalLfGb)})}</div>
               <div class="list-body" role="region" aria-label="${t('当前范围的大文件列表')}" tabindex="0">
                 ${largeFiles.length === 0 ? `<div class="insp-empty">${q ? t('当前搜索没有匹配的大文件；清空搜索可查看本层全部结果。') : t('当前范围已读取的部分没有符合条件的大文件；未读取路径不在此结论内。')}</div>` : largeFiles.map((lf, idx) => `
-                <div class="list-row">
+                <div class="list-row"${movingAttr(lf)}>
                   <div class="row-left">
                     <span class="row-glyph">${get_skeuo_svg('file', 'lf' + idx)}</span>
                     <div style="min-width:0;">
@@ -6192,7 +6292,7 @@ function renderModule() {
           ${purgeRootsHTML()}
           <div class="list-body">
             ${STATE.purgeItems.map((item, idx) => !matchesSearch(item) ? '' : `
-              <div class="list-row ${idx === STATE.selectedPurgeIdx ? 'selected' : ''}" onclick="selectPurgeRow(${idx})">
+              <div class="list-row ${idx === STATE.selectedPurgeIdx ? 'selected' : ''}"${movingAttr(item)} onclick="selectPurgeRow(${idx})">
                 <div class="row-left">
                   ${item.tier === 'protected'
                     ? `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`
@@ -6237,7 +6337,7 @@ function renderModule() {
             <div style="display:flex;flex-direction:column;gap:5px;">
               ${!STATE.installerFiles.length ? `<div class="insp-empty" data-installer-empty>${STATE.scanCompleted ? t('已检查下载、桌面、文稿等常见位置，没有找到 dmg、pkg、mpkg、iso、xip 安装包，或里面含有安装程序的 zip。') : t('扫描完成后，这里列出下载、桌面、文稿等常见位置里的安装包。')}</div>` : ''}
               ${STATE.installerFiles.map((inst, idx) => !matchesSearch(inst) ? '' : `
-                <div class="subpath-item">
+                <div class="subpath-item"${movingAttr(inst)}>
                   <div class="subpath-left">
                     ${inst.tier === 'protected'
                       ? `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`
@@ -6644,7 +6744,7 @@ function buildCleanEntries(module = STATE.module) {
     selP.forEach(p => entries.push({
       entity: p, label: `${p.project}/${p.artifact}`, sizeGb: Number(p.sizeGb) || 0,
       paths: p.path ? [absolutePath(p.path)] : [], regKeys: [p.path].filter(Boolean),
-      commit: () => { p.sizeGb = 0; p.checked = false; p.cleaned = true; p.failed = false; },
+      commit: () => { p.origSizeGb = p.sizeGb; p.sizeGb = 0; p.checked = false; p.cleaned = true; p.failed = false; },
       onFail: failed => markItemFailed(STATE.purgeItems, p, failed)
     }));
     selI.forEach(i => entries.push({
@@ -6972,6 +7072,7 @@ document.addEventListener('keydown', (e) => {
     // Enter / Space activate click-only controls.
     if ((e.key === 'Enter' || e.key === ' ') && t.matches('[role="button"],[role="tab"],th[tabindex]')) {
       e.preventDefault();
+      if (t.getAttribute('aria-disabled') === 'true') return;
       t.click();
       return;
     }
@@ -7011,9 +7112,10 @@ document.addEventListener('keydown', (e) => {
   window.onNativeRealScanStarted = function () { noteNativeScanStarted(); beginScan(); updateSidebarBadges(); renderModule(); };
 
   function listPlaceholder() {
-    if (scanning || STATE.module === 'analyze' && STATE.analyzeLoading) {
+    const refreshingList = refreshing && !STATE.searchQuery && STATE.module !== 'analyze';
+    if (scanning || refreshingList || STATE.module === 'analyze' && STATE.analyzeLoading) {
       const row = '<div class="skel-row"><span class="skel skel-dot"></span><div style="flex:1;min-width:0;"><span class="skel skel-line" style="width:46%"></span><span class="skel skel-line" style="width:68%;height:8px"></span></div><span class="skel skel-size"></span></div>';
-      return '<div role="status" aria-label="' + t('正在扫描') + '">' + row.repeat(6) + '</div>';
+      return '<div role="status" aria-label="' + (scanning ? t('正在扫描') : refreshingList ? t('正在刷新扫描结果') : t('正在扫描')) + '">' + row.repeat(6) + '</div>';
     }
     let icon = 'search', title, desc, label, act;
     if (STATE.module === 'analyze' && (STATE.drillStack || []).length) {
@@ -7070,8 +7172,9 @@ document.addEventListener('keydown', (e) => {
     if (items) {
       const eligible = items.some(item => item.checked && !item.cleaned && (Array.isArray(item.subpaths) ? selectedSubpaths(item, STATE.module === 'software' && STATE.softwarePanelMode !== 'leftovers' ? STATE.uninstallMode : undefined).length > 0 : item.sizeGb > 0));
       const needsScan = !STATE.scanCompleted && !items.length;
-      pbt.textContent = pendingTrashRequests.size ? t('等待回执') : needsScan && !scanning ? t('开始扫描') : t('预览所选');
-      pbtn.disabled = scanning || pendingTrashRequests.size > 0 || (!needsScan && (!STATE.scanCompleted || !eligible));
+      const refreshEmpty = refreshing && !items.length && !pendingTrashRequests.size;
+      pbt.textContent = busyTrash() ? t('正在移入废纸篓') : pendingTrashRequests.size ? t('等待回执') : refreshEmpty ? t('正在刷新扫描结果') : needsScan && !scanning ? t('开始扫描') : t('预览所选');
+      pbtn.disabled = scanning || pendingTrashRequests.size > 0 || refreshEmpty || (!needsScan && (!STATE.scanCompleted || !eligible));
       if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary()) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
     } else {
       pbtn.disabled = STATE.module === 'optimize' && (optimizeBusy() || !optimizeSelectedIds().length);
@@ -7086,7 +7189,7 @@ document.addEventListener('keydown', (e) => {
     rescan.textContent = t('刷新扫描');
     const themeBtn = document.getElementById('btnTheme');
     if (themeBtn && STATE.theme) themeBtn.textContent = themeLabel(STATE.theme);
-    rescan.closest('button').disabled = scanning;
+    rescan.closest('button').disabled = scanning || pendingTrashRequests.size > 0;
     rescan.closest('button').classList.toggle('busy', scanning);
     rescan.closest('button').setAttribute('aria-busy', scanning ? 'true' : 'false');
     rescan.closest('button').hidden = STATE.module === 'analyze';
@@ -7137,7 +7240,7 @@ document.addEventListener('keydown', (e) => {
     stage.querySelectorAll('.list-body').forEach(n => {
       if (n.textContent.trim() === '' && !n.querySelector('svg,img,input')) n.innerHTML = listPlaceholder();
     });
-    if (scanning) stage.querySelectorAll('.scan-empty').forEach(card => { card.innerHTML = listPlaceholder(); });
+    if (scanning || refreshing && STATE.module !== 'analyze' && !STATE.searchQuery) stage.querySelectorAll('.scan-empty').forEach(card => { card.innerHTML = listPlaceholder(); });
     stage.querySelectorAll('.master-detail-grid').forEach(grid => {
       const first = grid.querySelector('.panel-card');
       const hasInstallers = STATE.module === 'purge' && STATE.installerFiles.some(matchesSearch);
@@ -7162,7 +7265,18 @@ document.addEventListener('keydown', (e) => {
       stage.querySelectorAll('[data-idx]').forEach(n => { const t = tiles[Number(n.dataset.idx)]; n.classList.toggle('picked', !!t && isCollected(t)); });
       focusAnalyzeItem();
     }
-
+    const busy = busyTrash();
+    pbtn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    delete stage.dataset.trashBusy; // 舞台元素跨模块复用，标记只属于当前这次渲染
+    if (busy) {
+      const copy = trashBusyCopy(busy), put = (id, text) => { document.getElementById(id).textContent = text; };
+      put('scanSourceBadge', copy.badge); put('heroHeadline', copy.headline); put('heroDesc', copy.desc);
+      put('heroStatLabel', copy.statLabel); put('heroStatValue', copy.statValue); put('heroStatSub', copy.statSub);
+      lockStageForTrash(stage);
+    } else if (refreshing && lists[STATE.module] && !lists[STATE.module].length) {
+      document.getElementById('heroHeadline').textContent = t('正在刷新扫描结果');
+      document.getElementById('heroDesc').textContent = t('已移入废纸篓的项目已从列表移除，扫描完成后显示最新结果。');
+    }
   }
 
   // With nothing scanned yet the primary button scans instead of opening an empty confirm sheet.
@@ -7179,7 +7293,7 @@ document.addEventListener('keydown', (e) => {
 
   const prevScan = triggerNativeRescan;
   triggerNativeRescan = function () {
-    if (scanning) return;
+    if (scanning || pendingTrashRequests.size) return;
     if (hasBridge()) beginScan();
     prevScan.apply(this, arguments);
     updateSidebarBadges();

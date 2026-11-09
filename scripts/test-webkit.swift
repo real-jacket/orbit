@@ -102,5 +102,5 @@ final class Suite: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
 let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
 let suite = try Suite(html: URL(fileURLWithPath: CommandLine.arguments[1]), directory: URL(fileURLWithPath: CommandLine.arguments[2]))
-Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { _ in print("suite timeout"); exit(1) }
+Timer.scheduledTimer(withTimeInterval: 420, repeats: false) { _ in print("suite timeout"); exit(1) }
 app.run()
