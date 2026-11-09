@@ -27,7 +27,13 @@ type moleRule struct {
 	owners     []string // processes that hold the data open
 	cli        string   // command line tool that holds the data open
 	keepNewest int      // the newest N matches are kept (protected)
+	// find lists matches that a glob cannot express (a guard, an age, a
+	// running owner). The rule's paths then only tie the owners to folders.
+	find func(s *Scanner) []moleHit
 }
+
+// moleHit is one path found by a rule's find hook, with its own reason.
+type moleHit struct{ path, reason string }
 
 // moleGroup is one clean row built from rules.
 type moleGroup struct {
@@ -148,7 +154,7 @@ func deviceSupportRules() []moleRule {
 	return rules
 }
 
-var moleGroups = []moleGroup{
+var moleGroups = append([]moleGroup{
 	{
 		id: "browser_profiles", category: "浏览器缓存", name: "Chromium 系浏览器与 Firefox 缓存",
 		impact:  "浏览器的页面、代码和着色器缓存可以重建，不影响书签、密码和登录状态；Service Worker 的缓存存储由你确认。",
@@ -325,7 +331,7 @@ var moleGroups = []moleGroup{
 				"Apple Intelligence extension", containers+"com.apple.NeptuneOneExtension/Data/Library/Caches/*"),
 		),
 	},
-}
+}, gapGroups...)
 
 // electronRules is the Chromium-style cache folders of one Electron app.
 func electronRules(name string, owners []string, base string, leaves ...string) []moleRule {
@@ -404,8 +410,16 @@ func (s *Scanner) moleGroupSpecs() []CatalogSpec {
 		tier := "safe"
 		for _, rule := range group.rules {
 			var matches []string
-			for _, pattern := range rule.paths {
-				matches = append(matches, s.globHome(pattern)...)
+			hitReason := map[string]string{}
+			if rule.find != nil {
+				for _, hit := range rule.find(s) {
+					matches = append(matches, hit.path)
+					hitReason[hit.path] = hit.reason
+				}
+			} else {
+				for _, pattern := range rule.paths {
+					matches = append(matches, s.globHome(pattern)...)
+				}
 			}
 			if rule.keepNewest > 0 {
 				sort.SliceStable(matches, func(i, j int) bool { return modifiedTime(matches[i]) > modifiedTime(matches[j]) })
@@ -415,6 +429,9 @@ func (s *Scanner) moleGroupSpecs() []CatalogSpec {
 					continue
 				}
 				v := verdict{tier: rule.tier, reason: rule.reason}
+				if reason := hitReason[path]; reason != "" {
+					v.reason = reason
+				}
 				if i < rule.keepNewest {
 					v = verdict{tier: "protected", reason: moleKeepReason}
 				}

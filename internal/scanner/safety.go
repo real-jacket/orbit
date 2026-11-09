@@ -241,6 +241,9 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 			return "应用仍在运行，请先正常退出后重新扫描"
 		}
 	}
+	if reason := s.gapsCleanupReason(path, live); reason != "" {
+		return reason
+	}
 	for _, spec := range aiVersionSpecs {
 		root := filepath.Join(s.home, spec.root)
 		if !withinPath(path, root) {
