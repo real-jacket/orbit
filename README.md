@@ -4,7 +4,7 @@
 
 # orbit
 
-**A native macOS disk cleaner, inspired by the [`mo`](https://github.com/tw93/mole) CLI.**
+**A standalone macOS disk cleaner. No [Mole](https://github.com/tw93/mole) / `mo` CLI needed.**
 
 Go · MyGo · WKWebView — no Electron, no bundled runtime.
 
@@ -16,7 +16,7 @@ Go · MyGo · WKWebView — no Electron, no bundled runtime.
 
 </div>
 
-> The application is **orbit**. It is a standalone desktop app; it does not need `mo` installed.
+> orbit does not call, bundle or require the `mo` CLI. Mole's cleanup rules are ported into Go and run inside the app.
 > The bundle is `orbit.app`; the bundle identifier stays `com.mymoles.mole-studio`, so permissions and data from earlier `MoleStudio` builds carry over.
 
 ---
@@ -76,7 +76,7 @@ Beyond the module list:
   go install github.com/egoist/mygo/cmd/mygo@v0.6.4
   ```
 
-- The current scanner and cleanup paths run in-process and do not require the historical `mo` CLI.
+- The current scanner and cleanup paths run in-process and do not require the `mo` CLI.
 
 ## Build and run
 
@@ -354,11 +354,11 @@ The app deletes files, so the guardrails are the point:
 
 ## Relationship to upstream
 
-This project is an independent GUI client. It is **not** affiliated with or endorsed by
-[tw93/mole](https://github.com/tw93/mole), and it does not redistribute or run the `mo` binary.
+orbit is a standalone app, not a front end for `mo`: it does not redistribute, call or require the `mo`
+binary. It is **not** affiliated with or endorsed by [tw93/mole](https://github.com/tw93/mole).
 
 Parts of its cleanup rules are ported from Mole V1.70.0 (shell → Go). Upstream `mo` is licensed
-GPL-3.0, and this client is licensed GPL-3.0 to match. Each ported rule carries a comment such as
+GPL-3.0, and orbit is licensed GPL-3.0 to match. Each ported rule carries a comment such as
 `// Ported from tw93/Mole V1.70.0 lib/clean/user.sh clean_browsers`; `make mole-sync` reads those
 markers and prints what changed upstream in exactly those functions since, so the rules can follow new
 Mole releases. See [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md).
