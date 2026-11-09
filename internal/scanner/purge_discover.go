@@ -224,14 +224,15 @@ func gitTracksFiles(path string) (tracked, known bool) {
 	return len(bytes.TrimSpace(out)) > 0, true
 }
 
-// nodeModulesGuard says whether a node_modules folder can be reinstalled from
-// its lockfile: the project needs a package.json and a lockfile whose package
-// manager record is inside, and nothing inside may be newer than that record.
+// nodeModulesGuard says what to check before a node_modules folder is cleaned: the
+// project needs a package.json and a lockfile whose package manager record is
+// inside, and nothing inside may be newer than that record. Mole holds these
+// back by default, which orbit shows as review (unchecked), not protected.
 // Ported from tw93/Mole V1.70.0 lib/clean/project.sh purge_node_modules_is_protected
-func nodeModulesGuard(path string, deadline time.Time) (protect, unverified string) {
+func nodeModulesGuard(path string, deadline time.Time) (review string) {
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return "", "没能在时限内确认里面没有项目自己的文件，请确认后再清理"
+		return "没能在时限内确认里面没有项目自己的文件，请确认后再清理"
 	}
 	project := filepath.Dir(real)
 	regular := func(file string) (os.FileInfo, bool) {
@@ -239,7 +240,7 @@ func nodeModulesGuard(path string, deadline time.Time) (protect, unverified stri
 		return info, err == nil && info.Mode().IsRegular()
 	}
 	if _, ok := regular(filepath.Join(project, "package.json")); !ok {
-		return "上一级目录没有 package.json，无法确认依赖能重新安装，保持原状", ""
+		return "上一级目录没有 package.json，无法确认依赖能重新安装；确认项目不再需要这些依赖后再清理"
 	}
 	var marker os.FileInfo
 	for _, pair := range [][2]string{
@@ -255,21 +256,32 @@ func nodeModulesGuard(path string, deadline time.Time) (protect, unverified stri
 		}
 	}
 	if marker == nil {
-		return "没有找到锁文件和包管理器的安装记录，无法确认依赖能重新安装，保持原状", ""
+		return "没有找到锁文件或包管理器的安装记录，无法确认依赖能原样重装；确认项目还能重新安装后再清理（npm install、pnpm install 或 yarn install）"
 	}
-	found, complete := hasNewerFile(real, marker.ModTime().Unix(), deadline, true)
+	found, complete := hasNewerFile(real, marker.ModTime().Unix(), deadline)
 	if found {
-		return "依赖目录里有安装之后新增或改动的文件，可能是手动修改，保持原状", ""
+		return "安装之后有文件被改动过，可能是手动打的补丁；确认不需要后再清理，清理后重新执行 npm install（或 pnpm、yarn install）即可重建"
 	}
 	if !complete {
-		return "", "没能在时限内确认里面没有项目自己的文件，请确认后再清理"
+		return "没能在时限内确认里面没有项目自己的文件，请确认后再清理"
 	}
-	return "", ""
+	return ""
 }
 
-// hasNewerFile looks for a regular file modified after mtime, skipping the
-// top-level .cache folder. complete is false when the walk could not finish.
-func hasNewerFile(dir string, mtime int64, deadline time.Time, top bool) (found, complete bool) {
+// Tool state the package managers and bundlers rewrite on their own; it says
+// nothing about hand edits. Mole skips only the top-level .cache; orbit also
+// skips the other well-known cache folders and install records.
+var (
+	nodeToolDirs  = map[string]bool{".cache": true, ".vite": true, ".vite-temp": true, ".parcel-cache": true, ".turbo": true, ".eslintcache": true}
+	nodeToolFiles = map[string]bool{
+		".package-lock.json": true, ".modules.yaml": true, ".yarn-state.yml": true, ".yarn-integrity": true,
+		".pnpm-workspace-state.json": true, ".pnpm-workspace-state-v1.json": true, ".eslintcache": true, ".DS_Store": true, "lock.yaml": true,
+	}
+)
+
+// hasNewerFile looks for a regular file modified after mtime, skipping tool
+// caches and records. complete is false when the walk could not finish.
+func hasNewerFile(dir string, mtime int64, deadline time.Time) (found, complete bool) {
 	if time.Now().After(deadline) {
 		return false, false
 	}
@@ -280,10 +292,10 @@ func hasNewerFile(dir string, mtime int64, deadline time.Time, top bool) (found,
 	complete = true
 	for _, item := range items {
 		switch {
-		case item.kind == itemFile && item.mtime > mtime:
+		case item.kind == itemFile && item.mtime > mtime && !nodeToolFiles[item.name]:
 			return true, true
-		case item.kind == itemDir && !(top && item.name == ".cache"):
-			subFound, subComplete := hasNewerFile(dir+"/"+item.name, mtime, deadline, false)
+		case item.kind == itemDir && !nodeToolDirs[item.name]:
+			subFound, subComplete := hasNewerFile(dir+"/"+item.name, mtime, deadline)
 			if subFound {
 				return true, true
 			}
@@ -310,10 +322,8 @@ func guardArtifact(c *artifactCandidate, deadline time.Time) {
 		c.unverified = "没能在时限内确认里面没有项目自己的文件，请确认后再清理"
 	}
 	if c.name == "node_modules" {
-		protect, unverified := nodeModulesGuard(c.path, deadline)
-		c.protect = protect
-		if unverified != "" && c.unverified == "" {
-			c.unverified = unverified
+		if review := nodeModulesGuard(c.path, deadline); review != "" {
+			c.unverified = review
 		}
 	}
 }
@@ -389,7 +399,7 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 		switch {
 		case c.protect != "":
 			v = verdict{tier: "protected", reason: c.protect}
-		case v.tier == "safe" && c.unverified != "":
+		case v.tier != "protected" && c.unverified != "":
 			v = verdict{tier: "review", reason: c.unverified}
 		case v.tier == "safe" && c.partial:
 			v = verdict{tier: "review", reason: "目录太大没有读完，无法确认里面最近是否改动过，请确认后再清理"}

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -108,20 +109,29 @@ func TestArtifactProtections(t *testing.T) {
 			t.Error("a folder with Git-tracked files is protected")
 		}
 	}
-	// node_modules: reproducible with a lockfile and install record, protected without.
+	// node_modules: reproducible with a lockfile and install record; anything else is review, never protected.
 	nodeProject(t, home, "app")
-	if c := guard("app/node_modules"); c.protect != "" {
-		t.Errorf("a reproducible node_modules is not protected: %+v", c)
-	}
-	writeFile(t, filepath.Join(home, "app/node_modules/hand-edited.js"), "x")
 	future := time.Now().Add(time.Hour)
-	_ = os.Chtimes(filepath.Join(home, "app/node_modules/hand-edited.js"), future, future)
-	if c := guard("app/node_modules"); c.protect == "" {
-		t.Error("a file newer than the install record protects node_modules")
+	touch := func(rel string) {
+		writeFile(t, filepath.Join(home, rel), "x")
+		_ = os.Chtimes(filepath.Join(home, rel), future, future)
+	}
+	if c := guard("app/node_modules"); c.protect != "" || c.unverified != "" {
+		t.Errorf("a reproducible node_modules needs no check: %+v", c)
+	}
+	touch("app/node_modules/.vite/deps/chunk.js")
+	touch("app/node_modules/.cache/babel/x.json")
+	touch("app/node_modules/.modules.yaml")
+	if c := guard("app/node_modules"); c.protect != "" || c.unverified != "" {
+		t.Errorf("tool caches and install records are not hand edits: %+v", c)
+	}
+	touch("app/node_modules/hand-edited.js")
+	if c := guard("app/node_modules"); c.protect != "" || c.unverified == "" || strings.Contains(c.unverified, "保持原状") {
+		t.Errorf("a file newer than the install record is review with a reason: %+v", c)
 	}
 	fixtureDir(t, home, "nolock/node_modules", 10)
-	if c := guard("nolock/node_modules"); c.protect == "" {
-		t.Error("node_modules without package.json is protected")
+	if c := guard("nolock/node_modules"); c.protect != "" || c.unverified == "" || strings.Contains(c.unverified, "保持原状") {
+		t.Errorf("node_modules without a lockfile record is review with a reason: %+v", c)
 	}
 }
 
