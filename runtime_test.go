@@ -32,3 +32,19 @@ func TestRuntimeIdentityReadsTheExactBundle(t *testing.T) {
 		t.Fatalf("bundle identifier = %v", status["identifier"])
 	}
 }
+
+func TestParseCodeSignatureTellsAdHocFromCertificateBuilds(t *testing.T) {
+	cert := "Identifier=x\nAuthority=orbit Self-Signed\ndesignated => identifier \"com.mymoles.mole-studio\" and certificate leaf = H\"aa\"\n"
+	id, adhoc := parseCodeSignature("/Applications/orbit.app", cert)
+	if adhoc || id != "/Applications/orbit.app|identifier \"com.mymoles.mole-studio\" and certificate leaf = H\"aa\"" {
+		t.Fatalf("certificate build: %q adhoc=%v", id, adhoc)
+	}
+	local := "Signature=adhoc\nTeamIdentifier=not set\n# designated => cdhash H\"bb\"\n"
+	id, adhoc = parseCodeSignature("/tmp/orbit.app", local)
+	if !adhoc || id != "/tmp/orbit.app|cdhash H\"bb\"" {
+		t.Fatalf("ad-hoc build: %q adhoc=%v", id, adhoc)
+	}
+	if id, _ := parseCodeSignature("/tmp/a.app", ""); id != "/tmp/a.app|unsigned" {
+		t.Fatalf("no codesign output: %q", id)
+	}
+}

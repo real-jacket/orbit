@@ -32,6 +32,7 @@ const appName = "orbit"
 // otherwise the executable's mtime is the honest answer.
 func fillBuildInfo() {
 	scanner.BuildTime = scanner.DescribeExecutable()
+	initCodeIdentity()
 }
 
 // buildVersion is the version the running build reports. `mygo build` writes
