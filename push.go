@@ -176,7 +176,7 @@ func cancelDiskAnalyze(requestID string) {
 // pushTrashResult sends the receipt for one trash request. The page only
 // claims "已成功清理" when this arrives, and it reports the refused and failed
 // paths instead of hiding them.
-func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
+func pushTrashResult(requestID string, outcome scanner.TrashOutcome, configRefs []scanner.ConfigRef) {
 	moved := make([]map[string]any, 0, len(outcome.Moved))
 	for _, entry := range outcome.Moved {
 		moved = append(moved, map[string]any{"original": entry.Original, "trashed": entry.Trashed})
@@ -197,6 +197,9 @@ func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
 		"skipped":      skipped,
 		"failed":       failed,
 		"restoreError": outcome.RestoreError,
+	}
+	if configRefs != nil { // only an uninstall asks for them; file and line, never the line's text
+		payload["configRefs"] = configRefs
 	}
 	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult(" + jsonOf(payload) + ") : undefined")
 }
