@@ -125,14 +125,29 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		pushRuntimeStatus(stringOf(payload["requestId"]), checkFolders)
 	case "menubarShowTools":
 		showFlyout()
-	case "executeOptimize":
+	case "requestOptimizePlan":
 		requestID := stringOf(payload["requestId"])
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 			defer cancel()
-			output, err := exec.CommandContext(ctx, "/usr/bin/qlmanage", "-r", "cache").CombinedOutput()
-			result := optimizeOutcome(requestID, output, err)
-			evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(result) + ") : undefined")
+			pushOptimizePlan(requestID, scanner.Shared.DiagnoseOptimize(ctx))
+		}()
+	case "executeOptimize":
+		requestID, ids := stringOf(payload["requestId"]), stringsOf(payload["tasks"])
+		go func() {
+			// Each task carries its own time limit; this only bounds a hung run.
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
+			err := scanner.Shared.RunOptimize(ctx, ids, func(r scanner.OptimizeReceipt) { pushOptimizeReceipt(requestID, r) })
+			pushOptimizeDone(requestID, err)
+		}()
+	case "undoOptimize":
+		requestID, id := stringOf(payload["requestId"]), stringOf(payload["task"])
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			receipt, err := scanner.Shared.UndoOptimize(ctx, id)
+			pushOptimizeUndo(requestID, id, receipt, err)
 		}()
 	case "releaseFileCache":
 		requestID := stringOf(payload["requestId"])

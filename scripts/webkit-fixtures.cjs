@@ -2205,6 +2205,37 @@ add('refresh-fallback-single-rescan', `
   qaAssert(__qa.actions.filter(a=>a.action==='requestRealSystemScan').length===1,'back-to-back operations cause exactly one fallback rescan, got '+__qa.actions.filter(a=>a.action==='requestRealSystemScan').length);
   endRefreshing();
 `);
+// 系统加速：诊断清单（需处理 / 需确认 / 无需处理 / 暂不处理 / 不可用）与执行回执。
+// 英文场景需要新页面的英文词条；词条并入 en-*.js 之前从 /tmp 的两份 TSV 补进来，并入之后这一步什么也不做。
+const optimizeExtra = {};
+for (const f of ['/tmp/orbit-i18n-optimize.tsv', '/tmp/orbit-i18n-optimize-ui.tsv']) {
+  if (fs.existsSync(f)) fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).forEach(l => { const [k, v] = l.split('\t'); optimizeExtra[k] = v; });
+}
+const optimizePlan = [
+  { id: 'cache_refresh', name: '刷新缩略图与图标缓存', detail: '重建 Quick Look 缩略图与图标服务缓存', status: 'needed', reason: '缩略图和图标缓存可以随时重建，刷新后预览会重新生成', tier: 'safe', undo: '无需撤销，缓存会按需重建', checked: true, runnable: true },
+  { id: 'saved_state_cleanup', name: '清理旧的应用窗口状态', detail: '把 30 天以上没动过的应用窗口状态移入废纸篓', status: 'needed', reason: '有 3 个超过 30 天的应用窗口状态，移入废纸篓后应用会按需重新生成', tier: 'safe', undo: '在这里点撤销，或在访达的废纸篓里放回原处', checked: true, runnable: true, items: ['~/Library/Saved Application State/com.example.one.savedState', '~/Library/Saved Application State/com.example.two.savedState', '~/Library/Saved Application State/com.example.three.savedState'] },
+  { id: 'prevent_network_dsstore', name: '禁止在网络与 U 盘上写 .DS_Store', detail: '设置 Finder 偏好，不再在网络共享和 U 盘上生成 .DS_Store', status: 'needed', reason: 'Finder 现在还会在网络共享和 U 盘上生成 .DS_Store', tier: 'safe', undo: '在这里点撤销，会恢复成设置前的值', checked: true, runnable: true },
+  { id: 'login_items_audit', name: '检查失效的登录项', detail: '核对登录项指向的应用是否还在，只报告，不修改', status: 'needed', reason: '核对登录项指向的应用是否还在；首次检查时 macOS 可能询问是否允许 orbit 控制“系统事件”', tier: 'review', undo: '不改动任何东西，无需撤销', checked: false, runnable: true },
+  { id: 'sqlite_vacuum', name: '整理邮件、Safari 与信息的数据库', detail: '先做完整性检查，再压缩数据库文件，不删除内容', status: 'skipped', reason: 'Mail, Safari 正在运行，数据库可能被占用，暂不整理', tier: 'protected', unlock: '退出 Mail, Safari 后重新扫描即可整理这些数据库', undo: '无需撤销，数据库内容不变', checked: false, runnable: false },
+  { id: 'fix_broken_configs', name: '修复损坏的偏好设置', detail: '把无法读取的第三方偏好设置文件移入废纸篓，应用下次启动会重新生成', status: 'clear', reason: '第三方偏好设置文件都正常', tier: 'safe', undo: '在这里点撤销，或在访达的废纸篓里放回原处', checked: false, runnable: false },
+  { id: 'network_optimization', name: '刷新 DNS 缓存', detail: '清空系统 DNS 缓存', status: 'unavailable', reason: '需要管理员权限，orbit 不执行', tier: 'protected', undo: '不执行，没有改动', checked: false, runnable: false },
+  { id: 'quarantine_cleanup', name: '清理下载隔离记录', detail: '清除 Gatekeeper 的下载追踪历史', status: 'unavailable', reason: '会直接删除数据库里的记录，无法放进废纸篓还原，orbit 不执行', tier: 'protected', undo: '不执行，没有改动', checked: false, runnable: false },
+];
+const optimizeReceipts = [
+  { id: 'cache_refresh', ok: true, outcome: 'applied', summary: '缩略图与图标缓存已刷新', undo: '无需撤销，缓存会按需重建', canUndo: false },
+  { id: 'saved_state_cleanup', ok: true, outcome: 'attention', summary: '已把 2 项移入废纸篓，另有 1 项没有处理', details: ['~/Library/Saved Application State/com.example.one.savedState', '~/Library/Saved Application State/com.example.two.savedState'], failed: [{ path: '~/Library/Saved Application State/com.example.three.savedState', error: '这些项目都没能移入废纸篓' }], undo: '在这里点撤销，或在访达的废纸篓里放回原处', canUndo: true },
+  { id: 'prevent_network_dsstore', ok: true, outcome: 'applied', summary: '已设置 2 项 Finder 偏好', details: ['com.apple.desktopservices DSDontWriteNetworkStores'], undo: '在这里点撤销，会恢复成设置前的值', canUndo: true },
+];
+const optimizeLoad = `STATE.optimize.status==='loading'||requestOptimizePlan();onNativeOptimizePlan({requestId:STATE.optimize.planId,items:${JSON.stringify(optimizePlan)}});I18N.add(Object.fromEntries(Object.entries(${JSON.stringify(optimizeExtra)}).filter(([k])=>I18N.entries()[k]===undefined)));`;
+const optimizeChecks = `const rows=[...document.querySelectorAll('[data-optimize-task]')];qaAssert(rows.length===8,'every task is listed');qaAssert(rows.filter(r=>r.querySelector('input[type=checkbox]')).length===4,'only runnable tasks have a checkbox');qaAssert(STATE.optimize.items.filter(i=>i.runnable&&STATE.optimize.sel[i.id]).map(i=>i.id).join()==='cache_refresh,saved_state_cleanup,prevent_network_dsstore','safe tasks are checked, the review task is not');qaAssert(document.getElementById('primaryBtnText').textContent.length>0,'primary button has text');`;
+const optimizeReceiptStep = `STATE.optimize.receipts=Object.fromEntries(${JSON.stringify(optimizeReceipts)}.map(r=>[r.id,r]));renderModule();qaAssert(document.querySelectorAll('[data-optimize-receipt]').length===3,'each run task shows a receipt');qaAssert(document.querySelectorAll('[data-optimize-receipt] button').length===2,'only undoable receipts offer undo');`;
+for (const theme of ['dark', 'light']) {
+  const go = `document.documentElement.dataset.theme='${theme}';switchModule('optimize');${optimizeLoad}`;
+  add(`optimize-zh-${theme}`, `${go}${optimizeChecks}`);
+  add(`optimize-receipts-zh-${theme}`, `${go}${optimizeChecks}${optimizeReceiptStep}`);
+  add(`en-optimize-${theme}`, `${go}await qaEn('optimize',async()=>{});${optimizeChecks}`);
+  add(`en-optimize-receipts-${theme}`, `${go}await qaEn('optimize receipts',async()=>{${optimizeReceiptStep}});`);
+}
 // Icon contact sheet: every module glyph on its real plates (sidebar gradient, palette/hero wash) at 28 and 56px.
 function iconSheet(theme) {
   document.documentElement.dataset.theme = theme;

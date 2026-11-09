@@ -227,6 +227,33 @@ func pushMeasureResult(requestID string, outcome scanner.MeasureOutcome) {
 	evaluate("window.onNativeMeasureResult ? window.onNativeMeasureResult(" + jsonOf(payload) + ") : undefined")
 }
 
+// pushOptimizePlan sends the diagnosis the 系统加速 page lists before anything runs.
+func pushOptimizePlan(requestID string, plan scanner.OptimizePlan) {
+	evaluate("window.onNativeOptimizePlan ? window.onNativeOptimizePlan(" + jsonOf(map[string]any{"requestId": requestID, "items": plan.Items}) + ") : undefined")
+}
+
+// pushOptimizeReceipt sends one finished task as soon as it ends.
+func pushOptimizeReceipt(requestID string, receipt scanner.OptimizeReceipt) {
+	evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(map[string]any{"requestId": requestID, "receipt": receipt}) + ") : undefined")
+}
+
+// pushOptimizeDone marks the end of a run; err is set when it never started.
+func pushOptimizeDone(requestID string, err error) {
+	payload := map[string]any{"requestId": requestID, "done": true, "ok": err == nil}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(payload) + ") : undefined")
+}
+
+func pushOptimizeUndo(requestID, id string, receipt scanner.OptimizeReceipt, err error) {
+	payload := map[string]any{"requestId": requestID, "id": id, "ok": err == nil && receipt.OK, "receipt": receipt}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	evaluate("window.onNativeOptimizeUndo ? window.onNativeOptimizeUndo(" + jsonOf(payload) + ") : undefined")
+}
+
 // pushDoctorReport sends the 体检 rows the page renders.
 func pushDoctorReport(requestID string, checks []map[string]any) {
 	if checks == nil {

@@ -117,16 +117,62 @@ assert.equal(context.STATE.appsList.length, 1, 'configuration-only removal keeps
 assert.equal(app.cacheSizeGb, 1, 'unselected cache size is preserved');
 assert.equal(app.configSizeGb, 0);
 
-context.STATE.optimizeTasks = [{ requestId: 'opt-1', requested: true, done: false }];
-loadCallback('onNativeOptimizeResult');
-context.onNativeOptimizeResult({ requestId: 'other', ok: true });
-assert.equal(context.STATE.optimizeTasks[0].done, false, 'unrelated maintenance receipt is ignored');
-context.onNativeOptimizeResult({ requestId: 'opt-1', ok: false, error: 'Permission denied' });
-assert.equal(context.STATE.optimizeTasks[0].done, false);
-assert.equal(context.STATE.optimizeTasks[0].error, 'Permission denied');
-context.STATE.optimizeTasks[0].requested = true;
-context.onNativeOptimizeResult({ requestId: 'opt-1', ok: true });
-assert.equal(context.STATE.optimizeTasks[0].done, true);
+// 系统加速：诊断 → 勾选 → 执行 → 回执 → 撤销。每一步只认自己的 requestId。
+const optSent = [];
+const optToasts = [];
+context.sendNativeBridge = payload => optSent.push(payload);
+context.nextRequestId = kind => kind + '-test-' + (optSent.length + 1);
+context.showToast = text => optToasts.push(text);
+context.setTimeout = () => 0;
+loadConst('OPTIMIZE_RUN_LIMIT_MS');
+['optimizeBusy', 'optimizeSelectedIds', 'requestOptimizePlan', 'toggleOptimizeSel', 'runOptimizeSelected', 'undoOptimizeTask'].forEach(name => load(name));
+['onNativeOptimizePlan', 'onNativeOptimizeResult', 'onNativeOptimizeUndo'].forEach(name => loadCallback(name));
+context.STATE.optimize = { status: 'idle', planId: '', error: '', items: [], sel: {}, receipts: {}, running: false, runId: '', undoing: {} };
+const optState = () => context.STATE.optimize;
+vm.runInContext('requestOptimizePlan()', context);
+assert.equal(optSent[0].action, 'requestOptimizePlan');
+assert.equal(optState().status, 'loading');
+context.onNativeOptimizePlan({ requestId: 'other', items: [] });
+assert.equal(optState().status, 'loading', 'a plan for another request is ignored');
+const planItems = [
+  { id: 'a', name: 'A', detail: 'd', status: 'needed', reason: 'r', tier: 'safe', undo: 'u', checked: true, runnable: true },
+  { id: 'b', name: 'B', detail: 'd', status: 'needed', reason: 'r', tier: 'review', undo: 'u', checked: false, runnable: true },
+  { id: 'c', name: 'C', detail: 'd', status: 'unavailable', reason: '需要管理员权限，orbit 不执行', tier: 'protected', undo: 'u', checked: false, runnable: false },
+  { id: 'd', name: 'D', detail: 'd', status: 'clear', reason: 'r', tier: 'safe', undo: 'u', checked: false, runnable: false },
+];
+context.onNativeOptimizePlan({ requestId: optSent[0].requestId, items: planItems });
+assert.equal(optState().status, 'ready');
+assert.deepEqual(JSON.parse(JSON.stringify(optState().sel)), { a: true, b: false }, 'only runnable tasks get a checkbox, and only safe ones start checked');
+vm.runInContext("toggleOptimizeSel('c')", context);
+assert.equal(optState().sel.c, undefined, 'an unavailable task cannot be selected');
+vm.runInContext("toggleOptimizeSel('b')", context);
+assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(optimizeSelectedIds())', context)), ['a', 'b']);
+vm.runInContext('runOptimizeSelected()', context);
+const runMsg = optSent[optSent.length - 1];
+assert.equal(runMsg.action, 'executeOptimize');
+assert.deepEqual(JSON.parse(JSON.stringify(runMsg.tasks)), ['a', 'b'], 'the page sends ids only');
+vm.runInContext('runOptimizeSelected()', context);
+assert.equal(optSent.filter(m => m.action === 'executeOptimize').length, 1, 'a run in progress cannot be started twice');
+context.onNativeOptimizeResult({ requestId: 'other', receipt: { id: 'a', ok: true, outcome: 'applied' } });
+assert.equal(optState().receipts.a, undefined, 'a receipt for another run is ignored');
+context.onNativeOptimizeResult({ requestId: runMsg.requestId, receipt: { id: 'a', ok: true, outcome: 'applied', summary: 's', canUndo: true } });
+context.onNativeOptimizeResult({ requestId: runMsg.requestId, receipt: { id: 'b', ok: false, outcome: 'failed', summary: 's', error: 'e' } });
+assert.equal(optState().running, true, 'still running until the done marker arrives');
+context.onNativeOptimizeResult({ requestId: runMsg.requestId, done: true, ok: true });
+assert.equal(optState().running, false);
+assert.match(optToasts[optToasts.length - 1], /1 项没有成功/, 'the toast counts the failure instead of claiming success');
+assert.equal(optSent[optSent.length - 1].action, 'requestOptimizePlan', 'the plan is re-read after a run');
+context.onNativeOptimizePlan({ requestId: optSent[optSent.length - 1].requestId, items: planItems });
+vm.runInContext("undoOptimizeTask('a')", context);
+const undoMsg = optSent[optSent.length - 1];
+assert.deepEqual(JSON.parse(JSON.stringify(undoMsg)), { action: 'undoOptimize', requestId: undoMsg.requestId, task: 'a' });
+context.onNativeOptimizeUndo({ requestId: 'other', id: 'a', ok: true, receipt: { ok: true } });
+assert.ok(optState().undoing.a, 'an undo receipt for another request is ignored');
+context.onNativeOptimizeUndo({ requestId: undoMsg.requestId, id: 'a', ok: true, receipt: { id: 'a', ok: true, summary: 'done' } });
+assert.equal(optState().receipts.a.isUndo, true);
+assert.equal(optState().undoing.a, undefined);
+delete context.sendNativeBridge; delete context.setTimeout;
+context.showToast = () => {};
 
 const elements = new Map();
 context.document = { getElementById(id) {

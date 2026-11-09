@@ -1508,7 +1508,7 @@
           </span>
           <span id="navLabelOptimize" data-i18n>系统加速</span>
         </div>
-        <span class="nav-meta" id="navMetaOptimize" data-i18n>1 项</span>
+        <span class="nav-meta" id="navMetaOptimize" data-i18n>待检查</span>
       </div>
 
       <div class="nav-item" data-mod="analyze" data-code="Astrolabe · 星图仪" onclick="switchModule('analyze')">
@@ -2058,7 +2058,6 @@ const DEFAULT_STATE = {
   basketOpen: false,
   analyzeSel: 0,
   insightsOpen: false,
-  optimizeTasks: [{ name: '重置 Quick Look 缩略图缓存', detail: '执行 qlmanage -r cache，让访达和预览重新生成缩略图。', done: false }],
   procSortKey: 'cpu',
   searchQuery: '',
   theme: 'dark',
@@ -2141,7 +2140,9 @@ const DEFAULT_STATE = {
   homePath: '',
   registrySavedAt: 0,
   // 体检项由 buildDoctorChecks() 在每次打开/复诊时根据真实 telemetry 生成，不再写死「全部通过」。
-  doctorChecks: []
+  doctorChecks: [],
+  // 系统加速：先诊断再执行。items 是 Go 的诊断结果，sel 是勾选，receipts 是每项的执行回执（不落盘）。
+  optimize: { status: 'idle', planId: '', error: '', items: [], sel: {}, receipts: {}, running: false, runId: '', undoing: {} }
 };
 
 // Load persisted state from localStorage so deleted/uninstalled items NEVER reappear across reloads!
@@ -2192,7 +2193,7 @@ STATE.doctorChecks = [];
 STATE.fanMode = undefined;
 STATE.tempUnit = STATE.tempUnit === 'F' ? 'F' : 'C';
 STATE.scanCompleted = false;
-STATE.optimizeTasks = DEFAULT_STATE.optimizeTasks.map(t => ({ ...t, requested: false }));
+STATE.optimize = structuredClone(DEFAULT_STATE.optimize);   // 旧版本存下来的状态里没有这一项，也不该带上次的诊断结果
 
 function persistState() {
   try {
@@ -3696,6 +3697,8 @@ function updateSidebarBadges() {
   document.getElementById('navMetaSoftware').textContent = appGb > 0 ? appGb.toFixed(1) + ' GB' : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : t('{n} 应用', { n: STATE.appsList.length });
   document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !(STATE.purgeItems.length + STATE.installerFiles.length) ? t('无候选') : t('未勾选');
   document.getElementById('navMetaHistory').textContent = t('{n} 快照', { n: STATE.historyLogs.length });
+  const opt = STATE.optimize, optNeeded = opt.items.filter(it => it.runnable).length;
+  document.getElementById('navMetaOptimize').textContent = opt.running ? t('维护中') : opt.status === 'loading' ? t('检查中') : opt.status === 'error' ? t('检查失败') : opt.status === 'idle' ? t('待检查') : optNeeded ? t('{n} 项待处理', { n: optNeeded }) : t('无需处理');
   document.getElementById('sidebarFreeDisk').textContent = t('剩余 {free} GB', { free: fmtNum(STATE.freeDiskGb, 1, t('未知')) });
   document.getElementById('sidebarHealthSub').textContent = t('状态 {score}，{checks}', { score: healthScoreText(), checks: STATE.doctorChecks.length ? t('{n} 项体检', { n: STATE.doctorChecks.length }) : t('尚未体检') });
 }
@@ -3713,6 +3716,8 @@ window.switchModule = function(mod) {
   updateSidebarBadges();
   renderHeroIcon();
   renderModule();
+  // 系统加速每次进入都重新诊断（只读，不改任何东西），执行中不打断。
+  if (mod === 'optimize' && !optimizeBusy()) requestOptimizePlan();
   // 第一次进入空间分析才开始扫描；之后重进复用 Go 侧内存树（下钻是查表）。
   if (mod === 'analyze' && !STATE.analyzeLoading && (!STATE.analyzeStatus || STATE.analyzeStale)) {
     requestDiskAnalyze(STATE.analyzeRoot || '', STATE.analyzeStale);
@@ -4928,28 +4933,83 @@ function toggleInstallerCheck(idx) {
   renderModule();
 }
 
-function executeOptimizeTask(idx) {
-  const task = STATE.optimizeTasks[idx];
-  if (!task || task.requested) return;
-  task.requested = true;
-  task.done = false;
-  task.error = '';
-  task.requestId = nextRequestId('optimize');
-  const requestId = task.requestId;
-  window.setTimeout(() => window.onNativeOptimizeResult({ requestId, ok: false, error: '等待维护回执超时，请重试' }), 20000);
-  sendNativeBridge({ action: 'executeOptimize', requestId });
+const OPTIMIZE_RUN_LIMIT_MS = 11 * 60 * 1000;
+function optimizeBusy() { const o = STATE.optimize; return o.status === 'loading' || o.running || Object.keys(o.undoing).length > 0; }
+function optimizeSelectedIds() { const o = STATE.optimize; return o.items.filter(it => it.runnable && o.sel[it.id]).map(it => it.id); }
+function requestOptimizePlan() {
+  const o = STATE.optimize;
+  if (optimizeBusy()) return;
+  o.status = 'loading';
+  o.error = '';
+  const requestId = o.planId = nextRequestId('optplan');
+  window.setTimeout(() => { if (o.status === 'loading' && o.planId === requestId) window.onNativeOptimizePlan({ requestId, error: '检查超时，请重试' }); }, 60000);
+  sendNativeBridge({ action: 'requestOptimizePlan', requestId });
+  updateSidebarBadges();
   renderModule();
 }
-function runAllOptimizeTasks() { executeOptimizeTask(0); }
-window.onNativeOptimizeResult = function(result) {
-  const task = STATE.optimizeTasks.find(x => x.requested && x.requestId === (result && result.requestId));
-  if (!task) return;
-  task.requested = false;
-  task.done = result.ok === true;
-  task.error = task.done ? '' : String(result.error || '维护失败');
-  persistState();
+window.onNativeOptimizePlan = function(msg) {
+  const o = STATE.optimize;
+  if (!msg || msg.requestId !== o.planId || o.status !== 'loading') return;
+  if (msg.error || !Array.isArray(msg.items)) {
+    o.status = 'error';
+    o.error = String(msg.error || '检查失败');
+  } else {
+    o.status = 'ready';
+    o.items = msg.items;
+    o.sel = {};
+    msg.items.forEach(it => { if (it.runnable) o.sel[it.id] = it.checked === true; });
+  }
+  updateSidebarBadges();
   renderModule();
-  showToast(task.done ? t('Quick Look 缩略图缓存已重置') : t(task.error));
+};
+function toggleOptimizeSel(id) {
+  const o = STATE.optimize;
+  if (o.running || !o.items.some(it => it.id === id && it.runnable)) return;
+  o.sel[id] = !o.sel[id];
+  renderModule();
+}
+function runOptimizeSelected() {
+  const o = STATE.optimize;
+  const ids = optimizeSelectedIds();
+  if (!ids.length || optimizeBusy()) return;
+  o.running = true;
+  ids.forEach(id => { delete o.receipts[id]; });
+  const requestId = o.runId = nextRequestId('optimize');
+  window.setTimeout(() => { if (o.running && o.runId === requestId) window.onNativeOptimizeResult({ requestId, done: true, ok: false, error: '等待维护回执超时，请重试' }); }, OPTIMIZE_RUN_LIMIT_MS);
+  sendNativeBridge({ action: 'executeOptimize', requestId, tasks: ids });
+  updateSidebarBadges();
+  renderModule();
+}
+window.onNativeOptimizeResult = function(msg) {
+  const o = STATE.optimize;
+  if (!msg || msg.requestId !== o.runId || !o.running) return;
+  if (msg.receipt) { o.receipts[msg.receipt.id] = msg.receipt; renderModule(); return; }
+  if (!msg.done) return;
+  o.running = false;
+  const got = Object.values(o.receipts);
+  const failed = got.filter(r => !r.isUndo && r.outcome === 'failed').length;
+  showToast(msg.error ? t(String(msg.error)) : failed ? t('{n} 项没有成功，详情见各项回执', { n: failed }) : t('已完成 {n} 项系统维护', { n: got.filter(r => !r.isUndo && r.ok).length }));
+  o.status = 'idle';
+  requestOptimizePlan();
+};
+function undoOptimizeTask(id) {
+  const o = STATE.optimize;
+  if (optimizeBusy()) return;
+  const requestId = o.undoing[id] = nextRequestId('optundo');
+  window.setTimeout(() => { if (o.undoing[id] === requestId) window.onNativeOptimizeUndo({ requestId, id, ok: false, error: '等待撤销回执超时，请到访达检查' }); }, 120000);
+  sendNativeBridge({ action: 'undoOptimize', requestId, task: id });
+  renderModule();
+}
+window.onNativeOptimizeUndo = function(msg) {
+  const o = STATE.optimize;
+  if (!msg || o.undoing[msg.id] !== msg.requestId) return;
+  delete o.undoing[msg.id];
+  if (msg.error || !msg.receipt) showToast(t(String(msg.error || '撤销失败')));
+  else {
+    o.receipts[msg.id] = { ...msg.receipt, isUndo: true };
+    showToast(t(msg.receipt.summary || msg.receipt.error || '撤销失败'));
+  }
+  requestOptimizePlan();
 };
 
 // 还原成功后的实体回填：只在 Go 确认路径真的回到原位后调用，绝不提前改列表。
@@ -5017,7 +5077,7 @@ function restoreHistorySnapshot(idx) {
 
 function handlePrimaryAction() {
   if (STATE.module === 'optimize') {
-    runAllOptimizeTasks();
+    runOptimizeSelected();
   } else if (STATE.module === 'analyze') {
     if (STATE.analyzeLoading) cancelDiskAnalyze();
     else requestDiskAnalyze(STATE.analyzeRoot || '', true);
@@ -5959,42 +6019,30 @@ function renderModule() {
       </div>
     `;
   } else {
-    STATE.optimizeTasks = Array.isArray(STATE.optimizeTasks) ? STATE.optimizeTasks : [];
-    const doneCount = STATE.optimizeTasks.filter(t => t.done).length;
+    const opt = STATE.optimize;
+    const optRunnable = opt.items.filter(it => it.runnable), optSelected = optimizeSelectedIds().length;
     topTitle.textContent = mod === 'optimize' ? t('系统加速优化 · 推进器') : t('恢复记录与白名单 · 黑匣子');
-    primaryBtnText.textContent = mod === 'optimize' ? t('重置缩略图') : t('复制恢复记录');
+    primaryBtnText.textContent = mod === 'optimize' ? t('执行所选') : t('复制恢复记录');
     const isOpt = mod === 'optimize';
     heroHeadline.textContent = isOpt
-      ? (doneCount > 0 ? t('已完成 {n} 项系统维护', {n: doneCount}) : t('{n} 项系统维护可用', {n: STATE.optimizeTasks.length}))
+      ? (opt.status === 'error' ? t('检查没有完成') : opt.status === 'ready' ? (optRunnable.length ? t('{n} 项系统维护待处理', {n: optRunnable.length}) : t('没有需要处理的系统维护')) : t('正在检查系统维护项目'))
       : t('{n} 条清理记录（可按原始路径尝试还原）', {n: STATE.historyLogs.length});
     heroDesc.textContent = isOpt
-      ? t('目前可执行：重置 Quick Look 缩略图缓存。其他维护项尚未接入。')
+      ? t('每一项都先检查再决定，只默认勾选确实需要且安全的。改动都有回执，能撤销的可以一键撤销；需要管理员权限的只列出，orbit 不执行。')
       : t('按本机清单定位废纸篓中的原始条目；没有匹配清单时不按同名文件猜测。白名单保护与恢复记录是两个独立功能。');
-    heroStatLabel.textContent = isOpt ? t('已完成维护') : t('白名单');
-    heroStatValue.textContent = isOpt ? `${doneCount} / ${STATE.optimizeTasks.length}` : t('{n} 条', {n: STATE.whitelist.length});
-    heroStatSub.textContent = isOpt ? t('回执到达前不计完成') : t('核心资产已受保护');
+    heroStatLabel.textContent = isOpt ? t('已勾选维护') : t('白名单');
+    heroStatValue.textContent = isOpt ? `${optSelected} / ${optRunnable.length}` : t('{n} 条', {n: STATE.whitelist.length});
+    heroStatSub.textContent = isOpt ? t('只统计需要处理的项目') : t('核心资产已受保护');
 
     stage.innerHTML = `
       <div class="master-detail-grid">
         <div class="panel-card">
           <div class="panel-header">
             <span>${t('系统加速与维护任务清单')}</span>
+            ${isOpt ? `<button class="btn" style="padding:2px 8px;font-size:10.5px;" ${optimizeBusy() ? 'disabled' : ''} onclick="requestOptimizePlan()">${t('重新检查')}</button>` : ''}
           </div>
           <div class="list-body">
-            ${STATE.optimizeTasks.map((task, idx) => `
-              <div class="list-row" style="cursor:default;">
-                <div class="row-left">
-                  <span class="opt-dot ${task.done ? 'done' : task.requested ? 'pending' : ''}"></span>
-                  <div style="min-width:0;">
-                    <div class="row-title">${escHtml(t(task.name))}</div>
-                    <div class="row-sub" style="font-family:var(--font-sans);white-space:normal;">${escHtml(t(task.error || task.detail))}</div>
-                  </div>
-                </div>
-                ${task.done ? '<span class="badge badge-safe">' + t('已完成') + '</span>'
-                  : task.requested ? '<span class="badge badge-review">' + t('等待回执') + '</span>'
-                  : '<span class="badge badge-review">' + t('尚未执行') + '</span>'}
-              </div>
-            `).join('')}
+            ${isOpt ? optimizeListHTML() : ''}
           </div>
         </div>
 
@@ -6053,6 +6101,63 @@ function renderModule() {
   }
 }
 
+const OPTIMIZE_STATUS = {
+  needed: { cls: 'badge-review', label: '待处理' },
+  clear: { cls: 'badge-safe', label: '无需处理' },
+  skipped: { cls: 'badge-review', label: '暂不处理' },
+  unavailable: { cls: 'badge-protected', label: '不可用' }
+};
+const OPTIMIZE_OUTCOME = {
+  applied: { cls: 'badge-safe', label: '已完成' },
+  unchanged: { cls: 'badge-safe', label: '无需改动' },
+  attention: { cls: 'badge-review', label: '需留意' },
+  skipped: { cls: 'badge-review', label: '未执行' },
+  failed: { cls: 'badge-protected', label: '失败' }
+};
+function optimizeReceiptHTML(it, r) {
+  const o = STATE.optimize;
+  const badge = r.isUndo ? (r.ok ? OPTIMIZE_OUTCOME.applied : OPTIMIZE_OUTCOME.failed) : OPTIMIZE_OUTCOME[r.outcome] || OPTIMIZE_OUTCOME.failed;
+  const details = (r.details || []).map(d => escHtml(t(displayPath(d)))).join('<br>');
+  return `<div class="row-sub tier-note" data-optimize-receipt="${escHtml(it.id)}" style="white-space:normal;display:block;">
+    <b>${r.isUndo ? t('撤销结果') : t('回执')}${t('：')}</b>${escHtml(t(r.summary || ''))}
+    ${r.error ? `<div style="color:var(--accent-rose);">${escHtml(t(r.error))}</div>` : ''}
+    ${(r.failed || []).map(f => `<div style="color:var(--accent-rose);">${escHtml(displayPath(f.path))}${t('：')}${escHtml(t(f.error))}</div>`).join('')}
+    ${details ? `<details class="history-paths"><summary>${t('涉及 {n} 项', { n: (r.details || []).length })}</summary>${details}</details>` : ''}
+    <div>${r.isUndo ? '' : `${t('如何撤销')}${t('：')}${escHtml(t(r.undo || ''))}`}
+      ${r.canUndo ? `<button class="btn" style="padding:2px 8px;font-size:10.5px;margin-left:6px;" ${optimizeBusy() ? 'disabled' : ''} onclick="undoOptimizeTask('${jsq(it.id)}')">${o.undoing[it.id] ? t('撤销中') : t('撤销')}</button>` : ''}</div>
+  </div>`;
+}
+function optimizeListHTML() {
+  const o = STATE.optimize;
+  if (o.status === 'loading' && !o.items.length) return `<div class="insp-empty" role="status">${t('正在检查每一项维护是否需要，只读取，不改动任何东西。')}</div>`;
+  if (o.status === 'error') return `<div class="insp-empty" role="alert">${escHtml(t(o.error))}</div>`;
+  if (!o.items.length) return `<div class="insp-empty" role="status">${t('还没有检查结果。')}</div>`;
+  return o.items.map(it => {
+    const st = OPTIMIZE_STATUS[it.status] || OPTIMIZE_STATUS.unavailable;
+    const r = o.receipts[it.id];
+    const lead = it.runnable
+      ? `<input type="checkbox" aria-label="${escHtml(t(it.name))}" ${o.sel[it.id] ? 'checked' : ''} ${o.running ? 'disabled' : ''} onchange="toggleOptimizeSel('${jsq(it.id)}')" style="width:13px;height:13px;cursor:pointer;" />`
+      : it.status === 'clear' ? '<span class="opt-dot done"></span>' : `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`;
+    const note = it.status === 'clear'
+      ? `<div class="row-sub" style="font-family:var(--font-sans);white-space:normal;">${escHtml(t(it.reason))}</div>`
+      : tierNoteHTML(it, null, false);
+    return `
+      <div class="list-row" data-optimize-task="${escHtml(it.id)}" data-status="${escHtml(it.status)}" style="cursor:default;align-items:flex-start;">
+        <div class="row-left" style="align-items:flex-start;">
+          ${lead}
+          <div style="min-width:0;">
+            <div class="row-title">${escHtml(t(it.name))}</div>
+            <div class="row-sub" style="font-family:var(--font-sans);white-space:normal;">${escHtml(t(it.detail))}</div>
+            ${note}
+            ${(it.items || []).length && it.status !== 'clear' ? `<details class="history-paths"><summary>${t('涉及 {n} 项', { n: it.items.length })}</summary>${it.items.map(x => escHtml(displayPath(x))).join('<br>')}</details>` : ''}
+            ${r ? optimizeReceiptHTML(it, r) : ''}
+          </div>
+        </div>
+        <span class="badge ${st.cls}">${t(st.label)}</span>
+      </div>`;
+  }).join('');
+}
+
 function matchesSearch(item) {
   const q = STATE.searchQuery.trim().toLowerCase();
   return !q || [item.name, item.path, item.appPath, item.bundleId, item.project, item.artifact, item.category, item.pid, item.tool, item.band, item.gitState, item.safetyReason,
@@ -6099,7 +6204,7 @@ const CMD_PALETTE_ITEMS = [
   { icon: 'clean', title: '深度清理', sub: '查看缓存与日志，先预览再处理', kbd: '⌘1', run: () => switchModule('clean') },
   { icon: 'ai_moon', title: 'AI 清理', sub: '检查 AI 工具缓存与工作树目录', kbd: '⌘2', run: () => switchModule('ai_moon') },
   { icon: 'software', title: '应用卸载', sub: '检查应用、缓存与个人配置', kbd: '⌘3', run: () => switchModule('software') },
-  { icon: 'optimize', title: '系统加速', sub: '重置 Quick Look 缩略图缓存', kbd: '⌘4', run: () => switchModule('optimize') },
+  { icon: 'optimize', title: '系统加速', sub: '先检查再执行，改动有回执', kbd: '⌘4', run: () => switchModule('optimize') },
   { icon: 'analyze', title: '空间分析', sub: '查看磁盘占用，进入目录检查', kbd: '⌘5', run: () => switchModule('analyze') },
   { icon: 'status', title: '状态监控', sub: '查看本机进程与可用硬件传感器', kbd: '⌘6', run: () => switchModule('status') },
   { icon: 'purge', title: '构建清理', sub: '检查构建依赖目录和安装包', kbd: '⌘7', run: () => switchModule('purge') },
@@ -6697,8 +6802,8 @@ document.addEventListener('keydown', (e) => {
       pbtn.disabled = scanning || pendingTrashRequests.size > 0 || (!needsScan && (!STATE.scanCompleted || !eligible));
       if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary()) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
     } else {
-      pbtn.disabled = STATE.module === 'optimize' && STATE.optimizeTasks.some(t => t.requested);
-      pbt.textContent = STATE.module === 'optimize' ? pbtn.disabled ? t('正在维护') : t('重置缩略图') : STATE.module === 'analyze' ? STATE.analyzeLoading ? t('取消扫描') : t('重新扫描') : STATE.module === 'status' ? t('刷新状态') : t('复制记录');
+      pbtn.disabled = STATE.module === 'optimize' && (optimizeBusy() || !optimizeSelectedIds().length);
+      pbt.textContent = STATE.module === 'optimize' ? STATE.optimize.running ? t('正在维护') : t('执行所选') : STATE.module === 'analyze' ? STATE.analyzeLoading ? t('取消扫描') : t('重新扫描') : STATE.module === 'status' ? t('刷新状态') : t('复制记录');
     }
     const rescan = document.getElementById('btnRescanText');
     rescan.textContent = t('刷新扫描');
