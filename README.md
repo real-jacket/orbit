@@ -4,7 +4,7 @@
 
 # orbit
 
-**A standalone macOS disk cleaner. No [Mole](https://github.com/tw93/mole) / `mo` CLI needed.**
+**A macOS disk cleaner and system monitor.**
 
 Go · MyGo · WKWebView — no Electron, no bundled runtime.
 
@@ -16,24 +16,20 @@ Go · MyGo · WKWebView — no Electron, no bundled runtime.
 
 </div>
 
-> orbit does not call, bundle or require the `mo` CLI. Mole's cleanup rules are ported into Go and run inside the app.
 > The bundle is `orbit.app`; the bundle identifier stays `com.mymoles.mole-studio`, so permissions and data from earlier `MoleStudio` builds carry over.
 
 ---
 
 ## What it is
 
-orbit is a desktop disk cleaner in the spirit of [`tw93/mole`](https://github.com/tw93/mole) — the
-open-source `mo` CLI. It reads real hardware telemetry, scans and cleans in-process (no subprocess, no
-`mo` binary needed), and renders a warm, low-glare control surface instead of a terminal.
+orbit finds what is taking up space on your Mac and helps you clear it safely: caches and logs,
+developer tool leftovers, old versions of AI coding tools, apps and their leftovers, build artifacts,
+installer packages and large files. It also maps disk usage and shows live CPU, memory, network and
+sensor data, in the window and in the menu bar.
 
-Its cleanup rules are ported from Mole V1.70.0 — the same path lists, rebuildability checks, running-app
-guards, whitelist and age thresholds — and covers `mo clean`, `uninstall`, `optimize`, `purge`,
-`installer` and `slim`. What differs is how they run: every item is sorted into **Recommended**
-(selected by default), **Needs review** or **Protected**, each with a stated reason; you preview the exact
-paths; removals go to the Trash with a restore manifest instead of being deleted; and orbit never asks for
-administrator rights to remove anything. [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) goes command by command: what
-is ported, and what is deliberately left out and why.
+Every item is sorted into **Recommended** (selected by default), **Needs review** or **Protected**, each
+with a stated reason. You preview the exact paths before anything runs, removals go to the Trash with a
+restore manifest instead of being deleted, and settings changes can be undone.
 
 The interface is in Chinese and English (switch in the sidebar), and the app updates itself from
 GitHub Releases.
@@ -42,14 +38,14 @@ GitHub Releases.
 
 | Module | Backed by | What it does |
 | --- | --- | --- |
-| **Deep Clean** | `internal/scanner` + native Trash | User caches and logs, browser profiles, developer tools, Xcode, Gradle/CocoaPods, app caches and macOS user state, using Mole's `mo clean` rules; data of a running app is protected until you quit it |
+| **Deep Clean** | `internal/scanner` + native Trash | User caches and logs, browser profiles, developer tools, Xcode, Gradle/CocoaPods, app caches and macOS user state; data of a running app is protected until you quit it |
 | **AI Care** | AI catalog + native Trash | Rechecks Claude Code, Cursor Agent, Copilot CLI and Claude Desktop releases against launcher, process and open handles; models/worktrees are inspect-only; personal data stays protected while its tool is installed or running, and becomes Needs review once the tool is gone |
-| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data, stops the app's user-level background services (started again on restore), lists config files that still reference the app, finds leftovers of apps already gone, and slims universal apps to Apple silicon only (`mo slim`). Apps installed by the App Store or an installer as root are marked as needing an administrator, with the reason and a Finder reveal, since only Finder can move them |
-| **Optimize** | Mole's 19 `mo optimize` tasks | Checks each task first; 10 can run (with receipts, and undo where something changed), the rest say why orbit does not run them (administrator rights, or data that cannot be restored) |
+| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data, stops the app's user-level background services (started again on restore), lists config files that still reference the app, finds leftovers of apps already gone, and slims universal apps to Apple silicon only. Apps installed by the App Store or an installer as root are marked as needing an administrator, with the reason and a Finder reveal, since only Finder can move them |
+| **Optimize** | 19 maintenance tasks | Checks each task first; 10 can run (with receipts, and undo where something changed), the rest say why orbit does not run them (administrator rights, or data that cannot be restored) |
 | **Astrolabe** | `internal/analyze` | Allocated/logical size map with current-layer search, inspectable folded items, file counts, mtimes and memory drill-down |
 | **Live Status** | Kernel + `ps` + hardware sensors | CPU, memory, network and supported sensor data first; the top five processes with CPU and memory side by side, and every process in a drawer with search, pinning, sorting and quit requests |
-| **Purge** | Build/installer scanner + native Trash | Rebuildable build artifacts (`mo purge`, scan folders shared through `~/.config/mole/purge_paths`) and leftover installer packages (`mo installer`) |
-| **History & Whitelist** | Native manifests + mole whitelist | Cleanup receipts, path restoration and protected-path management |
+| **Purge** | Build/installer scanner + native Trash | Rebuildable build artifacts in the folders you choose (kept in `~/.config/mole/purge_paths`) and leftover installer packages |
+| **History & Whitelist** | Native manifests + whitelist file | Cleanup receipts, path restoration and protected-path management |
 
 Beyond the module list:
 
@@ -75,8 +71,6 @@ Beyond the module list:
   ```bash
   go install github.com/egoist/mygo/cmd/mygo@v0.6.4
   ```
-
-- The current scanner and cleanup paths run in-process and do not require the `mo` CLI.
 
 ## Build and run
 
@@ -315,10 +309,8 @@ orbit is young (0.3.x); the Go port is complete. Being explicit about what is an
   Mach-O executable, a valid `Info.plist`, `Contents/Resources/AppIcon.icns` that unpacks with
   `iconutil`, and the embedded frontend marker in the binary. A second job gates `gofmt`, `go vet`, and a
   clean `mygo generate` (so `mygo.ts` can never be stale in a PR).
-- **AI cleanup does not depend on aspirational CLI flags.** Mole CLI has no AI-clean subcommand; orbit
-  scans a local, bounded catalog and submits only verified-old-version paths through native Trash.
-  Like Mole's `clean_dev_ai_agents`, it keeps the current and one spare version and anything a process
-  still has open; extensions, models, sessions and worktrees are retained.
+- **AI cleanup is bounded.** orbit scans a local catalog and submits only verified old version paths
+  through native Trash. It keeps the current and one spare version and anything a process still has open; extensions, models, sessions and worktrees are retained.
 - **Ported rules can follow upstream.** `make mole-sync` diffs every marked Mole function between the
   version it was ported from and the latest Mole release. See
   [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) for the command by command comparison.
@@ -345,17 +337,17 @@ The app deletes files, so the guardrails are the point:
 - Every destructive action is previewed before execution, with the exact paths frozen at confirmation.
 - Cleanup moves items to the Trash, and the page waits for a native receipt before it reports success.
   History can put them back. orbit never empties the Trash.
-- orbit never asks for administrator rights to remove or change anything. Mole tasks that need `sudo` are
+- orbit never asks for administrator rights to remove or change anything. Optimize tasks that need `sudo` are
   listed with that reason and not run; tasks that would destroy data the Trash cannot hold are not run
   either. Apps owned by root are left to Finder, which asks for the password itself. The only
   administrator prompt is the optional file-cache release in the menu bar, and only after you confirm it.
 - Settings changes (optimize) record the previous value, so they can be undone.
-- The whitelist is read from `~/.config/mole/whitelist`, the same file `mo` uses.
+- Protected paths you add are kept in `~/.config/mole/whitelist`.
 
 ## Relationship to upstream
 
-orbit is a standalone app, not a front end for `mo`: it does not redistribute, call or require the `mo`
-binary. It is **not** affiliated with or endorsed by [tw93/mole](https://github.com/tw93/mole).
+orbit is an independent project. It is **not** affiliated with or endorsed by
+[tw93/mole](https://github.com/tw93/mole).
 
 Parts of its cleanup rules are ported from Mole V1.70.0 (shell → Go). Upstream `mo` is licensed
 GPL-3.0, and orbit is licensed GPL-3.0 to match. Each ported rule carries a comment such as
