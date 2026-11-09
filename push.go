@@ -176,7 +176,7 @@ func cancelDiskAnalyze(requestID string) {
 // pushTrashResult sends the receipt for one trash request. The page only
 // claims "已成功清理" when this arrives, and it reports the refused and failed
 // paths instead of hiding them.
-func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
+func pushTrashResult(requestID string, outcome scanner.TrashOutcome, configRefs []scanner.ConfigRef, services *scanner.UninstallReceipt) {
 	moved := make([]map[string]any, 0, len(outcome.Moved))
 	for _, entry := range outcome.Moved {
 		moved = append(moved, map[string]any{"original": entry.Original, "trashed": entry.Trashed})
@@ -198,6 +198,12 @@ func pushTrashResult(requestID string, outcome scanner.TrashOutcome) {
 		"failed":       failed,
 		"restoreError": outcome.RestoreError,
 	}
+	if configRefs != nil { // only an uninstall asks for them; file and line, never the line's text
+		payload["configRefs"] = configRefs
+	}
+	if services != nil { // only an uninstall: what was stopped, started again, failed, and the Homebrew note
+		payload["services"] = services
+	}
 	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult(" + jsonOf(payload) + ") : undefined")
 }
 
@@ -214,6 +220,8 @@ func pushRestoreResult(requestID string, outcome scanner.RestoreOutcome) {
 		"restored":      restored,
 		"restoredCount": len(restored),
 		"failed":        failed,
+		"restarted":     append([]string{}, outcome.Restarted...),
+		"restartFailed": append([]scanner.ServiceFailure{}, outcome.RestartFailed...),
 	}
 	evaluate("window.onNativeRestoreResult ? window.onNativeRestoreResult(" + jsonOf(payload) + ") : undefined")
 }
@@ -225,6 +233,33 @@ func pushMeasureResult(requestID string, outcome scanner.MeasureOutcome) {
 		"sizeGb": outcome.SizeGb, "files": outcome.Files, "partial": outcome.Partial, "reason": outcome.Reason,
 	}
 	evaluate("window.onNativeMeasureResult ? window.onNativeMeasureResult(" + jsonOf(payload) + ") : undefined")
+}
+
+// pushOptimizePlan sends the diagnosis the 系统加速 page lists before anything runs.
+func pushOptimizePlan(requestID string, plan scanner.OptimizePlan) {
+	evaluate("window.onNativeOptimizePlan ? window.onNativeOptimizePlan(" + jsonOf(map[string]any{"requestId": requestID, "items": plan.Items}) + ") : undefined")
+}
+
+// pushOptimizeReceipt sends one finished task as soon as it ends.
+func pushOptimizeReceipt(requestID string, receipt scanner.OptimizeReceipt) {
+	evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(map[string]any{"requestId": requestID, "receipt": receipt}) + ") : undefined")
+}
+
+// pushOptimizeDone marks the end of a run; err is set when it never started.
+func pushOptimizeDone(requestID string, err error) {
+	payload := map[string]any{"requestId": requestID, "done": true, "ok": err == nil}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(payload) + ") : undefined")
+}
+
+func pushOptimizeUndo(requestID, id string, receipt scanner.OptimizeReceipt, err error) {
+	payload := map[string]any{"requestId": requestID, "id": id, "ok": err == nil && receipt.OK, "receipt": receipt}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	evaluate("window.onNativeOptimizeUndo ? window.onNativeOptimizeUndo(" + jsonOf(payload) + ") : undefined")
 }
 
 // pushDoctorReport sends the 体检 rows the page renders.
@@ -275,6 +310,16 @@ func pushWhitelistChanged(action, path string, policy scanner.Whitelist, err err
 		payload["error"] = err.Error()
 	}
 	evaluate("window.onNativeWhitelistChanged ? window.onNativeWhitelistChanged(" + jsonOf(payload) + ") : undefined")
+}
+
+// pushPurgeRootsChanged tells the page the build-cleanup scope changed, or why
+// the edit was refused.
+func pushPurgeRootsChanged(action, path string, roots scanner.PurgeRoots, err error) {
+	payload := map[string]any{"action": action, "path": path, "purgeRoots": roots, "ok": err == nil}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	evaluate("window.onNativePurgeRootsChanged ? window.onNativePurgeRootsChanged(" + jsonOf(payload) + ") : undefined")
 }
 
 // pushRealSystemScanNow scans installed apps, leftovers, large files, installer

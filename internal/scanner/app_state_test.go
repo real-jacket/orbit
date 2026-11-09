@@ -96,12 +96,63 @@ func TestInstalledAppsListUserLaunchItemsAndRefuseSystemOnes(t *testing.T) {
 			found = sp
 		}
 	}
-	if found == nil || found["checked"] != true || found["tier"] != nil || !strings.Contains(rows[0]["impact"].(string), "注销或重启") {
+	if found == nil || found["checked"] != true || found["tier"] != nil || !strings.Contains(rows[0]["impact"].(string), "后台服务") {
 		t.Fatalf("user launch item missing or unsafe: %+v", found)
 	}
 	for _, path := range []string{"/Library/LaunchDaemons/com.example.app.plist", "/Library/LaunchAgents/com.example.app.plist"} {
 		if reason := s.CleanupReason(path); !strings.Contains(reason, "管理员") {
 			t.Errorf("%s must be listed only, got %q", path, reason)
+		}
+	}
+}
+
+func TestSharedRemnantsStayProtectedWhileAnotherCopyIsInstalled(t *testing.T) {
+	cases := []struct {
+		aID, bID, aPath, bPath string
+		want                   bool
+	}{
+		{"com.x.App", "COM.X.app", "/A/App.app", "/B/Other.app", true},
+		{"com.x.App", "com.x.App.beta", "/A/App.app", "/B/Other.app", true},
+		{"com.x.App", "com.x.Application", "/A/App.app", "/B/Other.app", false},
+		{"com.x.One", "com.y.Two", "/A/Firefox.app", "/B/Firefox Nightly.app", true},
+		{"com.x.One", "com.y.Two", "/A/Firefox.app", "/B/Chrome.app", false},
+		{"com.x.One", "com.y.Two", "/A/X.app", "/B/X.app", false}, // one character names never match
+	}
+	for _, c := range cases {
+		if got := bundlesShareRemnants(c.aID, c.bID, c.aPath, c.bPath); got != c.want {
+			t.Errorf("%+v: got %v", c, got)
+		}
+	}
+
+	s := newTestScanner(t)
+	s.processProbe = func() (string, error) { return "/sbin/launchd\n", nil }
+	for _, name := range []string{"Example", "Example Beta"} {
+		app := filepath.Join(s.home, "Applications", name+".app")
+		writeFile(t, filepath.Join(app, "Contents/Info.plist"), `<plist><dict><key>CFBundleIdentifier</key><string>com.example.app</string></dict></plist>`)
+		writeFile(t, filepath.Join(app, "Contents/MacOS/Example"), "fixture")
+	}
+	writeFile(t, filepath.Join(s.home, "Library/Caches/com.example.app/data"), "cache")
+	rows := s.scanInstalledApps(filepath.Join(s.home, "Applications"))
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d", len(rows))
+	}
+	for _, row := range rows {
+		for _, sub := range row["subpaths"].([]map[string]any) {
+			if sub["kind"] == "app" && (sub["tier"] != nil || sub["checked"] != true) {
+				t.Fatalf("the bundle itself must stay selectable: %+v", sub)
+			}
+			if sub["kind"] == "cache" && (sub["tier"] != "protected" || sub["checked"] != false || sub["reason"] != sharedRemnantsReason) {
+				t.Fatalf("shared cache is not protected: %+v", sub)
+			}
+		}
+	}
+	// Alone, the same cache is a normal recommended entry.
+	if err := os.RemoveAll(filepath.Join(s.home, "Applications/Example Beta.app")); err != nil {
+		t.Fatal(err)
+	}
+	for _, sub := range s.scanInstalledApps(filepath.Join(s.home, "Applications"))[0]["subpaths"].([]map[string]any) {
+		if sub["kind"] == "cache" && (sub["tier"] != nil || sub["checked"] != true) {
+			t.Fatalf("a lone app lost its cache: %+v", sub)
 		}
 	}
 }

@@ -3,9 +3,56 @@ package scanner
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+const sharedRemnantsReason = "另一份相同标识的应用仍安装在这台 Mac 上，这些数据还在被它使用"
+
+var versionSuffixPattern = regexp.MustCompile(`^(.+)\s+(Nightly|Beta|Alpha|Dev|Canary|Preview|Insider|Edge|Stable|Release|RC|LTS|Developer Edition|Technology Preview)$`)
+
+// Ported from tw93/Mole V1.70.0 lib/uninstall/batch.sh uninstall_bundles_share_remnants
+// Two installed bundles share user data when their bundle ids are equal or one
+// extends the other, or when their names match once a channel suffix is cut.
+// shortcut: Mole also tells JetBrains products apart by their selector; orbit
+// treats them as sharing, so their data stays protected, until that is needed.
+func bundlesShareRemnants(selectedID, otherID, selectedPath, otherPath string) bool {
+	a, b := strings.ToLower(selectedID), strings.ToLower(otherID)
+	if a == b || strings.HasPrefix(a, b+".") || strings.HasPrefix(b, a+".") {
+		return true
+	}
+	stem := func(path string) string {
+		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		if m := versionSuffixPattern.FindStringSubmatch(name); m != nil {
+			name = m[1]
+		}
+		return name
+	}
+	x, y := stem(selectedPath), stem(otherPath)
+	return len(x) >= 2 && len(y) >= 2 && strings.EqualFold(x, y)
+}
+
+// protectSharedRemnants keeps the cache, config and launch entries of an app
+// out of the removal selection while another installed copy still uses them.
+// The app bundle itself stays selectable.
+func protectSharedRemnants(results []map[string]any) {
+	for i, row := range results {
+		for j, other := range results {
+			if i == j || row["appPath"] == other["appPath"] ||
+				!bundlesShareRemnants(row["bundleId"].(string), other["bundleId"].(string), row["appPath"].(string), other["appPath"].(string)) {
+				continue
+			}
+			for _, sub := range row["subpaths"].([]map[string]any) {
+				if sub["kind"] == "app" || sub["tier"] == "protected" {
+					continue
+				}
+				sub["tier"], sub["reason"], sub["checked"] = "protected", sharedRemnantsReason, false
+			}
+			break
+		}
+	}
+}
 
 // appendExisting measures known app paths, keeping protected entries visible
 // but out of the removal selection.
@@ -76,13 +123,21 @@ func (s *Scanner) appConfigCandidates(name, bundleID string) []string {
 	return paths
 }
 
+// defaultAppDirs are the folders scanInstalledApps reads when given none.
+func (s *Scanner) defaultAppDirs() []string {
+	if s.appDirs != nil {
+		return s.appDirs
+	}
+	return []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
+}
+
 // scanInstalledApps lists application bundles without truncating before sorting.
 func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 	results := []map[string]any{}
 	launchItems := s.loadLaunchItems()
 	procs := s.runningProcesses()
 	if len(appDirs) == 0 {
-		appDirs = []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
+		appDirs = s.defaultAppDirs()
 	}
 	for _, dir := range appDirs {
 		items, err := readDirEntries(dir)
@@ -144,7 +199,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			s.appendExisting(launchPaths, "launch", true, &subpaths)
 			impact := "仅把勾选的应用、缓存或配置路径移入废纸篓；受保护的路径保留。"
 			if len(launchPaths) > 0 {
-				impact += "启动项已被系统加载时，移入废纸篓后仍会保持加载，直到注销或重启。"
+				impact += "勾选的启动项移入废纸篓前，会先停止它在当前用户下的后台服务；系统级启动项需要管理员权限，只列出不处理。"
 			}
 			running, mainProc := appRunning(procs, fullPath)
 			cacheGB := plainGB(cacheBytes)
@@ -180,6 +235,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 		}
 	}
 
+	protectSharedRemnants(results)
 	appPaths := make([]string, len(results))
 	for i, row := range results {
 		appPaths[i] = row["appPath"].(string)
@@ -212,7 +268,15 @@ type bundleInfo struct {
 func readBundleInfo(path string) bundleInfo {
 	props, err := parsePlistFile(filepath.Join(path, "Contents", "Info.plist"))
 	if err != nil {
-		return bundleInfo{}
+		// Ported from tw93/Mole V1.70.0 lib/clean/apps.sh scan_installed_apps: an iOS app on
+		// Apple Silicon keeps its plist under Wrapper/<name>.app, not Contents/.
+		wrapped, _ := filepath.Glob(filepath.Join(path, "Wrapper", "*.app", "Info.plist"))
+		if len(wrapped) == 0 {
+			return bundleInfo{}
+		}
+		if props, err = parsePlistFile(wrapped[0]); err != nil {
+			return bundleInfo{}
+		}
 	}
 	return bundleInfo{
 		displayName:  props["CFBundleDisplayName"],
@@ -251,24 +315,26 @@ func (s *Scanner) installedAppIndex(home string) (names, bundleIDs map[string]st
 	bundleIDs = map[string]struct{}{}
 	appDirs := []string{
 		"/Applications",
-		"/Applications/Utilities",
 		"/System/Applications",
-		"/System/Applications/Utilities",
 		filepath.Join(home, "Applications"),
+		"/opt/homebrew/Caskroom",
+		"/usr/local/Caskroom",
+		filepath.Join(home, "Library/Application Support/Setapp/Applications"),
 	}
-	for _, dir := range appDirs {
-		for _, path := range s.matchingWildcardPaths(dir, "") {
-			item := baseName(path)
-			if !strings.HasSuffix(item, ".app") {
-				continue
+	for _, path := range findAppBundles(appDirs) {
+		names[strings.ToLower(strings.TrimSuffix(baseName(path), filepath.Ext(path)))] = struct{}{}
+		info := readBundleInfo(path)
+		for _, value := range []string{info.identifier, info.displayName, info.bundleName} {
+			if value != "" {
+				bundleIDs[strings.ToLower(value)] = struct{}{}
 			}
-			names[strings.ToLower(strings.TrimSuffix(item, ".app"))] = struct{}{}
-			info := readBundleInfo(path)
-			for _, value := range []string{info.identifier, info.displayName, info.bundleName} {
-				if value != "" {
-					bundleIDs[strings.ToLower(value)] = struct{}{}
-				}
-			}
+		}
+	}
+	// Ported from tw93/Mole V1.70.0 lib/clean/apps.sh scan_installed_apps: a login item's
+	// LaunchAgent label also names an installed owner.
+	for _, path := range s.matchingWildcardPaths(filepath.Join(home, "Library/LaunchAgents"), "") {
+		if label, ok := strings.CutSuffix(baseName(path), ".plist"); ok && label != "" {
+			bundleIDs[strings.ToLower(label)] = struct{}{}
 		}
 	}
 	// Command line tools of Homebrew and /usr/local have no bundle, but their

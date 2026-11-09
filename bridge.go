@@ -57,13 +57,51 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		if len(paths) == 0 {
 			return nil
 		}
-		requestID := stringOf(payload["requestId"])
+		requestID, wantRefs := stringOf(payload["requestId"]), boolOf(payload["configRefs"])
 		go func() {
 			// The page waits for this receipt before it claims success, so a
 			// refused or failed path is reported instead of swallowed.
-			pushTrashResult(requestID, scanner.Shared.TrashPaths(paths))
+			var outcome scanner.TrashOutcome
+			var refs []scanner.ConfigRef
+			var services *scanner.UninstallReceipt
+			if wantRefs { // an uninstall: stop the removed apps' user-level background services around the move
+				var receipt scanner.UninstallReceipt
+				outcome, receipt = scanner.Shared.TrashUninstall(paths, fileIdentitiesOf(payload["identities"]))
+				services = &receipt
+			} else {
+				outcome = scanner.Shared.TrashPathsChecked(paths, fileIdentitiesOf(payload["identities"]))
+			}
+			if wantRefs { // list, read only, config lines that still name what was removed
+				moved := make([]string, 0, len(outcome.Moved))
+				for _, entry := range outcome.Moved {
+					moved = append(moved, entry.Original)
+				}
+				refs = scanner.Shared.ConfigReferences(moved)
+			}
+			pushTrashResult(requestID, outcome, refs, services)
 			// The single rescan after a destructive action lives here, so the
 			// window and the menu-bar panel share it; the page does not ask again.
+			pushRealTelemetryNow()
+			pushRealSystemScanNow()
+		}()
+	case "scanSlim":
+		requestID := stringOf(payload["requestId"])
+		go func() {
+			result := scanner.Shared.ScanSlim()
+			evaluate("window.onNativeSlimScan ? window.onNativeSlimScan(" + jsonOf(map[string]any{"requestId": requestID, "scan": result}) + ") : undefined")
+		}()
+	case "slimApps":
+		paths, identities, requestID := stringsOf(payload["paths"]), stringMapOf(payload["identities"]), stringOf(payload["requestId"])
+		if len(paths) == 0 {
+			return nil
+		}
+		go func() {
+			targets := make([]scanner.SlimTarget, 0, len(paths))
+			for _, path := range paths {
+				targets = append(targets, scanner.SlimTarget{Path: path, Identity: identities[path]})
+			}
+			outcome := scanner.Shared.SlimApps(targets)
+			evaluate("window.onNativeSlimResult ? window.onNativeSlimResult(" + jsonOf(map[string]any{"requestId": requestID, "outcome": outcome}) + ") : undefined")
 			pushRealTelemetryNow()
 			pushRealSystemScanNow()
 		}()
@@ -98,6 +136,25 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 				pushRealSystemScanNow()
 			}
 		}()
+	case "addPurgeRoot", "removePurgeRoot":
+		action := stringOf(payload["action"])
+		path := stringOf(payload["path"])
+		if path == "" {
+			return nil
+		}
+		go func() {
+			var roots scanner.PurgeRoots
+			var err error
+			if action == "addPurgeRoot" {
+				roots, err = scanner.Shared.AddPurgeRoot(path)
+			} else {
+				roots, err = scanner.Shared.RemovePurgeRoot(path)
+			}
+			pushPurgeRootsChanged(action, path, roots, err)
+			if err == nil {
+				pushRealSystemScanNow()
+			}
+		}()
 	case "killProcess":
 		pid, name, path, requestID := intOf(payload["pid"]), stringOf(payload["name"]), stringOf(payload["path"]), stringOf(payload["requestId"])
 		go func() {
@@ -125,14 +182,29 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		pushRuntimeStatus(stringOf(payload["requestId"]), checkFolders)
 	case "menubarShowTools":
 		showFlyout()
-	case "executeOptimize":
+	case "requestOptimizePlan":
 		requestID := stringOf(payload["requestId"])
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 			defer cancel()
-			output, err := exec.CommandContext(ctx, "/usr/bin/qlmanage", "-r", "cache").CombinedOutput()
-			result := optimizeOutcome(requestID, output, err)
-			evaluate("window.onNativeOptimizeResult ? window.onNativeOptimizeResult(" + jsonOf(result) + ") : undefined")
+			pushOptimizePlan(requestID, scanner.Shared.DiagnoseOptimize(ctx))
+		}()
+	case "executeOptimize":
+		requestID, ids := stringOf(payload["requestId"]), stringsOf(payload["tasks"])
+		go func() {
+			// Each task carries its own time limit; this only bounds a hung run.
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
+			err := scanner.Shared.RunOptimize(ctx, ids, func(r scanner.OptimizeReceipt) { pushOptimizeReceipt(requestID, r) })
+			pushOptimizeDone(requestID, err)
+		}()
+	case "undoOptimize":
+		requestID, id := stringOf(payload["requestId"]), stringOf(payload["task"])
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			receipt, err := scanner.Shared.UndoOptimize(ctx, id)
+			pushOptimizeUndo(requestID, id, receipt, err)
 		}()
 	case "releaseFileCache":
 		requestID := stringOf(payload["requestId"])
@@ -522,6 +594,19 @@ func stringsOf(value any) []string {
 		return paths
 	}
 	return nil
+}
+
+// fileIdentitiesOf reads the {path: {size, mtime}} map the page sends with a
+// move, so a file that changed since the scan is not trashed.
+func fileIdentitiesOf(value any) map[string]scanner.FileIdentity {
+	values, _ := value.(map[string]any)
+	result := make(map[string]scanner.FileIdentity, len(values))
+	for path, raw := range values {
+		if entry, ok := raw.(map[string]any); ok {
+			result[path] = scanner.FileIdentity{Size: int64(intOf(entry["size"])), Mtime: int64(intOf(entry["mtime"]))}
+		}
+	}
+	return result
 }
 
 func stringMapOf(value any) map[string]string {

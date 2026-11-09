@@ -2008,7 +2008,7 @@ add('measure-full-clean-and-ai', `
 add('purge-installer-empty-state', `
   onNativeRealScanComplete({...structuredClone(qaFixture),installerFiles:[]});switchModule('purge');
   const note=document.querySelector('[data-installer-empty]');
-  qaAssert(note&&note.textContent.includes('~/Downloads')&&note.textContent.includes('Homebrew/downloads')&&note.textContent.includes('20 MB'),'an empty installer list says what was checked');
+  qaAssert(note&&note.textContent.includes('下载、桌面、文稿')&&note.textContent.includes('mpkg'),'an empty installer list says what was checked');
   onNativeRealScanComplete({...structuredClone(qaFixture)});switchModule('purge');
   qaAssert(!document.querySelector('[data-installer-empty]'),'the empty state disappears when installers exist');
 `);
@@ -2205,6 +2205,91 @@ add('refresh-fallback-single-rescan', `
   qaAssert(__qa.actions.filter(a=>a.action==='requestRealSystemScan').length===1,'back-to-back operations cause exactly one fallback rescan, got '+__qa.actions.filter(a=>a.action==='requestRealSystemScan').length);
   endRefreshing();
 `);
+// 系统加速：诊断清单（需处理 / 需确认 / 无需处理 / 暂不处理 / 不可用）与执行回执。
+const optimizePlan = [
+  { id: 'cache_refresh', name: '刷新缩略图与图标缓存', detail: '重建 Quick Look 缩略图与图标服务缓存', status: 'needed', reason: '缩略图和图标缓存可以随时重建，刷新后预览会重新生成', tier: 'safe', undo: '无需撤销，缓存会按需重建', checked: true, runnable: true },
+  { id: 'saved_state_cleanup', name: '清理旧的应用窗口状态', detail: '把 30 天以上没动过的应用窗口状态移入废纸篓', status: 'needed', reason: '有 3 个超过 30 天的应用窗口状态，移入废纸篓后应用会按需重新生成', tier: 'safe', undo: '在这里点撤销，或在访达的废纸篓里放回原处', checked: true, runnable: true, items: ['~/Library/Saved Application State/com.example.one.savedState', '~/Library/Saved Application State/com.example.two.savedState', '~/Library/Saved Application State/com.example.three.savedState'] },
+  { id: 'prevent_network_dsstore', name: '禁止在网络与 U 盘上写 .DS_Store', detail: '设置 Finder 偏好，不再在网络共享和 U 盘上生成 .DS_Store', status: 'needed', reason: 'Finder 现在还会在网络共享和 U 盘上生成 .DS_Store', tier: 'safe', undo: '在这里点撤销，会恢复成设置前的值', checked: true, runnable: true },
+  { id: 'login_items_audit', name: '检查失效的登录项', detail: '核对登录项指向的应用是否还在，只报告，不修改', status: 'needed', reason: '核对登录项指向的应用是否还在；首次检查时 macOS 可能询问是否允许 orbit 控制“系统事件”', tier: 'review', undo: '不改动任何东西，无需撤销', checked: false, runnable: true },
+  { id: 'sqlite_vacuum', name: '整理邮件、Safari 与信息的数据库', detail: '先做完整性检查，再压缩数据库文件，不删除内容', status: 'skipped', reason: 'Mail, Safari 正在运行，数据库可能被占用，暂不整理', tier: 'protected', unlock: '退出 Mail, Safari 后重新扫描即可整理这些数据库', undo: '无需撤销，数据库内容不变', checked: false, runnable: false },
+  { id: 'fix_broken_configs', name: '修复损坏的偏好设置', detail: '把无法读取的第三方偏好设置文件移入废纸篓，应用下次启动会重新生成', status: 'clear', reason: '第三方偏好设置文件都正常', tier: 'safe', undo: '在这里点撤销，或在访达的废纸篓里放回原处', checked: false, runnable: false },
+  { id: 'network_optimization', name: '刷新 DNS 缓存', detail: '清空系统 DNS 缓存', status: 'unavailable', reason: '需要管理员权限，orbit 不执行', tier: 'protected', undo: '不执行，没有改动', checked: false, runnable: false },
+  { id: 'quarantine_cleanup', name: '清理下载隔离记录', detail: '清除 Gatekeeper 的下载追踪历史', status: 'unavailable', reason: '会直接删除数据库里的记录，无法放进废纸篓还原，orbit 不执行', tier: 'protected', undo: '不执行，没有改动', checked: false, runnable: false },
+];
+const optimizeReceipts = [
+  { id: 'cache_refresh', ok: true, outcome: 'applied', summary: '缩略图与图标缓存已刷新', undo: '无需撤销，缓存会按需重建', canUndo: false },
+  { id: 'saved_state_cleanup', ok: true, outcome: 'attention', summary: '已把 2 项移入废纸篓，另有 1 项没有处理', details: ['~/Library/Saved Application State/com.example.one.savedState', '~/Library/Saved Application State/com.example.two.savedState'], failed: [{ path: '~/Library/Saved Application State/com.example.three.savedState', error: '这些项目都没能移入废纸篓' }], undo: '在这里点撤销，或在访达的废纸篓里放回原处', canUndo: true },
+  { id: 'prevent_network_dsstore', ok: true, outcome: 'applied', summary: '已设置 2 项 Finder 偏好', details: ['com.apple.desktopservices DSDontWriteNetworkStores'], undo: '在这里点撤销，会恢复成设置前的值', canUndo: true },
+];
+const optimizeLoad = `STATE.optimize.status==='loading'||requestOptimizePlan();onNativeOptimizePlan({requestId:STATE.optimize.planId,items:${JSON.stringify(optimizePlan)}});`;
+const optimizeChecks = `const rows=[...document.querySelectorAll('[data-optimize-task]')];qaAssert(rows.length===8,'every task is listed');qaAssert(rows.filter(r=>r.querySelector('input[type=checkbox]')).length===4,'only runnable tasks have a checkbox');qaAssert(STATE.optimize.items.filter(i=>i.runnable&&STATE.optimize.sel[i.id]).map(i=>i.id).join()==='cache_refresh,saved_state_cleanup,prevent_network_dsstore','safe tasks are checked, the review task is not');qaAssert(document.getElementById('primaryBtnText').textContent.length>0,'primary button has text');`;
+const optimizeReceiptStep = `STATE.optimize.receipts=Object.fromEntries(${JSON.stringify(optimizeReceipts)}.map(r=>[r.id,r]));renderModule();qaAssert(document.querySelectorAll('[data-optimize-receipt]').length===3,'each run task shows a receipt');qaAssert(document.querySelectorAll('[data-optimize-receipt] button').length===2,'only undoable receipts offer undo');`;
+for (const theme of ['dark', 'light']) {
+  const go = `document.documentElement.dataset.theme='${theme}';switchModule('optimize');${optimizeLoad}`;
+  add(`optimize-zh-${theme}`, `${go}${optimizeChecks}`);
+  add(`optimize-receipts-zh-${theme}`, `${go}${optimizeChecks}${optimizeReceiptStep}`);
+  add(`en-optimize-${theme}`, `${go}await qaEn('optimize',async()=>{});${optimizeChecks}`);
+  add(`en-optimize-receipts-${theme}`, `${go}await qaEn('optimize receipts',async()=>{${optimizeReceiptStep}});`);
+}
+const purgeRootsFixture = `const rootsOf=(paths,custom,error)=>({...structuredClone(qaFixture),purgeRoots:{paths,custom,error:error||''},installerFiles:[
+  {id:'i1',name:'Canvas Setup.dmg',location:'~/Downloads',path:'~/Downloads/Canvas Setup.dmg',source:'Downloads',sizeGb:1,size:1073741824,mtime:1761739200,age:'3 个月前',checked:true,tier:'safe'},
+  {id:'i2',name:'Tool.pkg',location:'~/Library/Caches/Homebrew/downloads',path:'~/Library/Caches/Homebrew/downloads/Tool.pkg',source:'Homebrew',sizeGb:0.4,size:429496729,mtime:1761739200,age:'3 个月前',checked:true,tier:'safe'},
+  {id:'i3',name:'Archive.zip',location:'~/Desktop',path:'~/Desktop/Archive.zip',source:'Desktop',sizeGb:0.2,size:214748364,mtime:1761739200,age:'3 个月前',checked:false,tier:'review',reason:'压缩包里含有安装程序，但也可能是你想留的资料，请确认后再清理'}]});`;
+for (const [state, args, extra] of [['default', "['~/Projects','~/GitHub'],false", "qaAssert(document.querySelector('.purge-roots summary').textContent.includes('2'),'summary counts the real roots');qaAssert(!document.querySelector('.purge-roots .row-remove'),'default roots cannot be removed');"],
+  ['custom', "['~/Work/app-one','~/Work/app-two'],true", "qaAssert(document.querySelectorAll('.purge-roots .row-remove').length===2,'custom roots can be removed');"],
+  ['error', "[],false,'无法读取 ~/.config/mole/purge_paths，已停止扫描构建产物：permission denied'", "qaAssert(document.querySelector('.purge-roots').open,'a read failure opens the control');"]])
+  for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en'])
+    scenarios.push({ name: `purge-roots-${state}-${lang}-${theme}`, width: 1380, height: 860, script: `qaReset();document.documentElement.dataset.theme='${theme}';${purgeRootsFixture}onNativeRealScanComplete(rootsOf(${args}));switchModule('purge');const d=document.querySelector('.purge-roots');qaAssert(d,'scan folders control renders');d.open=true;STATE.purgeRootsOpen=true;${extra}qaAssert(document.getElementById('moduleStage').textContent.includes('Homebrew'),'installer source shows per row');${lang === 'en' ? "await qaEn('purge roots " + state + "',async()=>{document.querySelector('.purge-roots').open=true;});" : ''}` });
+add('purge-roots-bridge', `${purgeRootsFixture}onNativeRealScanComplete(rootsOf(['~/Projects'],false));switchModule('purge');document.getElementById('purgeRootInput').value='relative/dir';addPurgeRootInput();qaAssert(!__qa.actions.some(a=>a.action==='addPurgeRoot'),'relative paths never reach Go');document.getElementById('purgeRootInput').value='~/Work/app';addPurgeRootInput();const add=__qa.actions.find(a=>a.action==='addPurgeRoot');qaAssert(add&&add.path==='~/Work/app','add sends the typed path');onNativePurgeRootsChanged({ok:true,action:'addPurgeRoot',path:'~/Work/app',purgeRoots:{paths:['~/Work/app'],custom:true,error:''}});qaAssert(STATE.purgeRoots.custom&&STATE.purgeRoots.paths[0]==='~/Work/app','receipt drives the list');removePurgeRootIdx(0);qaAssert(__qa.actions.some(a=>a.action==='removePurgeRoot'),'remove sends a bridge action');`);
+add('purge-installer-identity', `${purgeRootsFixture}onNativeRealScanComplete(rootsOf(['~/Projects'],false));switchModule('purge');STATE.installerFiles[2].checked=true;openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(req,'trash request is sent');const key=req.paths.find(p=>p.endsWith('Canvas Setup.dmg'));qaAssert(key&&req.identities[key]&&req.identities[key].size===1073741824&&req.identities[key].mtime===1761739200,'installer identity travels with the request');`);
+// App slimming and config references.
+const slimApp = (id, name, version, intelBytes, intelSize, tier, reason, extra = {}) => ({ id, name: name + '.app', appPath: '/Applications/' + name + '.app', icon: '', bundleId: 'com.fixture.' + id, version, intelBytes, intelSize, intelGb: intelBytes / 1e9, files: 3, tier, reason, running: false, identity: id + '-identity', ...extra });
+const slimReview = '原应用会移入废纸篓，瘦身后的副本只保留 Apple 芯片代码；应用更新会带回 Intel 代码。';
+const slimScan = {
+  apps: [
+    slimApp('canvas', 'Canvas Editor', '3.2.1', 612e6, '612 MB', 'review', slimReview),
+    slimApp('notes', 'Pixel Notes', '1.9.0', 148e6, '148 MB', 'review', slimReview),
+    slimApp('legacy', 'Legacy Studio', '5.0', 96e6, '96 MB', 'protected', '已设为使用 Rosetta 打开，保持原状'),
+    slimApp('helper', 'Canvas Helper Pro', '2.4', 74e6, '74 MB', 'protected', '应用正在运行', { running: true, unlock: '退出 Canvas Helper Pro 后重新扫描即可瘦身' }),
+    slimApp('suite', 'Vendor Suite', '24.1', 51e6, '51 MB', 'protected', 'Adobe 的应用需要使用厂商官方的卸载程序，不处理'),
+  ],
+  noIntel: 7, unavailable: '',
+};
+const slimAfter = { ...slimScan, apps: slimScan.apps.filter(a => a.id !== 'canvas') };
+const slimOutcome = { requested: 2, freedBytes: 612e6, freed: '612 MB', results: [
+  { path: '/Applications/Canvas Editor.app', name: 'Canvas Editor.app', slimmed: true, reason: '', freedBytes: 612e6, freed: '612 MB', trashed: '/Users/test/.Trash/Canvas Editor.app' },
+  { path: '/Applications/Pixel Notes.app', name: 'Pixel Notes.app', slimmed: false, reason: '瘦身后的签名检查没有通过', freedBytes: 0, freed: '', trashed: '' },
+] };
+const configRefs = [
+  { file: '~/.zshrc', line: 12, path: '/Applications/Canvas Editor 0.app/Contents/MacOS' },
+  { file: '~/.claude/settings.json', line: 34, path: '/Applications/Canvas Editor 0.app' },
+  { file: '~/.config/fish/config.fish', line: 3, path: '/Applications/Canvas Editor 0.app/Contents/Resources/bin' },
+];
+const services = {
+  stopped: [{ label: 'com.canvas.editor.agent', kind: 'agent' }, { label: 'com.canvas.editor.launcher', kind: 'helper' }],
+  reloaded: [],
+  failed: [{ label: 'com.canvas.editor.sync', error: 'launchctl 未能停止这个后台服务', detail: 'Boot-out failed: 5: Input/output error' }],
+  casks: [{ app: 'Canvas Editor.app', token: 'canvas-editor', command: 'brew uninstall --cask canvas-editor' }],
+  loginItemsManual: true,
+};
+const servicesReloaded = { ...services, stopped: [], reloaded: ['com.canvas.editor.agent'], failed: [], casks: [] };
+const slimPrep = (theme, lang) => `document.documentElement.dataset.theme='${theme}';servicesReceipt=null;Object.assign(SLIM,{scan:null,loading:false,requestId:'',error:false,checked:{},receipt:null,applying:''});configRefsReceipt=null;switchModule('software');setSoftwarePanelMode('slim');qaAssert(__qa.actions.some(a=>a.action==='scanSlim'&&a.requestId),'slim scan is correlated');onNativeSlimScan({requestId:SLIM.requestId,scan:${JSON.stringify(slimScan)}});${lang === 'en' ? "qaEnglishFixture();I18N.setLang('en',false);await qaSettle();" : ''}`;
+const slimWalk = (lang, label) => lang === 'en' ? `await qaEn('${label}',async()=>{});` : 'await qaSettle();';
+const slimKinds = {
+  list: lang => `qaAssert(document.querySelectorAll('[data-slim-app]').length===5,'five rows');qaAssert(document.querySelector('[data-slim-app="legacy"] input').disabled&&document.querySelector('[data-slim-app="helper"] input').disabled,'protected apps cannot be checked');qaAssert(!SLIM.checked.canvas,'nothing is checked by default');toggleSlimCheck('canvas');toggleSlimCheck('notes');qaAssert(slimSelected().length===2,'two selected');qaAssert(document.querySelectorAll('[data-slim-app] [data-tier-note]').length===5,'every row says why');${slimWalk(lang, 'slim list')}`,
+  confirm: lang => `toggleSlimCheck('canvas');toggleSlimCheck('notes');openSlimConfirm();${slimWalk(lang, 'slim confirm')}qaAssert(document.getElementById('confirmModal').classList.contains('open'),'modal open');qaAssert(document.querySelectorAll('#confirmModalItemsList .confirm-entry').length===2,'both apps previewed');qaAssert(document.getElementById('confirmModalSummary').textContent.includes('Intel'),'summary says an update brings Intel code back');`,
+  receipt: lang => `toggleSlimCheck('canvas');toggleSlimCheck('notes');openSlimConfirm();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='slimApps');qaAssert(req&&req.requestId&&req.paths.length===2&&req.identities['/Applications/Canvas Editor.app']==='canvas-identity','slim request carries paths and identities');onNativeSlimResult({requestId:req.requestId,outcome:${JSON.stringify(slimOutcome)}});onNativeSlimScan({requestId:SLIM.requestId,scan:${JSON.stringify(slimAfter)}});${slimWalk(lang, 'slim receipt')}qaAssert(document.querySelectorAll('[data-slim-result="ok"]').length===1&&document.querySelectorAll('[data-slim-result="skip"]').length===1,'receipt shows one slimmed and one skipped');qaAssert(document.querySelectorAll('[data-slim-app]').length===4,'list is rescanned');`,
+  config: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(req.configRefs===true,'software uninstall asks for config references');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],configRefs:${JSON.stringify(configRefs)}});${slimWalk(lang, 'config refs receipt')}qaAssert(document.querySelectorAll('#configRefsCard [data-config-ref]').length===3,'card lists every reference');qaAssert(!document.getElementById('configRefsCard').textContent.includes('export'),'no file content is shown');`,
+  services: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],services:${JSON.stringify(services)}});${slimWalk(lang, 'uninstall services receipt')}const card=document.getElementById('servicesCard');qaAssert(card&&card.querySelectorAll('[data-service-line]').length===4,'card lists stopped, failed, Homebrew and login item lines');qaAssert(card.textContent.includes('brew uninstall --cask canvas-editor')&&card.textContent.includes('Input/output error'),'exact command and launchctl words are shown');`,
+  serviceshistory: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],services:${JSON.stringify(services)}});switchModule('history');await qaSettle();document.querySelectorAll('.history-paths').forEach(d=>{if(d.querySelector('[data-service-line]'))d.open=true});${slimWalk(lang, 'history services')}qaAssert(document.querySelectorAll('.history-paths [data-service-line]').length===4,'history entry keeps the service receipt');`,
+  servicesrestore: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],services:${JSON.stringify(services)}});switchModule('history');restoreHistorySnapshot(0);const rr=__qa.actions.find(a=>a.action==='restoreTrashSnapshot');qaAssert(rr&&rr.requestId,'restore request sent');onNativeRestoreResult({requestId:rr.requestId,restored:rr.paths,restoredCount:rr.paths.length,failed:[],restarted:['com.canvas.editor.agent'],restartFailed:[]});await qaSettle();${slimWalk(lang, 'restore restarts services')}qaAssert(/${lang === 'en' ? 'background service' : '后台服务'}/.test(document.getElementById('toastBanner').textContent),'toast says the service was loaded again');`,
+  servicesreloaded: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:[],movedCount:0,failed:req.paths.map(p=>({path:p,error:'路径不存在'})),services:${JSON.stringify(servicesReloaded)}});${slimWalk(lang, 'services reloaded after a failed move')}qaAssert(document.querySelectorAll('#servicesCard [data-service-line]').length===2,'reloaded and login item lines');`,
+  history: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],configRefs:${JSON.stringify(configRefs)}});switchModule('history');await qaSettle();document.querySelectorAll('.history-paths').forEach(d=>{if(d.textContent.includes('.zshrc'))d.open=true});${slimWalk(lang, 'history config refs')}qaAssert(document.querySelectorAll('.history-paths [data-config-ref]').length===3,'history entry keeps the references');`,
+};
+for (const lang of ['zh', 'en']) for (const theme of ['dark', 'light']) for (const [kind, body] of Object.entries(slimKinds)) {
+  add((lang === 'en' ? 'en-' : '') + 'slim-' + kind + '-' + theme, slimPrep(theme, lang) + body(lang));
+  if ((kind === 'list' || kind === 'receipt') && theme === 'light') { add((lang === 'en' ? 'en-' : '') + 'slim-' + kind + '-narrow', slimPrep(theme, lang) + body(lang)); const s = scenarios[scenarios.length - 1]; s.width = 880; s.height = 620; }
+}
 // Icon contact sheet: every module glyph on its real plates (sidebar gradient, palette/hero wash) at 28 and 56px.
 function iconSheet(theme) {
   document.documentElement.dataset.theme = theme;

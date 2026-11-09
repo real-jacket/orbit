@@ -1,12 +1,9 @@
 package scanner
 
 import (
-	"errors"
-	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -38,7 +35,6 @@ const (
 	appBundleFileCap    = 0
 	appLeftoverFileCap  = 0
 	orphanFileCap       = 0
-	installerFileCap    = 25000
 )
 
 // catalogClaim is a directory a catalog row already reports, so a later row
@@ -320,7 +316,7 @@ func cleanGroupSpecs() []CatalogSpec {
 
 // scanCleanGroups lists the caches and logs the clean module offers to remove.
 func (s *Scanner) scanCleanGroups() []map[string]any {
-	specs := cleanGroupSpecs()
+	specs := append(cleanGroupSpecs(), s.moleGroupSpecs()...)
 	claims := &catalogClaims{}
 	var groups []map[string]any
 	// The AI module reports some of the same directories; its roots take part
@@ -345,7 +341,7 @@ func (s *Scanner) scanCleanGroups() []map[string]any {
 }
 
 func (s *Scanner) cleanExcludedRoots() []map[string]any {
-	return s.excludedCatalogRoots(cleanGroupSpecs())
+	return s.excludedCatalogRoots(append(cleanGroupSpecs(), s.moleGroupSpecs()...))
 }
 
 func (s *Scanner) aiExcludedRoots() []map[string]any {
@@ -457,262 +453,4 @@ func (s *Scanner) catalogRoots() []string {
 		}
 	}
 	return roots
-}
-
-// installerExtensions are the file types the purge module counts as an
-// installer.
-var installerExtensions = map[string]struct{}{
-	"dmg": {}, "pkg": {}, "xip": {}, "iso": {}, "zip": {},
-}
-
-// installerZipHints are the words that make a zip archive a plausible
-// installer. A zip without one of them is a normal download (family photos,
-// project exports), and listing it as a removable installer was wrong.
-var installerZipHints = []string{
-	"installer", "install", "setup", "update", "upgrade", "macos", "osx",
-	"universal", "arm64", "x64", "amd64", "x86_64",
-}
-
-// isInstallerFile reports whether name is an installer archive, and whether it
-// is a zip that only counts because its name says so.
-func isInstallerFile(name string) (installer bool, zipArchive bool) {
-	extension := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
-	if _, ok := installerExtensions[extension]; !ok {
-		return false, false
-	}
-	if extension != "zip" {
-		return true, false
-	}
-	lower := strings.ToLower(name)
-	for _, hint := range installerZipHints {
-		if strings.Contains(lower, hint) {
-			return true, true
-		}
-	}
-	return false, false
-}
-
-// scanInstallerPackages lists the installers in the download folders that are
-// big enough to be worth removing. Zip archives are only listed when their name
-// marks them as installers, and they are never pre-checked.
-func (s *Scanner) scanInstallerPackages() []map[string]any {
-	roots := []string{"~/Downloads", "~/Library/Caches/Homebrew/downloads"}
-	type candidate struct {
-		path     string
-		name     string
-		bytes    int64
-		modified int64
-		zip      bool
-	}
-	var candidates []candidate
-	scanned := 0
-	for _, root := range roots {
-		path := s.expand(root)
-		walkFiles(path, installerFileCap, &scanned, func(file string, bytes int64, modified int64) {
-			if bytes <= 20_000_000 {
-				return
-			}
-			installer, zipArchive := isInstallerFile(baseName(file))
-			if !installer {
-				return
-			}
-			if _, protected := s.scanProtection(file); protected {
-				return
-			}
-			candidates = append(candidates, candidate{
-				path:     file,
-				name:     baseName(file),
-				bytes:    bytes,
-				modified: modified,
-				zip:      zipArchive,
-			})
-		})
-	}
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return candidates[i].bytes > candidates[j].bytes
-	})
-	if len(candidates) > 20 {
-		candidates = candidates[:20]
-	}
-	items := []map[string]any{}
-	for i, c := range candidates {
-		item := map[string]any{
-			"id":       "installer_" + itoa64(int64(i)),
-			"name":     c.name,
-			"location": dirName(c.path),
-			"path":     s.relativize(c.path),
-			"sizeGb":   gb(c.bytes),
-			"age":      ageText(c.modified),
-			"checked":  !c.zip,
-			"tier":     "safe",
-		}
-		if c.zip {
-			item["tier"], item["reason"] = "review", "压缩包不一定是安装包，可能是下载的资料，请确认后再清理"
-		}
-		items = append(items, item)
-	}
-	return items
-}
-
-// artifactKinds names the build artifacts the purge module recognizes.
-var artifactKinds = map[string]string{
-	"node_modules": "前端依赖目录",
-	"target":       "Rust / Java 构建产物",
-	"DerivedData":  "Xcode 构建缓存",
-	".venv":        "Python 虚拟环境",
-	"venv":         "Python 虚拟环境",
-	"dist":         "前端构建产物",
-	"build":        "构建产物",
-}
-
-// artifactSkipDirs are heavy directories that are not projects and hold no
-// build artifacts worth listing; discovery never descends into them.
-var artifactSkipDirs = map[string]bool{
-	"Pods": true, "Carthage": true, "vendor": true, "__pycache__": true, "site-packages": true, "Library": true,
-}
-
-// artifactDiscoveryBudget is how long discovery may walk one project root.
-const artifactDiscoveryBudget = 30 * time.Second
-
-// maxArtifactItems is how many build artifacts the purge list keeps.
-const maxArtifactItems = 300
-
-// scanBuildArtifacts lists the build artifacts in the project folders that are
-// big enough to be worth removing.
-func (s *Scanner) scanBuildArtifacts() []map[string]any {
-	roots := []string{"~/Projects", "~/GitHub", "~/Developer", "~/code", "~/src"}
-	var candidates []artifactCandidate
-	for _, root := range roots {
-		candidates = append(candidates, s.discoverArtifacts(s.expand(root))...)
-	}
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return candidates[i].bytes > candidates[j].bytes
-	})
-	if len(candidates) > maxArtifactItems {
-		candidates = candidates[:maxArtifactItems]
-	}
-	items := []map[string]any{}
-	for i, c := range candidates {
-		project := dirName(c.path)
-		// The artifact's own mtime says when it was last rebuilt; the project
-		// says whether anyone still works in it.
-		active := max(c.modified, projectActivity(project))
-		v := artifactVerdict(c.path, active)
-		sub := map[string]any{
-			"path": s.relativize(c.path), "sizeGb": plainGB(c.bytes), "partial": c.partial,
-			"tier": v.tier, "checked": v.tier == "safe", "reason": v.reason,
-		}
-		row := map[string]any{
-			"id":          "artifact_" + itoa64(int64(i)),
-			"project":     project,
-			"artifact":    c.name,
-			"name":        c.name,
-			"path":        s.relativize(c.path),
-			"kind":        c.kind,
-			"sizeGb":      gb(c.bytes),
-			"origSizeGb":  gb(c.bytes),
-			"age":         ageText(active),
-			"rebuildNote": "删除后可重新安装或重新编译",
-			"gitClean":    gitCleanState(project),
-			"tier":        v.tier,
-			"baseTier":    v.tier,
-			"partial":     c.partial,
-			"checked":     v.tier == "safe",
-			"reason":      v.reason,
-			"subpaths":    []map[string]any{sub},
-		}
-		s.applyCleanupProtection(row)
-		items = append(items, row)
-	}
-	return items
-}
-
-// discoverArtifacts finds the build artifacts under root and measures the ones
-// that are big enough to list.
-func (s *Scanner) discoverArtifacts(root string) []artifactCandidate {
-	var found []artifactCandidate
-	s.walkArtifacts(root, time.Now().Add(artifactDiscoveryBudget), &found)
-	var (
-		mu   sync.Mutex
-		wg   sync.WaitGroup
-		out  []artifactCandidate
-		jobs = make(chan artifactCandidate)
-	)
-	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for c := range jobs {
-				size := s.fastDirectorySize(c.path, 0)
-				if size.bytes < 20_000_000 && !size.partial {
-					continue
-				}
-				c.bytes, c.partial, c.modified = size.bytes, size.partial, modifiedTime(c.path)
-				mu.Lock()
-				out = append(out, c)
-				mu.Unlock()
-			}
-		}()
-	}
-	for _, c := range found {
-		jobs <- c
-	}
-	close(jobs)
-	wg.Wait()
-	sort.Slice(out, func(i, j int) bool { return out[i].path < out[j].path }) // stable input for the size sort
-	return out
-}
-
-// artifactCandidate is one build artifact the scan found.
-type artifactCandidate struct {
-	path     string
-	name     string
-	kind     string
-	bytes    int64
-	modified int64
-	partial  bool
-}
-
-// walkArtifacts lists the unprotected build artifact directories under dir. It
-// never descends into an artifact, a hidden directory, a bundle or one of
-// artifactSkipDirs, so a project tree is a few thousand listings, not a walk of
-// every dependency. Running past the deadline leaves one warning on the root.
-func (s *Scanner) walkArtifacts(root string, deadline time.Time, out *[]artifactCandidate) {
-	if !s.walkArtifactsIn(root, root, deadline, out) {
-		recordReadWarning(root, "构建目录遍历达到扫描上限；只统计已访问路径")
-	}
-}
-
-// walkArtifactsIn reports false when it stopped at the deadline.
-func (s *Scanner) walkArtifactsIn(root, dir string, deadline time.Time, out *[]artifactCandidate) bool {
-	list := listDirItems
-	if dir == root {
-		list = listDirGuarded
-	}
-	items, err := list(dir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		recordReadError(dir, err)
-	}
-	for _, item := range items {
-		if item.kind != itemDir {
-			continue
-		}
-		if time.Now().After(deadline) {
-			return false
-		}
-		name, path := item.name, dir+"/"+item.name
-		if kind, isArtifact := artifactKinds[name]; isArtifact {
-			if _, protected := s.scanProtection(path); !protected {
-				*out = append(*out, artifactCandidate{path: path, name: name, kind: kind})
-			}
-			continue
-		}
-		if isHidden(name) || isBundleDir(name) || artifactSkipDirs[name] {
-			continue
-		}
-		if !s.walkArtifactsIn(root, path, deadline, out) {
-			return false
-		}
-	}
-	return true
 }

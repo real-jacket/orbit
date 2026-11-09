@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -33,22 +32,13 @@ func (s *Scanner) installedAppOwners(live bool) []appOwner {
 		}
 	}
 	var owners []appOwner
-	for _, dir := range []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications")} {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if !strings.EqualFold(filepath.Ext(entry.Name()), ".app") {
-				continue
-			}
-			path := filepath.Join(dir, entry.Name())
-			info := readBundleInfo(path)
-			display := firstNonEmpty(info.displayName, info.bundleName, strings.TrimSuffix(entry.Name(), ".app"))
-			for _, key := range []string{info.identifier, info.displayName, info.bundleName, strings.TrimSuffix(entry.Name(), ".app")} {
-				if key != "" {
-					owners = append(owners, appOwner{key: strings.ToLower(key), name: display, path: path})
-				}
+	for _, path := range findAppBundles([]string{"/Applications", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Library/Application Support/Setapp/Applications")}) {
+		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		info := readBundleInfo(path)
+		display := firstNonEmpty(info.displayName, info.bundleName, name)
+		for _, key := range []string{info.identifier, info.displayName, info.bundleName, name} {
+			if key != "" {
+				owners = append(owners, appOwner{key: strings.ToLower(key), name: display, path: path})
 			}
 		}
 	}
@@ -115,6 +105,20 @@ var regenerableCaches = map[string]string{
 	"cocoapods": "CocoaPods 缓存", "org.swift.swiftpm": "SwiftPM 缓存", "pypoetry": "Poetry 缓存",
 	"pre-commit": "pre-commit 环境缓存", "cypress": "Cypress 下载缓存", "puppeteer": "Puppeteer 下载缓存",
 	"prisma": "Prisma 引擎缓存", "jetbrains": "JetBrains 索引缓存", "sentrycrash": "崩溃上报缓存",
+	// Library/Caches entries Mole removes.
+	// Ported from tw93/Mole V1.70.0 lib/clean/user.sh
+	// Ported from tw93/Mole V1.70.0 lib/clean/dev.sh
+	// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh
+	"com.apple.dt.xcode": "Xcode 缓存", "com.apple.python": "macOS 自带 Python 的缓存", "com.apple.wallpaper.caches": "壁纸缓存",
+	"com.apple.webkit.networking": "WebKit 网络缓存", "com.apple.helpd": "帮助查看器缓存", "com.apple.parsecd": "Siri 建议缓存",
+	"com.apple.duetexpertd": "系统建议缓存", "com.apple.photoanalysisd": "照片分析缓存", "com.apple.applemediaservices": "媒体服务缓存",
+	"com.apple.music": "音乐缓存", "com.apple.podcasts": "播客缓存", "com.apple.tv": "Apple TV 缓存", "com.apple.finalcut": "Final Cut Pro 缓存",
+	"composer": "Composer 下载缓存", "curl": "curl 缓存", "lima": "Lima 下载缓存", "com.crashlytics.data": "崩溃上报缓存",
+}
+
+// regenerablePrefixes are Apple cache families named with a version or id suffix.
+var regenerablePrefixes = map[string]string{
+	"com.apple.iconservices": "图标服务缓存", "com.apple.iwork.": "iWork 缓存",
 }
 
 // notCaches are folders under Caches that hold account, sync or communication
@@ -152,6 +156,11 @@ func (s *Scanner) cacheVerdict(path string, size dirSize) verdict {
 	}
 	if what, ok := regenerableCaches[lower]; ok {
 		return verdict{tier: "safe", reason: what + "，会在下次使用时自动重新生成"}
+	}
+	for prefix, what := range regenerablePrefixes {
+		if strings.HasPrefix(lower, prefix) {
+			return verdict{tier: "safe", reason: what + "，会在下次使用时自动重新生成"}
+		}
 	}
 	if strings.Contains(lower, "-updater") || strings.HasSuffix(lower, ".shipit") || strings.HasSuffix(lower, "updater") {
 		return verdict{tier: "safe", reason: "应用更新包的下载缓存，下次检查更新时会自动重新下载"}

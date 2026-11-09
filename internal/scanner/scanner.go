@@ -20,10 +20,13 @@ import (
 type Scanner struct {
 	home         string
 	processProbe func() (string, error)
+	appDirs      []string       // tests point the installed-app folders at a temp dir
+	optimizeRun  OptimizeRunner // tests inject a fake command runner for the optimize tasks
 	handleProbe  func(string) (bool, error)
 	installProbe func(aiInstall) bool
 	builderProbe func() ([]builderProc, error)
 	aiUnits      []aiSessionUnit // set only on a scan-scoped view, never on Shared
+	slimProbe    *slimTools      // tests replace the signing and Gatekeeper probes of app slimming
 
 	// processTTL is how long display-time checks may reuse one `ps` table; zero
 	// means always ask. The move boundary (live) never reads the cached table.
