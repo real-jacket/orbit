@@ -707,6 +707,17 @@
     "「最近使用的项目」菜单的记录，清理后菜单会清空，文件进入废纸篓，可以放回恢复": "Record of the Recent Items menu, the menu will be empty after cleaning, and the file goes to the Trash where you can put it back",
     "无法确认固件文件是否仍被打开，保持原状": "Cannot tell whether the firmware file is still open, so it is left alone",
     "仍有进程打开这个固件文件，保持原状": "A process still has this firmware file open, so it is left alone",
+    // ---- Mole parity: owner ----
+    "{tool} 已卸载，这里是它留下的会话与配置；确认不再需要后可清理，移入废纸篓后可从历史还原": "{tool} is uninstalled. This is the sessions and settings it left behind; clean it up once you are sure you no longer need it, and it can be restored from history after it moves to the Trash",
+    "含 {tool} 的项目记录与聊天历史；移入废纸篓后可从历史还原": "Contains the project records and chat history of {tool}; can be restored from history after it moves to the Trash",
+    "{tool} 已卸载，这里是它留下的诊断日志；确认不再需要后可清理，移入废纸篓后可从历史还原": "{tool} is uninstalled. This is the diagnostic logs it left behind; clean it up once you are sure you no longer need it, and it can be restored from history after it moves to the Trash",
+    // ---- Mole parity: perm ----
+    "这个应用由 App Store 或安装器以管理员身份安装，移动需要管理员密码；orbit 不申请管理员权限。可在访达中把它拖到废纸篓（会要求输入密码），或在启动台中删除。": "This app was installed by the App Store or an installer as an administrator, so moving it needs an administrator password. orbit does not ask for administrator rights. Drag it to the Trash in Finder (it will ask for a password) or delete it from Launchpad.",
+    "已授权": "Granted",
+    "未授权：系统拒绝读取受保护数据": "Not granted: the system refused to read protected data",
+    "未授权：系统拒绝读取受保护目录": "Not granted: the system refused to read protected folders",
+    "无法判断：部分受保护目录没有完成读取": "Cannot tell: some protected folders could not be read",
+    "无法判断：没有找到可用于核对的受保护文件": "Cannot tell: no protected files were found to check against",
   };
 
   // doctor.go battery detail: "健康度 N%" + optional cycles + optional charge + optional verdict.

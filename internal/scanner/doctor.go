@@ -45,30 +45,36 @@ func (s *Scanner) DoctorChecks() []map[string]any {
 	return checks
 }
 
-// fdaCheck answers whether this process can read TCC-protected locations.
+// fdaCheck answers whether Full Disk Access is on. The decisive evidence is
+// opening TCC.db read-only (what CleanMyMac, Raycast and friends do); the Mail
+// and Safari folders are secondary evidence for when TCC.db cannot decide.
 func (s *Scanner) fdaCheck() map[string]any {
 	checks := []map[string]any{
 		s.directoryReadCheck("Mail", "Library/Mail"),
 		s.directoryReadCheck("Safari", "Library/Safari"),
 	}
-	readable, denied, unknown := false, false, false
-	for _, check := range checks {
-		readable = readable || check["status"] == "readable"
-		denied = denied || check["status"] == "denied"
-		unknown = unknown || check["status"] == "unknown"
-	}
-	result := doctorRow("完全磁盘访问权限", nil, "本机没有可判定的受保护目录（未找到 ~/Library/Mail 或 ~/Library/Safari）")
+	result := doctorRow("完全磁盘访问权限", nil, "无法判断：没有找到可用于核对的受保护文件")
 	result["status"] = "missing"
-	switch {
-	case denied:
-		result["passed"], result["status"] = false, "denied"
-		result["detail"] = "受保护目录读取被拒绝，请在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」核对当前应用；目录访问控制也可能限制读取。"
-	case unknown:
-		result["status"] = "unknown"
-		result["detail"] = "部分受保护目录未完成读取，可能正在等待 macOS 授权；未将缺失结果视为通过。"
-	case readable:
-		result["passed"], result["status"] = true, "readable"
-		result["detail"] = "已验证可读取本机存在的受保护目录；只证明本次读取，不等于系统开关已经授予。"
+	switch s.probeFullDisk() {
+	case "granted":
+		result["passed"], result["status"], result["detail"] = true, "granted", "已授权"
+	case "denied":
+		result["passed"], result["status"], result["detail"] = false, "denied", "未授权：系统拒绝读取受保护数据"
+	default:
+		readable, denied, unknown := false, false, false
+		for _, check := range checks {
+			readable = readable || check["status"] == "readable"
+			denied = denied || check["status"] == "denied"
+			unknown = unknown || check["status"] == "unknown"
+		}
+		switch {
+		case denied:
+			result["passed"], result["status"], result["detail"] = false, "denied", "未授权：系统拒绝读取受保护目录"
+		case unknown:
+			result["status"], result["detail"] = "unknown", "无法判断：部分受保护目录没有完成读取"
+		case readable:
+			result["passed"], result["status"], result["detail"] = true, "readable", "已授权"
+		}
 	}
 	result["checks"], result["checkedAt"] = checks, time.Now().UnixMilli()
 	return result

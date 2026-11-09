@@ -57,6 +57,13 @@ func protectSharedRemnants(results []map[string]any) {
 // appendExisting measures known app paths, keeping protected entries visible
 // but out of the removal selection.
 func (s *Scanner) appendExisting(candidates []string, kind string, checked bool, into *[]map[string]any) int64 {
+	return s.appendExistingFor(nil, candidates, kind, checked, into)
+}
+
+// appendExistingFor is appendExisting for the uninstall of app: the app's own
+// personal data (a config row) is no longer protected because the app is
+// installed, it becomes a review row that complete uninstall checks.
+func (s *Scanner) appendExistingFor(app *uninstallApp, candidates []string, kind string, checked bool, into *[]map[string]any) int64 {
 	var total int64
 	seen := map[string]bool{}
 	for _, candidate := range candidates {
@@ -69,7 +76,14 @@ func (s *Scanner) appendExisting(candidates []string, kind string, checked bool,
 			continue
 		}
 		// A partial size is a lower bound; it never makes a path protected.
-		reason := s.CleanupReason(candidate)
+		reason, ownedReason := s.CleanupReason(candidate), ""
+		if app != nil && kind == "config" {
+			if rule, owner, ok := s.personalRule(candidate); ok && owner.ownedBy(*app) && !s.ownerAbsent(owner, nil) && s.ownerRelaxFor(*app)(rule) {
+				if reason = s.cleanupReasonAs(candidate, false, s.ownerRelaxFor(*app)); reason == "" {
+					ownedReason = owner.ownedReason()
+				}
+			}
+		}
 		total += size.bytes
 		entry := map[string]any{
 			"path":    s.relativize(candidate),
@@ -81,6 +95,8 @@ func (s *Scanner) appendExisting(candidates []string, kind string, checked bool,
 		}
 		if reason != "" {
 			entry["tier"], entry["reason"] = "protected", reason
+		} else if ownedReason != "" {
+			entry["tier"], entry["reason"] = "review", ownedReason
 		}
 		if size.partial && size.bytes == 0 {
 			entry["size"], entry["sizeGb"] = "未读取", nil
@@ -183,6 +199,10 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			if reason := s.CleanupReason(fullPath); reason != "" {
 				subpaths[0]["tier"], subpaths[0]["reason"], subpaths[0]["checked"] = "protected", reason, false
 			}
+			needsAdmin := bundleNeedsAdmin(fullPath)
+			if needsAdmin && subpaths[0]["tier"] == nil {
+				subpaths[0]["tier"], subpaths[0]["reason"], subpaths[0]["checked"] = "protected", appNeedsAdminReason, false
+			}
 			if size.partial && appBytes == 0 {
 				subpaths[0]["size"], subpaths[0]["sizeGb"] = "未读取", nil
 			}
@@ -191,8 +211,9 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			// Report the measured cache and configuration sizes separately
 			// instead of splitting the leftover total with a made-up 80/20
 			// ratio; a group that was not found reports zero.
-			cacheBytes := s.appendExisting(cacheCandidates, "cache", true, &subpaths)
-			configBytes := s.appendExisting(configCandidates, "config", false, &subpaths)
+			self := &uninstallApp{path: fullPath, name: name, bundleID: bundleID}
+			cacheBytes := s.appendExistingFor(self, cacheCandidates, "cache", true, &subpaths)
+			configBytes := s.appendExistingFor(self, configCandidates, "config", false, &subpaths)
 			// Launch items travel with the app but are not part of the cache or
 			// config totals. Root-owned ones are refused by CleanupReason.
 			launchPaths := launchPathsFor(launchItems, fullPath, bundleID)
@@ -218,6 +239,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 				"version":        version,
 				"partial":        size.partial,
 				"running":        running,
+				"needsAdmin":     needsAdmin,
 				"appSizeGb":      plainGB(appBytes),
 				"leftoverSizeGb": leftoverGB,
 				"cacheSizeGb":    cacheGB,

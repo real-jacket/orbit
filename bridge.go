@@ -180,6 +180,8 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 	case "requestRuntimeStatus":
 		checkFolders, _ := payload["checkFolders"].(bool)
 		pushRuntimeStatus(stringOf(payload["requestId"]), checkFolders)
+	case "relaunchApp":
+		relaunchApp()
 	case "menubarShowTools":
 		showFlyout()
 	case "requestOptimizePlan":

@@ -258,7 +258,9 @@ const receipts = vm.createContext({
   document: { getElementById() { return { classList: { contains() { return false; } } }; } },
 });
 receipts.window = receipts;
-['hasNum', 'fmtDiskSizeGb', 'selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'servicesHasContent', 'resolveTrash'].forEach(name => load(name, receipts));
+['hasNum', 'fmtDiskSizeGb', 'selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'servicesHasContent', 'resolveTrash', 'busyTrash', 'rowMoving', 'movingAttr', 'lockStageForTrash', 'trashBusyCopy', 'pruneCleanedRows', 'unpruneSubpaths', 'unpruneRows', 'restoreSnapshotEntities'].forEach(name => load(name, receipts));
+['rowKey', 'prunedRows', 'PRUNE_SELECTED_KEY', 'NATIVE_RESULT_TIMEOUT_MS'].forEach(name => loadConst(name, receipts));
+receipts.recomputeDiskAnalyzeTotals = () => {};
 const partialGroup = { id: 'cache', name: 'Cache', path: '/tmp/cache', tier: 'safe', checked: true, sizeGb: 3, subpaths: [
   { path: '/tmp/cache/one', sizeGb: 1, checked: true },
   { path: '/tmp/cache/two', sizeGb: 2, checked: false },
@@ -278,7 +280,8 @@ assert.equal(receipts.STATE.historyLogs.length, 1, 'every actual move has a rest
 assert.equal(receipts.STATE.historyLogs[0].restoreData.paths.join(','), '/tmp/cache/one');
 assert.equal(receipts.STATE.historyLogs[0].restoreData.trashedPaths['/tmp/cache/one'], '/trash/one', 'history retains the exact Trash target, not only the original basename');
 assert.equal(receipts.STATE.historyLogs[0].sizeGb, 1, 'partial receipt uses only known moved-path bytes');
-assert.equal(partialGroup.subpaths[1].cleaned, false);
+assert.equal(partialGroup.subpaths.length, 1, 'the moved subpath leaves the row at once');
+assert.equal(partialGroup.subpaths[0].cleaned, false, 'the failed one stays selectable');
 assert.equal(partialGroup.failed, true);
 assert.equal(partialGroup.sizeGb, 2);
 receipts.rows = [{ id: 'cache', path: '/tmp/cache', sizeGb: 2 }, { id: 'other', path: '/tmp/other', sizeGb: 4 }];
@@ -297,6 +300,137 @@ receipts.resolveTrash({ requestId: 'late', timedOut: true });
 assert.equal(receipts.pendingTrashRequests.has('late'), true, 'unknown timeout does not discard an in-flight removal');
 receipts.resolveTrash({ requestId: 'late', moved: [{ original: '/tmp/late', trashed: '/trash/late' }], movedCount: 1 });
 assert.equal(receipts.pendingTrashRequests.has('late'), false, 'late receipt still settles the request');
+
+
+// --- 移入废纸篓：等待回执时本模块真锁定，回执一到同步从列表移除、重算合计 ---------------------------
+{
+  const R = receipts, run = code => vm.runInContext(code, R);
+  const sub = (path, sizeGb, extra) => ({ path, sizeGb, checked: true, ...extra });
+  const row = (id, subs, extra) => ({ id, name: id, path: '/t/' + id, tier: 'safe', checked: true, sizeGb: subs.reduce((n, x) => n + x.sizeGb, 0), subpaths: subs, ...extra });
+  // 提交：登记一次待回执请求（与 submitTrash 同样记录 module / keys / sizeGb），返回 plan 方便结算。
+  const submit = (module, id) => {
+    R.STATE.module = module;
+    const plan = run(`buildCleanEntries('${module}')`);
+    assert.ok(plan && plan.entries.length, `${module} has entries to submit`);
+    const requested = plan.entries.reduce((n, e) => n + e.paths.length, 0);
+    R.pendingTrashRequests.set(id, { entries: plan.entries, options: {}, requested, module, keys: new Set(plan.entries.map(e => R.rowKey(e.entity))), sizeGb: plan.entries.reduce((n, e) => n + e.sizeGb, 0) });
+    return plan;
+  };
+  const mv = (...paths) => paths.map(original => ({ original, trashed: '/trash' + original }));
+  const ids = list => list.map(x => x.id || x.path || x.name).join(',');
+  const fakeStage = () => {
+    const el = () => ({ disabled: false, tabIndex: 0, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } });
+    const buttons = [el(), el()], inputs = [el()], tabs = [el(), el()], right = { innerHTML: '<b>1.00 GB</b>' };
+    return { dataset: {}, buttons, inputs, tabs, right, querySelectorAll(sel) { return sel.includes('[data-moving]') ? [{ querySelector: () => right }] : sel.includes('seg-tab') ? tabs : buttons.concat(inputs); } };
+  };
+
+  // Deep Clean：等待中锁定；回执后整行消失、部分行只剩没移走的子路径、失败行保留红色原因。
+  R.STATE.scanCompleted = true;
+  R.STATE.cleanGroups = [
+    row('a', [sub('/t/a/1', 1)]),
+    row('b', [sub('/t/b/1', 2)]),
+    row('c', [sub('/t/c/1', 1), sub('/t/c/2', 3)]),
+    row('d', [sub('/t/d/1', 5)], { checked: false }),
+  ];
+  R.STATE.selectedCleanIdx = 2;
+  submit('clean', 'dc');
+  assert.ok(run('busyTrash()'), 'the module that submitted is busy');
+  assert.equal(run('rowMoving(STATE.cleanGroups[0])'), true, 'a submitted row is marked moving');
+  assert.equal(run('rowMoving(STATE.cleanGroups[3])'), false, 'an unselected row is not moving');
+  assert.match(run('movingAttr(STATE.cleanGroups[0])'), /data-moving aria-busy="true"/);
+  R.STATE.module = 'software';
+  assert.equal(run('busyTrash()'), null, 'other modules stay navigable');
+  R.STATE.module = 'clean';
+  const stage = fakeStage();
+  R.stageArg = stage; run('lockStageForTrash(stageArg)');
+  assert.ok(stage.buttons.concat(stage.inputs).every(x => x.disabled), 'buttons and checkboxes are really disabled while pending');
+  assert.ok(stage.tabs.every(x => x.attrs['aria-disabled'] === 'true' && x.tabIndex === -1), 'tabs are aria-disabled and leave the tab order');
+  assert.match(stage.right.innerHTML, /正在移入废纸篓…/, 'moving rows say what is happening instead of the size');
+  assert.ok('trashBusy' in stage.dataset, 'the stage is marked busy');
+  const copy = run('trashBusyCopy(busyTrash())');
+  assert.match(copy.headline, /正在移入废纸篓：4 个路径/);
+  assert.equal(copy.statValue, '7.00 GB', 'hero shows the batch being moved');
+  R.pendingTrashRequests.get('dc').timedOut = true;
+  const slow = run('trashBusyCopy(busyTrash())');
+  assert.match(slow.badge, /等待系统回执/);
+  assert.match(slow.desc, /45 秒/, 'the timeout state explains the wait');
+  assert.match(slow.desc, /授权弹窗/);
+  assert.equal(R.pendingTrashRequests.has('dc'), true, 'timeout keeps waiting for the real receipt');
+  R.resolveTrash({ requestId: 'dc', moved: mv('/t/a/1', '/t/c/1'), failed: [{ path: '/t/b/1', error: 'Permission denied' }], movedCount: 2 });
+  assert.equal(R.pendingTrashRequests.size, 0, 'receipt clears the lock');
+  const cg = R.STATE.cleanGroups;
+  assert.equal(ids(cg), 'b,c,d', 'the fully moved row is removed from the list at once');
+  assert.equal(cg[1].subpaths.map(x => x.path).join(), '/t/c/2', 'a partially moved row drops only the moved subpath');
+  assert.equal(cg[1].sizeGb, 3, 'its total is recomputed from what is left');
+  assert.equal(cg[0].failed, true, 'a failed row stays');
+  assert.equal(cg[0].failedReason, 'Permission denied', 'with its red reason');
+  assert.equal(cg[0].subpaths.length, 1, 'and keeps its subpaths');
+  assert.equal(R.STATE.selectedCleanIdx, 1, 'the inspector stays on the same row after the list shrinks');
+  assert.equal(cg.filter(g => g.checked).reduce((n, g) => n + R.selectedSizeGb(g), 0), 5, 'selected total counts only what remains');
+  // 立即还原：整行放回原位。
+  R.restoreSnapshotEntities({ restoreData: { type: 'clean', ids: ['a', 'c'], paths: ['/t/a/1', '/t/c/1'] } });
+  assert.equal(ids(R.STATE.cleanGroups), 'b,c,d,a', 'restoring puts a pruned row back');
+  assert.equal(R.STATE.cleanGroups.find(g => g.id === 'c').subpaths.length, 2, 'and a pruned subpath');
+  assert.equal(R.STATE.cleanGroups.find(g => g.id === 'a').sizeGb, 1);
+
+  // AI 清理。
+  R.STATE.aiMoonBands = [row('m1', [sub('/t/m1/1', 2)]), row('m2', [sub('/t/m2/1', 1)])];
+  R.STATE.selectedMoonIdx = 1;
+  submit('ai_moon', 'ai');
+  R.resolveTrash({ requestId: 'ai', moved: mv('/t/m1/1'), failed: [{ path: '/t/m2/1', error: 'Operation not permitted' }], movedCount: 1 });
+  assert.equal(ids(R.STATE.aiMoonBands), 'm2', 'AI cleanup row is removed, failed one stays');
+  assert.equal(R.STATE.aiMoonBands[0].failedReason, 'Operation not permitted');
+  assert.equal(R.STATE.selectedMoonIdx, 0);
+
+  // 卸载：应用行消失；仅清缓存时应用留下、缓存体积与子路径同步减少；回执卡片仍渲染。
+  const appRow = (id, subs, extra) => ({ id, name: id, appPath: `/Applications/${id}.app`, checked: true, version: '1', sizeGb: subs.reduce((n, x) => n + x.sizeGb, 0), appSizeGb: 2, cacheSizeGb: 1, configSizeGb: 0.5, leftoverSizeGb: 1.5, subpaths: subs, ...extra });
+  const appSubs = id => [sub(`/Applications/${id}.app`, 2, { kind: 'app' }), sub(`/Library/Caches/${id}`, 1, { kind: 'cache' }), sub(`/Library/Preferences/${id}`, 0.5, { kind: 'config' })];
+  R.STATE.softwarePanelMode = 'apps';
+  R.STATE.uninstallMode = 'complete';
+  R.STATE.appsList = [appRow('Gone', appSubs('Gone')), appRow('Stay', appSubs('Stay'))];
+  R.STATE.appsList[1].subpaths.forEach(x => { x.checked = x.kind === 'cache'; });
+  R.STATE.appsList[1].subpaths[0].checked = false;
+  R.STATE.appsList[0].subpaths.forEach(x => { x.checked = true; });
+  R.STATE.selectedAppIdx = 1;
+  // 走真正的 executeConfirmedClean，回执卡片（服务 / 配置引用）由它的 onDone 写入。
+  R.STATE.module = 'software';
+  R.submitTrash = (entries, options) => R.pendingTrashRequests.set('sw', { entries, options, requested: 4, module: 'software', keys: new Set(entries.map(e => R.rowKey(e.entity))), sizeGb: 0 });
+  run("confirmedClean = buildCleanEntries('software'); window.executeConfirmedClean()");
+  assert.equal(R.pendingTrashRequests.get('sw').entries.length, 2);
+  const services = { stopped: [{ label: 'com.gone.helper' }], casks: [], failed: [], reloaded: [] };
+  R.resolveTrash({ requestId: 'sw', moved: mv('/Applications/Gone.app', '/Library/Caches/Gone', '/Library/Preferences/Gone', '/Library/Caches/Stay'), failed: [], movedCount: 4, services, configRefs: [{ file: '~/.zshrc', line: 3 }] });
+  assert.equal(ids(R.STATE.appsList), 'Stay', 'the uninstalled app disappears from the list at once');
+  const stay = R.STATE.appsList[0];
+  assert.equal(stay.cacheSizeGb, 0, 'cache bytes leave the kept app');
+  assert.equal(stay.subpaths.map(x => x.kind).join(), 'app,config', 'the moved cache subpath is gone from the inspector');
+  assert.equal(R.STATE.selectedAppIdx, 0);
+  assert.equal(vm.runInContext('servicesReceipt', R) && vm.runInContext('servicesHasContent(servicesReceipt)', R), 1, 'services receipt is kept for the uninstall card');
+  assert.equal(vm.runInContext('configRefsReceipt.refs.length', R), 1, 'config references are kept for their card');
+  // 卸载残留。
+  R.STATE.softwarePanelMode = 'leftovers';
+  R.STATE.orphanLeftoversList = [row('o1', [sub('/t/o1/1', 1)]), row('o2', [sub('/t/o2/1', 1), sub('/t/o2/2', 2)]), row('o3', [sub('/t/o3/1', 1)])];
+  R.STATE.selectedOrphanIdx = 2;
+  submit('software', 'or');
+  R.resolveTrash({ requestId: 'or', moved: mv('/t/o1/1', '/t/o2/1'), failed: [{ path: '/t/o3/1', error: 'Permission denied' }], movedCount: 2 });
+  assert.equal(ids(R.STATE.orphanLeftoversList), 'o2,o3', 'moved leftovers leave the list, partial ones keep the rest');
+  assert.equal(R.STATE.orphanLeftoversList[0].sizeGb, 2);
+  assert.equal(R.STATE.orphanLeftoversList[1].failedReason, 'Permission denied');
+  assert.equal(R.STATE.selectedOrphanIdx, 1);
+
+  // 构建清理：目录与安装包。
+  R.STATE.purgeItems = [{ id: 'p0', project: 'web', artifact: 'node_modules', path: '/t/web/node_modules', sizeGb: 2, checked: true, tier: 'safe' }, { id: 'p1', project: 'api', artifact: 'target', path: '/t/api/target', sizeGb: 4, checked: true, tier: 'safe' }];
+  R.STATE.installerFiles = [{ id: 'i0', name: 'x.dmg', path: '/t/x.dmg', sizeGb: 1, checked: true, tier: 'safe' }, { id: 'i1', name: 'y.pkg', path: '/t/y.pkg', sizeGb: 1, checked: true, tier: 'safe' }];
+  R.STATE.selectedPurgeIdx = 1;
+  submit('purge', 'pg');
+  R.resolveTrash({ requestId: 'pg', moved: mv('/t/web/node_modules', '/t/x.dmg'), failed: [{ path: '/t/api/target', error: 'In use' }, { path: '/t/y.pkg', error: 'In use' }], movedCount: 2 });
+  assert.equal(ids(R.STATE.purgeItems), 'p1', 'moved build artifact leaves the list');
+  assert.equal(R.STATE.purgeItems[0].failedReason, 'In use', 'failed artifact keeps its reason');
+  assert.equal(R.STATE.selectedPurgeIdx, 0);
+  assert.equal(ids(R.STATE.installerFiles), 'i1', 'moved installer leaves the list');
+  assert.equal(R.STATE.installerFiles[0].failedReason, 'In use');
+  assert.equal(R.STATE.purgeItems.filter(p => p.checked).reduce((n, p) => n + p.sizeGb, 0) + R.STATE.installerFiles.filter(i => i.checked).reduce((n, i) => n + i.sizeGb, 0), 5, 'purge total counts what is left');
+  assert.equal(run('prunedRows.length') > 0, true, 'pruned rows are remembered for an immediate restore');
+}
 
 receipts.pendingRestoreRequests = new Map();
 receipts.restoreSnapshotEntities = () => {};
@@ -324,7 +458,7 @@ assert.equal(receipts.STATE.historyLogs.length, 0, 'successful retry can finish 
     setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout(id) { if (id) timers[id - 1] = null; },
   });
   refresh.window = refresh;
-  ['hasNum', 'selectedSubpaths', 'normalizeComparePath', 'markSubpathsMoved', 'endRefreshing', 'armRefreshFallback', 'scheduleRefresh', 'noteNativeScanStarted', 'reconcileAfterScan', 'dropMovedFromLists'].forEach(name => load(name, refresh));
+  ['hasNum', 'selectedSubpaths', 'normalizeComparePath', 'markSubpathsMoved', 'endRefreshing', 'armRefreshFallback', 'scheduleRefresh', 'noteNativeScanStarted', 'reconcileAfterScan', 'dropMovedFromLists', 'pruneCleanedRows'].forEach(name => load(name, refresh));
   vm.runInContext('var recentMoves = new Map(), REFRESH_DEBOUNCE_MS = 2500, refreshing = false, refreshTimer = 0, refreshGuard = 0, scanStartedAt = 0, lastMoveAt = 0', refresh);
   const fire = () => timers.splice(0).forEach(fn => fn && fn());
   vm.runInContext('scheduleRefresh(["/tmp/a"]); scheduleRefresh(["/tmp/b"])', refresh);
@@ -341,8 +475,10 @@ assert.equal(receipts.STATE.historyLogs.length, 0, 'successful retry can finish 
   vm.runInContext('recentMoves.clear(); scanStartedAt = 0; scheduleRefresh(["/tmp/a"])', refresh);
   vm.runInContext('STATE.cleanGroups = [{ id: "c", path: "/tmp/c", sizeGb: 3, checked: true, tier: "safe", subpaths: [{ path: "/tmp/a", sizeGb: 1, checked: true }, { path: "/tmp/b", sizeGb: 2, checked: true }] }]; reconcileAfterScan()', refresh);
   const ghost = vm.runInContext('STATE.cleanGroups[0]', refresh);
-  assert.equal(ghost.subpaths[0].cleaned, true, 'a late scan cannot resurrect a path moved after it began');
+  assert.equal(ghost.subpaths.map(sp => sp.path).join(), '/tmp/b', 'a late scan cannot resurrect a path moved after it began');
   assert.equal(ghost.sizeGb, 2, 'remaining size is recomputed from what is left');
+  vm.runInContext('STATE.cleanGroups = [{ id: "z", path: "/tmp/z", sizeGb: 1, checked: true, tier: "safe", subpaths: [{ path: "/tmp/a", sizeGb: 1, checked: true }] }]; reconcileAfterScan()', refresh);
+  assert.equal(vm.runInContext('STATE.cleanGroups.length', refresh), 0, 'a stale row whose every path was moved is removed, not left as a cleaned shell');
   assert.equal(vm.runInContext('refreshing', refresh), true, 'still refreshing until a scan that started after the last move returns');
   // 开始于最后一次移动之后的扫描是权威的：结果原样采用，刷新态结束。
   vm.runInContext('scanStartedAt = lastMoveAt + 1; STATE.cleanGroups = [{ id: "c", path: "/tmp/c", sizeGb: 3, checked: true, tier: "safe", subpaths: [{ path: "/tmp/a", sizeGb: 1, checked: true }] }]; reconcileAfterScan()', refresh);
@@ -619,4 +755,12 @@ vm.runInContext('killProcessByPid(8123)', quits);
 quits.onNativeProcessQuitResult({ requestId: quits.sent[1].requestId, pid: 8123, ok: true });
 assert.equal(quits.STATE.processes.length, 1, 'SIGTERM acknowledgement is not proof that the process exited');
 assert.equal(quits.STATE.processes[0].quitRequested, true);
+const saved = vm.createContext({});
+load('dropSavedFailures', saved);
+const savedState = { cleanGroups: [{ failed: true, failedReason: 'old' }], aiMoonBands: [], appsList: [{ failed: true, failedReason: 'macOS 拒绝移动应用', needsAdmin: true }, null],
+  orphanLeftoversList: [], largeFiles: [], purgeItems: [], installerFiles: [] };
+saved.dropSavedFailures(savedState);
+assert.equal(savedState.appsList[0].failed, false, 'a failure saved by an earlier run does not survive a relaunch');
+assert.equal(savedState.cleanGroups[0].failedReason, '');
+assert.equal(savedState.appsList[0].needsAdmin, true, 'only the failure marks are dropped');
 console.log('UI regression checks passed: frozen selections, protected AI paths, scoped scan receipts, real treemap areas and dual-theme contrast; inline JavaScript parses.');

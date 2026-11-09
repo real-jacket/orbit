@@ -137,11 +137,14 @@ func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec, live 
 	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
 		return "AI 缓存或日志边界不是普通目录，保持原状"
 	}
+	// Keep rules protect a tool that still writes these logs; once its owner is gone nothing does.
+	_, _, ownerGone := s.goneOwner(path)
+	keep := entry.logFiles && !ownerGone
 	if entry.logFiles {
 		if !info.Mode().IsRegular() {
 			return "只按普通诊断文件处理，不移除日志目录"
 		}
-		if !info.ModTime().Before(time.Now().Add(-30 * 24 * time.Hour)) {
+		if keep && !info.ModTime().Before(time.Now().Add(-30*24*time.Hour)) {
 			return "保留最近 30 天的诊断日志"
 		}
 		if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink > 1 {
@@ -164,11 +167,11 @@ func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec, live 
 				newer = true
 			}
 		}
-		if !newer {
+		if keep && !newer {
 			return "最新诊断日志保持原状"
 		}
 	}
-	if entry.logFiles {
+	if keep {
 		latest := filepath.Join(root, "latest")
 		if _, err := os.Lstat(latest); err == nil {
 			target, err := os.Stat(latest)

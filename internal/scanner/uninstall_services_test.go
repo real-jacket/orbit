@@ -100,7 +100,7 @@ func TestUninstallStopsUserServicesAroundTheMoveAndRestoreStartsThemAgain(t *tes
 	s, f, app, agent := uninstallFixture(t)
 	f.loaded["com.example.app"], f.loaded["com.example.app.launcher"] = true, true
 
-	outcome, receipt := s.TrashUninstall([]string{app, agent}, nil)
+	outcome, receipt := trashUninstallSync(s, []string{app, agent}, nil)
 	if len(outcome.Moved) != 2 {
 		t.Fatalf("moved %d, skipped %v, failed %v", len(outcome.Moved), outcome.Skipped, outcome.Failed)
 	}
@@ -143,7 +143,7 @@ func TestUninstallLeavesAnAgentThatIsNotLoadedAndOneThatIsNotOwned(t *testing.T)
 	writeFile(t, other, launchPlist("org.other.job", "/usr/bin/true"))
 	f.byPlist[other], f.loaded["org.other.job"] = "org.other.job", true
 
-	outcome, receipt := s.TrashUninstall([]string{app, agent, other}, nil)
+	outcome, receipt := trashUninstallSync(s, []string{app, agent, other}, nil)
 	if len(outcome.Moved) != 3 {
 		t.Fatalf("moved %d, failed %v", len(outcome.Moved), outcome.Failed)
 	}
@@ -161,7 +161,7 @@ func TestUninstallLeavesAnAgentThatIsNotLoadedAndOneThatIsNotOwned(t *testing.T)
 func TestUninstallNeverStopsAnythingForAPlistSelectedWithoutItsApp(t *testing.T) {
 	s, f, _, agent := uninstallFixture(t)
 	f.loaded["com.example.app"] = true
-	outcome, receipt := s.TrashUninstall([]string{agent}, nil)
+	outcome, receipt := trashUninstallSync(s, []string{agent}, nil)
 	if len(outcome.Moved) != 1 || f.count("launchctl") != 0 || len(receipt.Stopped) != 0 || receipt.LoginItemsManual {
 		t.Fatalf("a cache-only selection touched launchd: %v %+v", f.log, receipt)
 	}
@@ -176,7 +176,7 @@ func TestUninstallBootsAnAgentBackInWhenTheTrashMoveFails(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(trash, 0o755) })
 
-	outcome, receipt := s.TrashUninstall([]string{app, agent}, nil)
+	outcome, receipt := trashUninstallSync(s, []string{app, agent}, nil)
 	if len(outcome.Moved) != 0 || len(outcome.Failed) != 2 {
 		t.Skipf("the Trash stayed writable (running as root?): %+v", outcome)
 	}
@@ -195,7 +195,7 @@ func TestUninstallReportsServicesThatCannotBeStoppedOrStartedAgain(t *testing.T)
 	s, f, app, agent := uninstallFixture(t)
 	f.loaded["com.example.app"], f.loaded["com.example.app.launcher"] = true, true
 	f.failBootout["com.example.app"], f.failBootout["com.example.app.launcher"] = true, true
-	outcome, receipt := s.TrashUninstall([]string{app, agent}, nil)
+	outcome, receipt := trashUninstallSync(s, []string{app, agent}, nil)
 	if len(outcome.Moved) != 2 || len(receipt.Stopped) != 0 || len(receipt.Failed) != 2 {
 		t.Fatalf("moved %d, receipt %+v", len(outcome.Moved), receipt)
 	}
@@ -284,7 +284,7 @@ func TestUninstallKeepsHelpersRunningWhileASameBundleSiblingStaysInstalled(t *te
 	sibling := filepath.Join(s.home, "Applications/Example Beta.app")
 	writeFile(t, filepath.Join(sibling, "Contents/Info.plist"), `<plist><dict><key>CFBundleIdentifier</key><string>com.example.app</string></dict></plist>`)
 
-	outcome, receipt := s.TrashUninstall([]string{app}, nil)
+	outcome, receipt := trashUninstallSync(s, []string{app}, nil)
 	if len(outcome.Moved) != 1 || f.count("launchctl bootout") != 0 || len(receipt.Stopped) != 0 {
 		t.Fatalf("helper was booted out although a sibling stays: moved %d, log %v", len(outcome.Moved), f.log)
 	}
@@ -297,7 +297,14 @@ func TestUninstallKeepsHelpersRunningWhileASameBundleSiblingStaysInstalled(t *te
 	f2.loaded["com.example.app.launcher"] = true
 	sibling2 := filepath.Join(s2.home, "Applications/Example Beta.app")
 	writeFile(t, filepath.Join(sibling2, "Contents/Info.plist"), `<plist><dict><key>CFBundleIdentifier</key><string>com.example.app</string></dict></plist>`)
-	if _, receipt := s2.TrashUninstall([]string{app2, sibling2}, nil); len(receipt.Stopped) != 1 {
+	if _, receipt := trashUninstallSync(s2, []string{app2, sibling2}, nil); len(receipt.Stopped) != 1 {
 		t.Errorf("stopped = %+v", receipt.Stopped)
 	}
+}
+
+// trashUninstallSync is TrashUninstall with the best effort LaunchServices work run before it returns.
+func trashUninstallSync(s *Scanner, paths []string, identities map[string]FileIdentity) (TrashOutcome, UninstallReceipt) {
+	outcome, receipt, after := s.trashUninstall(paths, identities)
+	after()
+	return outcome, receipt
 }

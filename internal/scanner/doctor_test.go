@@ -93,8 +93,8 @@ func TestFullDiskReadCheckIncludesAllAvailableEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := scanner.FullDiskReadCheck()
-	if result["passed"] != true || result["status"] != "readable" || !strings.Contains(result["detail"].(string), "不等于系统开关") {
-		t.Fatalf("successful reading lacks its authorization limitation: %v", result)
+	if result["passed"] != true || result["status"] != "readable" || result["detail"] != "已授权" {
+		t.Fatalf("a readable protected folder means granted: %v", result)
 	}
 }
 

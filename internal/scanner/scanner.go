@@ -415,7 +415,11 @@ func (r *walkRun) addFile(item dirItem) {
 // split, so protection decisions split them too, otherwise a line such as
 // "~/Library/Caches & ~/Library/Logs" would protect nothing.
 func (s *Scanner) scanProtection(path string) (Protection, bool) {
-	if protection, protected := builtinCleanupProtection(path, s.home); protected {
+	return s.scanProtectionAs(path, s.ownerGoneRule)
+}
+
+func (s *Scanner) scanProtectionAs(path string, relax func(rule string) bool) (Protection, bool) {
+	if protection, protected := builtinCleanupProtection(path, s.home, relax); protected {
 		return protection, true
 	}
 	if protection, protected := runtimeCleanupProtection(path); protected {

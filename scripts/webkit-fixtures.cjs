@@ -38,7 +38,7 @@ const dominantTiles = [
 const telemetry = { cpu: 24, freeDiskGb: 128, memUsedGb: 16, memTotalGb: 32, processes: [{ pid: 8123, name: 'Canvas Editor', cpu: 12, memory_mb: 384, path: '/Applications/Canvas Editor.app', power: null }, { pid: 8234, name: 'Canvas Helper', cpu: 4, memory_mb: 128, path: '/Applications/Canvas Helper.app', power: null }], power: { thermal: 'nominal', memPressure: 'normal', battery: { percent: 80, healthPct: 84, cycles: 439, charging: false, source: 'battery' } }, net: { rxBytesPerSec: 1048576, txBytesPerSec: 131072 }, diskIo: { readBytesPerSec: 2097152, writeBytesPerSec: 1048576 }, gpuPct: 20, cpuTempC: 52, fans: [1200] };
 const setup = `const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.appendChild(style);window.qaFixture=${JSON.stringify(fixture)}; window.qaTelemetry=${JSON.stringify(telemetry)}; window.qaTiles=${JSON.stringify(tiles)}; window.qaDominantTiles=${JSON.stringify(dominantTiles)};
 window.qaAssert=(condition,message)=>{if(!condition)throw new Error(message)};
-window.qaReset=()=>{ I18N.setLang('zh',false); document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();recentMoves.clear();clearTimeout(refreshTimer);clearTimeout(refreshGuard);refreshTimer=refreshGuard=0;refreshing=false;scanStartedAt=lastMoveAt=0;clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
+window.qaReset=()=>{ I18N.setLang('zh',false); document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();closeProcDrawer();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();recentMoves.clear();clearTimeout(refreshTimer);clearTimeout(refreshGuard);refreshTimer=refreshGuard=0;refreshing=false;scanStartedAt=lastMoveAt=0;clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; renderRuntimeBanner();switchModule('clean');renderModule();};`;
 // English walk helpers (installed into the page). The fixture is Chinese user data plus Chinese backend
 // sentences; backend sentences without a dictionary entry get a placeholder so only the page's own text is judged.
 function installEnglishWalk() {
@@ -101,7 +101,7 @@ add('clean-empty', `onNativeRealScanComplete({...structuredClone(qaFixture),clea
 add('clean-filter', `switchModule('clean'); setCleanFilter('review'); qaAssert(document.querySelectorAll('#moduleStage .list-row').length===1,'tier filter works');`);
 add('purge-installers-only', `onNativeRealScanComplete({...structuredClone(qaFixture),purgeItems:[]}); switchModule('purge'); qaAssert(document.getElementById('moduleStage').textContent.includes('Canvas Setup.dmg'),'installers remain selectable when no build artifacts exist');`);
 add('analyze-drill', `switchModule('analyze'); drillTile(0); qaAssert(STATE.drillStack.length===1,'directory drill works'); qaAssert(currentTiles()[0].name==='Canvas','drill shows children'); drillUp(); qaAssert(STATE.drillStack.length===0,'drill-up works');`);
-add('status-search', `switchModule('status'); handleSearch('8123'); qaAssert(document.querySelectorAll('#procTbody tr').length===1,'PID search works');`);
+add('status-search', `switchModule('status'); handleSearch('8123'); qaAssert(document.querySelectorAll('#topProcList .tp-row').length===1,'PID search filters the compact list');openProcDrawer();qaAssert(document.querySelectorAll('#procTbody tr').length===1&&document.getElementById('procSearch').value==='8123','the drawer shares the query');`);
 add('doctor-wait', `openDoctorModal(true); qaAssert(document.getElementById('btnDoctorReRun').disabled,'diagnosis awaits receipt'); qaAssert(__qa.actions.some(a=>a.action==='runDoctorReCheck'&&a.requestId),'request is correlated');`);
 add('doctor-result', `openDoctorModal(true); onNativeDoctorReport({requestId:_doctorRequestId,checks:[{id:'disk',title:'磁盘剩余空间',detail:'隔离测试结果',passed:true},{id:'permission',title:'完全磁盘访问',detail:'隔离测试结果',passed:false}]}); qaAssert(!document.getElementById('btnDoctorReRun').disabled,'receipt ends wait');`);
 add('menu-tray', `document.body.classList.add('menubar-mode'); renderMenuBarTrayContent(); qaAssert(document.getElementById('menubarTrayShell').textContent.length>20,'tray renders');`);
@@ -154,7 +154,7 @@ add('measured-volume-bars', `switchModule('clean');qaAssert(document.querySelect
 add('quoted-path-actions', `const item=structuredClone(qaFixture.cleanGroups[0]);item.name="Owner's <cache> &quot;";item.path=${JSON.stringify(unusualPath)};item.subpaths[0].path=${JSON.stringify(unusualPath)};onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[item]});switchModule('clean');qaAssert(!document.querySelector('cache'),'directory names cannot create markup');document.querySelector('.inspector-content .subpath-left span[onclick]').click();const request=__qa.actions.find(a=>a.action==='revealInFinder');qaAssert(request.path===${JSON.stringify(unusualPath)},'Finder receives the unmodified path');`);
 add('whitelist-awaits-receipt', `switchModule('clean');const count=STATE.cleanGroups.length;addPathToWhitelist(STATE.cleanGroups[0].path);qaAssert(STATE.cleanGroups.length===count,'adding protection cannot hide paths before receipt');onNativeWhitelistChanged({ok:false,action:'addWhitelist',path:STATE.cleanGroups[0].path,error:'测试拒绝',whitelist:qaFixture.whitelist});qaAssert(STATE.cleanGroups.length===count,'failed whitelist update keeps candidate visible');`);
 add('sensors-become-unavailable', `switchModule('status');const data=structuredClone(qaTelemetry);delete data.net;delete data.diskIo;delete data.gpuPct;delete data.cpuTempC;delete data.fans;data.processes[0].memory_mb=null;onNativeRealTelemetry(data);qaAssert(document.getElementById('statusCardNet').textContent.includes('本机不提供'),'missing sensor replaces old reading');qaAssert(document.getElementById('statusCardGpu').textContent.includes('本机不提供'),'missing GPU does not keep stale value');qaAssert(STATE.processes[0].memory_mb===null,'unreported process memory cannot become zero');`);
-add('status-live-preserves-page', `switchModule('status');const table=document.querySelector('.proc-table');const row=document.querySelector('#procTbody tr');const data=structuredClone(qaTelemetry);data.processes[0].cpu=16;onNativeRealTelemetry(data);qaAssert(document.querySelector('.proc-table')===table,'telemetry does not rebuild the process panel');qaAssert(document.querySelector('#procTbody tr')===row,'unchanged process set preserves row identity');qaAssert(row.querySelector('.p-cpu').textContent==='16.0%','current CPU is patched');`);
+add('status-live-preserves-page', `switchModule('status');const panel=document.querySelector('.top-procs');const row=document.querySelector('#topProcList .tp-row');const data=structuredClone(qaTelemetry);data.processes[0].cpu=16;onNativeRealTelemetry(data);qaAssert(document.querySelector('.top-procs')===panel,'telemetry does not rebuild the process panel');qaAssert(document.querySelector('#topProcList .tp-row')===row,'unchanged process set preserves row identity');qaAssert(row.querySelector('.tp-cpu').textContent==='16.0%','current CPU is patched');`);
 add('startup-missing-data', `STATE=structuredClone(DEFAULT_STATE);switchModule('status');qaAssert(memPercent()===null&&diskUsedPercent()===null,'unmeasured capacities are unknown');qaAssert(document.getElementById('sidebarFreeDisk').textContent.includes('未知'),'sidebar cannot show fabricated free space');qaAssert(!buildMenuBarTrayHTML().includes('已用 0.0 / 0 GB'),'tray never invents zero memory');`);
 add('scan-permission-partial', `onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Desktop',reason:'目录读取超时，未计入本次扫描'}]});switchModule('clean');qaAssert(document.querySelector('.empty-title').textContent.includes('未能读取'),'restricted scan cannot claim an empty directory');qaAssert(document.getElementById('scanSourceBadge').textContent.includes('受限'),'summary discloses partial data');const detail=document.querySelector('#moduleStage details');qaAssert(detail&&detail.textContent.includes('Desktop'),'restricted paths are inspectable');detail.open=true;`);
 for (const module of ['clean', 'ai_moon', 'software', 'purge']) {
@@ -211,6 +211,18 @@ add('analyze-narrow-priority', `switchModule('analyze');const map=document.query
 scenarios[scenarios.length-1].width=880;scenarios[scenarios.length-1].height=620;
 add('analyze-protected-large-file', `switchModule('analyze');STATE.analyzeLargeFiles=[{name:'Active model',path:'~/.cache/huggingface/hub/model.bin',sizeGb:2,protectionReason:'共享模型保持原状'}];renderModule();const button=document.querySelector('#moduleStage button[onclick="removeLargeFile(0)"]');qaAssert(button.disabled&&button.textContent==='保留','protected large file cannot bypass the safety path');removeLargeFile(0);qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'direct large-file action also respects protection');`);
 add('permission-toast-path-actions', `switchModule('clean');const requestId='qa-permission-toast';const deniedPath=qaFixture.homePath+'/Documents/protected';pendingTrashRequests.set(requestId,{entries:[{label:'protected',sizeGb:1,paths:[deniedPath],basketOnFail:false}],options:{title:'隔离权限回执'},requested:1});onNativeTrashResult({requestId,moved:[],movedCount:0,failed:[{path:deniedPath,error:'权限不足',pane:'filesAndFolders'}]});qaAssert(document.querySelector('.permission-toast'),'permission failure exposes a recovery surface');qaAssert(document.querySelector('.permission-toast-path').textContent.includes('Documents/protected'),'the failed path stays visible');document.querySelector('[data-perm-reveal]').click();qaAssert(__qa.actions.some(a=>a.action==='revealAppBundle'),'permission toast can reveal the exact running app');`);
+add('uninstall-app-management-refusal', `switchModule('software');const requestId='qa-am-refusal';const appPath='/Applications/Canvas Pro.app';pendingTrashRequests.set(requestId,{entries:[{label:'Canvas Pro',sizeGb:1,paths:[appPath],basketOnFail:false}],options:{title:'隔离卸载回执'},requested:1});onNativeTrashResult({requestId,moved:[],movedCount:0,failed:[{path:appPath,error:'macOS 拒绝移动应用',pane:'appManagement'}]});const hint=document.getElementById('permHint');qaAssert(hint&&hint.textContent.includes('需要先开启「应用管理」'),'a refused uninstall names the one switch it needs');const open=hint.querySelector('[data-perm-open]');qaAssert(open.textContent==='去开启','the receipt offers 去开启');__qa.actions=[];open.click();qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='openPrivacySettings'&&__qa.actions[0].pane==='appManagement','去开启 opens the App Management pane');qaAssert(!/TCC|probe|ad-hoc|本地签名/i.test(hint.textContent||'')&&!document.getElementById('permHint'),'plain copy, and the hint closes after the action');`);
+add('scan-warning-paths-markup-safe', `
+  const unusualPath="/Volumes/Owner's <Disk>&quot;/Folder/item";
+  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[null,{},'invalid',{path:12},{path:'  '},{path:unusualPath,reason:'读取失败 <details> &quot;'}]});
+  switchModule('clean');await qaSettle();
+  const hint=[...document.querySelectorAll('#moduleStage details.panel-card')].find(d=>d.querySelector('summary'));
+  qaAssert(STATE.scanReadWarnings.length===1&&hint,'only well-formed native warning paths reach the module footer');
+  hint.open=true;
+  qaAssert(!hint.querySelector('disk')&&hint.querySelectorAll('details').length===0,'unread paths and reasons cannot create markup');
+  __qa.actions=[];hint.querySelector('.permission-group-path').click();
+  qaAssert(__qa.actions[0].action==='revealInFinder'&&__qa.actions[0].path==="/Volumes/Owner's <Disk>&quot;/Folder",'a grouped path keeps quotes and entities across the HTML and native message boundary');
+`);
 add('apps-cache-not-found', `
   const app=structuredClone(qaFixture.appsList[0]);app.cacheSizeGb=0;app.subpaths=app.subpaths.filter(sp=>sp.kind!=='cache');
   onNativeRealScanComplete({...structuredClone(qaFixture),appsList:[app],readWarnings:[{path:qaFixture.homePath+'/Projects/Canvas/target',reason:'达到文件测量上限；只计入已读取部分'}]});
@@ -281,15 +293,101 @@ const statusTrendScript=`
 `;
 for(const width of [880,1060,1380])for(const theme of ['light','dark'])scenarios.push({name:width+'-'+theme+'-status-trends',width,height:width===880?620:860,script:'qaReset();document.documentElement.dataset.theme="'+theme+'";'+statusTrendScript});
 add('status-live-graphs-and-controls', statusTrendScript+`
-  const button=document.querySelector('#statusCardPower button');button.focus();const table=document.querySelector('.proc-table');const row=document.querySelector('#procTbody tr');
+  const button=document.querySelector('#statusCardPower button');button.focus();const panel=document.querySelector('.top-procs');const row=document.querySelector('#topProcList .tp-row');
   const sample=structuredClone(qaTelemetry);sample.power.battery.percent=61;onNativeRealTelemetry(sample);
   qaAssert(document.activeElement===button&&button.isConnected,'telemetry leaves the focused power action intact');
   qaAssert(document.querySelector('#statusCardBattery .tc-big').textContent==='61%','battery reading updates with the same live sample');
-  qaAssert(document.querySelector('.proc-table')===table&&document.querySelector('#procTbody tr')===row,'new charts do not rebuild the process panel');
+  qaAssert(document.querySelector('.top-procs')===panel&&document.querySelector('#topProcList .tp-row')===row,'new charts do not rebuild the process panel');
   delete sample.net;delete sample.diskIo;delete sample.gpuPct;delete sample.cpuTempC;onNativeRealTelemetry(sample);
   qaAssert(!document.querySelector('#statusCardNet .status-trend-lines svg')&&!document.querySelector('#statusCardThermal .status-trend-lines svg'),'missing sensors do not keep stale histories');
   qaAssert(STATE.hw.netRxSeries.length===0&&STATE.hw.tempSeries.length===0,'sensor absence resets the corresponding chart history');
 `);
+// 状态监控：指标卡是主体，进程只列占用最高的 5 项；完整表格在右侧抽屉里。
+const statusProcsSetup = `
+    const data=structuredClone(qaTelemetry);
+    data.processes=Array.from({length:30},(_,i)=>({pid:9000+i,name:'Worker '+i,cpu:40-i,memory_mb:i===7?4096:900-i*20,path:'/Applications/Worker '+i+'.app',power:null}));
+    const pushSamples=()=>{for(const cpu of [12,38,27,54,18,32]){const sample=structuredClone(data);sample.cpu=cpu;sample.gpuPct=cpu/2;sample.cpuTempC=50+cpu/5;sample.net.rxBytesPerSec=1048576+cpu*32768;sample.diskIo.readBytesPerSec=2097152+cpu*65536;onNativeRealTelemetry(sample);}};
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const topRows=()=>[...document.querySelectorAll('#topProcList .tp-row')];`;
+for (const [width, height] of [[1440, 870], [1280, 720], [1060, 800], [880, 720]]) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  scenarios.push({ name: `status-top-procs-${width}x${height}-${theme}-${lang}`, width, height, script: `qaReset();window.isNativeMacApp=false;document.documentElement.dataset.theme='${theme}';
+    switchModule('status');${statusProcsSetup}
+    pushSamples();
+    ${lang === 'en' ? `await qaEn('top processes');` : 'await qaSettle();'}
+    const body=document.querySelector('.workspace-body');
+    qaAssert(topRows().length===5,'the compact list shows five rows, got '+topRows().length);
+    qaAssert(document.querySelectorAll('.telemetry-card').length===9&&document.querySelectorAll('.telemetry-grid > .telemetry-card').length===9,'every metric card stays');
+    ${width > 1160 ? `qaAssert(getComputedStyle(document.querySelector('.telemetry-grid')).gridTemplateColumns.split(' ').length===3,'wide windows keep three card columns');` : ''}
+    qaAssert(!document.querySelector('.proc-table')||!document.querySelector('.proc-table').offsetParent,'the full table is not on the page');
+    qaAssert(topRows().every(r=>r.getBoundingClientRect().height>=31&&r.getBoundingClientRect().height<=36&&r.scrollWidth<=r.clientWidth+1),'rows stay about 32px tall and do not overflow');
+    qaAssert(topRows()[0].dataset.pid==='9000'&&topRows()[0].querySelector('.tp-bar > i').style.width==='40%','CPU bar is the share of 100%');
+    qaAssert(STATE.procSortKey==='cpu'&&!document.querySelector('.top-procs .seg-tab')&&topRows()[0].querySelector('.tp-cpu').textContent==='40.0%'&&topRows()[0].querySelector('.tp-mem').textContent.includes('MiB'),'CPU sorts by default and each row shows CPU and memory');
+    const kill=topRows()[1].querySelector('.btn-kill');
+    qaAssert(getComputedStyle(kill).opacity==='0','terminate stays quiet until hover or focus');
+    kill.focus();qaAssert(document.activeElement===kill,'terminate is keyboard focusable');kill.blur();
+    sortProcessesBy('memory_mb');await qaSettle();
+    qaAssert(STATE.procSortKey==='memory_mb'&&topRows()[0].dataset.pid==='9007'&&topRows()[0].querySelector('.tp-mem').textContent.includes('GiB')&&topRows()[0].querySelector('.tp-bar > i').style.width==='100%','memory sort reorders and scales the bar by memory');
+    topRows()[2].querySelector('.proc-pin').click();await qaSettle();
+    qaAssert(topRows()[0].querySelector('.proc-pin').classList.contains('on')&&getComputedStyle(topRows()[0].querySelector('.proc-pin')).opacity==='1','a pinned process moves to the top with its star visible');
+    topRows()[0].querySelector('.proc-pin').click();
+    sortProcessesBy('cpu');await qaSettle();
+    qaAssert(STATE.procSortKey==='cpu'&&topRows()[0].dataset.pid==='9000','switching back to CPU restores the order');
+    body.scrollTop=body.scrollHeight;await qaSettle();
+    qaAssert(topRows()[4].getBoundingClientRect().bottom<=body.getBoundingClientRect().bottom+1&&topRows()[4].getBoundingClientRect().height>=31,'all five rows are reachable by scrolling, not squeezed');
+    body.scrollTop=0;
+  ` });
+}
+for (const [width, height] of [[1440, 870], [880, 720]]) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  scenarios.push({ name: `status-drawer-${width}x${height}-${theme}-${lang}`, width, height, script: `qaReset();window.isNativeMacApp=false;document.documentElement.dataset.theme='${theme}';
+    switchModule('status');${statusProcsSetup}
+    pushSamples();
+    ${lang === 'en' ? `await qaEn('process drawer',async()=>{openProcDrawer();});` : 'openProcDrawer();await qaSettle();'}
+    await wait(80);
+    const modal=document.getElementById('procModal'),sheet=modal.querySelector('.proc-drawer'),scroller=document.getElementById('procScroll');
+    qaAssert(modal.classList.contains('open')&&document.activeElement===document.getElementById('procSearch'),'the drawer opens with focus in its search field');
+    const box=sheet.getBoundingClientRect();qaAssert(box.right<=innerWidth+1&&box.left>=0&&box.height>=innerHeight-2,'the drawer is a full height right side sheet');
+    qaAssert(document.querySelectorAll('#procTbody tr').length===30,'the drawer lists every process');
+    qaAssert(scroller.scrollHeight>scroller.clientHeight+20,'the table scrolls inside the drawer');
+    scroller.scrollTop=200;await qaSettle();
+    const th=document.querySelector('#procHead th');qaAssert(Math.abs(th.getBoundingClientRect().top-scroller.getBoundingClientRect().top)<=1,'the header stays pinned while rows scroll');
+    scroller.scrollTop=0;
+  ` });
+}
+add('status-drawer-behavior', `switchModule('status');${statusProcsSetup}
+  pushSamples();await qaSettle();
+  const opener=document.getElementById('procOpenBtn');opener.focus();opener.click();await wait(80);
+  const modal=document.getElementById('procModal'),scroller=document.getElementById('procScroll'),search=document.getElementById('procSearch');
+  const tr=()=>[...document.querySelectorAll('#procTbody tr')];
+  const type=v=>{search.value=v;search.dispatchEvent(new Event('input',{bubbles:true}));};
+  qaAssert(modal.classList.contains('open')&&document.activeElement===search&&document.querySelector('.app-shell').inert,'the drawer opens modally with focus in search');
+  qaAssert(tr().length===30,'all processes are listed');
+  type('worker 1');qaAssert(tr().length===11&&document.getElementById('searchInput').value==='worker 1'&&topRows().length===5,'search filters by name and mirrors the toolbar');
+  type('9003');qaAssert(tr().length===1&&tr()[0].dataset.pid==='9003'&&topRows().length===1,'search filters by PID');
+  type('');qaAssert(tr().length===30,'clearing the search restores every row');
+  document.querySelector('#procHead th[data-pk="th:mem"]').focus();document.querySelector('#procHead th[data-pk="th:mem"]').click();await qaSettle();
+  qaAssert(STATE.procSortKey==='memory_mb'&&tr()[0].dataset.pid==='9007'&&document.activeElement.dataset.pk==='th:mem','sortable headers work and keep focus');
+  document.querySelector('#procHead th[data-pk="th:cpu"]').click();await qaSettle();
+  tr()[5].querySelector('.proc-pin').click();await qaSettle();
+  qaAssert(tr()[0].dataset.pid==='9005'&&tr()[0].querySelector('.proc-pin').classList.contains('on'),'pinning works in the drawer');
+  tr()[0].querySelector('.proc-pin').click();await qaSettle();
+  scroller.scrollTop=150;await qaSettle();const before=scroller.scrollTop;qaAssert(before>100,'drawer scrolled');
+  const kill=document.querySelector('#procTbody tr[data-pid="9012"] .btn-kill');kill.focus();kill.click();await qaSettle();
+  qaAssert(STATE.killArmed===9012&&document.activeElement.dataset.pk==='9012:kill'&&document.activeElement.textContent.includes('确认终止'),'terminate asks for a second confirmation and keeps keyboard focus');
+  qaAssert(Math.abs(scroller.scrollTop-before)<=1,'arming terminate does not move the scroll position');
+  const refreshed=structuredClone(data);refreshed.processes.reverse().forEach((p,i)=>{p.cpu=5+i;});onNativeRealTelemetry(refreshed);await qaSettle();
+  qaAssert(STATE.killArmed===9012&&document.activeElement.dataset.pk==='9012:kill'&&Math.abs(scroller.scrollTop-before)<=1&&tr()[0].dataset.pid!=='9029','live refresh keeps the confirmation, focus, scroll and row order');
+  qaAssert(document.getElementById('processLiveNote').textContent.includes('保持行序'),'the drawer says rows are held during an action');
+  STATE.killArmed=null;onNativeRealTelemetry(structuredClone(data));
+  search.focus();type('Worker 2');onNativeRealTelemetry(structuredClone(data));await qaSettle();
+  qaAssert(search.value==='Worker 2'&&document.activeElement===search&&tr().length===11,'live refresh keeps the search text and focus');
+  type('');
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait(200);
+  qaAssert(!modal.classList.contains('open')&&document.activeElement.id==='procOpenBtn','Escape closes the drawer and returns focus to its button');
+  document.getElementById('procOpenBtn').click();await wait(80);qaAssert(modal.classList.contains('open'),'the drawer reopens');
+  modal.querySelector('.panel-header .btn').click();await wait(200);qaAssert(!modal.classList.contains('open')&&document.activeElement.id==='procOpenBtn','the close button closes the drawer');
+`);
+// 记忆卡「查看内存进程」直接切到内存排序。
+add('status-memory-button-sorts', `switchModule('status');openMemoryMaintenance();await qaSettle();document.querySelector('#memoryModal .memory-panel-footer .btn').click();await qaSettle();qaAssert(STATE.module==='status'&&STATE.procSortKey==='memory_mb'&&STATE.procSortKey==='memory_mb','the memory process button switches the compact list to memory');`);
 add('restore-occupied-target', `
   switchModule('history');
   const snapshot=STATE.historyLogs[0];
@@ -1134,7 +1232,7 @@ for(const theme of ['light','dark'])add('tray-top-processes-'+theme,trayThreePro
   const lastBottom=tray.lastElementChild.getBoundingClientRect().bottom;qaAssert(tray.scrollHeight<=tray.clientHeight+1&&lastBottom<=innerHeight,'three processes fit the shipped popup without scrolling; '+tray.scrollHeight+'/'+tray.clientHeight+' last bottom '+lastBottom);
   qaAssert(rows[0].textContent.includes('384 MiB')&&rows[1].textContent.includes('2.0 GiB')&&rows[2].textContent.includes('128 MiB'),'process memory is labelled MiB, or GiB above 1024');
   switchModule('status');
-  qaAssert(document.querySelector('#procTbody').textContent.includes('384 MiB')&&!document.querySelector('#procTbody').textContent.includes(' MB'),'the status table uses the same unit label as the tray');
+  openProcDrawer();qaAssert(document.querySelector('#procTbody').textContent.includes('384 MiB')&&!document.querySelector('#procTbody').textContent.includes(' MB'),'the status table uses the same unit label as the tray');closeProcDrawer();
 `);
 add('tray-memory-legend-swatch',compactTraySetup+`
   STATE.memUsedGb=12;STATE.memTotalGb=32;STATE.memory={appGb:8,wiredGb:3,compressedGb:1,cacheGb:5};renderMenuBarTrayContent();
@@ -1176,50 +1274,16 @@ add('quick-clean-nothing-selected-hint',`
   qaAssert(toast.style.display==='block'&&toast.textContent.includes('尚未勾选清理项，请先在列表中勾选要清理的项目'),'the user gets a calm in-page hint instead of silence');
 `);
 for(const scenario of scenarios.slice(newTrayStart).filter(item=>item.name.startsWith('tray-')))Object.assign(scenario,{width:380,height:trayHeight});
-add('runtime-raw-launch-guidance',`
-  openRuntimePanel();
-  const request=__qa.actions.find(action=>action.action==='requestRuntimeStatus');
-  qaAssert(request?.requestId,'the runtime panel asks the native process for evidence');
-  onNativeRuntimeStatus({requestId:request.requestId,packaged:false,appPath:'/tmp/go-build123/b001/exe/mole-studio',executablePath:'/tmp/go-build123/b001/exe/mole-studio',identifier:'',version:'dev',menuBarRegistered:true,readAccess:{passed:null,detail:'本机没有可判定目录'}});
-  qaAssert(!document.getElementById('runtimeBanner').hidden,'a raw launch has a visible diagnostic banner');
-  qaAssert(document.getElementById('runtimePanelBody').textContent.includes('Ctrl-C')&&document.getElementById('runtimePanelBody').textContent.includes('未绑定 Bundle ID'),'raw identity has a concrete app-bundle recovery path');
-  qaAssert(document.getElementById('runtimePanelBody').textContent.includes('尚不能判定'),'unknown read access cannot claim permission');
-  qaAssert(!__qa.actions.some(action=>['trashRealPaths','killProcess','toggleCaffeinate'].includes(action.action)),'diagnostics do not mutate user resources');
-  closeRuntimePanel();
-`);
-add('runtime-packaged-permission-guidance',`
-  openRuntimePanel();const request=__qa.actions.find(action=>action.action==='requestRuntimeStatus');
-  onNativeRuntimeStatus({requestId:request.requestId,packaged:true,appPath:'/Applications/orbit.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:false,detail:'受保护目录读取被拒绝'}});
-  const body=document.getElementById('runtimePanelBody');
-  qaAssert(body.textContent.includes('/Applications/orbit.app')&&body.textContent.includes('读取被拒绝'),'the guide identifies the exact app and actual access failure');
-  qaAssert(body.textContent.includes('程序不能自动授予')&&body.textContent.includes('仅接入 Quick Look'),'permissions and implemented maintenance limits are honest');
-  for(const pane of ['fullDiskAccess','filesAndFolders','appManagement']){
-    __qa.actions=[];[...body.querySelectorAll('button')].find(button=>button.getAttribute('onclick').includes(pane)).click();
-    qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='openPrivacySettings'&&__qa.actions[0].pane===pane,'each permission opens its exact settings pane');
-  }
-  __qa.actions=[];body.querySelector('[onclick="revealCurrentApp()"]').click();qaAssert(__qa.actions[0].action==='revealAppBundle','the guide can locate the exact native application');
-  requestRuntimeCheck();onNativeRuntimeStatus({requestId:STATE.runtimeRequestId,packaged:true,appPath:'/Applications/orbit.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:true,detail:'可读取受保护目录'}});
-  qaAssert(document.getElementById('runtimeBanner').hidden,'verified read access clears the warning without altering grants');
-  closeRuntimePanel();
-`);
 add('runtime-header-tools-reachable',`
-  document.querySelector('.header-controls [onclick="openRuntimePanel()"]').click();
-  qaAssert(document.getElementById('runtimeModal').classList.contains('open'),'permissions are discoverable before a failed cleanup');
+  qaAssert(![...document.querySelectorAll('.header-controls button')].some(button=>button.textContent.includes('权限')||(button.getAttribute('onclick')||'').includes('openRuntimePanel')),'the toolbar has no permission button');
+  openRuntimePanel();
+  qaAssert(document.getElementById('runtimeModal').classList.contains('open')&&document.getElementById('runtimePanelTitle').textContent==='运行与权限','the app menu item still opens the status view');
   document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
-  qaAssert(!document.getElementById('runtimeModal').classList.contains('open'),'Escape closes the read-only runtime guide');
+  qaAssert(!document.getElementById('runtimeModal').classList.contains('open'),'Escape closes the status view');
   __qa.actions=[];document.querySelector('.header-controls [aria-label="打开菜单栏工具"]').click();
   qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='menubarShowTools','the main header opens the real native tray');
 `);
 Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-late-receipt-safety',`
-  openRuntimePanel();const first=__qa.actions.at(-1);requestRuntimeCheck();const second=__qa.actions.at(-1);
-  onNativeRuntimeStatus({requestId:first.requestId,packaged:false,readAccess:{passed:false}});
-  qaAssert(STATE.runtimeStatus===null,'a stale diagnostic response cannot replace a newer request');
-  onNativeRuntimeStatus({requestId:second.requestId,packaged:true,appPath:"/Applications/Owner's <app>.app",identifier:'com.example.app',menuBarRegistered:true,readAccess:{passed:null,detail:'未知'}});
-  qaAssert(!document.getElementById('runtimePanelBody').querySelector('app'),'runtime paths cannot create markup');
-  qaAssert(document.getElementById('runtimePanelBody').textContent.includes("Owner's <app>.app"),'the displayed path is preserved');
-  closeRuntimePanel();
-`);
 add('system-scan-native-startup', `
   STATE=structuredClone(DEFAULT_STATE);document.documentElement.dataset.theme='light';switchModule('clean');
   qaAssert(typeof window.onNativeRealScanStarted==='function','automatic native scans publish their running state');
@@ -1365,375 +1429,159 @@ add('analyze-large-files-scroll-retained',largeFileScrollSetup+`
   qaAssert(Math.abs(document.querySelector('.analysis-large-files .list-body').scrollTop-before)<1,'changing directory sort does not reset the independent file list');
 `);
 const runtimePermissionFixture=`
-  const permissionStatus={requestId:STATE.runtimeRequestId,packaged:true,appPath:'/Applications/orbit.app',executablePath:'/Applications/orbit.app/Contents/MacOS/orbit',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,checkedAt:Date.now(),readAccess:{passed:false,status:'denied',detail:'~/Library/Safari 读取被拒绝',checkedAt:Date.now(),checks:[{path:'~/Library/Mail',passed:true,status:'readable',detail:'已读取目录'},{path:'~/Library/Safari',passed:false,status:'denied',detail:'读取被拒绝'}]},folderReadAccess:[{id:'desktop',title:'桌面',path:'~/Desktop',passed:true,status:'readable',detail:'可读取目录（2 项）',checkedAt:Date.now()},{id:'documents',title:'文稿',path:'~/Documents',passed:false,status:'denied',detail:'目录读取被拒绝',checkedAt:Date.now()},{id:'downloads',title:'下载',path:'~/Downloads',passed:null,status:'missing',detail:'未找到该目录',checkedAt:Date.now()}]};
+  const permNow=Date.now();
+  const permissionStatus={requestId:'',packaged:true,adhoc:false,appPath:'/Applications/orbit.app',executablePath:'/Applications/orbit.app/Contents/MacOS/orbit',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,checkedAt:permNow,readAccess:{passed:false,status:'denied',detail:'未授权：系统拒绝读取受保护数据',checkedAt:permNow,checks:[]}};
+  const grantedAccess={passed:true,status:'granted',detail:'已授权',checkedAt:permNow,checks:[]};
+  const effectiveRecord={state:'effective',app:'/Applications/Canvas Pro.app',at:permNow-3600000,identity:'x'};
+  const deniedRecord={state:'denied',app:'/Applications/Canvas Pro.app',at:permNow-60000,identity:'x'};
+  const permRow=key=>document.querySelector('#runtimePanelBody [data-runtime-permission="'+key+'"]');
+  const permBtn=action=>document.querySelector('#runtimePanelBody [data-runtime-action="'+action+'"]');
+  const sheetText=()=>document.getElementById('runtimePanelBody').textContent;
+  const sheetTitle=()=>document.getElementById('runtimePanelTitle').textContent;
+  const liveLine=()=>document.querySelector('#runtimePanelBody [data-runtime-live]');
+  const probeRequests=()=>__qa.actions.filter(action=>action.action==='requestRuntimeStatus');
+  const answer=extra=>{if(!STATE.runtimeRequestId)requestRuntimeCheck();onNativeRuntimeStatus({...permissionStatus,requestId:STATE.runtimeRequestId,...extra});};
+  const plain=text=>!/TCC|probe|ad-hoc|adhoc|go run|make run|临时签名|探测/i.test(text);
+  const fits=()=>{const sheet=document.querySelector('#runtimeModal .modal-sheet').getBoundingClientRect(),close=document.getElementById('runtimeCloseBtn').getBoundingClientRect();return sheet.left>=0&&sheet.right<=innerWidth&&sheet.top>=0&&sheet.bottom<=innerHeight&&close.bottom<=innerHeight;};
 `;
+add('runtime-banner-fda-only',`
+  ${runtimePermissionFixture}
+  const banner=document.getElementById('runtimeBanner');
+  qaAssert(banner.hidden,'no banner before the first check');
+  answer({});
+  qaAssert(!banner.hidden&&banner.textContent.includes('授予完全磁盘访问权限后，orbit 才能扫描到全部缓存。'),'one calm line says what is missing and why');
+  qaAssert(banner.querySelectorAll('button').length===1&&banner.querySelector('button').textContent==='去授权'&&banner.querySelector('button').classList.contains('btn-primary'),'the banner has one primary action');
+  qaAssert(plain(banner.textContent),'the banner uses plain words');
+  answer({packaged:false,readAccess:{passed:null,status:'unknown',detail:''}});
+  qaAssert(banner.hidden,'a check that cannot decide does not nag');
+  answer({readAccess:grantedAccess});
+  qaAssert(banner.hidden,'a granted state shows nothing about permissions');
+  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[{path:qaFixture.homePath+'/Library/Mail',reason:'读取被拒绝（permission denied）',kind:'permission'}]});
+  qaAssert(banner.hidden,'scan warnings belong to the module footer, not the banner');
+  answer({});
+  banner.querySelector('button').click();
+  qaAssert(document.getElementById('runtimeModal').classList.contains('open')&&sheetTitle()==='授予完全磁盘访问权限','the banner opens the guide');
+`);
+add('runtime-guide-flow',`
+  ${runtimePermissionFixture}
+  answer({});document.querySelector('#runtimeBanner button').click();
+  const steps=[...document.querySelectorAll('#runtimePanelBody .perm-steps > li')];
+  qaAssert(steps.length===2,'the guide has two numbered steps');
+  qaAssert(permBtn('open-fda').textContent==='打开系统设置'&&steps[1].textContent.includes('打开 orbit 的开关；列表里没有 orbit 时，点「在访达中显示」把它拖进去'),'the steps say exactly what to do');
+  __qa.actions=[];permBtn('open-fda').click();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='openPrivacySettings'&&__qa.actions[0].pane==='fullDiskAccess','step 1 opens the Full Disk Access pane');
+  __qa.actions=[];permBtn('reveal').click();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='revealAppBundle','step 2 reveals the app in Finder');
+  qaAssert(liveLine().dataset.state==='waiting'&&liveLine().textContent.trim()==='等待授权…'&&!document.querySelector('[data-runtime-relaunch]'),'the live line waits and offers no relaunch yet');
+  qaAssert(plain(sheetText())&&!sheetText().includes('/Applications/orbit.app')&&!document.querySelector('[data-runtime-adhoc]'),'no jargon, no app path, no dev note for a signed build');
+  answer({readAccess:grantedAccess});
+  qaAssert(liveLine().dataset.state==='relaunch'&&liveLine().textContent.includes('重新打开 orbit 后生效'),'a grant noticed while the guide is open asks for a relaunch');
+  __qa.actions=[];document.querySelector('[data-runtime-relaunch] button').click();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='relaunchApp','the relaunch button asks the native side to quit and reopen');
+  qaAssert(document.getElementById('runtimeBanner').hidden,'the banner is gone once access is granted');
+  qaAssert(!__qa.actions.some(action=>['trashRealPaths','killProcess','releaseFileCache'].includes(action.action)),'the guide cannot mutate user resources');
+`);
+add('runtime-guide-already-granted',`
+  ${runtimePermissionFixture}
+  answer({readAccess:grantedAccess});openRuntimeSheet('guide');
+  qaAssert(liveLine().dataset.state==='granted'&&liveLine().textContent.trim()==='已授权 ✓'&&!document.querySelector('[data-runtime-relaunch]'),'access that was already on needs no relaunch');
+`);
+add('runtime-status-two-rows',`
+  ${runtimePermissionFixture}
+  openRuntimePanel();
+  qaAssert(permRow('fullDiskAccess').textContent.includes('检查中…'),'before the first answer the row says it is checking');
+  answer({appPath:'<img src=x onerror=window.__pwn=1>',executablePath:'<img src=x onerror=window.__pwn=1>'});
+  qaAssert(sheetTitle()==='运行与权限','the app menu view keeps its name');
+  const rows=[...document.querySelectorAll('#runtimePanelBody .perm-row')];
+  qaAssert(rows.length===2&&rows[0].dataset.runtimePermission==='fullDiskAccess'&&rows[1].dataset.runtimePermission==='appManagement','exactly two rows');
+  qaAssert(permBtn('fda').textContent==='去开启'&&permRow('appManagement').textContent.includes('卸载应用时才需要'),'denied access offers 去开启 and App Management is marked as uninstall-only');
+  qaAssert(!/文件与文件夹|管理员|菜单栏|最近本机扫描|版本/.test(sheetText())&&plain(sheetText()),'nothing else is shown');
+  qaAssert(!document.querySelector('#runtimePanelBody img')&&!sheetText().includes('onerror')&&!window.__pwn,'an app path with markup is neither shown nor injected');
+  permBtn('fda').click();
+  qaAssert(sheetTitle()==='授予完全磁盘访问权限'&&permBtn('open-fda'),'去开启 leads to the guide');
+  openRuntimePanel();
+  answer({readAccess:grantedAccess,appManagement:effectiveRecord});
+  qaAssert(permRow('fullDiskAccess').textContent.includes('已开启 ✓')&&permRow('appManagement').textContent.includes('已生效 ✓')&&!permRow('fullDiskAccess').querySelector('button')&&!permRow('appManagement').querySelector('button'),'granted and effective rows are plain confirmations');
+  answer({readAccess:grantedAccess,appManagement:deniedRecord});
+  qaAssert(permRow('appManagement').textContent.includes('未生效')&&permBtn('appManagement').textContent==='去开启','a refused removal shows App Management as not working, with the way to turn it on');
+  __qa.actions=[];permBtn('appManagement').click();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='openPrivacySettings'&&__qa.actions[0].pane==='appManagement','去开启 opens the App Management pane');
+`);
+add('runtime-dev-build-note',`
+  ${runtimePermissionFixture}
+  openRuntimePanel();
+  answer({packaged:false,appPath:'/tmp/go-build123/b001/exe/mole-studio',executablePath:'/tmp/go-build123/b001/exe/mole-studio',identifier:'',readAccess:{passed:null,status:'unknown',detail:''}});
+  qaAssert(document.querySelector('[data-runtime-gorun]')?.textContent.includes('开发测试版')&&plain(sheetText()),'a raw launch gets one muted dev-build line in plain words');
+  qaAssert(document.getElementById('runtimeBanner').hidden,'an undecidable check raises no banner');
+  answer({packaged:true,adhoc:true});
+  qaAssert(document.querySelector('[data-runtime-adhoc]')?.textContent.includes('不会沿用到这里')&&!document.querySelector('[data-runtime-gorun]'),'a locally signed build explains that the installed app grants do not carry over');
+`);
+add('runtime-relaunch-after-settings',`
+  Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'visible'});
+  ${runtimePermissionFixture}
+  answer({});openRuntimeSheet('guide');
+  window.dispatchEvent(new Event('focus'));
+  answer({});
+  qaAssert(!document.querySelector('[data-runtime-relaunch]'),'focus without a Settings visit shows no relaunch');
+  __qa.actions=[];permBtn('open-fda').click();window.dispatchEvent(new Event('focus'));
+  const recheck=probeRequests().at(-1);
+  qaAssert(recheck,'returning to the window re-checks immediately');
+  onNativeRuntimeStatus({...permissionStatus,requestId:recheck.requestId});
+  qaAssert(liveLine().dataset.state==='relaunch'&&liveLine().textContent.includes('重新打开 orbit 后生效'),'back from Settings with the check still negative, the relaunch line appears');
+  delete document.visibilityState;
+`);
+add('runtime-poll-while-open',`
+  ${runtimePermissionFixture}
+  openRuntimeSheet('guide');const first=probeRequests();qaAssert(first.length===1,'opening checks once');
+  onNativeRuntimeStatus({...permissionStatus,requestId:first[0].requestId});
+  await new Promise(r=>setTimeout(r,2300));
+  qaAssert(probeRequests().length===2&&probeRequests().every(request=>request.checkFolders===false),'an open sheet re-checks every two seconds without reading user folders');
+  closeRuntimePanel();const after=probeRequests().length;
+  await new Promise(r=>setTimeout(r,2300));
+  qaAssert(probeRequests().length===after,'closing the sheet stops the polling');
+`);
+add('runtime-late-receipt-ignored',`
+  ${runtimePermissionFixture}
+  openRuntimePanel();
+  const first=probeRequests().at(-1);STATE.runtimeRequestId='';requestRuntimeCheck();const second=probeRequests().at(-1);
+  onNativeRuntimeStatus({...permissionStatus,requestId:first.requestId,readAccess:grantedAccess});
+  qaAssert(STATE.runtimeStatus===null,'a stale receipt cannot replace the newer request');
+  onNativeRuntimeStatus({...permissionStatus,requestId:second.requestId});
+  qaAssert(!document.getElementById('runtimeBanner').hidden,'only the current receipt decides the state');
+`);
+add('runtime-poll-keeps-focus',`
+  ${runtimePermissionFixture}
+  answer({});openRuntimeSheet('guide');
+  const open=permBtn('open-fda');open.focus();
+  answer({});
+  qaAssert(permBtn('open-fda')===open&&document.activeElement===open,'an unchanged poll result does not rebuild the sheet or move focus');
+  answer({readAccess:grantedAccess});
+  qaAssert(document.querySelector('#runtimeModal').contains(document.activeElement),'when the sheet changes, focus stays inside it');
+`);
 for(const width of [1380,880])for(const theme of ['dark','light']){
-  add('runtime-permission-status-'+width+'-'+theme,`
-    document.documentElement.dataset.theme='${theme}';openRuntimePanel();
-    ${runtimePermissionFixture}
-    onNativeRuntimeStatus(permissionStatus);
-    const body=document.getElementById('runtimePanelBody');
-    const row=key=>body.querySelector('[data-runtime-permission="'+key+'"]');
-    qaAssert(row('fullDiskAccess')?.textContent.includes('读取被拒绝'),'Full Disk Access has a visible evidence-based state');
-    qaAssert(row('desktop')?.textContent.includes('已验证可读取')&&row('documents')?.textContent.includes('读取被拒绝'),'Desktop and Documents have independent outcomes rather than one generic paragraph');
-    qaAssert(row('downloads')?.textContent.includes('目录不存在')&&!row('downloads').textContent.includes('已授权'),'a missing directory is not a permission denial or grant');
-    qaAssert(row('appManagement')?.textContent.includes('需在设置确认')&&row('administrator')?.textContent.includes('操作时授权'),'permissions that are not safely queried cannot invent a grant');
-    qaAssert(body.textContent.includes('不等于系统开关')&&!body.textContent.includes('全部已授权'),'readability and the system authorization switch remain distinct');
-    qaAssert(document.getElementById('runtimeCheckStatus').textContent.includes('检查于'),'a permission result names its observation time');
-    const close=document.getElementById('runtimeCloseBtn').getBoundingClientRect();
-    qaAssert(close.top>=0&&close.bottom<=innerHeight,'Close remains visible even when permission rows scroll');
-    qaAssert(!__qa.actions.some(action=>['trashRealPaths','killProcess','releaseFileCache'].includes(action.action)),'checking permission presentation cannot mutate user resources');
+  add('runtime-guide-'+width+'-'+theme,`
+    document.documentElement.dataset.theme='${theme}';${runtimePermissionFixture}
+    answer({adhoc:true});openRuntimeSheet('guide');
+    qaAssert(liveLine().dataset.state==='waiting'&&document.querySelector('[data-runtime-adhoc]'),'the guide waits and carries the dev-build line');
+    qaAssert(fits(),'the guide fits the window with Close visible');
+  `);
+  Object.assign(scenarios.at(-1),{width,height:width===880?620:860});
+  add('runtime-status-'+width+'-'+theme,`
+    document.documentElement.dataset.theme='${theme}';${runtimePermissionFixture}
+    answer({appManagement:deniedRecord});openRuntimePanel();
+    qaAssert(permBtn('fda')&&permBtn('appManagement'),'both rows offer their way to turn it on');
+    qaAssert(fits(),'the status view fits the window with Close visible');
   `);
   Object.assign(scenarios.at(-1),{width,height:width===880?620:860});
 }
-add('runtime-folder-check-explicit',`
-  openRuntimePanel();
-  const initial=__qa.actions.at(-1);
-  qaAssert(initial.action==='requestRuntimeStatus'&&initial.checkFolders===false,'opening the panel does not unexpectedly probe Desktop/Documents/Downloads');
-  ${runtimePermissionFixture}
-  delete permissionStatus.folderReadAccess;onNativeRuntimeStatus(permissionStatus);
-  qaAssert(document.querySelector('[data-runtime-permission="desktop"]').textContent.includes('尚未检查'),'not checked is not represented as denied');
-  __qa.actions=[];document.getElementById('runtimeFolderCheckBtn').click();requestRuntimeCheck(true);
-  const requests=__qa.actions.filter(action=>action.action==='requestRuntimeStatus');
-  qaAssert(requests.length===1&&requests[0].checkFolders===true&&requests[0].requestId,'only an explicit check can request folder readability and rapid clicks cannot overlap it');
-  qaAssert(document.getElementById('runtimeFolderCheckBtn').disabled&&document.querySelector('[data-runtime-permission="desktop"]').textContent.includes('正在检查'),'folder probing has visible pending state');
-  permissionStatus.requestId=requests[0].requestId;permissionStatus.folderReadAccess=[{id:'desktop',title:'桌面',path:'~/Desktop',passed:true,status:'readable',detail:'可读取目录',checkedAt:Date.now()},{id:'documents',title:'文稿',path:'~/Documents',passed:null,status:'unknown',detail:'读取超时，可能正在等待系统授权',checkedAt:Date.now()},{id:'downloads',title:'下载',path:'~/Downloads',passed:false,status:'denied',detail:'读取被拒绝',checkedAt:Date.now()}];
-  onNativeRuntimeStatus(permissionStatus);
-  qaAssert(!document.getElementById('runtimeFolderCheckBtn').disabled&&document.querySelector('[data-runtime-permission="documents"]').textContent.includes('尚不能判定'),'an authorization wait is unknown rather than falsely granted');
-`);
-add('runtime-permission-refresh-preserves-focus',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const body=document.getElementById('runtimePanelBody');body.scrollTop=body.scrollHeight;
-  const button=body.querySelector('[data-runtime-action="appManagement"]');button.focus({preventScroll:true});const before=body.scrollTop;
-  requestRuntimeCheck();const requestId=STATE.runtimeRequestId;
-  onNativeRuntimeStatus({...permissionStatus,requestId,checkedAt:Date.now()});
-  qaAssert(STATE.runtimeStatus.requestId===requestId,'the new correlated permission receipt was actually applied');
-  qaAssert(document.activeElement.dataset.runtimeAction==='appManagement'&&Math.abs(body.scrollTop-before)<1,'permission receipts keep the same focused settings action and scroll position');
-  __qa.actions=[];document.activeElement.click();qaAssert(__qa.actions.length===1&&__qa.actions[0].pane==='appManagement','retained focus cannot point to a different permission');
-`);
-Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-permission-refresh-timeout',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const original=window.setTimeout;let timeout;
-  window.setTimeout=(callback,delay,...args)=>{if(delay===10000){timeout=callback;return 0;}return original(callback,delay,...args);};
-  try{
-    requestRuntimeCheck(true);timeout();
-    qaAssert(document.getElementById('runtimeCheckStatus').textContent.includes('未收到')&&document.getElementById('runtimePanelBody').textContent.includes('上次结果'),'a missing receipt cannot present an old permission snapshot as freshly verified');
-    qaAssert(document.querySelector('[data-runtime-permission="documents"]').textContent.includes('读取被拒绝'),'refresh timeout does not turn a known denial into a grant');
-  }finally{window.setTimeout=original;clearTimeout(window._runtimeTimer);}
-`);
-add('runtime-permission-late-completed-result',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const first=permissionStatus.requestId;
-  requestRuntimeCheck();const latest=STATE.runtimeRequestId;
-  onNativeRuntimeStatus({...permissionStatus,requestId:latest,readAccess:{passed:true,status:'readable',detail:'本次可读取'}});
-  onNativeRuntimeStatus({...permissionStatus,requestId:first,readAccess:{passed:false,status:'denied',detail:'旧请求拒绝'}});
-  onNativeRuntimeStatus({...permissionStatus,requestId:'',readAccess:{passed:false,status:'denied',detail:'启动检查迟到'}});
-  qaAssert(STATE.runtimeStatus.requestId===latest&&document.querySelector('[data-runtime-permission="fullDiskAccess"]').textContent.includes('已验证可读取'),'a completed latest permission result cannot be replaced by an older request or startup receipt');
-`);
-add('runtime-permission-hidden-theme-state',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const style=[...document.querySelectorAll('style')].find(node=>node.textContent.includes('*,*::before,*::after{transition:none!important;animation:none!important}'));
-  const original=style.textContent;style.textContent=original.replace('transition:none!important;','');
-  Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});
-  try{
-    const button=document.querySelector('[data-runtime-action="fullDiskAccess"]');
-    document.documentElement.dataset.theme='light';getComputedStyle(button).backgroundColor;
-    document.documentElement.dataset.theme='dark';
-    qaAssert(getComputedStyle(button).transitionDuration==='0s'&&getComputedStyle(button).backgroundColor==='rgb(33, 32, 29)','permission buttons apply their final theme and state immediately, even when native WebKit pauses hidden-page transitions');
-  }finally{style.textContent=original;delete document.visibilityState;}
-`);
-add('runtime-permission-disclosure-refresh',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const body=document.getElementById('runtimePanelBody');
-  const detail=label=>[...body.querySelectorAll('details')].find(node=>node.querySelector('summary').textContent.includes(label));
-  detail('个目录').open=true;detail('如何确认').open=true;
-  const summary=detail('个目录').querySelector('summary');summary.focus({preventScroll:true});body.scrollTop=180;
-  const before=body.scrollTop;requestRuntimeCheck();const requestId=STATE.runtimeRequestId;
-  qaAssert(detail('个目录').open&&detail('如何确认').open,'starting refresh must not collapse the read evidence or permission instructions the user is reading');
-  qaAssert(document.activeElement===detail('个目录').querySelector('summary')&&Math.abs(body.scrollTop-before)<1,'pending refresh preserves the exact disclosure focus and scroll');
-  onNativeRuntimeStatus({...permissionStatus,requestId,checkedAt:Date.now()});
-  qaAssert(detail('个目录').open&&detail('如何确认').open&&document.activeElement===detail('个目录').querySelector('summary'),'the native receipt preserves the same expanded content and focused summary');
-  detail('如何确认').open=false;renderRuntimePanel();
-  qaAssert(!detail('如何确认').open&&detail('个目录').open,'an intentionally closed disclosure stays closed independently of the other evidence');
-  qaAssert(!__qa.actions.some(action=>['trashRealPaths','releaseFileCache','killProcess'].includes(action.action)),'preserving disclosure state never submits a mutation');
-`);
-Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-permission-disclosure-keyboard-wrap',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  await new Promise(resolve=>setTimeout(resolve,60));
-  const first=document.querySelector('#runtimePanelBody details > summary');
-  const close=document.getElementById('runtimeCloseBtn');close.focus();
-  close.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));
-  qaAssert(document.activeElement===first,'wrapping Tab from Close reaches the first native evidence disclosure instead of skipping it');
-  first.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}));
-  qaAssert(document.activeElement===close,'Shift-Tab from the first disclosure stays inside the permission dialog');
-`);
-add('runtime-permission-identity-reset',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const body=document.getElementById('runtimePanelBody');
-  requestRuntimeCheck();const requestId=STATE.runtimeRequestId;
-  body.querySelectorAll('details').forEach(detail=>detail.open=true);body.scrollTop=body.scrollHeight;
-  body.querySelector('[data-runtime-action="appManagement"]').focus({preventScroll:true});
-  qaAssert(body.scrollTop>0,'the old application is scrolled away from its identity before replacement');
-  onNativeRuntimeStatus({...permissionStatus,requestId,appPath:'/Applications/Another Build.app',identifier:'com.example.another',folderReadAccess:undefined});
-  qaAssert(body.scrollTop===0&&!body.querySelector('details[open]'),'a different running bundle resets old disclosures and shows the new identity at the top');
-  qaAssert(document.activeElement===document.getElementById('runtimeCloseBtn'),'a new bundle does not preserve an old settings action as current focus');
-  qaAssert(body.textContent.includes('/Applications/Another Build.app')&&body.querySelector('[data-runtime-permission="desktop"]').textContent.includes('尚未检查'),'folder permission results from the previous bundle cannot apply to another identity');
-`);
-Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-permission-no-verifiable-probes',`
-  openRuntimePanel();${runtimePermissionFixture}
-  onNativeRuntimeStatus({...permissionStatus,readAccess:{passed:null,status:'missing',detail:'未找到 Mail 或 Safari 核对目录',checks:[]}});
-  const row=document.querySelector('[data-runtime-permission="fullDiskAccess"]');
-  qaAssert(row.querySelector('.runtime-permission-state').textContent==='无可核验目录','missing FDA probes cannot describe the permission itself as a nonexistent directory');
-  qaAssert(!row.querySelector('details[data-runtime-detail="read-evidence"]')&&!row.textContent.includes('查看 0 个'),'an empty evidence payload does not present a fabricated check collection');
-`);
-add('runtime-permission-disclosure-removed-evidence',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const body=document.getElementById('runtimePanelBody');
-  const evidence=body.querySelector('[data-runtime-detail="read-evidence"]');evidence.open=true;
-  body.querySelector('[data-runtime-detail="permission-guide"]').open=true;
-  evidence.querySelector('summary').focus();requestRuntimeCheck();
-  onNativeRuntimeStatus({...permissionStatus,requestId:STATE.runtimeRequestId,readAccess:{passed:null,status:'missing',detail:'本次未找到可核验目录',checks:[]}});
-  qaAssert(!body.querySelector('[data-runtime-detail="read-evidence"]')&&body.querySelector('[data-runtime-detail="permission-guide"]').open,'removed evidence does not retain stale check rows or collapse the still-relevant authorization guide');
-  qaAssert(document.activeElement===document.getElementById('runtimeCloseBtn'),'focus safely falls back to Close when the exact evidence disclosure no longer exists');
-`);
-const runtimeScanWarningFixture=`
-  const scanWarnings=[{path:qaFixture.homePath+'/Library/Containers/Denied App/Data',reason:'读取被拒绝（permission denied）'},{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量'}];
-  const readableStatus={...permissionStatus,readAccess:{passed:true,status:'readable',detail:'本次 Mail / Safari 探测目录可读取',checks:[{path:'~/Library/Mail',passed:true,status:'readable'},{path:'~/Library/Safari',passed:true,status:'readable'}]},folderReadAccess:[]};
-`;
-for(const theme of ['dark','light']){
-  add('runtime-permission-scan-evidence-'+theme,`
-    document.documentElement.dataset.theme='${theme}';openRuntimePanel();${runtimePermissionFixture}${runtimeScanWarningFixture}
-    onNativeRuntimeStatus(readableStatus);onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:scanWarnings});
-    const body=document.getElementById('runtimePanelBody');
-    qaAssert(body.querySelector('[data-runtime-permission="fullDiskAccess"] .runtime-permission-state').textContent==='已验证可读取','scan limits do not overwrite a measured successful probe with a guessed permission denial');
-    const detail=body.querySelector('[data-runtime-detail="scan-evidence"]');
-    qaAssert(detail?.textContent.includes('2 个路径未完成测量'),'a new scan receipt immediately exposes the still-unread paths inside the open permission panel');
-    qaAssert(!document.getElementById('runtimeBanner').hidden&&document.getElementById('runtimeBannerText').textContent.includes('未完成测量'),'successful probes cannot hide the actual incomplete scan warning');
-    detail.open=true;
-    qaAssert(detail.querySelectorAll('.permission-group-row').length===2&&detail.textContent.includes('读取被拒绝')&&detail.textContent.includes('探索上限'),'the permission panel separates both exact scan reasons rather than calling every warning an ungranted permission');
-    const limit=[...detail.querySelectorAll('.permission-group-row')].find(row=>row.textContent.includes('探索上限'));
-    qaAssert(!limit.querySelector('[onclick*="openPrivacySettings"]'),'a directory cap does not falsely ask for a system permission');
-    __qa.actions=[];
-    detail.querySelector('[onclick*="revealInFinder"]').click();
-    qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='revealInFinder'&&__qa.actions[0].path.startsWith(qaFixture.homePath),'an unread group reveals its real native path');
-    detail.querySelector('[onclick*="openPrivacySettings"]').click();
-    qaAssert(__qa.actions.at(-1).action==='openPrivacySettings'&&__qa.actions.at(-1).pane==='fullDiskAccess','permission-related scan evidence links to its matching settings pane');
-    qaAssert(!__qa.actions.some(action=>['trashRealPaths','killProcess','releaseFileCache','requestRealSystemScan'].includes(action.action)),'viewing scan evidence neither mutates files nor starts an extra scan');
-  `);
-  Object.assign(scenarios.at(-1),{width:880,height:620});
-}
-add('runtime-permission-scan-receipt-refresh',`
-  openRuntimePanel();${runtimePermissionFixture}${runtimeScanWarningFixture}
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:scanWarnings});onNativeRuntimeStatus(readableStatus);
-  const body=document.getElementById('runtimePanelBody');
-  const detail=body.querySelector('[data-runtime-detail="scan-evidence"]');
-  qaAssert(detail,'scan evidence must also exist when the runtime receipt arrives after the scan');detail.open=true;
-  const path=detail.querySelector('.permission-group-path');path.focus({preventScroll:true});body.scrollTop=body.scrollHeight;const before=body.scrollTop;
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[...scanWarnings,{path:qaFixture.homePath+'/Library/Containers/Denied App/Cache',reason:'读取被拒绝（permission denied）'}]});
-  const next=body.querySelector('[data-runtime-detail="scan-evidence"]');
-  qaAssert(next.open&&next.textContent.includes('3 个路径未完成测量'),'native scan updates keep the evidence expanded and update its count');
-  qaAssert(document.activeElement.dataset.runtimeAction===path.dataset.runtimeAction&&Math.abs(body.scrollTop-before)<1,'scan updates preserve the same directory action and panel scroll');
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[]});
-  qaAssert(!body.querySelector('[data-runtime-detail="scan-evidence"]')&&document.getElementById('runtimeBanner').hidden,'a fresh completed scan clears obsolete unread paths and their banner');
-  qaAssert(document.activeElement===document.getElementById('runtimeCloseBtn'),'removed scan evidence falls back to Close without pointing at another path');
-`);
-Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-permission-scan-nonpermission-warning',`
-  openRuntimePanel();${runtimePermissionFixture}${runtimeScanWarningFixture}onNativeRuntimeStatus(readableStatus);
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[scanWarnings[1]]});
-  const body=document.getElementById('runtimePanelBody'),detail=body.querySelector('[data-runtime-detail="scan-evidence"]');
-  qaAssert(detail&&detail.textContent.includes('不等于系统权限开关'),'scan evidence explicitly remains separate from authorization state');
-  qaAssert(!document.getElementById('runtimeBannerText').textContent.includes('读取被拒绝'),'a measurement cap does not masquerade as denied permission');
-  qaAssert(body.querySelector('[data-runtime-permission="fullDiskAccess"]').textContent.includes('已验证可读取'),'limits never change the measured access verdict');
-  requestRuntimeCheck();onNativeRuntimeStatus({...permissionStatus,requestId:STATE.runtimeRequestId});
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[]});
-  qaAssert(!document.getElementById('runtimeBanner').hidden&&document.getElementById('runtimeBannerText').textContent.includes('读取被拒绝'),'clearing scan limits cannot clear an independently confirmed read denial');
-`);
-add('runtime-permission-scan-invalid-records',`
-  openRuntimePanel();${runtimePermissionFixture}${runtimeScanWarningFixture}onNativeRuntimeStatus(readableStatus);
-  const unusualPath="/Volumes/Owner's <Disk>&quot;/Folder/item";
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[null,{},'invalid',{path:12},{path:'  '},{path:unusualPath,reason:'读取失败 <details> &quot;'}]});
-  const detail=document.querySelector('[data-runtime-detail="scan-evidence"]');
-  qaAssert(STATE.scanReadWarnings.length===1&&detail.textContent.includes('1 个路径未完成测量'),'only well-formed native warning paths enter the shared scan record');
-  qaAssert(!detail.querySelector('disk')&&detail.querySelectorAll('details').length===0,'unread paths and reasons cannot create markup in the permission panel');
-  detail.open=true;__qa.actions=[];detail.querySelector('.permission-group-path').click();
-  qaAssert(__qa.actions[0].action==='revealInFinder'&&__qa.actions[0].path==="/Volumes/Owner's <Disk>&quot;/Folder",'a grouped path preserves quotes and entities across the HTML and native message boundary');
-`);
-add('runtime-permission-scan-directory-access-control',`
-  openRuntimePanel();${runtimePermissionFixture}${runtimeScanWarningFixture}onNativeRuntimeStatus(readableStatus);
-  const path=qaFixture.homePath+'/Projects/Directory With Local Access Control';
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[{path,reason:'open '+path+': permission denied'}]});
-  const detail=document.querySelector('[data-runtime-detail="scan-evidence"]');detail.open=true;
-  qaAssert(!detail.querySelector('[onclick*="openPrivacySettings"]'),'ordinary project-directory access control is not falsely mapped to Full Disk Access');
-  const reason=detail.querySelector('.permission-group-path small');
-  qaAssert(getComputedStyle(reason).whiteSpace==='normal'&&reason.textContent.includes('permission denied'),'long native read errors wrap so their actual failure reason is visible rather than ellipsized away');
-  qaAssert(detail.textContent.includes('访问控制'),'permission guidance distinguishes local access control from a system grant');
-`);
-add('runtime-permission-current-check-pending',`
-  openRuntimePanel();${runtimePermissionFixture}
-  permissionStatus.readAccess={passed:true,status:'readable',detail:'上次目录可读取',checkedAt:Date.now()-3600000,checks:[]};onNativeRuntimeStatus(permissionStatus);
-  const previous=STATE.runtimeStatus.readAccess;
-  requestRuntimeCheck();const requestId=STATE.runtimeRequestId;
-  const row=document.querySelector('[data-runtime-permission="fullDiskAccess"]');
-  qaAssert(row.querySelector('.runtime-permission-state').textContent==='正在检查…'&&row.querySelector('.runtime-permission-state').dataset.state==='unknown','a pending current check cannot present the last readable result as currently verified');
-  qaAssert(row.querySelector('[data-runtime-last-read]').textContent.includes('已验证可读取')&&row.querySelector('[data-runtime-last-read]').textContent.includes(runtimeCheckTime(previous.checkedAt)),'the previous observation remains visible with its actual time');
-  qaAssert(STATE.runtimeStatus.readAccess===previous,'pending UI must not mutate the authoritative observed access result');
-  onNativeRuntimeStatus({...permissionStatus,requestId,readAccess:{passed:false,status:'denied',detail:'本次读取被拒绝',checkedAt:Date.now(),checks:[]}});
-  qaAssert(document.querySelector('[data-runtime-permission="fullDiskAccess"] .runtime-permission-state').textContent==='读取被拒绝'&&!document.querySelector('[data-runtime-last-read]'),'the new native receipt replaces pending state and removes obsolete last-observation copy');
-`);
-Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-permission-current-check-timeout',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const previous=STATE.runtimeStatus.readAccess;
-  const original=window.setTimeout;let timeout;
-  window.setTimeout=(callback,delay,...args)=>{if(delay===10000){timeout=callback;return 0;}return original(callback,delay,...args);};
-  try{
-    requestRuntimeCheck();const requestId=STATE.runtimeRequestId;timeout();
-    const row=document.querySelector('[data-runtime-permission="fullDiskAccess"]');
-    qaAssert(row.querySelector('.runtime-permission-state').textContent==='本次未确认'&&row.querySelector('.runtime-permission-state').dataset.state==='unknown','a missing current receipt is not a freshly confirmed denied or granted permission');
-    qaAssert(row.querySelector('[data-runtime-last-read]').textContent.includes('读取被拒绝')&&STATE.runtimeStatus.readAccess===previous,'timeout preserves the old diagnostic as a last observation, not a new failure');
-    qaAssert(!document.getElementById('runtimeRecheckBtn').disabled,'an unknown diagnostic can be refreshed without running cleanup');
-    onNativeRuntimeStatus({...permissionStatus,requestId,readAccess:{passed:true,status:'readable',detail:'迟到的本次真实读取通过',checkedAt:Date.now(),checks:[]}});
-    qaAssert(document.querySelector('[data-runtime-permission="fullDiskAccess"] .runtime-permission-state').textContent==='已验证可读取'&&!document.querySelector('[data-runtime-last-read]'),'a late correlated diagnostic can still resolve the unknown state truthfully');
-  }finally{window.setTimeout=original;clearTimeout(window._runtimeTimer);}
-`);
-add('runtime-permission-folder-pending-history',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const previous=STATE.runtimeStatus.folderReadAccess;
-  requestRuntimeCheck(true);const requestId=STATE.runtimeRequestId;
-  for(const check of previous){
-    const row=document.querySelector('[data-runtime-permission="'+check.id+'"]');
-    qaAssert(row.querySelector('.runtime-permission-state').textContent==='正在检查…','an explicit folder check presents its current pending state');
-    const last=row.querySelector('[data-runtime-folder-last-read]');
-    qaAssert(last&&last.textContent.includes(runtimeReadState(check)[0])&&row.textContent.includes(runtimeCheckTime(check.checkedAt)),'pending folder checks keep their previous verdict and observation time separately');
-  }
-  qaAssert(STATE.runtimeStatus.folderReadAccess===previous,'pending presentation never alters native folder evidence');
-  onNativeRuntimeStatus({...permissionStatus,requestId,folderReadAccess:previous.map(check=>({...check,checkedAt:Date.now()}))});
-  qaAssert(!document.querySelector('[data-runtime-folder-last-read]'),'the correlated folder receipt replaces the pending history annotation');
-`);
-Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-permission-folder-timeout-scope',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const previous=STATE.runtimeStatus.folderReadAccess;
-  const original=window.setTimeout;let timeout;
-  window.setTimeout=(callback,delay,...args)=>{if(delay===10000){timeout=callback;return 0;}return original(callback,delay,...args);};
-  try{
-    requestRuntimeCheck(true);timeout();
-    const row=()=>document.querySelector('[data-runtime-permission="desktop"]');
-    qaAssert(row().querySelector('.runtime-permission-state').textContent==='本次未确认'&&row().querySelector('.runtime-permission-state').dataset.state==='unknown','a missing folder receipt cannot revert to an old currently verified grant');
-    qaAssert(row().querySelector('[data-runtime-folder-last-read]').textContent.includes('已验证可读取')&&STATE.runtimeStatus.folderReadAccess===previous,'the previous folder observation remains separate from the unconfirmed current check');
-    requestRuntimeCheck();const basicRequest=STATE.runtimeRequestId;
-    onNativeRuntimeStatus({...permissionStatus,requestId:basicRequest,folderReadAccess:undefined});
-    qaAssert(row().querySelector('.runtime-permission-state').textContent==='本次未确认','a basic refresh that does not check folders cannot resolve a failed folder check');
-    requestRuntimeCheck(true);const folderRequest=STATE.runtimeRequestId;
-    onNativeRuntimeStatus({...permissionStatus,requestId:folderRequest,folderReadAccess:previous.map(check=>({...check,checkedAt:Date.now()}))});
-    qaAssert(row().querySelector('.runtime-permission-state').textContent==='已验证可读取'&&!row().querySelector('[data-runtime-folder-last-read]'),'only a new correlated folder result resolves the unconfirmed folder state');
-    qaAssert(!__qa.actions.some(action=>['trashRealPaths','releaseFileCache','requestRealSystemScan'].includes(action.action)),'diagnostic retries do not perform maintenance or scan user files');
-  }finally{window.setTimeout=original;clearTimeout(window._runtimeTimer);}
-`);
-add('runtime-permission-folder-missing-result',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const previous=STATE.runtimeStatus.folderReadAccess;
-  requestRuntimeCheck(true);const requestId=STATE.runtimeRequestId;
-  onNativeRuntimeStatus({...permissionStatus,requestId,folderReadAccess:undefined});
-  const row=document.querySelector('[data-runtime-permission="documents"]');
-  qaAssert(row.querySelector('.runtime-permission-state').textContent==='本次未确认'&&STATE.runtimeStatus.folderReadAccess===previous,'a receipt without the requested folder data cannot relabel the old evidence as a completed folder check');
-  qaAssert(document.getElementById('runtimePanelBody').textContent.includes('未返回目录核对结果')&&!document.getElementById('runtimeFolderCheckBtn').disabled,'the omitted scope is explained and can be explicitly retried');
-`);
-add('runtime-permission-observation-date',`
-  openRuntimePanel();${runtimePermissionFixture}
-  const previous=new Date();previous.setDate(previous.getDate()-1);
-  const date=previous.toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'});
-  permissionStatus.folderReadAccess[0].checkedAt=previous.getTime();onNativeRuntimeStatus(permissionStatus);
-  qaAssert(runtimeCheckTime(previous.getTime()).includes(date)&&document.querySelector('[data-runtime-permission="desktop"]').textContent.includes(date),'a previous-day permission observation includes its date rather than looking like today’s time');
-  qaAssert(runtimeCheckTime(1e20)==='时间未知'&&runtimeCheckTime(null)==='时间未知','out-of-range or absent native timestamps cannot display Invalid Date as evidence');
-`);
-for(const theme of ['dark','light']){
-  add('runtime-permission-readable-reasons-'+theme,`
-    document.documentElement.dataset.theme='${theme}';openRuntimePanel();${runtimePermissionFixture}
-    const reason='读取未完成：~/Documents/'+('long-path-'.repeat(30))+'/<img src=x onerror="window.__permissionReasonInjected=true">/not-a-directory';
-    permissionStatus.folderReadAccess[1]={...permissionStatus.folderReadAccess[1],passed:null,status:'unknown',detail:reason};
-    permissionStatus.readAccess={...permissionStatus.readAccess,passed:null,status:'unknown',detail:'部分受保护目录未完成读取'};
-    permissionStatus.readAccess.checks[1]={...permissionStatus.readAccess.checks[1],passed:null,status:'unknown',detail:reason};
-    onNativeRuntimeStatus(permissionStatus);
-    const body=document.getElementById('runtimePanelBody');
-    const folder=body.querySelector('[data-runtime-permission="documents"]');
-    const detail=folder.querySelector('.runtime-read-detail');
-    qaAssert(detail&&detail.textContent===reason,'the actual folder failure reason is readable text, not a hover-only tooltip');
-    qaAssert(folder.querySelector('.runtime-permission-state').textContent==='尚不能判定','a failed non-permission read is not mislabeled as a missing grant');
-    const evidence=body.querySelector('[data-runtime-detail="read-evidence"]');evidence.open=true;
-    const probe=evidence.querySelectorAll('.runtime-evidence-row')[1];
-    qaAssert(probe.querySelector('.runtime-read-detail')?.textContent===reason,'each Full Disk Access probe exposes its own diagnostic rather than only the aggregate verdict');
-    qaAssert(!body.querySelector('img')&&!window.__permissionReasonInjected,'native diagnostic text cannot create markup or execute a path fragment');
-    for(const target of [detail,probe.querySelector('.runtime-read-detail')])qaAssert(target.scrollWidth<=target.clientWidth+1&&getComputedStyle(target).overflowWrap==='anywhere','long diagnostic paths wrap inside their permission row');
-    const close=document.getElementById('runtimeCloseBtn').getBoundingClientRect();
-    qaAssert(close.top>=0&&close.bottom<=innerHeight,'expanded failure reasons cannot hide the fixed Close action');
-  `);
-  Object.assign(scenarios.at(-1),{width:880,height:620});
-}
-add('runtime-permission-reasons-history',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const body=document.getElementById('runtimePanelBody');
-  const evidence=body.querySelector('[data-runtime-detail="read-evidence"]');evidence.open=true;
-  evidence.querySelector('summary').focus({preventScroll:true});body.scrollTop=150;const before=body.scrollTop;
-  requestRuntimeCheck(true);
-  const folder=body.querySelector('[data-runtime-permission="documents"] .runtime-read-detail');
-  const probe=body.querySelectorAll('.runtime-evidence-row')[1].querySelector('.runtime-read-detail');
-  qaAssert(folder&&probe&&folder.textContent.startsWith('上次读取说明：')&&probe.textContent.startsWith('上次读取说明：'),'pending diagnostics explicitly label each old failure reason as historical evidence');
-  qaAssert(body.querySelector('[data-runtime-detail="read-evidence"]').open&&document.activeElement.dataset.runtimeAction==='read-evidence'&&Math.abs(body.scrollTop-before)<1,'readable reasons retain existing disclosure focus and scrolling');
-  const requestId=STATE.runtimeRequestId;
-  permissionStatus.folderReadAccess[1]={...permissionStatus.folderReadAccess[1],passed:true,status:'readable',detail:'本次目录可读取',checkedAt:Date.now()};
-  permissionStatus.readAccess.checks[1]={...permissionStatus.readAccess.checks[1],passed:true,status:'readable',detail:'本次探测可读取'};
-  onNativeRuntimeStatus({...permissionStatus,requestId});
-  qaAssert(!body.querySelector('[data-runtime-permission="documents"] .runtime-read-detail'),'a newly readable folder removes its stale failure explanation');
-  qaAssert(body.querySelectorAll('.runtime-evidence-row')[1].querySelector('.runtime-read-detail').textContent==='本次探测可读取','a corresponding probe receipt replaces its historical reason');
-  qaAssert(!__qa.actions.some(action=>['trashRealPaths','releaseFileCache','killProcess','requestRealSystemScan'].includes(action.action)),'diagnostic presentation cannot initiate cleanup or another scan');
-`);
-add('runtime-permission-pending-reopen',`
-  const trigger=document.querySelector('.header-controls [onclick="openRuntimePanel()"]');trigger.focus();trigger.click();
-  const requestId=STATE.runtimeRequestId;
-  ${runtimePermissionFixture}
-  const timer=window._runtimeTimer;
-  await new Promise(resolve=>setTimeout(resolve,60));
-  qaAssert(document.getElementById('runtimeModal').contains(document.activeElement),'the pending guide receives focus before the close/reopen interaction');
-  closeRuntimePanel();await new Promise(resolve=>setTimeout(resolve,60));
-  qaAssert(document.activeElement===trigger,'closing the pending guide restores its existing opener');
-  trigger.click();openRuntimePanel();
-  qaAssert(STATE.runtimeRequestId===requestId&&window._runtimeTimer===timer,'reopening a pending guide retains the original request and wait deadline');
-  qaAssert(__qa.actions.filter(action=>action.action==='requestRuntimeStatus').length===1,'repeated entry cannot start overlapping native directory probes');
-  qaAssert(document.getElementById('runtimeModal').getAttribute('aria-busy')==='true'&&document.getElementById('runtimeRecheckBtn').disabled,'reopened pending state remains explicit without offering another check');
-  onNativeRuntimeStatus(permissionStatus);
-  qaAssert(STATE.runtimeStatus.requestId===requestId&&!STATE.runtimeRequestId&&!document.getElementById('runtimeRecheckBtn').disabled,'the original corresponding receipt resolves the reopened panel instead of being discarded');
-`);
-Object.assign(scenarios.at(-1),{width:880,height:620});
-add('runtime-permission-timeout-reopen-retry',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  const original=window.setTimeout;let timeout;
-  window.setTimeout=(callback,delay,...args)=>{if(delay===10000){timeout=callback;return 0;}return original(callback,delay,...args);};
-  try{
-    requestRuntimeCheck();const expired=STATE.runtimeRequestId;timeout();closeRuntimePanel();openRuntimePanel();
-    const retry=STATE.runtimeRequestId;
-    qaAssert(retry&&retry!==expired&&!STATE.runtimeCheckError,'reopening a timed-out guide can start an explicit fresh wait');
-    onNativeRuntimeStatus({...permissionStatus,requestId:expired,readAccess:{passed:true,status:'readable',detail:'expired result'}});
-    qaAssert(STATE.runtimeRequestId===retry,'an expired receipt cannot finish the reopened retry');
-    onNativeRuntimeStatus({...permissionStatus,requestId:retry});
-    qaAssert(!STATE.runtimeRequestId&&STATE.runtimeStatus.requestId===retry,'the reopened retry resolves only from its corresponding receipt');
-  }finally{window.setTimeout=original;clearTimeout(window._runtimeTimer);}
-`);
-add('runtime-permission-folder-result-while-closed',`
-  openRuntimePanel();${runtimePermissionFixture}onNativeRuntimeStatus(permissionStatus);
-  requestRuntimeCheck(true);const requestId=STATE.runtimeRequestId;const previous=STATE.runtimeStatus.folderReadAccess;
-  closeRuntimePanel();
-  const updated=previous.map(check=>({...check,passed:true,status:'readable',detail:'本次目录可读取',checkedAt:Date.now()}));
-  onNativeRuntimeStatus({...permissionStatus,requestId,folderReadAccess:updated});
-  qaAssert(!document.getElementById('runtimeModal').classList.contains('open')&&!STATE.runtimeRequestId,'a background diagnostic receipt cannot reopen a dismissed guide');
-  openRuntimePanel();
-  qaAssert(STATE.runtimeStatus.folderReadAccess===updated&&!STATE.runtimeFolderChecking,'a later basic entry retains the completed explicit folder observation without re-probing folders');
-  qaAssert(document.querySelector('[data-runtime-permission="documents"] .runtime-permission-state').textContent==='已验证可读取','the completed folder result remains inspectable after closing and reopening');
-  qaAssert(!__qa.actions.some(action=>['trashRealPaths','releaseFileCache','killProcess','requestRealSystemScan'].includes(action.action)),'guide reopening and background results do not mutate user resources');
+for(const theme of ['dark','light'])add('runtime-admin-app-inspector-'+theme,`
+  document.documentElement.dataset.theme='${theme}';switchModule('software');
+  const reason='这个应用由 App Store 或安装器以管理员身份安装，移动需要管理员密码；orbit 不申请管理员权限。可在访达中把它拖到废纸篓（会要求输入密码），或在启动台中删除。';
+  const app=STATE.appsList[0];app.needsAdmin=true;app.subpaths[0]={...app.subpaths[0],tier:'protected',checked:false,reason};selectAppRow(0);renderModule();
+  qaAssert([...document.querySelectorAll('#moduleStage .list-row')].some(row=>row.textContent.includes('需管理员')),'the uninstall list marks apps that need an administrator');
+  qaAssert(document.getElementById('moduleStage').textContent.includes('orbit 不申请管理员权限'),'the inspector gives the plain reason');
+  qaAssert([...document.querySelectorAll('#moduleStage button')].some(button=>button.textContent.includes('在访达中显示')),'the inspector can reveal the bundle in Finder');
+  qaAssert(!selectedSubpaths(app,'standard').some(sp=>sp.kind==='app'),'a root-owned bundle is never queued for removal');
 `);
 add('clean-coverage-not-selection',`
   const rows=${JSON.stringify([group('known-safe','闲置缓存','~/Library/Caches/Idle',2),group('known-review','需检查缓存','~/.cache/uv',4,'review'),group('known-kept','运行中缓存','~/Library/Caches/Active',4,'protected')])};
@@ -2043,8 +1891,16 @@ for (const [width, theme] of [[1380, 'dark'], [880, 'light']]) for (const mod of
 add('en-live-roundtrip', `const modules=${JSON.stringify(modules)};for(const mod of modules){switchModule(mod);await qaSettle();const zh=qaStageText();qaAssert(/[㐀-鿿]/.test(zh),mod+' starts in Chinese');await qaEn(mod);qaAssert(!/[㐀-鿿]/.test(qaStageText().replace(/测试编辑工具 \\d+|测试视频\\.mov/g,'')),mod+' header and stage are English');I18N.setLang('zh',false);await qaSettle();qaAssert(document.documentElement.lang==='zh-CN','html lang returns to zh-CN');qaAssert(qaStageText()===zh,mod+' returns to the same Chinese text');}`);
 add('en-modal-doctor', `openDoctorModal(true);onNativeDoctorReport({requestId:_doctorRequestId,checks:[{id:'disk',title:'磁盘剩余空间',detail:'隔离测试结果',passed:true},{id:'permission',title:'完全磁盘访问',detail:'隔离测试结果',passed:false}]});await qaEn('doctor',async()=>{});qaAssert(document.getElementById('doctorModal').classList.contains('open'),'doctor stays open across the language switch');`);
 add('en-modal-doctor-waiting', `await qaEn('doctor waiting',async()=>{openDoctorModal(true);});`);
-add('en-modal-permissions', `I18N.add({'受保护目录读取被拒绝':'Fixture text'});openRuntimePanel();const request=__qa.actions.find(a=>a.action==='requestRuntimeStatus');onNativeRuntimeStatus({requestId:request.requestId,packaged:true,appPath:'/Applications/orbit.app',identifier:'com.mymoles.mole-studio',version:'0.1.0',menuBarRegistered:true,readAccess:{passed:false,detail:'受保护目录读取被拒绝'}});await qaEn('permissions',async()=>{});qaAssert(document.getElementById('runtimeModal').classList.contains('open'),'permissions stay open across the switch');`);
-add('en-modal-permissions-dev', `openRuntimePanel();const request=__qa.actions.find(a=>a.action==='requestRuntimeStatus');onNativeRuntimeStatus({requestId:request.requestId,packaged:false,appPath:'/tmp/go-build123/b001/exe/mole-studio',executablePath:'/tmp/go-build123/b001/exe/mole-studio',identifier:'',version:'dev',menuBarRegistered:true,readAccess:{passed:null,detail:''}});await qaEn('permissions (dev run)',async()=>{});`);
+for(const width of [1380,880])for(const theme of ['dark','light']){
+  add('en-modal-permissions-guide-'+width+'-'+theme, `document.documentElement.dataset.theme='${theme}';${runtimePermissionFixture}answer({adhoc:true});openRuntimeSheet('guide');await qaEn('permissions guide',async()=>{});qaAssert(document.getElementById('runtimeModal').classList.contains('open')&&fits(),'the guide stays open and fits across the switch');qaAssert(permBtn('open-fda').textContent==='Open System Settings'&&liveLine().textContent.trim()==='Waiting for access…','English steps and live line');`);
+  Object.assign(scenarios.at(-1),{width,height:width===880?620:860});
+  add('en-modal-permissions-status-'+width+'-'+theme, `document.documentElement.dataset.theme='${theme}';${runtimePermissionFixture}answer({readAccess:grantedAccess,appManagement:effectiveRecord});openRuntimePanel();await qaEn('permissions status',async()=>{});qaAssert(fits()&&permRow('fullDiskAccess').textContent.includes('On ✓')&&permRow('appManagement').textContent.includes('Working ✓'),'English confirmations');`);
+  Object.assign(scenarios.at(-1),{width,height:width===880?620:860});
+}
+add('en-modal-permissions-relaunch', `${runtimePermissionFixture}answer({});openRuntimeSheet('guide');answer({readAccess:grantedAccess});await qaEn('permissions relaunch',async()=>{});qaAssert(document.querySelector('[data-runtime-relaunch] button').textContent==='Reopen','English relaunch button');`);
+add('en-modal-permissions-dev', `${runtimePermissionFixture}openRuntimePanel();answer({packaged:false,appPath:'/tmp/go-build123/b001/exe/mole-studio',identifier:'',readAccess:{passed:null,status:'unknown',detail:''}});await qaEn('permissions (dev run)',async()=>{});qaAssert(document.querySelector('[data-runtime-gorun]').textContent.includes('development build'),'English dev-build line');`);
+add('en-permission-banner', `${runtimePermissionFixture}answer({});await qaEn('permission banner',async()=>{});qaAssert(!document.getElementById('runtimeBanner').hidden&&document.querySelector('#runtimeBanner button').textContent==='Grant access','English banner');`);
+add('en-uninstall-admin-app', `switchModule('software');const app=STATE.appsList[0];app.needsAdmin=true;app.subpaths[0]={...app.subpaths[0],tier:'protected',checked:false,reason:'这个应用由 App Store 或安装器以管理员身份安装，移动需要管理员密码；orbit 不申请管理员权限。可在访达中把它拖到废纸篓（会要求输入密码），或在启动台中删除。'};selectAppRow(0);await qaEn('uninstall (admin app)',async()=>{renderModule();});qaAssert(document.getElementById('moduleStage').textContent.includes('Needs admin')&&document.getElementById('moduleStage').textContent.includes('does not ask for administrator rights'),'English admin badge and reason');`);
 add('en-modal-confirm-clean', `switchModule('clean');await qaEn('confirm clean',async()=>{openConfirmSheet();});qaAssert(document.querySelector('.modal-backdrop.open'),'confirm sheet is open');`);
 add('en-modal-confirm-apps', `switchModule('software');toggleAppCheck(0);await qaEn('confirm uninstall',async()=>{openConfirmSheet();});`);
 add('en-modal-palette', `await qaEn('palette',async()=>{openCommandPalette('');});qaAssert(document.querySelectorAll('#cmdPaletteList .list-row').length>=8,'palette lists every module');`);
@@ -2132,11 +1988,11 @@ add('tier-generic-sentence-without-reason', `
 `);
 // 测量告警按 kind 分组：每种 kind 的标题、徽章、模块内提示、运行时横幅各自独立。
 const warnKinds = {
-  permission: { warnings: `[{path:qaFixture.homePath+'/Library/Mail',reason:'读取被拒绝（permission denied）',kind:'permission'},{path:qaFixture.homePath+'/Library/Safari',reason:'读取被拒绝（permission denied）',kind:'permission'}]`, head: '2 个路径没有读取权限，请授予完全磁盘访问权限', badge: '部分路径无读取权限', banner: true, pane: true },
-  limit: { warnings: `[{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量',kind:'limit'},{path:qaFixture.homePath+'/Projects/Huge Cache',reason:'达到目录探索上限，未完成测量',kind:'limit'}]`, head: '权限正常；2 个较大目录只测量了部分体积（不影响清理）', badge: '部分体积为下限', banner: false, pane: false },
-  system: { warnings: `[{path:'/Library/Application Support/com.apple.TCC',reason:'macOS 系统保护，无法读取',kind:'system'}]`, head: '1 个位置受 macOS 系统保护，无需处理', badge: '', banner: false, pane: false },
-  error: { warnings: `[{path:qaFixture.homePath+'/Projects/Broken',reason:'读取失败（i/o error）',kind:'error'}]`, head: '部分路径未完成测量，请先查看原因', badge: '部分测量受限', banner: true, pane: false },
-  legacy: { warnings: `[{path:qaFixture.homePath+'/Library/Containers/Denied App/Data',reason:'读取被拒绝（permission denied）'},{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量'}]`, head: '本机扫描：2 个路径未完成测量，按目录查看原因', badge: '部分测量受限', banner: true, pane: true },
+  permission: { warnings: `[{path:qaFixture.homePath+'/Library/Mail',reason:'读取被拒绝（permission denied）',kind:'permission'},{path:qaFixture.homePath+'/Library/Safari',reason:'读取被拒绝（permission denied）',kind:'permission'}]`, head: '2 个路径没有读取权限，请授予完全磁盘访问权限', badge: '部分路径无读取权限', pane: true },
+  limit: { warnings: `[{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量',kind:'limit'},{path:qaFixture.homePath+'/Projects/Huge Cache',reason:'达到目录探索上限，未完成测量',kind:'limit'}]`, head: '权限正常；2 个较大目录只测量了部分体积（不影响清理）', badge: '部分体积为下限', pane: false },
+  system: { warnings: `[{path:'/Library/Application Support/com.apple.TCC',reason:'macOS 系统保护，无法读取',kind:'system'}]`, head: '1 个位置受 macOS 系统保护，无需处理', badge: '', pane: false },
+  error: { warnings: `[{path:qaFixture.homePath+'/Projects/Broken',reason:'读取失败（i/o error）',kind:'error'}]`, head: '部分路径未完成测量，请先查看原因', badge: '部分测量受限', pane: false },
+  legacy: { warnings: `[{path:qaFixture.homePath+'/Library/Containers/Denied App/Data',reason:'读取被拒绝（permission denied）'},{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量'}]`, head: '本机扫描：2 个路径未完成测量，按目录查看原因', badge: '部分测量受限', pane: true },
 };
 for (const kind of Object.keys(warnKinds)) for (const lang of ['zh', 'en']) {
   const w = warnKinds[kind];
@@ -2148,7 +2004,7 @@ for (const kind of Object.keys(warnKinds)) for (const lang of ['zh', 'en']) {
     ${lang === 'zh' ? `
     qaAssert(hint.querySelector('summary').textContent.trim()==='${w.head}','${kind}: hint headline is "'+hint.querySelector('summary').textContent.trim()+'"');
     qaAssert(document.getElementById('scanSourceBadge').textContent==='${w.badge || '本机扫描已返回'}','${kind}: badge is "'+document.getElementById('scanSourceBadge').textContent+'"');
-    qaAssert(document.getElementById('runtimeBanner').hidden===${!w.banner},'${kind}: the runtime banner ${w.banner ? 'is' : 'is not'} raised');
+    qaAssert(document.getElementById('runtimeBanner').hidden,'${kind}: scan warnings alone never raise the permission banner');
     qaAssert(!!hint.querySelector('[onclick*="openPrivacySettings"]')===${w.pane},'${kind}: ${w.pane ? 'links' : 'does not link'} to a privacy pane');
     ${kind === 'limit' ? `qaAssert(!hint.textContent.includes('读取被拒绝')&&hint.textContent.includes('不影响清理'),'limit says cleanup is unaffected and never claims a denial');` : ''}
     ${kind === 'system' ? `qaAssert(hint.textContent.includes('无需处理'),'system locations are explained as needing no action');` : ''}
@@ -2310,6 +2166,19 @@ function iconSheet(theme) {
   el.innerHTML = '<span></span>' + kinds.map((k) => `<span>${k}</span>`).join('') + rows.map(([label, fn]) => `<span>${label}</span>` + kinds.map((k, i) => fn(k, i)).join('')).join('');
   document.body.appendChild(el);
 }
+const noSheet = 'window.isNativeMacApp=false;';
+// Trash in flight / just resolved: the submitting module locks, then rows leave the list from the receipt before the rescan lands.
+const trashSubmit = `onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[structuredClone(qaFixture.cleanGroups[0])]});switchModule('clean');openConfirmSheet();executeConfirmedClean();const request=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(request,'confirmation posts a request');`;
+const trashPendingAsserts = `qaAssert('trashBusy' in document.getElementById('moduleStage').dataset,'stage is marked busy');qaAssert([...document.querySelectorAll('#moduleStage button, #moduleStage input')].every(el=>el.disabled),'every control in the submitting module is really disabled');qaAssert(document.querySelectorAll('#moduleStage [data-moving] .moving-note').length>0,'moving rows say so in place');qaAssert(document.getElementById('primaryBtnText').closest('button').getAttribute('aria-busy')==='true','primary action is aria-busy');`;
+const trashResolved = reason => `onNativeTrashResult({requestId:request.requestId,moved:request.paths.slice(0,-1).map(p=>({original:p,trashed:'/trash'+p})),movedCount:request.paths.length-1,failed:[{path:request.paths[request.paths.length-1],error:${JSON.stringify(reason)}}]});qaAssert(!pendingTrashRequests.size,'receipt settles the request');qaAssert(document.getElementById('scanSourceBadge').textContent===t('正在刷新扫描结果'),'header says it is refreshing until the rescan lands');qaAssert(!('trashBusy' in document.getElementById('moduleStage').dataset),'module unlocks on the receipt');qaAssert(document.getElementById('moduleStage').textContent.includes(${JSON.stringify(reason)}),'failed path keeps its reason');`;
+for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  const en = lang === 'en';
+  const run = (body, label) => `qaReset();document.documentElement.dataset.theme='${theme}';${en ? `await qaEn('${label}',async()=>{});` : ''}${trashSubmit}${body}${en ? `await qaEn('${label}',async()=>{});` : ''}`;
+  scenarios.push({ name: `${lang}-trash-pending-${theme}`, width: 1380, height: 860, script: noSheet + run(trashPendingAsserts, 'trash pending') });
+  scenarios.push({ name: `${lang}-trash-resolved-${theme}`, width: 1380, height: 860, script: noSheet + run(trashResolved(en ? 'Fixture: read denied' : '隔离测试：读取被拒绝'), 'trash resolved') });
+}
+scenarios.push({ name: 'zh-trash-timeout-dark', width: 1380, height: 860, script: `${noSheet}qaReset();document.documentElement.dataset.theme='dark';${trashSubmit}[...pendingTrashRequests.values()].forEach(p=>{p.timedOut=true});renderModule();qaAssert(document.getElementById('heroDesc').textContent.includes('45'),'timeout explains why the module stays locked');` });
+scenarios.push({ name: 'zh-trash-refreshing-empty-light', width: 1380, height: 860, script: `${noSheet}qaReset();document.documentElement.dataset.theme='light';${trashSubmit}onNativeTrashResult({requestId:request.requestId,moved:request.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:request.paths.length,failed:[]});qaAssert(document.getElementById('moduleStage').textContent.includes('正在刷新扫描结果')||document.querySelector('.top-header').textContent.includes('正在刷新扫描结果'),'moved-everything state says it is refreshing, not empty');qaAssert(!document.getElementById('moduleStage').textContent.includes('未发现可清理项目'),'no false empty claim');` });
 for (const theme of ['light', 'dark']) scenarios.push({ name: 'icons-sheet-' + theme, width: 1300, height: 500, script: `qaReset();(${iconSheet.toString()})('${theme}');` });
 fs.writeFileSync(dir + '/suite.json', JSON.stringify(scenarios));
 console.log(`${scenarios.length} scenarios generated, isolated fixture data only.`);
