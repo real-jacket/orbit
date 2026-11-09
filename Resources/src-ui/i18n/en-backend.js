@@ -707,6 +707,10 @@
     "「最近使用的项目」菜单的记录，清理后菜单会清空，文件进入废纸篓，可以放回恢复": "Record of the Recent Items menu, the menu will be empty after cleaning, and the file goes to the Trash where you can put it back",
     "无法确认固件文件是否仍被打开，保持原状": "Cannot tell whether the firmware file is still open, so it is left alone",
     "仍有进程打开这个固件文件，保持原状": "A process still has this firmware file open, so it is left alone",
+    // ---- Mole parity: owner ----
+    "{tool} 已卸载，这里是它留下的会话与配置；确认不再需要后可清理，移入废纸篓后可从历史还原": "{tool} is uninstalled. This is the sessions and settings it left behind; clean it up once you are sure you no longer need it, and it can be restored from history after it moves to the Trash",
+    "含 {tool} 的项目记录与聊天历史；移入废纸篓后可从历史还原": "Contains the project records and chat history of {tool}; can be restored from history after it moves to the Trash",
+    "{tool} 已卸载，这里是它留下的诊断日志；确认不再需要后可清理，移入废纸篓后可从历史还原": "{tool} is uninstalled. This is the diagnostic logs it left behind; clean it up once you are sure you no longer need it, and it can be restored from history after it moves to the Trash",
   };
 
   // doctor.go battery detail: "健康度 N%" + optional cycles + optional charge + optional verdict.

@@ -1070,4 +1070,15 @@ I18N.add({
   "卸载回执 · 后台服务": "Uninstall receipt · background services",
   "已从废纸篓还原 {n} 个路径（{action}），但有 {f} 个后台服务未能重新加载：{error}": "Restored {n} {n|path|paths} from Trash ({action}), but {f} background {f|service|services} could not be loaded again: {error}",
   "已从废纸篓还原 {n} 个路径（{action}），并重新加载 {s} 个后台服务": "Restored {n} {n|path|paths} from Trash ({action}) and loaded {s} background {s|service|services} again",
+  // ---- Mole parity: busy ----
+  "正在移入废纸篓…": "Moving to Trash…",
+  "等待系统回执": "Waiting for macOS",
+  "正在移入废纸篓": "Moving to Trash",
+  "仍在等待系统回执：{n} 个路径": "Still waiting for macOS: {n} {n|path|paths}",
+  "正在移入废纸篓：{n} 个路径": "Moving to Trash: {n} {n|path|paths}",
+  "系统回执超过 {s} 秒未返回，是否已移入废纸篓仍未知。请检查 macOS 授权弹窗；为避免重复处理，本模块保持锁定，回执到达后才会更新。": "No reply from macOS after {s} seconds, so it is not known whether the items were moved to the Trash. Check for a macOS permission prompt. To avoid duplicate work, this module stays locked until the reply arrives.",
+  "这一批处理完成前，本模块的勾选、筛选和清理已锁定；回执到达后列表会立即更新。": "Selection, filters and cleanup in this module are locked until this batch finishes. The list updates as soon as the reply arrives.",
+  "本次移入": "Moving now",
+  "刷新中": "Refreshing",
+  "已移入废纸篓的项目已从列表移除，扫描完成后显示最新结果。": "Items moved to the Trash are removed from the list. Fresh results appear when the scan finishes.",
 });
