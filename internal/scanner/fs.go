@@ -163,45 +163,6 @@ func scanReadWarnings(home string) []map[string]any {
 	return warnings
 }
 
-// walkFiles calls visit for every regular file under dir, up to maxFiles
-// entries, and reports each file's size and modification time. Hitting the cap
-// is one warning on dir, however deep the walk was.
-func walkFiles(dir string, maxFiles int, scanned *int, visit func(file string, bytes, modified int64)) {
-	if !walkFilesIn(dir, maxFiles, scanned, visit) {
-		recordReadWarning(dir, "安装包遍历达到扫描上限；只统计已访问路径")
-	}
-}
-
-// walkFilesIn reports false when it stopped at the cap.
-func walkFilesIn(dir string, maxFiles int, scanned *int, visit func(file string, bytes, modified int64)) bool {
-	for _, entry := range readDir(dir) {
-		if maxFiles > 0 && *scanned >= maxFiles {
-			return false
-		}
-		*scanned++
-		path := dir + "/" + entry.name
-		if entry.isDir {
-			if isBundleDir(entry.name) {
-				continue // a bundle is one thing, never a folder of installer candidates
-			}
-			if !walkFilesIn(path, maxFiles, scanned, func(file string, bytes, modified int64) {
-				if !isHidden(baseName(file)) {
-					visit(file, bytes, modified)
-				}
-			}) {
-				return false
-			}
-			continue
-		}
-		info, err := os.Lstat(path)
-		if err != nil || !info.Mode().IsRegular() {
-			continue
-		}
-		visit(path, allocatedSize(info), info.ModTime().Unix())
-	}
-	return true
-}
-
 var bundleExtensions = map[string]bool{
 	"app": true, "pkg": true, "mpkg": true, "framework": true, "bundle": true, "xcarchive": true,
 	"plugin": true, "appex": true, "xpc": true, "kext": true, "prefpane": true, "saver": true,

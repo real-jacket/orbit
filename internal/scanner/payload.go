@@ -36,6 +36,8 @@ type FullScanPayload struct {
 	// say why a line it shows is not protecting anything.
 	WhitelistWarnings []string         `json:"whitelistWarnings"`
 	ReadWarnings      []map[string]any `json:"readWarnings"`
+	// PurgeRoots are the folders build cleanup scans, and why it could not.
+	PurgeRoots PurgeRoots `json:"purgeRoots"`
 }
 
 // BuildFullScanPayload measures the whole machine for the frontend's scan
@@ -80,6 +82,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	wg.Wait()
 	payload.Whitelist = s.UserWhitelistPaths()
 	payload.WhitelistWarnings = policy.Warnings
+	payload.PurgeRoots = s.PurgeRoots()
 	payload.ReadWarnings = scanReadWarnings(s.home)
 	return payload
 }
