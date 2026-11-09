@@ -37,7 +37,10 @@ func runtimeCleanupProtection(path string) (Protection, bool) {
 	return Protection{}, false
 }
 
-func builtinCleanupProtection(path, home string) (Protection, bool) {
+// builtinCleanupProtection is the fixed protection list. relax, when set, is asked
+// about an owner-aware personal-data rule (see personalOwners) that matches path
+// and returns true when that rule should not protect it.
+func builtinCleanupProtection(path, home string, relax func(rule string) bool) (Protection, bool) {
 	for _, root := range []string{"/System", "/usr", "/bin", "/sbin", "/etc", "/dev", "/private/var/db"} {
 		if withinPath(path, root) {
 			return Protection{Pattern: root, Reason: "系统文件不能清理"}, true
@@ -123,6 +126,9 @@ func builtinCleanupProtection(path, home string) (Protection, bool) {
 	} {
 		root := filepath.Join(home, rule.path)
 		if withinPath(path, root) || withinPath(root, path) {
+			if relax != nil && relax(rule.path) {
+				continue
+			}
 			return Protection{Pattern: root, Descendant: path != root && withinPath(root, path), Reason: rule.reason}, true
 		}
 	}
@@ -186,9 +192,16 @@ func (s *Scanner) aiHandleOpen(path string, live bool) (bool, error) {
 // A cached scan never grants permission to remove newly active or protected data.
 func (s *Scanner) CleanupReason(raw string) string { return s.cleanupReason(raw, false) }
 
+func (s *Scanner) cleanupReason(raw string, live bool) string {
+	return s.cleanupReasonAs(raw, live, nil)
+}
+
 // cleanupReason with live=true is the move boundary: it adds the per-path
 // process and open-file checks that display-only callers skip for session units.
-func (s *Scanner) cleanupReason(raw string, live bool) string {
+//
+// relax is the owner-aware relaxation (nil means "owner no longer installed");
+// an uninstall passes one that also frees the personal data of the app it removes.
+func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string) bool) string {
 	if s.home == "" || s.home == "/" {
 		return "无法确定用户家目录，停止清理"
 	}
@@ -197,11 +210,17 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 		return "不是绝对路径"
 	}
 	s.refreshWhitelist()
-	if protection, protected := s.scanProtection(path); protected {
+	if relax == nil {
+		relax = s.ownerGoneRule
+	}
+	if protection, protected := s.scanProtectionAs(path, relax); protected {
 		if protection.Reason != "" {
 			return protection.Reason
 		}
 		return "白名单保护"
+	}
+	if reason := s.ownerRunningReason(path, live); reason != "" {
+		return reason
 	}
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -209,7 +228,7 @@ func (s *Scanner) cleanupReason(raw string, live bool) string {
 	}
 	if err == nil && resolved != path {
 		home, _ := filepath.EvalSymlinks(s.home)
-		if protection, protected := builtinCleanupProtection(resolved, home); protected {
+		if protection, protected := builtinCleanupProtection(resolved, home, relax); protected {
 			return protection.Reason
 		}
 		if protection, protected := runtimeCleanupProtection(resolved); protected {

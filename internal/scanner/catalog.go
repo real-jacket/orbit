@@ -22,6 +22,9 @@ type CatalogSpec struct {
 	// decides each path on its own (the user cache folders).
 	Reason   string
 	Classify func(s *Scanner, path string, size dirSize) verdict
+	// KeepProtected lists a root that its protection rules cover as a protected
+	// path of a review spec, instead of leaving it out of the row.
+	KeepProtected bool
 }
 
 // The file cap of a catalog root, a single child of an expanded root, an app
@@ -131,7 +134,7 @@ func (s *Scanner) catalog(spec CatalogSpec, claims *catalogClaims, excluded []st
 			continue
 		}
 		expandChildren, offered := s.scanMayOffer(path)
-		if !offered && spec.Tier != "protected" {
+		if !offered && spec.Tier != "protected" && !spec.KeepProtected {
 			continue
 		}
 		expandChildren = spec.ExpandChildren || expandChildren
@@ -393,9 +396,13 @@ func (s *Scanner) scanAICaches() []map[string]any {
 	for _, entry := range aiCacheSpecs() {
 		var row map[string]any
 		if entry.logFiles {
+			if _, owner, gone := s.goneOwner(s.expand(entry.spec.Roots[0])); gone {
+				// No keep rules apply to a gone tool's logs, so they are reviewed, not recommended.
+				entry.spec.Tier, entry.spec.Reason = "review", owner.goneLogReason()
+			}
 			row = s.scanAIDiagnosticFiles(entry, claims)
 		} else {
-			row = s.catalog(entry.spec, claims, nil)
+			row = s.catalog(s.ownerAwareSpec(entry.spec), claims, nil)
 		}
 		if row == nil {
 			continue
@@ -453,4 +460,40 @@ func (s *Scanner) catalogRoots() []string {
 		}
 	}
 	return roots
+}
+
+// ownerAwareSpec turns a protected inspection-only spec into a review spec when
+// the tool that owns some of its roots is no longer installed. Roots whose owner
+// is still installed (or unknown) stay protected paths with their old reason.
+func (s *Scanner) ownerAwareSpec(spec CatalogSpec) CatalogSpec {
+	if spec.Tier != "protected" {
+		return spec
+	}
+	gone := false
+	for _, root := range spec.Roots {
+		if _, _, ok := s.goneOwner(s.expand(root)); ok {
+			gone = true
+		}
+	}
+	if !gone {
+		return spec
+	}
+	protectedReason := spec.Reason
+	spec.Tier, spec.KeepProtected = "review", true
+	spec.Classify = func(s *Scanner, path string, _ dirSize) verdict {
+		if _, owner, ok := s.goneOwner(path); ok {
+			return verdict{tier: "review", reason: owner.goneReason()}
+		}
+		return verdict{tier: "protected", reason: protectedReason}
+	}
+	return spec
+}
+
+// goneOwner reports the owner of path's personal data when none of its owners is installed.
+func (s *Scanner) goneOwner(path string) (string, personalOwner, bool) {
+	rule, owner, ok := s.personalRule(path)
+	if !ok || !s.ownerAbsent(owner, nil) {
+		return "", personalOwner{}, false
+	}
+	return rule, owner, true
 }

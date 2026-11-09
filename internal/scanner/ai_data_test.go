@@ -12,7 +12,9 @@ import (
 
 func TestAIDesktopCachesHaveNarrowIdleCleanupScopes(t *testing.T) {
 	home := fixtureHome(t)
-	scanner := &Scanner{home: home, processProbe: func() (string, error) { return "/usr/bin/idle\n", nil }, handleProbe: func(string) (bool, error) { return false, nil }}
+	apps := t.TempDir()
+	writeFile(t, filepath.Join(apps, "Claude.app/Contents/Info.plist"), "<plist/>") // the owner is installed, so its personal data stays protected
+	scanner := &Scanner{home: home, appDirs: []string{apps}, processProbe: func() (string, error) { return "/usr/bin/idle\n", nil }, handleProbe: func(string) (bool, error) { return false, nil }}
 	cache := fixtureDir(t, home, "Library/Application Support/Claude/Code Cache", 4096)
 	personal := fixtureDir(t, home, "Library/Application Support/Claude/IndexedDB", 4096)
 	if reason := scanner.CleanupReason(cache); reason != "" {
@@ -51,7 +53,8 @@ func TestAIDesktopCachesHaveNarrowIdleCleanupScopes(t *testing.T) {
 
 func TestAIAgentDiagnosticsUseExactFilesAndRetention(t *testing.T) {
 	home := fixtureHome(t)
-	scanner := &Scanner{home: home, processProbe: func() (string, error) { return "/usr/bin/idle\n", nil }, handleProbe: func(string) (bool, error) { return false, nil }}
+	scanner := &Scanner{home: home, appDirs: []string{t.TempDir()}, processProbe: func() (string, error) { return "/usr/bin/idle\n", nil }, handleProbe: func(string) (bool, error) { return false, nil }}
+	writeFile(t, filepath.Join(home, ".local/bin/copilot"), "installed") // keep rules apply while the tool is installed
 	root := filepath.Join(home, ".copilot/logs")
 	old := filepath.Join(root, "process-old.log")
 	latest := filepath.Join(root, "process-current.log")
@@ -109,7 +112,12 @@ func TestAIAgentDiagnosticsUseExactFilesAndRetention(t *testing.T) {
 }
 
 func TestAdditionalAgentSessionAndModelDataStayProtected(t *testing.T) {
-	scanner := &Scanner{home: fixtureHome(t)}
+	scanner := &Scanner{home: fixtureHome(t), appDirs: []string{t.TempDir()}}
+	// Every owner is installed (a launcher or an editor extension), otherwise the data is leftover and reviewable.
+	for _, owner := range []string{".local/bin/copilot", ".local/bin/cn", ".local/bin/windsurf", ".local/bin/lms", ".local/bin/gemini", ".local/bin/opencode",
+		".vscode/extensions/rooveterinaryinc.roo-cline-1/package.json", ".vscode/extensions/saoudrizwan.claude-dev-1/package.json"} {
+		writeFile(t, filepath.Join(scanner.home, owner), "installed")
+	}
 	for _, relative := range []string{
 		".gemini/tmp/session.json", ".copilot/session-state/session.json", ".copilot/mcp-secrets/token",
 		".local/share/opencode/opencode.db", ".local/share/opencode/snapshot/repo", ".continue/sessions/session.json",

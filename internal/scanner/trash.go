@@ -223,7 +223,11 @@ func (s *Scanner) trashPaths(rawPaths []string, identities map[string]FileIdenti
 			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "拒绝整根移动废纸篓与家目录"})
 			continue
 		}
-		if reason := s.cleanupReason(path, true); reason != "" {
+		var relax func(string) bool
+		if hooks != nil {
+			relax = hooks.relax
+		}
+		if reason := s.cleanupReasonAs(path, true, relax); reason != "" {
 			outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: reason})
 			continue
 		}
@@ -317,7 +321,7 @@ func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: raw, Error: "还原目标不是可核验的绝对路径"})
 			continue
 		}
-		if _, protected := builtinCleanupProtection(original, s.home); protected {
+		if _, protected := builtinCleanupProtection(original, s.home, ownerRule); protected {
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "应用不会移动的核心路径不能通过还原清单写入；请在访达中检查"})
 			continue
 		}

@@ -62,6 +62,8 @@ type trashHooks struct {
 	before func(path string) []LaunchUnload
 	failed func(path string, unloaded []LaunchUnload)
 	moved  func(path, trashed string)
+	// relax frees owner-aware personal data at the move boundary; nil frees only what has no installed owner.
+	relax func(rule string) bool
 }
 
 const launchctlTimeout = 10 * time.Second
@@ -89,7 +91,8 @@ type uninstallPlan struct {
 	apps    map[string]uninstallApp // by app path
 	agents  map[string]string       // owned user LaunchAgent plist path -> label
 	receipt UninstallReceipt
-	removed int // app bundles that really moved
+	removed int      // app bundles that really moved
+	trashed []string // where the moved app bundles now are, to unregister once the receipt is out
 }
 
 // TrashUninstall is TrashPathsChecked for an uninstall: the user-level launchd
@@ -100,12 +103,22 @@ type uninstallPlan struct {
 //     really is in the Trash, because a helper cannot be started again without
 //     its app, so there is nothing to undo.
 func (s *Scanner) TrashUninstall(paths []string, identities map[string]FileIdentity) (TrashOutcome, UninstallReceipt) {
+	outcome, receipt, after := s.trashUninstall(paths, identities)
+	// LaunchServices bookkeeping is best effort and can take seconds: the receipt must not wait for it.
+	go after()
+	return outcome, receipt
+}
+
+// trashUninstall does the move and returns the best effort LaunchServices work to run afterwards.
+func (s *Scanner) trashUninstall(paths []string, identities map[string]FileIdentity) (TrashOutcome, UninstallReceipt, func()) {
 	plan := s.planUninstall(paths)
-	outcome := s.trashPaths(paths, identities, &trashHooks{before: plan.before, failed: plan.failed, moved: plan.moved})
-	if plan.removed > 0 {
-		plan.refreshLaunchServices()
+	apps := make([]uninstallApp, 0, len(plan.apps))
+	for _, app := range plan.apps {
+		apps = append(apps, app)
 	}
-	return outcome, plan.finish()
+	// An app's own personal data may move only together with that app bundle, in this request.
+	outcome := s.trashPaths(paths, identities, &trashHooks{before: plan.before, failed: plan.failed, moved: plan.moved, relax: s.ownerRelaxFor(apps...)})
+	return outcome, plan.finish(), plan.afterMove
 }
 
 func (s *Scanner) planUninstall(rawPaths []string) *uninstallPlan {
@@ -348,12 +361,22 @@ func (p *uninstallPlan) moved(path, trashed string) {
 		}
 		p.receipt.Stopped = append(p.receipt.Stopped, StoppedService{Label: id, Kind: "helper"})
 	}
-	// Ported from tw93/Mole V1.70.0 lib/uninstall/batch.sh unregister_app_bundle
-	// (best effort and not reported). Mole only unregisters a bundle that exists, so
-	// this targets the copy now in the Trash, not the original path that is gone.
-	ctx, cancel := context.WithTimeout(context.Background(), launchctlTimeout)
-	defer cancel()
-	_, _ = p.s.runCmd(ctx, "", lsregisterPath, "-u", trashed)
+	p.trashed = append(p.trashed, trashed)
+}
+
+// afterMove is the best effort LaunchServices work, run once per uninstall after the receipt is ready.
+// Ported from tw93/Mole V1.70.0 lib/uninstall/batch.sh unregister_app_bundle
+// (best effort and not reported). Mole only unregisters a bundle that exists, so
+// this targets the copy now in the Trash, not the original path that is gone.
+func (p *uninstallPlan) afterMove() {
+	for _, trashed := range p.trashed {
+		ctx, cancel := context.WithTimeout(context.Background(), launchctlTimeout)
+		_, _ = p.s.runCmd(ctx, "", lsregisterPath, "-u", trashed)
+		cancel()
+	}
+	if p.removed > 0 {
+		p.refreshLaunchServices()
+	}
 }
 
 // Ported from tw93/Mole V1.70.0 lib/uninstall/batch.sh refresh_launch_services_after_uninstall
