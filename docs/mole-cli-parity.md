@@ -64,6 +64,11 @@ orbit 的分级：推荐清理（默认勾选，可重建且没在用）、需�
 | Developer tools | `dev.sh` 各 `clean_dev_*`、`clean_dev_jvm` | 「开发工具缓存与临时文件」「开发包管理器下载缓存」「Gradle 与 CocoaPods 缓存」 |
 | Xcode | `clean_xcode_device_support` | 「Xcode 设备调试符号与测试设备数据」：保留最近使用的 2 个系统版本，其余推荐清理 |
 | macOS 用户状态 | `clean_system_state` | 「macOS 用户级缓存与状态」 |
+| 设备固件 | `clean_cached_device_firmware` | 「设备固件安装包缓存」：`.ipsw` 文件，正被打开的保留 |
+| Application Support 里的缓存与日志 | `clean_application_support_logs` | 「应用的浏览器内核缓存与崩溃报告」：沿用 Mole 的名称保护和白名单；应用运行时受保护，应用已卸载的交给「已卸载残留」 |
+| 空沙盒容器 | `clean_orphaned_container_stubs` | 「已卸载应用留下的空沙盒容器」：只处理 Mole 列出的那几类 |
+| 邮件附件副本 | `clean_mail_downloads` | 「邮件附件的本地副本」：30 天以上、未改动过的副本，需确认（邮件若已从服务器删除，这可能是唯一一份） |
+| 最近使用的项目 | `clean_recent_items` | 「最近使用的项目记录」：需确认，移入废纸篓可还原 |
 | App leftovers | `clean_orphaned_app_data`、`scan_installed_apps`、`bundle_has_installed_app` | 应用卸载 · 已卸载残留；Claude 虚拟机包按 Mole 的 `is_claude_vm_bundle_orphaned` 单独判断 |
 
 `~/Library/Caches` 下 Mole 逐个列出的缓存（云盘、虚拟机、下载工具等）由通用的「用户缓存与诊断日志」分组覆盖，
