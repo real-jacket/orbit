@@ -755,4 +755,12 @@ vm.runInContext('killProcessByPid(8123)', quits);
 quits.onNativeProcessQuitResult({ requestId: quits.sent[1].requestId, pid: 8123, ok: true });
 assert.equal(quits.STATE.processes.length, 1, 'SIGTERM acknowledgement is not proof that the process exited');
 assert.equal(quits.STATE.processes[0].quitRequested, true);
+const saved = vm.createContext({});
+load('dropSavedFailures', saved);
+const savedState = { cleanGroups: [{ failed: true, failedReason: 'old' }], aiMoonBands: [], appsList: [{ failed: true, failedReason: 'macOS 拒绝移动应用', needsAdmin: true }, null],
+  orphanLeftoversList: [], largeFiles: [], purgeItems: [], installerFiles: [] };
+saved.dropSavedFailures(savedState);
+assert.equal(savedState.appsList[0].failed, false, 'a failure saved by an earlier run does not survive a relaunch');
+assert.equal(savedState.cleanGroups[0].failedReason, '');
+assert.equal(savedState.appsList[0].needsAdmin, true, 'only the failure marks are dropped');
 console.log('UI regression checks passed: frozen selections, protected AI paths, scoped scan receipts, real treemap areas and dual-theme contrast; inline JavaScript parses.');

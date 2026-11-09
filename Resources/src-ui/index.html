@@ -2213,6 +2213,7 @@ try {
       STATE.whitelist = STATE.whitelist.filter(w => typeof w === 'string' && w.length > 0);
       STATE.historyLogs = STATE.historyLogs.filter(h => h && typeof h === 'object');
       if (!STATE.homePath || typeof STATE.homePath !== 'string') STATE.homePath = '';
+      dropSavedFailures(STATE);
     }
   }
 } catch (e) {
@@ -2235,6 +2236,12 @@ STATE.fanMode = undefined;
 STATE.tempUnit = STATE.tempUnit === 'F' ? 'F' : 'C';
 STATE.scanCompleted = false;
 STATE.optimize = structuredClone(DEFAULT_STATE.optimize);   // 旧版本存下来的状态里没有这一项，也不该带上次的诊断结果
+
+// 失败标记只描述上一次操作；重启后以新的扫描为准，旧构建留下的失败原因（如过时的权限提示）不再一直挂在行上。
+function dropSavedFailures(state) {
+  ['cleanGroups', 'aiMoonBands', 'appsList', 'orphanLeftoversList', 'largeFiles', 'purgeItems', 'installerFiles']
+    .forEach(k => state[k].forEach(row => { if (row && typeof row === 'object') { row.failed = false; row.failedReason = ''; } }));
+}
 
 function persistState() {
   try {
