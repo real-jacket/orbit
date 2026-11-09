@@ -38,7 +38,7 @@ const dominantTiles = [
 const telemetry = { cpu: 24, freeDiskGb: 128, memUsedGb: 16, memTotalGb: 32, processes: [{ pid: 8123, name: 'Canvas Editor', cpu: 12, memory_mb: 384, path: '/Applications/Canvas Editor.app', power: null }, { pid: 8234, name: 'Canvas Helper', cpu: 4, memory_mb: 128, path: '/Applications/Canvas Helper.app', power: null }], power: { thermal: 'nominal', memPressure: 'normal', battery: { percent: 80, healthPct: 84, cycles: 439, charging: false, source: 'battery' } }, net: { rxBytesPerSec: 1048576, txBytesPerSec: 131072 }, diskIo: { readBytesPerSec: 2097152, writeBytesPerSec: 1048576 }, gpuPct: 20, cpuTempC: 52, fans: [1200] };
 const setup = `const style=document.createElement('style');style.textContent='*,*::before,*::after{transition:none!important;animation:none!important}';document.head.appendChild(style);window.qaFixture=${JSON.stringify(fixture)}; window.qaTelemetry=${JSON.stringify(telemetry)}; window.qaTiles=${JSON.stringify(tiles)}; window.qaDominantTiles=${JSON.stringify(dominantTiles)};
 window.qaAssert=(condition,message)=>{if(!condition)throw new Error(message)};
-window.qaReset=()=>{ I18N.setLang('zh',false); document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();recentMoves.clear();clearTimeout(refreshTimer);clearTimeout(refreshGuard);refreshTimer=refreshGuard=0;refreshing=false;scanStartedAt=lastMoveAt=0;clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
+window.qaReset=()=>{ I18N.setLang('zh',false); document.querySelector('.permission-toast')?.remove();document.getElementById('qa-refold-style')?.remove();document.body.classList.remove('menubar-mode');closeCommandPalette();closeConfirmSheet();closeDoctorModal();closeRuntimePanel();closeProcDrawer();clearTimeout(window._runtimeTimer); clearTimeout(window._toastTimer); document.getElementById('toastBanner').style.display='none'; document.getElementById('searchInput').value=''; STATE=structuredClone(DEFAULT_STATE); STATE.softwarePanelMode='apps'; window._doctorWaitingForReport=false;clearTimeout(window._docTimer);clearInterval(window._basketTick);pendingTrashRequests.clear();pendingRestoreRequests.clear();pendingProcessQuits.clear();recentMoves.clear();clearTimeout(refreshTimer);clearTimeout(refreshGuard);refreshTimer=refreshGuard=0;refreshing=false;scanStartedAt=lastMoveAt=0;clearTimeout(window._killTimer); window.__qa.actions=[]; window._analyzeFocusSelector=""; sendNativeBridge=message=>window.__qa.actions.push(structuredClone(message)); onNativeRealScanComplete(structuredClone(qaFixture)); onNativeRealTelemetry(structuredClone(qaTelemetry)); Object.assign(STATE,{analyzeAllocGb:20,analyzeLogicalGb:22,totalAnalyzedGb:20,analyzeFileCount:24,treemap2D:structuredClone(qaTiles),analyzeSource:'隔离测试',analyzeStatus:'ok',analyzeRoot:'~',analyzeLargeFiles:structuredClone(qaFixture.largeFiles)}); STATE.historyLogs=[{id:'fixture-1',action:'测试缓存清理',time:'测试时间',sizeGb:1,items:1,status:'已移入废纸篓',restoreData:{type:'clean',paths:[qaFixture.homePath+'/Library/Caches/Canvas/one'],trashedPaths:{[qaFixture.homePath+'/Library/Caches/Canvas/one']:qaFixture.homePath+'/.Trash/one'}}}]; switchModule('clean');renderModule();};`;
 // English walk helpers (installed into the page). The fixture is Chinese user data plus Chinese backend
 // sentences; backend sentences without a dictionary entry get a placeholder so only the page's own text is judged.
 function installEnglishWalk() {
@@ -101,7 +101,7 @@ add('clean-empty', `onNativeRealScanComplete({...structuredClone(qaFixture),clea
 add('clean-filter', `switchModule('clean'); setCleanFilter('review'); qaAssert(document.querySelectorAll('#moduleStage .list-row').length===1,'tier filter works');`);
 add('purge-installers-only', `onNativeRealScanComplete({...structuredClone(qaFixture),purgeItems:[]}); switchModule('purge'); qaAssert(document.getElementById('moduleStage').textContent.includes('Canvas Setup.dmg'),'installers remain selectable when no build artifacts exist');`);
 add('analyze-drill', `switchModule('analyze'); drillTile(0); qaAssert(STATE.drillStack.length===1,'directory drill works'); qaAssert(currentTiles()[0].name==='Canvas','drill shows children'); drillUp(); qaAssert(STATE.drillStack.length===0,'drill-up works');`);
-add('status-search', `switchModule('status'); handleSearch('8123'); qaAssert(document.querySelectorAll('#procTbody tr').length===1,'PID search works');`);
+add('status-search', `switchModule('status'); handleSearch('8123'); qaAssert(document.querySelectorAll('#topProcList .tp-row').length===1,'PID search filters the compact list');openProcDrawer();qaAssert(document.querySelectorAll('#procTbody tr').length===1&&document.getElementById('procSearch').value==='8123','the drawer shares the query');`);
 add('doctor-wait', `openDoctorModal(true); qaAssert(document.getElementById('btnDoctorReRun').disabled,'diagnosis awaits receipt'); qaAssert(__qa.actions.some(a=>a.action==='runDoctorReCheck'&&a.requestId),'request is correlated');`);
 add('doctor-result', `openDoctorModal(true); onNativeDoctorReport({requestId:_doctorRequestId,checks:[{id:'disk',title:'磁盘剩余空间',detail:'隔离测试结果',passed:true},{id:'permission',title:'完全磁盘访问',detail:'隔离测试结果',passed:false}]}); qaAssert(!document.getElementById('btnDoctorReRun').disabled,'receipt ends wait');`);
 add('menu-tray', `document.body.classList.add('menubar-mode'); renderMenuBarTrayContent(); qaAssert(document.getElementById('menubarTrayShell').textContent.length>20,'tray renders');`);
@@ -154,7 +154,7 @@ add('measured-volume-bars', `switchModule('clean');qaAssert(document.querySelect
 add('quoted-path-actions', `const item=structuredClone(qaFixture.cleanGroups[0]);item.name="Owner's <cache> &quot;";item.path=${JSON.stringify(unusualPath)};item.subpaths[0].path=${JSON.stringify(unusualPath)};onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[item]});switchModule('clean');qaAssert(!document.querySelector('cache'),'directory names cannot create markup');document.querySelector('.inspector-content .subpath-left span[onclick]').click();const request=__qa.actions.find(a=>a.action==='revealInFinder');qaAssert(request.path===${JSON.stringify(unusualPath)},'Finder receives the unmodified path');`);
 add('whitelist-awaits-receipt', `switchModule('clean');const count=STATE.cleanGroups.length;addPathToWhitelist(STATE.cleanGroups[0].path);qaAssert(STATE.cleanGroups.length===count,'adding protection cannot hide paths before receipt');onNativeWhitelistChanged({ok:false,action:'addWhitelist',path:STATE.cleanGroups[0].path,error:'测试拒绝',whitelist:qaFixture.whitelist});qaAssert(STATE.cleanGroups.length===count,'failed whitelist update keeps candidate visible');`);
 add('sensors-become-unavailable', `switchModule('status');const data=structuredClone(qaTelemetry);delete data.net;delete data.diskIo;delete data.gpuPct;delete data.cpuTempC;delete data.fans;data.processes[0].memory_mb=null;onNativeRealTelemetry(data);qaAssert(document.getElementById('statusCardNet').textContent.includes('本机不提供'),'missing sensor replaces old reading');qaAssert(document.getElementById('statusCardGpu').textContent.includes('本机不提供'),'missing GPU does not keep stale value');qaAssert(STATE.processes[0].memory_mb===null,'unreported process memory cannot become zero');`);
-add('status-live-preserves-page', `switchModule('status');const table=document.querySelector('.proc-table');const row=document.querySelector('#procTbody tr');const data=structuredClone(qaTelemetry);data.processes[0].cpu=16;onNativeRealTelemetry(data);qaAssert(document.querySelector('.proc-table')===table,'telemetry does not rebuild the process panel');qaAssert(document.querySelector('#procTbody tr')===row,'unchanged process set preserves row identity');qaAssert(row.querySelector('.p-cpu').textContent==='16.0%','current CPU is patched');`);
+add('status-live-preserves-page', `switchModule('status');const panel=document.querySelector('.top-procs');const row=document.querySelector('#topProcList .tp-row');const data=structuredClone(qaTelemetry);data.processes[0].cpu=16;onNativeRealTelemetry(data);qaAssert(document.querySelector('.top-procs')===panel,'telemetry does not rebuild the process panel');qaAssert(document.querySelector('#topProcList .tp-row')===row,'unchanged process set preserves row identity');qaAssert(row.querySelector('.tp-val').textContent==='16.0%','current CPU is patched');`);
 add('startup-missing-data', `STATE=structuredClone(DEFAULT_STATE);switchModule('status');qaAssert(memPercent()===null&&diskUsedPercent()===null,'unmeasured capacities are unknown');qaAssert(document.getElementById('sidebarFreeDisk').textContent.includes('未知'),'sidebar cannot show fabricated free space');qaAssert(!buildMenuBarTrayHTML().includes('已用 0.0 / 0 GB'),'tray never invents zero memory');`);
 add('scan-permission-partial', `onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Desktop',reason:'目录读取超时，未计入本次扫描'}]});switchModule('clean');qaAssert(document.querySelector('.empty-title').textContent.includes('未能读取'),'restricted scan cannot claim an empty directory');qaAssert(document.getElementById('scanSourceBadge').textContent.includes('受限'),'summary discloses partial data');const detail=document.querySelector('#moduleStage details');qaAssert(detail&&detail.textContent.includes('Desktop'),'restricted paths are inspectable');detail.open=true;`);
 for (const module of ['clean', 'ai_moon', 'software', 'purge']) {
@@ -281,41 +281,101 @@ const statusTrendScript=`
 `;
 for(const width of [880,1060,1380])for(const theme of ['light','dark'])scenarios.push({name:width+'-'+theme+'-status-trends',width,height:width===880?620:860,script:'qaReset();document.documentElement.dataset.theme="'+theme+'";'+statusTrendScript});
 add('status-live-graphs-and-controls', statusTrendScript+`
-  const button=document.querySelector('#statusCardPower button');button.focus();const table=document.querySelector('.proc-table');const row=document.querySelector('#procTbody tr');
+  const button=document.querySelector('#statusCardPower button');button.focus();const panel=document.querySelector('.top-procs');const row=document.querySelector('#topProcList .tp-row');
   const sample=structuredClone(qaTelemetry);sample.power.battery.percent=61;onNativeRealTelemetry(sample);
   qaAssert(document.activeElement===button&&button.isConnected,'telemetry leaves the focused power action intact');
   qaAssert(document.querySelector('#statusCardBattery .tc-big').textContent==='61%','battery reading updates with the same live sample');
-  qaAssert(document.querySelector('.proc-table')===table&&document.querySelector('#procTbody tr')===row,'new charts do not rebuild the process panel');
+  qaAssert(document.querySelector('.top-procs')===panel&&document.querySelector('#topProcList .tp-row')===row,'new charts do not rebuild the process panel');
   delete sample.net;delete sample.diskIo;delete sample.gpuPct;delete sample.cpuTempC;onNativeRealTelemetry(sample);
   qaAssert(!document.querySelector('#statusCardNet .status-trend-lines svg')&&!document.querySelector('#statusCardThermal .status-trend-lines svg'),'missing sensors do not keep stale histories');
   qaAssert(STATE.hw.netRxSeries.length===0&&STATE.hw.tempSeries.length===0,'sensor absence resets the corresponding chart history');
 `);
-// 状态监控在较矮窗口：进程表保持可用高度（1440x870 至少 6 行可见），更矮时整页滚动可达。
-for (const [width, height] of [[1440, 870], [1280, 720]]) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
-  scenarios.push({ name: `status-short-${width}x${height}-${theme}-${lang}`, width, height, script: `qaReset();window.isNativeMacApp=false;document.documentElement.dataset.theme='${theme}';
-    switchModule('status');
+// 状态监控：指标卡是主体，进程只列占用最高的 5 项；完整表格在右侧抽屉里。
+const statusProcsSetup = `
     const data=structuredClone(qaTelemetry);
-    data.processes=Array.from({length:12},(_,i)=>({pid:9000+i,name:'Worker '+i,cpu:40-i,memory_mb:900-i*40,path:'/Applications/Worker '+i+'.app',power:null}));
-    for(const cpu of [12,38,27,54,18,32]){const sample=structuredClone(data);sample.cpu=cpu;sample.gpuPct=cpu/2;sample.cpuTempC=50+cpu/5;sample.net.rxBytesPerSec=1048576+cpu*32768;sample.diskIo.readBytesPerSec=2097152+cpu*65536;onNativeRealTelemetry(sample);}
-    ${lang === 'en' ? `await qaEn('short status');` : 'await qaSettle();'}
-    const body=document.querySelector('.workspace-body');body.scrollTop=0;
-    const visibleRows=()=>{const box=body.getBoundingClientRect();return [...document.querySelectorAll('#procTbody tr')].filter(r=>{const b=r.getBoundingClientRect();return b.top>=box.top-1&&b.bottom<=box.bottom+1;}).length;};
-    const rows=document.querySelectorAll('#procTbody tr').length;
-    qaAssert(rows===8,'the table keeps its eight rows, got '+rows);
-    qaAssert(document.querySelectorAll('.telemetry-card').length===9,'no metric card is removed');
-    qaAssert(getComputedStyle(document.querySelector('.telemetry-grid')).gridTemplateColumns.split(' ').length===3,'wide windows keep three card columns');
-    ${height === 870 ? `qaAssert(visibleRows()>=6,'at least six process rows are visible without scrolling, got '+visibleRows());` : `qaAssert(body.scrollHeight>body.clientHeight+20,'a short window scrolls the page instead of crushing the table');
-    qaAssert(document.querySelector('.proc-panel').getBoundingClientRect().height>=8*30,'the process panel keeps its full height');
-    body.scrollTop=body.scrollHeight;await qaSettle();qaAssert(visibleRows()===8,'scrolling reaches every process row, got '+visibleRows());`}
-    body.scrollTop=0;
-    const sortHead=[...document.querySelectorAll('.proc-table th')].find(th=>th.getAttribute('onclick')==="sortProcessesBy('memory_mb')");sortHead.click();await qaSettle();
-    qaAssert(STATE.procSortKey==='memory_mb','sort controls still work');
-    handleSearch('9003');qaAssert(document.querySelectorAll('#procTbody tr').length===1&&document.querySelector('#procTbody tr').dataset.pid==='9003','search still filters the table');
-    document.querySelector('#procTbody .proc-pin').focus();qaAssert(document.activeElement.classList.contains('proc-pin'),'row controls stay keyboard focusable');
-    handleSearch('');qaAssert(document.querySelectorAll('#procTbody tr').length===8,'clearing the search restores the table');
+    data.processes=Array.from({length:30},(_,i)=>({pid:9000+i,name:'Worker '+i,cpu:40-i,memory_mb:i===7?4096:900-i*20,path:'/Applications/Worker '+i+'.app',power:null}));
+    const pushSamples=()=>{for(const cpu of [12,38,27,54,18,32]){const sample=structuredClone(data);sample.cpu=cpu;sample.gpuPct=cpu/2;sample.cpuTempC=50+cpu/5;sample.net.rxBytesPerSec=1048576+cpu*32768;sample.diskIo.readBytesPerSec=2097152+cpu*65536;onNativeRealTelemetry(sample);}};
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const topRows=()=>[...document.querySelectorAll('#topProcList .tp-row')];`;
+for (const [width, height] of [[1440, 870], [1280, 720], [1060, 800], [880, 720]]) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  scenarios.push({ name: `status-top-procs-${width}x${height}-${theme}-${lang}`, width, height, script: `qaReset();window.isNativeMacApp=false;document.documentElement.dataset.theme='${theme}';
+    switchModule('status');${statusProcsSetup}
+    pushSamples();
+    ${lang === 'en' ? `await qaEn('top processes');` : 'await qaSettle();'}
+    const body=document.querySelector('.workspace-body');
+    qaAssert(topRows().length===5,'the compact list shows five rows, got '+topRows().length);
+    qaAssert(document.querySelectorAll('.telemetry-card').length===9&&document.querySelectorAll('.telemetry-grid > .telemetry-card').length===9,'every metric card stays');
+    ${width > 1160 ? `qaAssert(getComputedStyle(document.querySelector('.telemetry-grid')).gridTemplateColumns.split(' ').length===3,'wide windows keep three card columns');` : ''}
+    qaAssert(!document.querySelector('.proc-table')||!document.querySelector('.proc-table').offsetParent,'the full table is not on the page');
+    qaAssert(topRows().every(r=>r.getBoundingClientRect().height>=31&&r.getBoundingClientRect().height<=36&&r.scrollWidth<=r.clientWidth+1),'rows stay about 32px tall and do not overflow');
+    qaAssert(topRows()[0].dataset.pid==='9000'&&topRows()[0].querySelector('.tp-bar > i').style.width==='40%','CPU bar is the share of 100%');
+    qaAssert(document.querySelector('.top-procs .seg-tab.active').textContent==='CPU','CPU is the default sort');
+    const kill=topRows()[1].querySelector('.btn-kill');
+    qaAssert(getComputedStyle(kill).opacity==='0','terminate stays quiet until hover or focus');
+    kill.focus();qaAssert(document.activeElement===kill,'terminate is keyboard focusable');kill.blur();
+    document.querySelectorAll('.top-procs .seg-tab')[1].click();await qaSettle();
+    qaAssert(STATE.procSortKey==='memory_mb'&&topRows()[0].dataset.pid==='9007'&&topRows()[0].querySelector('.tp-val').textContent.includes('GiB')&&topRows()[0].querySelector('.tp-bar > i').style.width==='100%','the memory tab sorts and scales by memory');
+    topRows()[2].querySelector('.proc-pin').click();await qaSettle();
+    qaAssert(topRows()[0].querySelector('.proc-pin').classList.contains('on')&&getComputedStyle(topRows()[0].querySelector('.proc-pin')).opacity==='1','a pinned process moves to the top with its star visible');
+    topRows()[0].querySelector('.proc-pin').click();
+    document.querySelectorAll('.top-procs .seg-tab')[0].click();await qaSettle();
+    qaAssert(STATE.procSortKey==='cpu'&&topRows()[0].dataset.pid==='9000','switching back to CPU restores the order');
+    body.scrollTop=body.scrollHeight;await qaSettle();
+    qaAssert(document.querySelector('.top-procs').getBoundingClientRect().bottom<=body.getBoundingClientRect().bottom+1,'the compact panel is reachable by scrolling');
     body.scrollTop=0;
   ` });
 }
+for (const [width, height] of [[1440, 870], [880, 720]]) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  scenarios.push({ name: `status-drawer-${width}x${height}-${theme}-${lang}`, width, height, script: `qaReset();window.isNativeMacApp=false;document.documentElement.dataset.theme='${theme}';
+    switchModule('status');${statusProcsSetup}
+    pushSamples();
+    ${lang === 'en' ? `await qaEn('process drawer',async()=>{openProcDrawer();});` : 'openProcDrawer();await qaSettle();'}
+    await wait(80);
+    const modal=document.getElementById('procModal'),sheet=modal.querySelector('.proc-drawer'),scroller=document.getElementById('procScroll');
+    qaAssert(modal.classList.contains('open')&&document.activeElement===document.getElementById('procSearch'),'the drawer opens with focus in its search field');
+    const box=sheet.getBoundingClientRect();qaAssert(box.right<=innerWidth+1&&box.left>=0&&box.height>=innerHeight-2,'the drawer is a full height right side sheet');
+    qaAssert(document.querySelectorAll('#procTbody tr').length===30,'the drawer lists every process');
+    qaAssert(scroller.scrollHeight>scroller.clientHeight+20,'the table scrolls inside the drawer');
+    scroller.scrollTop=200;await qaSettle();
+    const th=document.querySelector('#procHead th');qaAssert(Math.abs(th.getBoundingClientRect().top-scroller.getBoundingClientRect().top)<=1,'the header stays pinned while rows scroll');
+    scroller.scrollTop=0;
+  ` });
+}
+add('status-drawer-behavior', `switchModule('status');${statusProcsSetup}
+  pushSamples();await qaSettle();
+  const opener=document.getElementById('procOpenBtn');opener.focus();opener.click();await wait(80);
+  const modal=document.getElementById('procModal'),scroller=document.getElementById('procScroll'),search=document.getElementById('procSearch');
+  const tr=()=>[...document.querySelectorAll('#procTbody tr')];
+  const type=v=>{search.value=v;search.dispatchEvent(new Event('input',{bubbles:true}));};
+  qaAssert(modal.classList.contains('open')&&document.activeElement===search&&document.querySelector('.app-shell').inert,'the drawer opens modally with focus in search');
+  qaAssert(tr().length===30,'all processes are listed');
+  type('worker 1');qaAssert(tr().length===11&&document.getElementById('searchInput').value==='worker 1'&&topRows().length===5,'search filters by name and mirrors the toolbar');
+  type('9003');qaAssert(tr().length===1&&tr()[0].dataset.pid==='9003'&&topRows().length===1,'search filters by PID');
+  type('');qaAssert(tr().length===30,'clearing the search restores every row');
+  document.querySelector('#procHead th[data-pk="th:mem"]').focus();document.querySelector('#procHead th[data-pk="th:mem"]').click();await qaSettle();
+  qaAssert(STATE.procSortKey==='memory_mb'&&tr()[0].dataset.pid==='9007'&&document.activeElement.dataset.pk==='th:mem','sortable headers work and keep focus');
+  document.querySelector('#procHead th[data-pk="th:cpu"]').click();await qaSettle();
+  tr()[5].querySelector('.proc-pin').click();await qaSettle();
+  qaAssert(tr()[0].dataset.pid==='9005'&&tr()[0].querySelector('.proc-pin').classList.contains('on'),'pinning works in the drawer');
+  tr()[0].querySelector('.proc-pin').click();await qaSettle();
+  scroller.scrollTop=150;await qaSettle();const before=scroller.scrollTop;qaAssert(before>100,'drawer scrolled');
+  const kill=document.querySelector('#procTbody tr[data-pid="9012"] .btn-kill');kill.focus();kill.click();await qaSettle();
+  qaAssert(STATE.killArmed===9012&&document.activeElement.dataset.pk==='9012:kill'&&document.activeElement.textContent.includes('确认终止'),'terminate asks for a second confirmation and keeps keyboard focus');
+  qaAssert(Math.abs(scroller.scrollTop-before)<=1,'arming terminate does not move the scroll position');
+  const refreshed=structuredClone(data);refreshed.processes.reverse().forEach((p,i)=>{p.cpu=5+i;});onNativeRealTelemetry(refreshed);await qaSettle();
+  qaAssert(STATE.killArmed===9012&&document.activeElement.dataset.pk==='9012:kill'&&Math.abs(scroller.scrollTop-before)<=1&&tr()[0].dataset.pid!=='9029','live refresh keeps the confirmation, focus, scroll and row order');
+  qaAssert(document.getElementById('processLiveNote').textContent.includes('保持行序'),'the drawer says rows are held during an action');
+  STATE.killArmed=null;onNativeRealTelemetry(structuredClone(data));
+  search.focus();type('Worker 2');onNativeRealTelemetry(structuredClone(data));await qaSettle();
+  qaAssert(search.value==='Worker 2'&&document.activeElement===search&&tr().length===11,'live refresh keeps the search text and focus');
+  type('');
+  document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait(200);
+  qaAssert(!modal.classList.contains('open')&&document.activeElement.id==='procOpenBtn','Escape closes the drawer and returns focus to its button');
+  document.getElementById('procOpenBtn').click();await wait(80);qaAssert(modal.classList.contains('open'),'the drawer reopens');
+  modal.querySelector('.panel-header .btn').click();await wait(200);qaAssert(!modal.classList.contains('open')&&document.activeElement.id==='procOpenBtn','the close button closes the drawer');
+`);
+// 记忆卡「查看内存进程」直接切到内存排序。
+add('status-memory-button-sorts', `switchModule('status');openMemoryMaintenance();await qaSettle();document.querySelector('#memoryModal .memory-panel-footer .btn').click();await qaSettle();qaAssert(STATE.module==='status'&&STATE.procSortKey==='memory_mb'&&document.querySelector('.top-procs .seg-tab.active').textContent.includes('内存'),'the memory process button switches the compact list to memory');`);
 add('restore-occupied-target', `
   switchModule('history');
   const snapshot=STATE.historyLogs[0];
@@ -1160,7 +1220,7 @@ for(const theme of ['light','dark'])add('tray-top-processes-'+theme,trayThreePro
   const lastBottom=tray.lastElementChild.getBoundingClientRect().bottom;qaAssert(tray.scrollHeight<=tray.clientHeight+1&&lastBottom<=innerHeight,'three processes fit the shipped popup without scrolling; '+tray.scrollHeight+'/'+tray.clientHeight+' last bottom '+lastBottom);
   qaAssert(rows[0].textContent.includes('384 MiB')&&rows[1].textContent.includes('2.0 GiB')&&rows[2].textContent.includes('128 MiB'),'process memory is labelled MiB, or GiB above 1024');
   switchModule('status');
-  qaAssert(document.querySelector('#procTbody').textContent.includes('384 MiB')&&!document.querySelector('#procTbody').textContent.includes(' MB'),'the status table uses the same unit label as the tray');
+  openProcDrawer();qaAssert(document.querySelector('#procTbody').textContent.includes('384 MiB')&&!document.querySelector('#procTbody').textContent.includes(' MB'),'the status table uses the same unit label as the tray');closeProcDrawer();
 `);
 add('tray-memory-legend-swatch',compactTraySetup+`
   STATE.memUsedGb=12;STATE.memTotalGb=32;STATE.memory={appGb:8,wiredGb:3,compressedGb:1,cacheGb:5};renderMenuBarTrayContent();
