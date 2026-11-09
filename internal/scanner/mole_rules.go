@@ -163,7 +163,7 @@ var moleGroups = []moleGroup{
 		id: "dev_tools", category: "开发缓存", name: "开发工具缓存与临时文件",
 		impact:  "编译器、包管理器和开发工具的下载与中间缓存，可以重新下载或重新生成；用途不明确的内容由你确认。",
 		rebuild: "下次使用对应工具时重新生成",
-		// Ported from tw93/Mole V1.70.0 lib/clean/dev.sh clean_dev_* (language toolchains, build tools, containers, mobile SDKs)
+		// Ported from tw93/Mole V1.70.0 lib/clean/dev.sh (the clean_dev_* functions: language toolchains, build tools, containers, mobile SDKs)
 		rules: join(
 			tools("cache",
 				"TypeScript", ".cache/typescript", "Vite", ".cache/vite", "webpack", ".cache/webpack", "ESLint", ".cache/eslint",
@@ -229,7 +229,7 @@ var moleGroups = []moleGroup{
 		id: "app_support_caches", category: "应用缓存与日志", name: "应用内置缓存与日志",
 		impact:  "编辑器、聊天、游戏和创作类应用放在 Application Support 与沙盒容器里的缓存、日志和临时文件，不含账户、聊天记录和项目数据。",
 		rebuild: "下次打开应用时重新生成",
-		// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh clean_* (editors, communication, media, games, creative and utility apps)
+		// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh (the clean_* functions: editors, communication, media, games, creative and utility apps)
 		rules: join(
 			electronRules("VS Code", []string{"Visual Studio Code", "Code"}, appSupport+"Code/", "Cache", "CachedData", "CachedExtensionVSIXs", "WebStorage/*/CacheStorage"),
 			[]moleRule{

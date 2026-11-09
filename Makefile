@@ -40,7 +40,7 @@ MYGO     ?= mygo
 GO       ?= go
 NODE     ?= node
 
-.PHONY: all build run run-raw test test-ui-webkit vet dev app app-nodmg generate set-version doctor check clean help
+.PHONY: all build run run-raw test test-ui-webkit vet dev app app-nodmg generate set-version doctor check clean help mole-sync
 
 all: build
 
@@ -71,6 +71,10 @@ test-ui-webkit:
 	$(NODE) scripts/webkit-fixtures.cjs .review/webkit
 	xcrun swiftc scripts/test-webkit.swift -o .review/webkit/test-webkit
 	.review/webkit/test-webkit Resources/src-ui/index.html .review/webkit
+
+## List upstream tw93/Mole changes to the rules orbit ported (see scripts/mole-sync.sh).
+mole-sync:
+	scripts/mole-sync.sh $(MOLE_TAG)
 
 ## Run the Go static checker.
 vet:

@@ -77,7 +77,6 @@ function installEnglishWalk() {
   // Switch live to English, run the scenario step, and fail on any CJK left on screen.
   window.qaEn = async (label, step) => {
     qaEnglishFixture();
-    I18N.add(window.qaPendingEn || {});
     I18N.setLang('en', false);
     qaAssert(document.documentElement.lang === 'en', 'html lang follows the language');
     if (step) await step();
@@ -88,10 +87,7 @@ function installEnglishWalk() {
   window.qaStageText = () => document.getElementById('moduleStage').textContent + '|' + document.querySelector('.top-header').textContent;
   window.qaSettle = settle;
 }
-// Parity installer track: strings still waiting in the i18n TSVs are shimmed so English renders; absent after merge.
-const pendingEn = {};
-for (const f of ['/tmp/orbit-i18n-installer.tsv', '/tmp/orbit-i18n-installer-ui.tsv']) if (fs.existsSync(f)) for (const line of fs.readFileSync(f, 'utf8').split('\n')) { const [zh, en] = line.split('\t'); if (zh && en) pendingEn[zh] = en; }
-const setupEn = '(' + installEnglishWalk.toString() + ')();window.qaPendingEn=' + JSON.stringify(pendingEn) + ';';
+const setupEn = '(' + installEnglishWalk.toString() + ')();';
 fs.writeFileSync(dir + '/fixtures.js', setup + setupEn);
 const scenarios = [];
 const modules = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'];
@@ -2210,11 +2206,6 @@ add('refresh-fallback-single-rescan', `
   endRefreshing();
 `);
 // 系统加速：诊断清单（需处理 / 需确认 / 无需处理 / 暂不处理 / 不可用）与执行回执。
-// 英文场景需要新页面的英文词条；词条并入 en-*.js 之前从 /tmp 的两份 TSV 补进来，并入之后这一步什么也不做。
-const optimizeExtra = {};
-for (const f of ['/tmp/orbit-i18n-optimize.tsv', '/tmp/orbit-i18n-optimize-ui.tsv']) {
-  if (fs.existsSync(f)) fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).forEach(l => { const [k, v] = l.split('\t'); optimizeExtra[k] = v; });
-}
 const optimizePlan = [
   { id: 'cache_refresh', name: '刷新缩略图与图标缓存', detail: '重建 Quick Look 缩略图与图标服务缓存', status: 'needed', reason: '缩略图和图标缓存可以随时重建，刷新后预览会重新生成', tier: 'safe', undo: '无需撤销，缓存会按需重建', checked: true, runnable: true },
   { id: 'saved_state_cleanup', name: '清理旧的应用窗口状态', detail: '把 30 天以上没动过的应用窗口状态移入废纸篓', status: 'needed', reason: '有 3 个超过 30 天的应用窗口状态，移入废纸篓后应用会按需重新生成', tier: 'safe', undo: '在这里点撤销，或在访达的废纸篓里放回原处', checked: true, runnable: true, items: ['~/Library/Saved Application State/com.example.one.savedState', '~/Library/Saved Application State/com.example.two.savedState', '~/Library/Saved Application State/com.example.three.savedState'] },
@@ -2230,7 +2221,7 @@ const optimizeReceipts = [
   { id: 'saved_state_cleanup', ok: true, outcome: 'attention', summary: '已把 2 项移入废纸篓，另有 1 项没有处理', details: ['~/Library/Saved Application State/com.example.one.savedState', '~/Library/Saved Application State/com.example.two.savedState'], failed: [{ path: '~/Library/Saved Application State/com.example.three.savedState', error: '这些项目都没能移入废纸篓' }], undo: '在这里点撤销，或在访达的废纸篓里放回原处', canUndo: true },
   { id: 'prevent_network_dsstore', ok: true, outcome: 'applied', summary: '已设置 2 项 Finder 偏好', details: ['com.apple.desktopservices DSDontWriteNetworkStores'], undo: '在这里点撤销，会恢复成设置前的值', canUndo: true },
 ];
-const optimizeLoad = `STATE.optimize.status==='loading'||requestOptimizePlan();onNativeOptimizePlan({requestId:STATE.optimize.planId,items:${JSON.stringify(optimizePlan)}});I18N.add(Object.fromEntries(Object.entries(${JSON.stringify(optimizeExtra)}).filter(([k])=>I18N.entries()[k]===undefined)));`;
+const optimizeLoad = `STATE.optimize.status==='loading'||requestOptimizePlan();onNativeOptimizePlan({requestId:STATE.optimize.planId,items:${JSON.stringify(optimizePlan)}});`;
 const optimizeChecks = `const rows=[...document.querySelectorAll('[data-optimize-task]')];qaAssert(rows.length===8,'every task is listed');qaAssert(rows.filter(r=>r.querySelector('input[type=checkbox]')).length===4,'only runnable tasks have a checkbox');qaAssert(STATE.optimize.items.filter(i=>i.runnable&&STATE.optimize.sel[i.id]).map(i=>i.id).join()==='cache_refresh,saved_state_cleanup,prevent_network_dsstore','safe tasks are checked, the review task is not');qaAssert(document.getElementById('primaryBtnText').textContent.length>0,'primary button has text');`;
 const optimizeReceiptStep = `STATE.optimize.receipts=Object.fromEntries(${JSON.stringify(optimizeReceipts)}.map(r=>[r.id,r]));renderModule();qaAssert(document.querySelectorAll('[data-optimize-receipt]').length===3,'each run task shows a receipt');qaAssert(document.querySelectorAll('[data-optimize-receipt] button').length===2,'only undoable receipts offer undo');`;
 for (const theme of ['dark', 'light']) {

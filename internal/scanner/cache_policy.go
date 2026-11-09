@@ -105,7 +105,10 @@ var regenerableCaches = map[string]string{
 	"cocoapods": "CocoaPods 缓存", "org.swift.swiftpm": "SwiftPM 缓存", "pypoetry": "Poetry 缓存",
 	"pre-commit": "pre-commit 环境缓存", "cypress": "Cypress 下载缓存", "puppeteer": "Puppeteer 下载缓存",
 	"prisma": "Prisma 引擎缓存", "jetbrains": "JetBrains 索引缓存", "sentrycrash": "崩溃上报缓存",
-	// Ported from tw93/Mole V1.70.0 lib/clean/{user,dev,app_caches}.sh (Library/Caches entries Mole removes)
+	// Library/Caches entries Mole removes.
+	// Ported from tw93/Mole V1.70.0 lib/clean/user.sh
+	// Ported from tw93/Mole V1.70.0 lib/clean/dev.sh
+	// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh
 	"com.apple.dt.xcode": "Xcode 缓存", "com.apple.python": "macOS 自带 Python 的缓存", "com.apple.wallpaper.caches": "壁纸缓存",
 	"com.apple.webkit.networking": "WebKit 网络缓存", "com.apple.helpd": "帮助查看器缓存", "com.apple.parsecd": "Siri 建议缓存",
 	"com.apple.duetexpertd": "系统建议缓存", "com.apple.photoanalysisd": "照片分析缓存", "com.apple.applemediaservices": "媒体服务缓存",
