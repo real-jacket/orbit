@@ -3,9 +3,56 @@ package scanner
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+const sharedRemnantsReason = "另一份相同标识的应用仍安装在这台 Mac 上，这些数据还在被它使用"
+
+var versionSuffixPattern = regexp.MustCompile(`^(.+)\s+(Nightly|Beta|Alpha|Dev|Canary|Preview|Insider|Edge|Stable|Release|RC|LTS|Developer Edition|Technology Preview)$`)
+
+// Ported from tw93/Mole V1.70.0 lib/uninstall/batch.sh uninstall_bundles_share_remnants
+// Two installed bundles share user data when their bundle ids are equal or one
+// extends the other, or when their names match once a channel suffix is cut.
+// shortcut: Mole also tells JetBrains products apart by their selector; orbit
+// treats them as sharing, so their data stays protected, until that is needed.
+func bundlesShareRemnants(selectedID, otherID, selectedPath, otherPath string) bool {
+	a, b := strings.ToLower(selectedID), strings.ToLower(otherID)
+	if a == b || strings.HasPrefix(a, b+".") || strings.HasPrefix(b, a+".") {
+		return true
+	}
+	stem := func(path string) string {
+		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		if m := versionSuffixPattern.FindStringSubmatch(name); m != nil {
+			name = m[1]
+		}
+		return name
+	}
+	x, y := stem(selectedPath), stem(otherPath)
+	return len(x) >= 2 && len(y) >= 2 && strings.EqualFold(x, y)
+}
+
+// protectSharedRemnants keeps the cache, config and launch entries of an app
+// out of the removal selection while another installed copy still uses them.
+// The app bundle itself stays selectable.
+func protectSharedRemnants(results []map[string]any) {
+	for i, row := range results {
+		for j, other := range results {
+			if i == j || row["appPath"] == other["appPath"] ||
+				!bundlesShareRemnants(row["bundleId"].(string), other["bundleId"].(string), row["appPath"].(string), other["appPath"].(string)) {
+				continue
+			}
+			for _, sub := range row["subpaths"].([]map[string]any) {
+				if sub["kind"] == "app" || sub["tier"] == "protected" {
+					continue
+				}
+				sub["tier"], sub["reason"], sub["checked"] = "protected", sharedRemnantsReason, false
+			}
+			break
+		}
+	}
+}
 
 // appendExisting measures known app paths, keeping protected entries visible
 // but out of the removal selection.
@@ -180,6 +227,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 		}
 	}
 
+	protectSharedRemnants(results)
 	appPaths := make([]string, len(results))
 	for i, row := range results {
 		appPaths[i] = row["appPath"].(string)

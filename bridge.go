@@ -57,13 +57,43 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		if len(paths) == 0 {
 			return nil
 		}
-		requestID := stringOf(payload["requestId"])
+		requestID, wantRefs := stringOf(payload["requestId"]), boolOf(payload["configRefs"])
 		go func() {
 			// The page waits for this receipt before it claims success, so a
 			// refused or failed path is reported instead of swallowed.
-			pushTrashResult(requestID, scanner.Shared.TrashPaths(paths))
+			outcome := scanner.Shared.TrashPaths(paths)
+			var refs []scanner.ConfigRef
+			if wantRefs { // an uninstall: list, read only, config lines that still name what was removed
+				moved := make([]string, 0, len(outcome.Moved))
+				for _, entry := range outcome.Moved {
+					moved = append(moved, entry.Original)
+				}
+				refs = scanner.Shared.ConfigReferences(moved)
+			}
+			pushTrashResult(requestID, outcome, refs)
 			// The single rescan after a destructive action lives here, so the
 			// window and the menu-bar panel share it; the page does not ask again.
+			pushRealTelemetryNow()
+			pushRealSystemScanNow()
+		}()
+	case "scanSlim":
+		requestID := stringOf(payload["requestId"])
+		go func() {
+			result := scanner.Shared.ScanSlim()
+			evaluate("window.onNativeSlimScan ? window.onNativeSlimScan(" + jsonOf(map[string]any{"requestId": requestID, "scan": result}) + ") : undefined")
+		}()
+	case "slimApps":
+		paths, identities, requestID := stringsOf(payload["paths"]), stringMapOf(payload["identities"]), stringOf(payload["requestId"])
+		if len(paths) == 0 {
+			return nil
+		}
+		go func() {
+			targets := make([]scanner.SlimTarget, 0, len(paths))
+			for _, path := range paths {
+				targets = append(targets, scanner.SlimTarget{Path: path, Identity: identities[path]})
+			}
+			outcome := scanner.Shared.SlimApps(targets)
+			evaluate("window.onNativeSlimResult ? window.onNativeSlimResult(" + jsonOf(map[string]any{"requestId": requestID, "outcome": outcome}) + ") : undefined")
 			pushRealTelemetryNow()
 			pushRealSystemScanNow()
 		}()

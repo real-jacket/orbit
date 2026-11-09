@@ -2205,6 +2205,119 @@ add('refresh-fallback-single-rescan', `
   qaAssert(__qa.actions.filter(a=>a.action==='requestRealSystemScan').length===1,'back-to-back operations cause exactly one fallback rescan, got '+__qa.actions.filter(a=>a.action==='requestRealSystemScan').length);
   endRefreshing();
 `);
+// App slimming and config references. English text for the new strings is embedded so every English scenario (the module tab is
+// on the Uninstaller page too) passes before en-ui.js / en-backend.js carry them; afterwards the add() is a no-op.
+const slimEn = {
+  "在白名单中，保持原状": "On the allowlist, left as it is",
+  "App Store 应用，签名由 Apple 管理，不处理": "App Store app, its signature is managed by Apple, skipped",
+  "不属于当前用户，不处理": "Not owned by the current user, skipped",
+  "所在文件夹没有写入权限，不处理": "No write permission in its folder, skipped",
+  "应用内有其他用户的文件，不处理": "Contains files owned by another user, skipped",
+  "没有 Bundle ID，不处理": "No bundle ID, skipped",
+  "苹果自带应用，不处理": "Apple app, skipped",
+  "{vendor} 的应用需要使用厂商官方的卸载程序，不处理": "Apps from {vendor} need the vendor's own uninstaller, skipped",
+  "已设为使用 Rosetta 打开，保持原状": "Set to open with Rosetta, left as it is",
+  "应用正在运行": "App is running",
+  "退出 {name} 后重新扫描即可瘦身": "Quit {name} and scan again to slim it",
+  "原应用会移入废纸篓，瘦身后的副本只保留 Apple 芯片代码；应用更新会带回 Intel 代码。": "The original goes to the Trash and the slimmed copy keeps only Apple silicon code. An app update brings the Intel code back.",
+  "应用瘦身只适用于 Apple 芯片的 Mac": "App slimming only applies to Macs with Apple silicon",
+  "不是开发者 ID 签名的应用，不处理": "Not signed with a Developer ID, skipped",
+  "系统安全检查（Gatekeeper）不接受这个应用，不处理": "Gatekeeper does not accept this app, skipped",
+  "已有瘦身任务在进行，不能重复处理": "A slimming task is already running, try again when it finishes",
+  "不是应用包": "Not an app bundle",
+  "应用在扫描后发生了变化，请重新扫描": "The app changed after the scan, scan again",
+  "没有可以去掉的 Intel 代码": "No Intel code to remove",
+  "应用的签名本身已经失效": "The app's own signature is already invalid",
+  "无法在应用所在文件夹创建临时目录": "Could not create a temporary folder next to the app",
+  "复制应用失败": "Could not copy the app",
+  "无法去掉 {name} 里的 Intel 代码": "Could not remove the Intel code from {name}",
+  "应用正在运行，请先退出": "The app is running, quit it first",
+  "无法把原应用移入废纸篓": "Could not move the original app to the Trash",
+  "原应用已在废纸篓，请从废纸篓放回 {path}": "The original app is in the Trash. Put it back into {path} from the Trash",
+  "瘦身后缺少 Apple 芯片代码": "The slimmed copy has no Apple silicon code",
+  "瘦身后的签名检查没有通过": "The slimmed copy failed the signature check",
+  "瘦身后签名团队发生了变化": "The signing team changed after slimming",
+  "瘦身后的系统安全检查（Gatekeeper）没有通过": "The slimmed copy failed the Gatekeeper check",
+  "另一份相同标识的应用仍安装在这台 Mac 上，这些数据还在被它使用": "Another copy of this app is still installed on this Mac and still uses this data",
+  "正在检查可瘦身的应用": "Checking which apps can be slimmed",
+  "已勾选 {n} 款应用，预览后再瘦身": "{n} {n|app|apps} selected, preview before slimming",
+  "选择要瘦身的应用": "Select apps to slim",
+  "预览应用瘦身": "Preview app slimming",
+  "已选 {n} 款应用。orbit 先瘦身一份副本并检查签名，通过后才替换；原应用移入废纸篓。应用更新会带回 Intel 代码。": "{n} {n|app|apps} selected. orbit slims a copy first and checks its signature. Only if it passes is the app replaced, and the original goes to the Trash. An app update brings the Intel code back.",
+  "Intel 代码 {size}": "Intel code {size}",
+  "系统回执尚未返回，瘦身状态未知。请重新检查后再决定。": "The system has not replied, so the slimming state is unknown. Check again before deciding.",
+  "正在瘦身 {n} 款应用，请稍候…": "Slimming {n} {n|app|apps}, please wait…",
+  "瘦身完成：{n} 款应用已瘦身": "Slimming finished: {n} {n|app|apps} slimmed",
+  "瘦身部分完成：{ok} 款成功，{failed} 款未处理": "Slimming partly finished: {ok} done, {failed} not processed",
+  "没有应用被瘦身，原因见右侧回执": "No app was slimmed, see the receipt on the right for why",
+  "应用瘦身 · 分离器": "App slimming · Separator",
+  "预览瘦身所选": "Preview selected",
+  "瘦身只去掉应用里的 Intel 代码。原应用移入废纸篓；应用更新会带回 Intel 代码。": "Slimming only removes the Intel code inside an app. The original goes to the Trash, and an app update brings the Intel code back.",
+  "已勾选可减少体积": "Selected size to remove",
+  "只处理勾选的应用 · 原应用移入废纸篓": "Only selected apps · originals go to the Trash",
+  "重新检查": "Check again",
+  "开始检查": "Start checking",
+  "正在检查应用，需要读取每个应用的签名，请稍候。": "Checking apps. Each app's signature has to be read, please wait.",
+  "检查会读取已安装应用的签名和架构，不会修改任何文件。": "The check reads the signature and architecture of installed apps and changes no files.",
+  "没有发现带 Intel 代码的应用。{n} 款应用已经只含 Apple 芯片代码。": "No app with Intel code was found. {n} {n|app is|apps are} already Apple silicon only.",
+  "没有发现带 Intel 代码的应用。": "No app with Intel code was found.",
+  "可瘦身的应用 · {n} 款": "Apps that can be slimmed · {n}",
+  "瘦身回执 · 共释放 {size}": "Slimming receipt · {size} freed",
+  "瘦身说明": "About slimming",
+  "只处理你勾选的应用。orbit 先复制一份并去掉 Intel 代码，签名和系统安全检查通过后，才替换原应用。": "Only the apps you select are changed. orbit copies the app and removes the Intel code from the copy. The original is replaced only after the signature and system security checks pass.",
+  "原应用会移入废纸篓。想还原时，从废纸篓放回应用所在的文件夹。": "The original goes to the Trash. To undo, put it back from the Trash into the folder it came from.",
+  "应用更新后会带回 Intel 代码，可以再瘦身一次。": "An app update brings the Intel code back. You can slim it again.",
+  "正在运行的应用不处理，请先退出。": "Running apps are skipped, quit them first.",
+  "另有 {n} 款应用没有 Intel 代码，不在列表里。": "{n} more {n|app has|apps have} no Intel code and {n|is|are} not listed.",
+  "已瘦身 · 释放 {size}": "Slimmed · {size} freed",
+  "在访达中显示原应用": "Show original in Finder",
+  "配置文件里仍有引用 · {n} 处": "Still referenced in config files · {n}",
+  "知道了": "Got it",
+  "卸载不会改动这些文件。请自己打开检查，不再需要的引用可以手动删除。orbit 只记录文件和行号，不读出内容。": "Uninstalling does not change these files. Open them yourself and delete references you no longer need. orbit only records the file and line number and does not read the content.",
+  "应用瘦身": "App slimming",
+  "没有收到检查结果，请点「重新检查」再试一次。": "No result came back. Choose Check again to try once more.",
+  "正在检查": "Checking",
+  "原应用移入 ~/.Trash · 从废纸篓放回": "Original goes to ~/.Trash · put back from the Trash",
+  "确认后 orbit 先瘦身副本并检查签名，通过后才替换原应用": "After you confirm, orbit slims a copy and checks its signature. It replaces the app only if the checks pass",
+  "确认瘦身": "Confirm slimming",
+  "未瘦身": "Not slimmed",
+};
+fs.appendFileSync(dir + '/fixtures.js', `\nI18N.add(${JSON.stringify(slimEn)});`);
+const slimApp = (id, name, version, intelBytes, intelSize, tier, reason, extra = {}) => ({ id, name: name + '.app', appPath: '/Applications/' + name + '.app', icon: '', bundleId: 'com.fixture.' + id, version, intelBytes, intelSize, intelGb: intelBytes / 1e9, files: 3, tier, reason, running: false, identity: id + '-identity', ...extra });
+const slimReview = '原应用会移入废纸篓，瘦身后的副本只保留 Apple 芯片代码；应用更新会带回 Intel 代码。';
+const slimScan = {
+  apps: [
+    slimApp('canvas', 'Canvas Editor', '3.2.1', 612e6, '612 MB', 'review', slimReview),
+    slimApp('notes', 'Pixel Notes', '1.9.0', 148e6, '148 MB', 'review', slimReview),
+    slimApp('legacy', 'Legacy Studio', '5.0', 96e6, '96 MB', 'protected', '已设为使用 Rosetta 打开，保持原状'),
+    slimApp('helper', 'Canvas Helper Pro', '2.4', 74e6, '74 MB', 'protected', '应用正在运行', { running: true, unlock: '退出 Canvas Helper Pro 后重新扫描即可瘦身' }),
+    slimApp('suite', 'Vendor Suite', '24.1', 51e6, '51 MB', 'protected', 'Adobe 的应用需要使用厂商官方的卸载程序，不处理'),
+  ],
+  noIntel: 7, unavailable: '',
+};
+const slimAfter = { ...slimScan, apps: slimScan.apps.filter(a => a.id !== 'canvas') };
+const slimOutcome = { requested: 2, freedBytes: 612e6, freed: '612 MB', results: [
+  { path: '/Applications/Canvas Editor.app', name: 'Canvas Editor.app', slimmed: true, reason: '', freedBytes: 612e6, freed: '612 MB', trashed: '/Users/test/.Trash/Canvas Editor.app' },
+  { path: '/Applications/Pixel Notes.app', name: 'Pixel Notes.app', slimmed: false, reason: '瘦身后的签名检查没有通过', freedBytes: 0, freed: '', trashed: '' },
+] };
+const configRefs = [
+  { file: '~/.zshrc', line: 12, path: '/Applications/Canvas Editor 0.app/Contents/MacOS' },
+  { file: '~/.claude/settings.json', line: 34, path: '/Applications/Canvas Editor 0.app' },
+  { file: '~/.config/fish/config.fish', line: 3, path: '/Applications/Canvas Editor 0.app/Contents/Resources/bin' },
+];
+const slimPrep = (theme, lang) => `document.documentElement.dataset.theme='${theme}';Object.assign(SLIM,{scan:null,loading:false,requestId:'',error:false,checked:{},receipt:null,applying:''});configRefsReceipt=null;switchModule('software');setSoftwarePanelMode('slim');qaAssert(__qa.actions.some(a=>a.action==='scanSlim'&&a.requestId),'slim scan is correlated');onNativeSlimScan({requestId:SLIM.requestId,scan:${JSON.stringify(slimScan)}});${lang === 'en' ? "qaEnglishFixture();I18N.setLang('en',false);await qaSettle();" : ''}`;
+const slimWalk = (lang, label) => lang === 'en' ? `await qaEn('${label}',async()=>{});` : 'await qaSettle();';
+const slimKinds = {
+  list: lang => `qaAssert(document.querySelectorAll('[data-slim-app]').length===5,'five rows');qaAssert(document.querySelector('[data-slim-app="legacy"] input').disabled&&document.querySelector('[data-slim-app="helper"] input').disabled,'protected apps cannot be checked');qaAssert(!SLIM.checked.canvas,'nothing is checked by default');toggleSlimCheck('canvas');toggleSlimCheck('notes');qaAssert(slimSelected().length===2,'two selected');qaAssert(document.querySelectorAll('[data-slim-app] [data-tier-note]').length===5,'every row says why');${slimWalk(lang, 'slim list')}`,
+  confirm: lang => `toggleSlimCheck('canvas');toggleSlimCheck('notes');openSlimConfirm();${slimWalk(lang, 'slim confirm')}qaAssert(document.getElementById('confirmModal').classList.contains('open'),'modal open');qaAssert(document.querySelectorAll('#confirmModalItemsList .confirm-entry').length===2,'both apps previewed');qaAssert(document.getElementById('confirmModalSummary').textContent.includes('Intel'),'summary says an update brings Intel code back');`,
+  receipt: lang => `toggleSlimCheck('canvas');toggleSlimCheck('notes');openSlimConfirm();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='slimApps');qaAssert(req&&req.requestId&&req.paths.length===2&&req.identities['/Applications/Canvas Editor.app']==='canvas-identity','slim request carries paths and identities');onNativeSlimResult({requestId:req.requestId,outcome:${JSON.stringify(slimOutcome)}});onNativeSlimScan({requestId:SLIM.requestId,scan:${JSON.stringify(slimAfter)}});${slimWalk(lang, 'slim receipt')}qaAssert(document.querySelectorAll('[data-slim-result="ok"]').length===1&&document.querySelectorAll('[data-slim-result="skip"]').length===1,'receipt shows one slimmed and one skipped');qaAssert(document.querySelectorAll('[data-slim-app]').length===4,'list is rescanned');`,
+  config: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(req.configRefs===true,'software uninstall asks for config references');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],configRefs:${JSON.stringify(configRefs)}});${slimWalk(lang, 'config refs receipt')}qaAssert(document.querySelectorAll('#configRefsCard [data-config-ref]').length===3,'card lists every reference');qaAssert(!document.getElementById('configRefsCard').textContent.includes('export'),'no file content is shown');`,
+  history: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],configRefs:${JSON.stringify(configRefs)}});switchModule('history');await qaSettle();document.querySelectorAll('.history-paths').forEach(d=>{if(d.textContent.includes('.zshrc'))d.open=true});${slimWalk(lang, 'history config refs')}qaAssert(document.querySelectorAll('.history-paths [data-config-ref]').length===3,'history entry keeps the references');`,
+};
+for (const lang of ['zh', 'en']) for (const theme of ['dark', 'light']) for (const [kind, body] of Object.entries(slimKinds)) {
+  add((lang === 'en' ? 'en-' : '') + 'slim-' + kind + '-' + theme, slimPrep(theme, lang) + body(lang));
+  if ((kind === 'list' || kind === 'receipt') && theme === 'light') { add((lang === 'en' ? 'en-' : '') + 'slim-' + kind + '-narrow', slimPrep(theme, lang) + body(lang)); const s = scenarios[scenarios.length - 1]; s.width = 880; s.height = 620; }
+}
 // Icon contact sheet: every module glyph on its real plates (sidebar gradient, palette/hero wash) at 28 and 56px.
 function iconSheet(theme) {
   document.documentElement.dataset.theme = theme;
