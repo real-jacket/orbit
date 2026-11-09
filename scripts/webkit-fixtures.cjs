@@ -290,6 +290,32 @@ add('status-live-graphs-and-controls', statusTrendScript+`
   qaAssert(!document.querySelector('#statusCardNet .status-trend-lines svg')&&!document.querySelector('#statusCardThermal .status-trend-lines svg'),'missing sensors do not keep stale histories');
   qaAssert(STATE.hw.netRxSeries.length===0&&STATE.hw.tempSeries.length===0,'sensor absence resets the corresponding chart history');
 `);
+// 状态监控在较矮窗口：进程表保持可用高度（1440x870 至少 6 行可见），更矮时整页滚动可达。
+for (const [width, height] of [[1440, 870], [1280, 720]]) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  scenarios.push({ name: `status-short-${width}x${height}-${theme}-${lang}`, width, height, script: `qaReset();window.isNativeMacApp=false;document.documentElement.dataset.theme='${theme}';
+    switchModule('status');
+    const data=structuredClone(qaTelemetry);
+    data.processes=Array.from({length:12},(_,i)=>({pid:9000+i,name:'Worker '+i,cpu:40-i,memory_mb:900-i*40,path:'/Applications/Worker '+i+'.app',power:null}));
+    for(const cpu of [12,38,27,54,18,32]){const sample=structuredClone(data);sample.cpu=cpu;sample.gpuPct=cpu/2;sample.cpuTempC=50+cpu/5;sample.net.rxBytesPerSec=1048576+cpu*32768;sample.diskIo.readBytesPerSec=2097152+cpu*65536;onNativeRealTelemetry(sample);}
+    ${lang === 'en' ? `await qaEn('short status');` : 'await qaSettle();'}
+    const body=document.querySelector('.workspace-body');body.scrollTop=0;
+    const visibleRows=()=>{const box=body.getBoundingClientRect();return [...document.querySelectorAll('#procTbody tr')].filter(r=>{const b=r.getBoundingClientRect();return b.top>=box.top-1&&b.bottom<=box.bottom+1;}).length;};
+    const rows=document.querySelectorAll('#procTbody tr').length;
+    qaAssert(rows===8,'the table keeps its eight rows, got '+rows);
+    qaAssert(document.querySelectorAll('.telemetry-card').length===9,'no metric card is removed');
+    qaAssert(getComputedStyle(document.querySelector('.telemetry-grid')).gridTemplateColumns.split(' ').length===3,'wide windows keep three card columns');
+    ${height === 870 ? `qaAssert(visibleRows()>=6,'at least six process rows are visible without scrolling, got '+visibleRows());` : `qaAssert(body.scrollHeight>body.clientHeight+20,'a short window scrolls the page instead of crushing the table');
+    qaAssert(document.querySelector('.proc-panel').getBoundingClientRect().height>=8*30,'the process panel keeps its full height');
+    body.scrollTop=body.scrollHeight;await qaSettle();qaAssert(visibleRows()===8,'scrolling reaches every process row, got '+visibleRows());`}
+    body.scrollTop=0;
+    const sortHead=[...document.querySelectorAll('.proc-table th')].find(th=>th.getAttribute('onclick')==="sortProcessesBy('memory_mb')");sortHead.click();await qaSettle();
+    qaAssert(STATE.procSortKey==='memory_mb','sort controls still work');
+    handleSearch('9003');qaAssert(document.querySelectorAll('#procTbody tr').length===1&&document.querySelector('#procTbody tr').dataset.pid==='9003','search still filters the table');
+    document.querySelector('#procTbody .proc-pin').focus();qaAssert(document.activeElement.classList.contains('proc-pin'),'row controls stay keyboard focusable');
+    handleSearch('');qaAssert(document.querySelectorAll('#procTbody tr').length===8,'clearing the search restores the table');
+    body.scrollTop=0;
+  ` });
+}
 add('restore-occupied-target', `
   switchModule('history');
   const snapshot=STATE.historyLogs[0];
