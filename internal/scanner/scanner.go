@@ -20,6 +20,7 @@ import (
 type Scanner struct {
 	home         string
 	processProbe func() (string, error)
+	appDirs      []string       // tests point the installed-app folders at a temp dir
 	optimizeRun  OptimizeRunner // tests inject a fake command runner for the optimize tasks
 	handleProbe  func(string) (bool, error)
 	installProbe func(aiInstall) bool

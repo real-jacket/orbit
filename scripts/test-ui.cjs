@@ -258,7 +258,7 @@ const receipts = vm.createContext({
   document: { getElementById() { return { classList: { contains() { return false; } } }; } },
 });
 receipts.window = receipts;
-['hasNum', 'fmtDiskSizeGb', 'selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'resolveTrash'].forEach(name => load(name, receipts));
+['hasNum', 'fmtDiskSizeGb', 'selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'servicesHasContent', 'resolveTrash'].forEach(name => load(name, receipts));
 const partialGroup = { id: 'cache', name: 'Cache', path: '/tmp/cache', tier: 'safe', checked: true, sizeGb: 3, subpaths: [
   { path: '/tmp/cache/one', sizeGb: 1, checked: true },
   { path: '/tmp/cache/two', sizeGb: 2, checked: false },

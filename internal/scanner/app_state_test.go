@@ -96,7 +96,7 @@ func TestInstalledAppsListUserLaunchItemsAndRefuseSystemOnes(t *testing.T) {
 			found = sp
 		}
 	}
-	if found == nil || found["checked"] != true || found["tier"] != nil || !strings.Contains(rows[0]["impact"].(string), "注销或重启") {
+	if found == nil || found["checked"] != true || found["tier"] != nil || !strings.Contains(rows[0]["impact"].(string), "后台服务") {
 		t.Fatalf("user launch item missing or unsafe: %+v", found)
 	}
 	for _, path := range []string{"/Library/LaunchDaemons/com.example.app.plist", "/Library/LaunchAgents/com.example.app.plist"} {

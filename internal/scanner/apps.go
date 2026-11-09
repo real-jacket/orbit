@@ -123,13 +123,21 @@ func (s *Scanner) appConfigCandidates(name, bundleID string) []string {
 	return paths
 }
 
+// defaultAppDirs are the folders scanInstalledApps reads when given none.
+func (s *Scanner) defaultAppDirs() []string {
+	if s.appDirs != nil {
+		return s.appDirs
+	}
+	return []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
+}
+
 // scanInstalledApps lists application bundles without truncating before sorting.
 func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 	results := []map[string]any{}
 	launchItems := s.loadLaunchItems()
 	procs := s.runningProcesses()
 	if len(appDirs) == 0 {
-		appDirs = []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
+		appDirs = s.defaultAppDirs()
 	}
 	for _, dir := range appDirs {
 		items, err := readDirEntries(dir)
@@ -191,7 +199,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			s.appendExisting(launchPaths, "launch", true, &subpaths)
 			impact := "仅把勾选的应用、缓存或配置路径移入废纸篓；受保护的路径保留。"
 			if len(launchPaths) > 0 {
-				impact += "启动项已被系统加载时，移入废纸篓后仍会保持加载，直到注销或重启。"
+				impact += "勾选的启动项移入废纸篓前，会先停止它在当前用户下的后台服务；系统级启动项需要管理员权限，只列出不处理。"
 			}
 			running, mainProc := appRunning(procs, fullPath)
 			cacheGB := plainGB(cacheBytes)

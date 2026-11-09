@@ -61,16 +61,24 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		go func() {
 			// The page waits for this receipt before it claims success, so a
 			// refused or failed path is reported instead of swallowed.
-			outcome := scanner.Shared.TrashPathsChecked(paths, fileIdentitiesOf(payload["identities"]))
+			var outcome scanner.TrashOutcome
 			var refs []scanner.ConfigRef
-			if wantRefs { // an uninstall: list, read only, config lines that still name what was removed
+			var services *scanner.UninstallReceipt
+			if wantRefs { // an uninstall: stop the removed apps' user-level background services around the move
+				var receipt scanner.UninstallReceipt
+				outcome, receipt = scanner.Shared.TrashUninstall(paths, fileIdentitiesOf(payload["identities"]))
+				services = &receipt
+			} else {
+				outcome = scanner.Shared.TrashPathsChecked(paths, fileIdentitiesOf(payload["identities"]))
+			}
+			if wantRefs { // list, read only, config lines that still name what was removed
 				moved := make([]string, 0, len(outcome.Moved))
 				for _, entry := range outcome.Moved {
 					moved = append(moved, entry.Original)
 				}
 				refs = scanner.Shared.ConfigReferences(moved)
 			}
-			pushTrashResult(requestID, outcome, refs)
+			pushTrashResult(requestID, outcome, refs, services)
 			// The single rescan after a destructive action lives here, so the
 			// window and the menu-bar panel share it; the page does not ask again.
 			pushRealTelemetryNow()
