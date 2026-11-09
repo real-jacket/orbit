@@ -27,17 +27,28 @@ orbit is a desktop disk cleaner in the spirit of [`tw93/mole`](https://github.co
 open-source `mo` CLI. It reads real hardware telemetry, scans and cleans in-process (no subprocess, no
 `mo` binary needed), and renders a warm, low-glare control surface instead of a terminal.
 
+Its cleanup rules are ported from Mole V1.70.0 — the same path lists, rebuildability checks, running-app
+guards, whitelist and age thresholds — and covers `mo clean`, `uninstall`, `optimize`, `purge`,
+`installer` and `slim`. What differs is how they run: every item is sorted into **Recommended**
+(selected by default), **Needs review** or **Protected**, each with a stated reason; you preview the exact
+paths; removals go to the Trash with a restore manifest instead of being deleted; and orbit never asks for
+administrator rights. [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) goes command by command: what
+is ported, and what is deliberately left out and why.
+
+The interface is in Chinese and English (switch in the sidebar), and the app updates itself from
+GitHub Releases.
+
 ## Features
 
 | Module | Backed by | What it does |
 | --- | --- | --- |
-| **Deep Clean** | `internal/scanner` + native Trash | Measures cache/log children plus common browser and developer caches; unknown, partial or active paths stay unselected |
+| **Deep Clean** | `internal/scanner` + native Trash | User caches and logs, browser profiles, developer tools, Xcode, Gradle/CocoaPods, app caches and macOS user state, using Mole's `mo clean` rules; data of a running app is protected until you quit it |
 | **AI Care** | AI catalog + native Trash | Rechecks Claude Code, Cursor Agent, Copilot CLI and Claude Desktop releases against launcher, process and open handles; models/worktrees are inspect-only |
-| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data |
-| **Optimize** | `qlmanage -r cache` | Resets Quick Look thumbnails, with a correlated success/failure receipt |
+| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data, lists config files that still reference the app, finds leftovers of apps already gone, and slims universal apps to Apple silicon only (`mo slim`) |
+| **Optimize** | Mole's 19 `mo optimize` tasks | Checks each task first; 10 can run (with receipts, and undo where something changed), the rest say why orbit does not run them (administrator rights, or data that cannot be restored) |
 | **Astrolabe** | `internal/analyze` | Allocated/logical size map with current-layer search, inspectable folded items, file counts, mtimes and memory drill-down |
 | **Live Status** | Kernel + `ps` + hardware sensors | CPU, memory, network and supported sensor data; search processes by name/path/PID |
-| **Purge** | Build/installer scanner + native Trash | Reviews rebuildable artifacts and installer packages |
+| **Purge** | Build/installer scanner + native Trash | Rebuildable build artifacts (`mo purge`, scan folders shared through `~/.config/mole/purge_paths`) and leftover installer packages (`mo installer`) |
 | **History & Whitelist** | Native manifests + mole whitelist | Cleanup receipts, path restoration and protected-path management |
 
 Beyond the module list:
@@ -79,6 +90,7 @@ make run-raw     # temporary go run executable, for bridge debugging only
 make test        # unit test suite
 make test-ui-webkit # isolated WebKit rendering + interaction checks
 make vet         # go vet
+make mole-sync   # list upstream Mole changes to the ported rules
 make check       # vet + test, the same gate CI runs
 make dev         # MyGo dev server with live reload (needs the `mygo` CLI)
 make app         # app bundle plus a .dmg, both under build/
@@ -237,11 +249,15 @@ did change in `Resources/src-ui/index.html` is the part that talked to the nativ
 posts straight to `NativeBridge.Dispatch` through `window.mygo.call` (`nativePost` in `index.html`), and the page now waits for a receipt
 before it claims anything was deleted or restored. Actions the page sends: `revealInFinder`, `copyText`,
 `killProcess`, `trashRealPaths`, `restoreTrashSnapshot`, `addWhitelist`/
-`removeWhitelist`, `runDoctorReCheck`, `requestRealSystemScan`, `requestDiskAnalyze`,
-`requestRealTelemetry`, `cancelDiskAnalyze`, `toggleCaffeinate`, `startWindowDrag`, `toggleWindowZoom`,
-`setTheme`, the `menubar*` family. Callbacks: `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`,
-`onNativeTrashResult`, `onNativeRestoreResult`, `onNativeWhitelistChanged`, `onNativeCaffeinate`,
-`onNativeDoctorReport`, `onNativeAnalyzeProgress`, `switchModule`, `openConfirmSheet`. Only `setFanMode` still falls through to
+`removeWhitelist`, `addPurgeRoot`/`removePurgeRoot`, `runDoctorReCheck`, `requestRealSystemScan`,
+`measurePathFully`, `requestDiskAnalyze`, `requestRealTelemetry`, `cancelDiskAnalyze`,
+`requestOptimizePlan`, `executeOptimize`, `undoOptimize`, `scanSlim`, `slimApps`, `toggleCaffeinate`,
+`startWindowDrag`, `toggleWindowZoom`, `setTheme`, `setLanguage`, `checkForUpdates`, the `menubar*` family.
+Callbacks: `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`,
+`onNativeTrashResult`, `onNativeRestoreResult`, `onNativeWhitelistChanged`, `onNativePurgeRootsChanged`,
+`onNativeOptimizePlan`, `onNativeOptimizeResult`, `onNativeOptimizeUndo`, `onNativeSlimScan`,
+`onNativeSlimResult`, `onNativeCaffeinate`, `onNativeDoctorReport`, `onNativeAnalyzeProgress`,
+`switchModule`, `openConfirmSheet`. Only `setFanMode` still falls through to
 `default`: it needs SMC access, which the port deliberately does not do (see
 [`docs/business-logic-review.md`](docs/business-logic-review.md) §4).
 
@@ -292,9 +308,9 @@ wired up:
   itself; failures and cancellation do not start a second CLI scan.
   `go test ./...` covers the numeric and payload-shape behaviour of all three.
 - **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles Finder reveal, clipboard,
-  process termination, native Trash/restore, whitelist updates, diagnostics, Quick Look maintenance,
-  caffeinate, theme persistence and window/menu-bar actions. Trash, restore, diagnosis and maintenance
-  use native receipts. Fan control remains unsupported.
+  process termination, native Trash/restore, whitelist and purge folder updates, diagnostics,
+  caffeinate, theme and language persistence, optimize tasks, app slimming and window/menu-bar actions.
+  Trash, restore, diagnosis, optimize and slimming use native receipts. Fan control remains unsupported.
 - **CI builds the Go app.** `.github/workflows/ci.yml` runs `go vet` / `go test` / `go build`, installs the
   pinned `mygo` CLI, packages with `mygo build --skip-dmg`, and then asserts the bundle is real — the
   Mach-O executable, a valid `Info.plist`, `Contents/Resources/AppIcon.icns` that unpacks with
@@ -302,8 +318,11 @@ wired up:
   clean `mygo generate` (so `mygo.ts` can never be stale in a PR).
 - **AI cleanup does not depend on aspirational CLI flags.** Mole CLI has no AI-clean subcommand; orbit
   scans a local, bounded catalog and submits only verified-old-version paths through native Trash.
-  Current/spare versions, active tools, extensions, models, sessions and worktrees are retained.
-  See [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) for the exact, deliberately partial CLI comparison.
+  Like Mole's `clean_dev_ai_agents`, it keeps the current and one spare version and anything a process
+  still has open; extensions, models, sessions and worktrees are retained.
+- **Ported rules can follow upstream.** `make mole-sync` diffs every marked Mole function between the
+  version it was ported from and the latest Mole release. See
+  [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) for the command by command comparison.
 - **Space analysis follows mature explorer patterns without a second rendering stack.** DaisyDisk's
   inspectable "smaller objects", SpaceSniffer's current-scope filtering and GrandPerspective's
   treemap navigation informed the bounded folded-item sample and small-window map-first layout.
@@ -321,18 +340,27 @@ wired up:
 
 The app deletes files, so the guardrails are the point:
 
-- Protected categories (`tier == "protected"`) cannot be selected — the toggle is a no-op.
-- Every destructive action is previewed before execution.
-- Dry-run is on by default.
-- The whitelist is read from `~/.config/mole/whitelist`, the same file `mo` uses.
+- Every item has a tier. **Recommended** items are rebuildable and not in use, and are selected by
+  default. **Needs review** and **Protected** items carry a plain reason; protected ones cannot be
+  selected, and when the reason is a running app they say what to quit.
+- Every destructive action is previewed before execution, with the exact paths frozen at confirmation.
 - Cleanup moves items to the Trash, and the page waits for a native receipt before it reports success.
+  History can put them back. orbit never empties the Trash.
+- orbit never asks for administrator rights. Mole tasks that need `sudo` are listed with that reason
+  and not run; tasks that would destroy data the Trash cannot hold are not run either.
+- Settings changes (optimize) record the previous value, so they can be undone.
+- The whitelist is read from `~/.config/mole/whitelist`, the same file `mo` uses.
 
 ## Relationship to upstream
 
 This project is an independent GUI client. It is **not** affiliated with or endorsed by
-[tw93/mole](https://github.com/tw93/mole). It contains no upstream source code and does not
-redistribute the `mo` binary, and does not run it. Upstream `mo` is
-licensed GPL-3.0, and this client is licensed GPL-3.0 to match.
+[tw93/mole](https://github.com/tw93/mole), and it does not redistribute or run the `mo` binary.
+
+Parts of its cleanup rules are ported from Mole V1.70.0 (shell → Go). Upstream `mo` is licensed
+GPL-3.0, and this client is licensed GPL-3.0 to match. Each ported rule carries a comment such as
+`// Ported from tw93/Mole V1.70.0 lib/clean/user.sh clean_browsers`; `make mole-sync` reads those
+markers and prints what changed upstream in exactly those functions since, so the rules can follow new
+Mole releases. See [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md).
 
 ## Contributing
 
