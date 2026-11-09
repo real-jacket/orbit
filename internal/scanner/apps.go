@@ -140,11 +140,19 @@ func (s *Scanner) appConfigCandidates(name, bundleID string) []string {
 }
 
 // defaultAppDirs are the folders scanInstalledApps reads when given none.
+// machineWide is false in tests: a verdict then depends only on the scanner's
+// home, never on what the Mac running the tests has installed.
+var machineWide = true
+
 func (s *Scanner) defaultAppDirs() []string {
 	if s.appDirs != nil {
 		return s.appDirs
 	}
-	return []string{"/Applications", "/Applications/Utilities", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
+	home := []string{filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Applications/Utilities")}
+	if !machineWide {
+		return home
+	}
+	return append([]string{"/Applications", "/Applications/Utilities"}, home...)
 }
 
 // scanInstalledApps lists application bundles without truncating before sorting.

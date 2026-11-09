@@ -76,7 +76,7 @@ func (s *Scanner) launcherDirs(extra []string) []string {
 	var dirs []string
 	for _, pattern := range append(append([]string{}, aiLauncherDirs...), extra...) {
 		if filepath.IsAbs(pattern) {
-			if s.appDirs != nil {
+			if s.appDirs != nil || !machineWide {
 				continue
 			}
 		} else {

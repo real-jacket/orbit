@@ -30,6 +30,7 @@ func sessionScanner(t *testing.T, installed bool) *Scanner {
 
 func TestAIExpiredCodexSessionsKeepNewestAndRecent(t *testing.T) {
 	s := sessionScanner(t, true)
+	installOwners(t, s.home)
 	var rollouts []string
 	for i := 0; i < 8; i++ { // days 200..130, all expired by age
 		path := filepath.Join(s.home, ".codex/sessions/2026/01/02", fmt.Sprintf("rollout-2026-01-02T00-00-0%d-id.jsonl", i))
@@ -99,6 +100,7 @@ func TestAIExpiredCodexSessionsKeepNewestAndRecent(t *testing.T) {
 
 func TestAIExpiredClaudeSessionUnitsAreWholeAndRankedPerProject(t *testing.T) {
 	s := sessionScanner(t, true)
+	installOwners(t, s.home)
 	project := filepath.Join(s.home, ".claude/projects/-tmp-proj")
 	ids := make([]string, 7)
 	for i := range ids {
