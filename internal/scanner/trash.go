@@ -35,6 +35,9 @@ type TrashEntry struct {
 	At       int64  `json:"at"`
 	Device   uint64 `json:"device,omitempty"`
 	Inode    uint64 `json:"inode,omitempty"`
+	// Unloaded lists the launchd jobs stopped just before this plist moved, so a
+	// restore can start them again.
+	Unloaded []LaunchUnload `json:"unloaded,omitempty"`
 }
 
 // TrashFailure is one path the app could not move.
@@ -66,6 +69,10 @@ type RestoreOutcome struct {
 	Requested int
 	Restored  []string
 	Failed    []TrashFailure
+	// Restarted and RestartFailed report the background services a restored
+	// LaunchAgent plist had before the uninstall stopped them.
+	Restarted     []string
+	RestartFailed []ServiceFailure
 }
 
 // StateDir is where the app keeps its own state: window preferences and the
@@ -182,6 +189,10 @@ type FileIdentity struct{ Size, Mtime int64 }
 // it is still the same regular file the scan listed. Mole's installer cleanup
 // re-checks the same way before it deletes.
 func (s *Scanner) TrashPathsChecked(rawPaths []string, identities map[string]FileIdentity) TrashOutcome {
+	return s.trashPaths(rawPaths, identities, nil)
+}
+
+func (s *Scanner) trashPaths(rawPaths []string, identities map[string]FileIdentity, hooks *trashHooks) TrashOutcome {
 	outcome := TrashOutcome{Requested: len(rawPaths)}
 	if !trashOperationMu.TryLock() {
 		for _, path := range rawPaths {
@@ -227,12 +238,22 @@ func (s *Scanner) TrashPathsChecked(rawPaths []string, identities map[string]Fil
 			}
 		}
 		// Dispatch runs off the UI thread; a timeout cannot cancel rename(2).
+		var unloaded []LaunchUnload
+		if hooks != nil {
+			unloaded = hooks.before(path)
+		}
 		trashed, err := moveToTrash(path)
 		if err != nil {
+			if hooks != nil {
+				hooks.failed(path, unloaded)
+			}
 			outcome.Failed = append(outcome.Failed, trashFailure(path, err))
 			continue
 		}
-		entry := TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix()}
+		if hooks != nil {
+			hooks.moved(path, trashed)
+		}
+		entry := TrashEntry{Original: path, Trashed: trashed, At: time.Now().Unix(), Unloaded: unloaded}
 		if info, err := os.Lstat(trashed); err == nil {
 			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
 				entry.Device, entry.Inode = uint64(stat.Dev), uint64(stat.Ino)
@@ -348,6 +369,9 @@ func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string
 		}
 		outcome.Restored = append(outcome.Restored, original)
 		restored = append(restored, entry)
+		started, failed := s.restartServices(entry)
+		outcome.Restarted = append(outcome.Restarted, started...)
+		outcome.RestartFailed = append(outcome.RestartFailed, failed...)
 	}
 	if len(restored) > 0 {
 		_ = forgetTrash(restored)

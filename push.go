@@ -176,7 +176,7 @@ func cancelDiskAnalyze(requestID string) {
 // pushTrashResult sends the receipt for one trash request. The page only
 // claims "已成功清理" when this arrives, and it reports the refused and failed
 // paths instead of hiding them.
-func pushTrashResult(requestID string, outcome scanner.TrashOutcome, configRefs []scanner.ConfigRef) {
+func pushTrashResult(requestID string, outcome scanner.TrashOutcome, configRefs []scanner.ConfigRef, services *scanner.UninstallReceipt) {
 	moved := make([]map[string]any, 0, len(outcome.Moved))
 	for _, entry := range outcome.Moved {
 		moved = append(moved, map[string]any{"original": entry.Original, "trashed": entry.Trashed})
@@ -201,6 +201,9 @@ func pushTrashResult(requestID string, outcome scanner.TrashOutcome, configRefs 
 	if configRefs != nil { // only an uninstall asks for them; file and line, never the line's text
 		payload["configRefs"] = configRefs
 	}
+	if services != nil { // only an uninstall: what was stopped, started again, failed, and the Homebrew note
+		payload["services"] = services
+	}
 	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult(" + jsonOf(payload) + ") : undefined")
 }
 
@@ -217,6 +220,8 @@ func pushRestoreResult(requestID string, outcome scanner.RestoreOutcome) {
 		"restored":      restored,
 		"restoredCount": len(restored),
 		"failed":        failed,
+		"restarted":     append([]string{}, outcome.Restarted...),
+		"restartFailed": append([]scanner.ServiceFailure{}, outcome.RestartFailed...),
 	}
 	evaluate("window.onNativeRestoreResult ? window.onNativeRestoreResult(" + jsonOf(payload) + ") : undefined")
 }
