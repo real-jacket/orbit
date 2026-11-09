@@ -259,6 +259,7 @@ func TestAppSubpathsExposeUnroundedMeasuredSize(t *testing.T) {
 
 func TestAppCacheDiscoveryKeepsProtectedMeasurements(t *testing.T) {
 	home := fixtureHome(t)
+	installOwners(t, home)
 	chrome := fixtureDir(t, home, "Library/Caches/Google/Chrome", 4096)
 	codex := fixtureDir(t, home, "Library/Caches/com.openai.codex", 8192)
 	s := &Scanner{home: home, processProbe: func() (string, error) { return "/sbin/launchd\n", nil }}
@@ -321,6 +322,7 @@ func TestAppCacheIncompleteMeasurementRemainsVisible(t *testing.T) {
 
 func TestAIKeepsUnidentifiedVersionsAndInstalledExtensions(t *testing.T) {
 	home := fixtureHome(t)
+	installOwners(t, home)
 	fixtureDir(t, home, ".local/share/claude/versions/2.0.0", 4096)
 	fixtureDir(t, home, ".cursor/extensions/vendor.extension", 4096)
 	s := &Scanner{home: home}

@@ -92,6 +92,7 @@ func TestCleanupStopsWhenWhitelistCannotBeRead(t *testing.T) {
 
 func TestCleanupProtectsCoreAIDataAndSymlinkAliases(t *testing.T) {
 	s := newTestScanner(t)
+	installOwners(t, s.home)
 	for _, relative := range []string{".ssh/key", ".codex/worktrees/a/project/source", ".claude/projects/session", ".cursor/extensions/installed/payload", ".cache/huggingface/hub/model"} {
 		original := filepath.Join(s.home, relative)
 		writeFile(t, original, "user data")

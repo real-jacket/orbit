@@ -207,6 +207,7 @@ func TestAICacheCaseAliasesKeepWhitelistProtection(t *testing.T) {
 
 func TestAIAgentLogLatestReferenceAndOpenHandleAreRetained(t *testing.T) {
 	home := fixtureHome(t)
+	installOwners(t, home)
 	root := filepath.Join(home, ".claude/debug")
 	old := filepath.Join(root, "old.txt")
 	current := filepath.Join(root, "current.txt")
