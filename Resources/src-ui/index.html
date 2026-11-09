@@ -3836,15 +3836,15 @@ function recomputeDiskAnalyzeTotals() {
 const fmtPartialGb = (gb, partial) => !partial ? fmtDiskSizeGb(gb) : hasNum(gb) && gb > 0 ? '≥ ' + fmtDiskSizeGb(gb) : t('未读取');
 const spSizeText = sp => hasNum(sp.sizeGb) ? fmtPartialGb(sp.sizeGb, sp.partial) : sp.size;
 const TIERS = ['safe', 'review', 'protected'];
-const tierLabel = tier => tier === 'safe' ? t('推荐清理') : tier === 'review' ? t('需确认') : t('受保护');
+const tierLabel = tier => tier === 'safe' ? t('推荐清理') : tier === 'protected' ? t('受保护') : t('需确认');
 const tierFallback = tier => tier === 'safe' ? t('可重建缓存，清理后会按需重新生成。') : tier === 'review' ? t('用途需要你确认，确认后才会处理。') : t('为避免误删，这一项只读保留。');
 // 每行 / 子路径的可见说明：reason 为空的旧载荷用分级通用句；protected 再显示 unlock；partial 说明 ≥ 不影响清理。
-function tierNoteHTML(x, parent, row) {
+function tierNoteHTML(x, parent, row, safeLabel) {
   const tier = TIERS.includes(x.tier) ? x.tier : TIERS.includes(parent && parent.tier) ? parent.tier : '';
   if (!tier) return '';
   const reason = x.reason || x.safetyReason;
   const text = reason ? t(reason) : tier === 'safe' && !row ? '' : tierFallback(tier);
-  return `<div class="row-sub tier-note tier-${tier}" data-tier-note="${tier}">${row ? '' : `<b class="tier-tag">${tierLabel(tier)}</b>`}${text ? `<span>${escHtml(text)}</span>` : ''}${tier === 'protected' && x.unlock ? `<span class="tier-unlock">${UI_ICON('lock')}${escHtml(t(x.unlock))}</span>` : ''}${x.partial ? `<span>${t('体积为已测下限，不影响清理')}</span>` : ''}</div>`;
+  return `<div class="row-sub tier-note tier-${tier}" data-tier-note="${tier}">${row ? '' : `<b class="tier-tag">${tier === 'safe' && safeLabel ? safeLabel : tierLabel(tier)}</b>`}${text ? `<span>${escHtml(text)}</span>` : ''}${tier === 'protected' && x.unlock ? `<span class="tier-unlock">${UI_ICON('lock')}${escHtml(t(x.unlock))}</span>` : ''}${x.partial ? `<span>${t('体积为已测下限，不影响清理')}</span>` : ''}</div>`;
 }
 // 汇总按子路径计（没有子路径的行按行计）；没有合法 tier 的旧载荷不归类，也就不出汇总。
 function tierSummary(items) {
@@ -6355,7 +6355,7 @@ function optimizeListHTML() {
       : it.status === 'clear' ? '<span class="opt-dot done"></span>' : `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`;
     const note = it.status === 'clear'
       ? `<div class="row-sub" style="font-family:var(--font-sans);white-space:normal;">${escHtml(t(it.reason))}</div>`
-      : tierNoteHTML(it, null, false);
+      : tierNoteHTML(it, null, false, t('推荐执行'));
     return `
       <div class="list-row" data-optimize-task="${escHtml(it.id)}" data-status="${escHtml(it.status)}" style="cursor:default;align-items:flex-start;">
         <div class="row-left" style="align-items:flex-start;">

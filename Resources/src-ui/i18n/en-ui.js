@@ -1060,4 +1060,5 @@ I18N.add({
   "确认后 orbit 先瘦身副本并检查签名，通过后才替换原应用": "After you confirm, orbit slims a copy and checks its signature. It replaces the app only if the checks pass",
   "确认瘦身": "Confirm slimming",
   "未瘦身": "Not slimmed",
+  "推荐执行": "Recommended",
 });
