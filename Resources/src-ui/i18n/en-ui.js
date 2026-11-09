@@ -672,7 +672,6 @@ I18N.add({
   "立即采样刷新": "Sample now",
   "图表保留最近 40 次显示采样，硬件采集频率不同；参考分不是硬件诊断。SIGTERM 仍可能丢失未保存内容，需二次确认。": "Charts keep the last 40 display samples; hardware sampling rates vary. The reference score is not a hardware diagnosis. SIGTERM can still lose unsaved work, so it needs a second confirmation.",
   "遥测参考分": "Telemetry score",
-  "进程 · 当前排序前 8 项": "Processes · top 8 by current sort",
   "每 1.5 秒刷新显示": "Refreshes every 1.5 s",
   "进程名称": "Process",
   "CPU 占用": "CPU",
@@ -1110,4 +1109,8 @@ I18N.add({
   "读取受保护的目录需要这项权限": "Reading protected folders needs this permission",
   "{why}。在系统设置里打开 orbit 的开关，回来重试；已移入废纸篓的条目不受影响。": "{why}. Turn on orbit's switch in System Settings, then come back and retry. Items already moved to the Trash are not affected.",
   "这个应用由 App Store 或安装器以管理员身份安装，移动需要管理员密码；orbit 不申请管理员权限。可在访达中把它拖到废纸篓（会要求输入密码），或在启动台中删除。": "This app was installed by the App Store or an installer as an administrator, so moving it needs an administrator password. orbit does not ask for administrator rights. Drag it to the Trash in Finder (it will ask for a password) or delete it from Launchpad.",
+  // ---- Mole parity: live ----
+  "占用最高的进程": "Top processes",
+  "全部进程": "All processes",
+  "没有匹配的进程": "No matching processes",
 });
