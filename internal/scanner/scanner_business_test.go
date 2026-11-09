@@ -202,8 +202,10 @@ func TestBuildDiscoveryStopsAtItsDeadlineWithOneWarning(t *testing.T) {
 
 func TestBuildDiscoveryPrunesWhatIsNotAProject(t *testing.T) {
 	home := fixtureHome(t)
+	writeFile(t, filepath.Join(home, "code/app/package.json"), "{}")
 	want := fixtureDir(t, home, "code/app/node_modules", 21_000_000)
-	// Never descended into: an artifact, a hidden directory, a bundle and a heavy non-project directory.
+	// Never descended into: an artifact, a bundle and a heavy non-project directory.
+	// A hidden directory is walked like any other (Mole does), so its artifact is found.
 	fixtureDir(t, home, "code/app/node_modules/dep/node_modules", 21_000_000)
 	fixtureDir(t, home, "code/.hidden/node_modules", 21_000_000)
 	fixtureDir(t, home, "code/Tool.app/node_modules", 21_000_000)
@@ -211,8 +213,9 @@ func TestBuildDiscoveryPrunesWhatIsNotAProject(t *testing.T) {
 	scanner := &Scanner{home: home}
 	var candidates []artifactCandidate
 	scanner.walkArtifacts(filepath.Join(home, "code"), time.Now().Add(time.Minute), &candidates)
-	if len(candidates) != 1 || candidates[0].path != want {
-		t.Fatalf("discovery must list only the project's own artifact: %v", candidates)
+	hidden := filepath.Join(home, "code/.hidden/node_modules")
+	if len(candidates) != 2 || candidates[0].path != hidden || candidates[1].path != want {
+		t.Fatalf("discovery must list the project's artifact and the hidden folder's, nothing inside them or bundles: %v", candidates)
 	}
 }
 
@@ -680,42 +683,6 @@ func TestOrphanContainersAreCandidatesOnly(t *testing.T) {
 	}
 	if len(rows) != 3 {
 		t.Errorf("want 3 unsigned container rows, got %d: %v", len(rows), rows)
-	}
-}
-
-// TestInstallerArchivesAreNotPrechecked covers S-07: only installers are
-// listed, and a zip is never pre-checked.
-func TestInstallerArchivesAreNotPrechecked(t *testing.T) {
-	home := fixtureHome(t)
-	downloads := filepath.Join(home, "Downloads")
-	if err := os.MkdirAll(downloads, 0o755); err != nil {
-		t.Fatalf("MkdirAll(Downloads): %v", err)
-	}
-	writeTestFile(t, filepath.Join(downloads, "family-photos.zip"), 21<<20)
-	writeTestFile(t, filepath.Join(downloads, "Xcode_15.xip"), 22<<20)
-	writeTestFile(t, filepath.Join(downloads, "macOS_Sequoia_Installer.zip"), 23<<20)
-
-	items := (&Scanner{home: home}).scanInstallerPackages()
-	names := map[string]map[string]any{}
-	for _, item := range items {
-		names[item["name"].(string)] = item
-	}
-	if _, listed := names["family-photos.zip"]; listed {
-		t.Error("a zip whose name is not an installer name must not be listed")
-	}
-	for _, name := range []string{"Xcode_15.xip", "macOS_Sequoia_Installer.zip"} {
-		item, listed := names[name]
-		if !listed {
-			t.Errorf("%s should be listed, got %v", name, names)
-			continue
-		}
-		checked, _ := item["checked"].(bool)
-		if name == "macOS_Sequoia_Installer.zip" && checked {
-			t.Errorf("installer zip %s must not be pre-checked", name)
-		}
-	}
-	if isInstaller, _ := isInstallerFile("project-backup.zip"); isInstaller {
-		t.Error("project-backup.zip must not be classified as an installer")
 	}
 }
 

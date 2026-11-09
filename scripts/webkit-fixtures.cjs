@@ -77,6 +77,7 @@ function installEnglishWalk() {
   // Switch live to English, run the scenario step, and fail on any CJK left on screen.
   window.qaEn = async (label, step) => {
     qaEnglishFixture();
+    I18N.add(window.qaPendingEn || {});
     I18N.setLang('en', false);
     qaAssert(document.documentElement.lang === 'en', 'html lang follows the language');
     if (step) await step();
@@ -87,7 +88,10 @@ function installEnglishWalk() {
   window.qaStageText = () => document.getElementById('moduleStage').textContent + '|' + document.querySelector('.top-header').textContent;
   window.qaSettle = settle;
 }
-const setupEn = '(' + installEnglishWalk.toString() + ')();';
+// Parity installer track: strings still waiting in the i18n TSVs are shimmed so English renders; absent after merge.
+const pendingEn = {};
+for (const f of ['/tmp/orbit-i18n-installer.tsv', '/tmp/orbit-i18n-installer-ui.tsv']) if (fs.existsSync(f)) for (const line of fs.readFileSync(f, 'utf8').split('\n')) { const [zh, en] = line.split('\t'); if (zh && en) pendingEn[zh] = en; }
+const setupEn = '(' + installEnglishWalk.toString() + ')();window.qaPendingEn=' + JSON.stringify(pendingEn) + ';';
 fs.writeFileSync(dir + '/fixtures.js', setup + setupEn);
 const scenarios = [];
 const modules = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'];
@@ -2008,7 +2012,7 @@ add('measure-full-clean-and-ai', `
 add('purge-installer-empty-state', `
   onNativeRealScanComplete({...structuredClone(qaFixture),installerFiles:[]});switchModule('purge');
   const note=document.querySelector('[data-installer-empty]');
-  qaAssert(note&&note.textContent.includes('~/Downloads')&&note.textContent.includes('Homebrew/downloads')&&note.textContent.includes('20 MB'),'an empty installer list says what was checked');
+  qaAssert(note&&note.textContent.includes('下载、桌面、文稿')&&note.textContent.includes('mpkg'),'an empty installer list says what was checked');
   onNativeRealScanComplete({...structuredClone(qaFixture)});switchModule('purge');
   qaAssert(!document.querySelector('[data-installer-empty]'),'the empty state disappears when installers exist');
 `);
@@ -2205,6 +2209,17 @@ add('refresh-fallback-single-rescan', `
   qaAssert(__qa.actions.filter(a=>a.action==='requestRealSystemScan').length===1,'back-to-back operations cause exactly one fallback rescan, got '+__qa.actions.filter(a=>a.action==='requestRealSystemScan').length);
   endRefreshing();
 `);
+const purgeRootsFixture = `const rootsOf=(paths,custom,error)=>({...structuredClone(qaFixture),purgeRoots:{paths,custom,error:error||''},installerFiles:[
+  {id:'i1',name:'Canvas Setup.dmg',location:'~/Downloads',path:'~/Downloads/Canvas Setup.dmg',source:'Downloads',sizeGb:1,size:1073741824,mtime:1761739200,age:'3 个月前',checked:true,tier:'safe'},
+  {id:'i2',name:'Tool.pkg',location:'~/Library/Caches/Homebrew/downloads',path:'~/Library/Caches/Homebrew/downloads/Tool.pkg',source:'Homebrew',sizeGb:0.4,size:429496729,mtime:1761739200,age:'3 个月前',checked:true,tier:'safe'},
+  {id:'i3',name:'Archive.zip',location:'~/Desktop',path:'~/Desktop/Archive.zip',source:'Desktop',sizeGb:0.2,size:214748364,mtime:1761739200,age:'3 个月前',checked:false,tier:'review',reason:'压缩包里含有安装程序，但也可能是你想留的资料，请确认后再清理'}]});`;
+for (const [state, args, extra] of [['default', "['~/Projects','~/GitHub'],false", "qaAssert(document.querySelector('.purge-roots summary').textContent.includes('2'),'summary counts the real roots');qaAssert(!document.querySelector('.purge-roots .row-remove'),'default roots cannot be removed');"],
+  ['custom', "['~/Work/app-one','~/Work/app-two'],true", "qaAssert(document.querySelectorAll('.purge-roots .row-remove').length===2,'custom roots can be removed');"],
+  ['error', "[],false,'无法读取 ~/.config/mole/purge_paths，已停止扫描构建产物：permission denied'", "qaAssert(document.querySelector('.purge-roots').open,'a read failure opens the control');"]])
+  for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en'])
+    scenarios.push({ name: `purge-roots-${state}-${lang}-${theme}`, width: 1380, height: 860, script: `qaReset();document.documentElement.dataset.theme='${theme}';${purgeRootsFixture}onNativeRealScanComplete(rootsOf(${args}));switchModule('purge');const d=document.querySelector('.purge-roots');qaAssert(d,'scan folders control renders');d.open=true;STATE.purgeRootsOpen=true;${extra}qaAssert(document.getElementById('moduleStage').textContent.includes('Homebrew'),'installer source shows per row');${lang === 'en' ? "await qaEn('purge roots " + state + "',async()=>{document.querySelector('.purge-roots').open=true;});" : ''}` });
+add('purge-roots-bridge', `${purgeRootsFixture}onNativeRealScanComplete(rootsOf(['~/Projects'],false));switchModule('purge');document.getElementById('purgeRootInput').value='relative/dir';addPurgeRootInput();qaAssert(!__qa.actions.some(a=>a.action==='addPurgeRoot'),'relative paths never reach Go');document.getElementById('purgeRootInput').value='~/Work/app';addPurgeRootInput();const add=__qa.actions.find(a=>a.action==='addPurgeRoot');qaAssert(add&&add.path==='~/Work/app','add sends the typed path');onNativePurgeRootsChanged({ok:true,action:'addPurgeRoot',path:'~/Work/app',purgeRoots:{paths:['~/Work/app'],custom:true,error:''}});qaAssert(STATE.purgeRoots.custom&&STATE.purgeRoots.paths[0]==='~/Work/app','receipt drives the list');removePurgeRootIdx(0);qaAssert(__qa.actions.some(a=>a.action==='removePurgeRoot'),'remove sends a bridge action');`);
+add('purge-installer-identity', `${purgeRootsFixture}onNativeRealScanComplete(rootsOf(['~/Projects'],false));switchModule('purge');STATE.installerFiles[2].checked=true;openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(req,'trash request is sent');const key=req.paths.find(p=>p.endsWith('Canvas Setup.dmg'));qaAssert(key&&req.identities[key]&&req.identities[key].size===1073741824&&req.identities[key].mtime===1761739200,'installer identity travels with the request');`);
 // Icon contact sheet: every module glyph on its real plates (sidebar gradient, palette/hero wash) at 28 and 56px.
 function iconSheet(theme) {
   document.documentElement.dataset.theme = theme;

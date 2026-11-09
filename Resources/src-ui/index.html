@@ -2106,6 +2106,8 @@ const DEFAULT_STATE = {
   processes: [],
   purgeItems: [],
   installerFiles: [],
+  purgeRoots: { paths: [], custom: false, error: '' },
+  purgeRootsOpen: false,
   treemap2D: [],
   analyzeInsights: [],
   analyzeSource: '',
@@ -2380,7 +2382,9 @@ function submitTrash(entries, opts) {
   renderModule();
   window.setTimeout(() => resolveTrash({ requestId, timedOut: true, movedPaths: [], failed: [], skipped: [] }), NATIVE_RESULT_TIMEOUT_MS);
   showToast(t('正在移入废纸篓（{n} 个路径），等待系统回执…', { n: paths.length }));
-  sendNativeBridge({ action: 'trashRealPaths', paths, requestId });
+  // 安装包带着扫描时的大小与修改时间，Go 侧移动前核对，文件有变化就跳过。
+  const identities = Object.assign({}, ...live.map(e => e.identities || {}));
+  sendNativeBridge({ action: 'trashRealPaths', paths, requestId, identities });
   return true;
 }
 
@@ -2634,6 +2638,37 @@ window.onNativeWhitelistChanged = function(res) {
   if (STATE.whitelistWarnings.length) console.warn('[whitelist]', STATE.whitelistWarnings.join('; '));
 };
 
+// 构建清理的扫描目录以 Go 侧文件（~/.config/mole/purge_paths）为准，页面只渲染它推来的结果。
+function setPurgeRoots(roots) {
+  STATE.purgeRoots = {
+    paths: roots.paths.filter(p => typeof p === 'string' && p),
+    custom: roots.custom === true,
+    error: typeof roots.error === 'string' ? roots.error : ''
+  };
+}
+window.onNativePurgeRootsChanged = function(res) {
+  if (!res) return;
+  if (res.purgeRoots && Array.isArray(res.purgeRoots.paths)) setPurgeRoots(res.purgeRoots);
+  renderModule();
+  if (res.ok === false) showToast(t('扫描目录更新失败：{error}', { error: t(res.error || '未知原因') }));
+  else showToast(res.action === 'removePurgeRoot' ? t('已移除扫描目录 {path}，正在重新扫描', { path: displayPath(res.path || '') }) : t('已添加扫描目录 {path}，正在重新扫描', { path: displayPath(res.path || '') }));
+};
+function addPurgeRootInput() {
+  const inp = document.getElementById('purgeRootInput');
+  if (!inp || !inp.value.trim()) return;
+  const val = inp.value.trim();
+  if (!val.startsWith('/') && !val.startsWith('~')) { showToast(t('请输入绝对路径或以 ~ 开头的路径')); return; }
+  sendNativeBridge({ action: 'addPurgeRoot', path: val });
+  inp.value = '';
+  showToast(t('正在添加扫描目录 {path}，等待系统回执…', { path: val }));
+}
+function removePurgeRootIdx(idx) {
+  const path = (STATE.purgeRoots.paths || [])[idx];
+  if (!path) return;
+  sendNativeBridge({ action: 'removePurgeRoot', path });
+  showToast(t('正在移除扫描目录 {path}，等待系统回执…', { path: displayPath(path) }));
+}
+
 window.onNativeAnalyzeError = function(res) {
   STATE.analyzeLoading = false;
   STATE.analyzeProgress = null;
@@ -2658,6 +2693,7 @@ window.onNativeRealScanComplete = function(payload) {
     STATE.whitelist = (payload.whitelist || []).filter(w => typeof w === 'string' && w.length > 0);
     STATE.whitelistWarnings = Array.isArray(payload.whitelistWarnings) ? payload.whitelistWarnings.filter(w => typeof w === 'string') : [];
   }
+  if (payload.purgeRoots && Array.isArray(payload.purgeRoots.paths)) setPurgeRoots(payload.purgeRoots);
   // A fresh native scan is authoritative, including paths recreated after a cleanup.
   STATE.deletedPathsRegistry = [];
   STATE.registrySavedAt = 0;
@@ -5876,7 +5912,7 @@ function renderModule() {
     heroHeadline.textContent = totalDevGb > 0
       ? t('发现 {build} GB 项目构建产物 + {inst} GB 独立安装包', {build: purgeGb.toFixed(2), inst: instGb.toFixed(2)})
       : !(STATE.purgeItems.length + STATE.installerFiles.length) ? t('还没有扫描结果') : t('所有勾选的项目构建产物与独立安装包已清理完毕');
-    heroDesc.textContent = t('工作区目录按名称匹配；推荐清理已默认勾选，其余需确认或受保护。安装包独立扫描，移动到废纸篓不等于立即释放空间。');
+    heroDesc.textContent = t('构建目录按名称匹配，并检查是否含有项目自己的文件；推荐清理已默认勾选，其余需确认或受保护。安装包独立扫描，移动到废纸篓不等于立即释放空间。');
     heroStatLabel.textContent = t('已勾选构建与安装包');
     heroStatValue.textContent = `${totalDevGb.toFixed(2)} GB`;
     heroStatSub.textContent = t('二次确认后真实移入 ~/.Trash');
@@ -5889,6 +5925,7 @@ function renderModule() {
             <span>${t('构建产物')}</span>
             <span class="badge badge-review">${t('按名称匹配')}</span>
           </div>
+          ${purgeRootsHTML()}
           <div class="list-body">
             ${STATE.purgeItems.map((item, idx) => !matchesSearch(item) ? '' : `
               <div class="list-row ${idx === STATE.selectedPurgeIdx ? 'selected' : ''}" onclick="selectPurgeRow(${idx})">
@@ -5932,9 +5969,9 @@ function renderModule() {
             ${tierNoteHTML(selPurge, null, false)}
             ${selPurge.partial && selPurge.subpaths && selPurge.subpaths[0] ? fullMeasureButton(selPurge.subpaths[0]) : ''}
             ` : '<div class="row-sub">' + t('没有构建产物，仍可检查下方安装包。') + '</div>'}
-            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-top:2px;">${t('独立安装包 · 与当前工程无关（最多 20 项，可单独勾选）')}</div>
+            <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);margin-top:2px;">${t('独立安装包 · 与当前工程无关（最多 200 项，可单独勾选）')}</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
-              ${!STATE.installerFiles.length ? `<div class="insp-empty" data-installer-empty>${STATE.scanCompleted ? t('已检查 ~/Downloads 与 ~/Library/Caches/Homebrew/downloads，没有找到超过 20 MB 的 dmg、pkg、xip、iso 安装包，或名称含 install、setup、update 等字样的 zip。') : t('扫描完成后，这里列出 ~/Downloads 与 ~/Library/Caches/Homebrew/downloads 中超过 20 MB 的安装包。')}</div>` : ''}
+              ${!STATE.installerFiles.length ? `<div class="insp-empty" data-installer-empty>${STATE.scanCompleted ? t('已检查下载、桌面、文稿等常见位置，没有找到 dmg、pkg、mpkg、iso、xip 安装包，或里面含有安装程序的 zip。') : t('扫描完成后，这里列出下载、桌面、文稿等常见位置里的安装包。')}</div>` : ''}
               ${STATE.installerFiles.map((inst, idx) => !matchesSearch(inst) ? '' : `
                 <div class="subpath-item">
                   <div class="subpath-left">
@@ -5943,6 +5980,7 @@ function renderModule() {
                       : `<input type="checkbox" ${inst.checked ? 'checked' : ''} onchange="toggleInstallerCheck(${idx})" style="width:13px;height:13px;cursor:pointer;" />`}
                     <div style="min-width:0;">
                       <span style="overflow-wrap:anywhere;cursor:pointer;" onclick="revealInFinder('${jsq(inst.path || inst.location + '/' + inst.name)}')">${escHtml(displayPath(inst.location))}/${escHtml(inst.name)}</span>
+                      ${inst.source ? `<div class="row-sub">${t('来源 · {source}', { source: escHtml(t(inst.source)) })}</div>` : ''}
                       ${tierNoteHTML(inst, null, false)}
                     </div>
                     ${inst.failedReason ? `<span style="color:var(--accent-rose);" title="${escHtml(t(inst.failedReason))}">${t('未处理')}</span>` : ''}
@@ -6051,6 +6089,17 @@ function renderModule() {
     if (stage) stage.innerHTML = `<div class="panel-card" style="padding:28px;color:var(--text-secondary);">${t('这个页面暂时无法显示，请切换到其他页面再返回；仍然不行请重启应用。')}</div>`;
     const hh = document.getElementById('heroHeadline'); if (hh) hh.textContent = t('页面加载失败');
   }
+}
+
+function purgeRootsHTML() {
+  const roots = STATE.purgeRoots || { paths: [], custom: false, error: '' };
+  const n = roots.paths.length;
+  return `<details class="runtime-evidence clean-exclusions purge-roots" style="margin:0;padding:6px 12px 8px;border-bottom:1px solid var(--border-subtle);" ${STATE.purgeRootsOpen || roots.error ? 'open' : ''} ontoggle="if(this.isConnected)STATE.purgeRootsOpen=this.open"><summary tabindex="0">${roots.custom ? t('扫描目录 · {n} 个（自定义）', { n }) : t('扫描目录 · {n} 个（默认）', { n })}</summary>
+    <p>${roots.custom ? t('只扫描下列目录，保存在 ~/.config/mole/purge_paths，和 mo purge 共用。移除全部目录后恢复默认位置。') : t('当前使用默认位置。添加一个目录后，只扫描列表里的目录，并保存在 ~/.config/mole/purge_paths，和 mo purge 共用。')}</p>
+    ${roots.error ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(roots.error))}</div>` : ''}
+    <div class="permission-group-list">${roots.paths.map((path, idx) => `<div class="subpath-item"><span class="subpath-left" style="overflow-wrap:anywhere;">${escHtml(displayPath(path))}</span>${roots.custom ? `<button class="row-remove" style="opacity:1;" onclick="removePurgeRootIdx(${idx})" title="${t('不再扫描这个目录')}">${t('移除')}</button>` : ''}</div>`).join('')}</div>
+    <div style="display:flex;gap:4px;margin-top:6px;"><input type="text" id="purgeRootInput" aria-label="${t('扫描目录')}" placeholder="${t('添加扫描目录...')}" style="flex:1;min-width:0;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:10.5px;" onkeydown="if(event.key==='Enter')addPurgeRootInput()" /><button class="btn" style="padding:2px 7px;font-size:10px;" onclick="addPurgeRootInput()">${t('+ 添加')}</button></div>
+  </details>`;
 }
 
 function matchesSearch(item) {
@@ -6283,6 +6332,7 @@ function buildCleanEntries(module = STATE.module) {
     selI.forEach(i => entries.push({
       entity: i, label: i.name, sizeGb: Number(i.sizeGb) || 0,
       paths: i.path ? [absolutePath(i.path)] : [], regKeys: [i.path].filter(Boolean),
+      identities: i.path && i.mtime ? { [absolutePath(i.path)]: { size: i.size, mtime: i.mtime } } : {},
       commit: () => { i.checked = false; i.cleaned = true; i.failed = false; },
       onFail: failed => markItemFailed(STATE.installerFiles, i, failed)
     }));

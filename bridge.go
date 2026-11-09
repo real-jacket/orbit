@@ -61,7 +61,7 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		go func() {
 			// The page waits for this receipt before it claims success, so a
 			// refused or failed path is reported instead of swallowed.
-			pushTrashResult(requestID, scanner.Shared.TrashPaths(paths))
+			pushTrashResult(requestID, scanner.Shared.TrashPathsChecked(paths, fileIdentitiesOf(payload["identities"])))
 			// The single rescan after a destructive action lives here, so the
 			// window and the menu-bar panel share it; the page does not ask again.
 			pushRealTelemetryNow()
@@ -94,6 +94,25 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 				policy, err = scanner.Shared.RemoveWhitelistEntry(path)
 			}
 			pushWhitelistChanged(action, path, policy, err)
+			if err == nil {
+				pushRealSystemScanNow()
+			}
+		}()
+	case "addPurgeRoot", "removePurgeRoot":
+		action := stringOf(payload["action"])
+		path := stringOf(payload["path"])
+		if path == "" {
+			return nil
+		}
+		go func() {
+			var roots scanner.PurgeRoots
+			var err error
+			if action == "addPurgeRoot" {
+				roots, err = scanner.Shared.AddPurgeRoot(path)
+			} else {
+				roots, err = scanner.Shared.RemovePurgeRoot(path)
+			}
+			pushPurgeRootsChanged(action, path, roots, err)
 			if err == nil {
 				pushRealSystemScanNow()
 			}
@@ -522,6 +541,19 @@ func stringsOf(value any) []string {
 		return paths
 	}
 	return nil
+}
+
+// fileIdentitiesOf reads the {path: {size, mtime}} map the page sends with a
+// move, so a file that changed since the scan is not trashed.
+func fileIdentitiesOf(value any) map[string]scanner.FileIdentity {
+	values, _ := value.(map[string]any)
+	result := make(map[string]scanner.FileIdentity, len(values))
+	for path, raw := range values {
+		if entry, ok := raw.(map[string]any); ok {
+			result[path] = scanner.FileIdentity{Size: int64(intOf(entry["size"])), Mtime: int64(intOf(entry["mtime"]))}
+		}
+	}
+	return result
 }
 
 func stringMapOf(value any) map[string]string {

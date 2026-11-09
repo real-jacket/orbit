@@ -172,6 +172,16 @@ func forgetTrash(restored []TrashEntry) error {
 // Whitelisted and protected paths are refused rather than deleted: the app
 // enforces the same protection `mo` does, because it does the deleting itself.
 func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
+	return s.TrashPathsChecked(rawPaths, nil)
+}
+
+// FileIdentity is what a scan saw of a file: logical size and mtime in seconds.
+type FileIdentity struct{ Size, Mtime int64 }
+
+// TrashPathsChecked is TrashPaths, and a path with an identity is only moved when
+// it is still the same regular file the scan listed. Mole's installer cleanup
+// re-checks the same way before it deletes.
+func (s *Scanner) TrashPathsChecked(rawPaths []string, identities map[string]FileIdentity) TrashOutcome {
 	outcome := TrashOutcome{Requested: len(rawPaths)}
 	if !trashOperationMu.TryLock() {
 		for _, path := range rawPaths {
@@ -209,6 +219,12 @@ func (s *Scanner) TrashPaths(rawPaths []string) TrashOutcome {
 		if !exists(path) {
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: path, Error: "路径不存在"})
 			continue
+		}
+		if want, ok := identities[raw]; ok {
+			if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() || info.Size() != want.Size || info.ModTime().Unix() != want.Mtime {
+				outcome.Skipped = append(outcome.Skipped, TrashSkip{Path: path, Reason: "文件在扫描之后有变化，已跳过；请重新扫描后再清理"})
+				continue
+			}
 		}
 		// Dispatch runs off the UI thread; a timeout cannot cancel rename(2).
 		trashed, err := moveToTrash(path)

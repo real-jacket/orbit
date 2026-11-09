@@ -67,16 +67,13 @@ func TestPayloadHonoursTierContract(t *testing.T) {
 	fixtureDir(t, home, "Library/Logs/Old", 4096)
 	age(t, filepath.Join(home, "Library/Logs/Old"), 90)
 	fixtureDir(t, home, "Library/Logs/Fresh", 4096)
-	writeFile(t, filepath.Join(home, "Projects/old/package.json"), "{}")
-	fixtureDir(t, home, "Projects/old/node_modules", 21_000_000)
+	nodeProject(t, home, "Projects/old")
 	age(t, filepath.Join(home, "Projects/old"), 60)
-	writeFile(t, filepath.Join(home, "Projects/mid/package.json"), "{}")
-	fixtureDir(t, home, "Projects/mid/node_modules", 21_000_000)
+	nodeProject(t, home, "Projects/mid")
 	age(t, filepath.Join(home, "Projects/mid"), 15)
-	writeFile(t, filepath.Join(home, "Projects/new/package.json"), "{}")
-	fixtureDir(t, home, "Projects/new/node_modules", 21_000_000)
+	nodeProject(t, home, "Projects/new")
 	writeTestFile(t, filepath.Join(home, "Downloads/App.dmg"), 21_000_000)
-	writeTestFile(t, filepath.Join(home, "Downloads/macOS_Installer.zip"), 21_000_000)
+	writeZipFile(t, filepath.Join(home, "Downloads/macOS_Installer.zip"), "Install macOS.app/Contents/Info.plist")
 	fixtureDir(t, home, ".claude/projects/-tmp-x", 4096)
 	fixtureDir(t, home, ".claude/cache", 4096)
 
@@ -225,4 +222,14 @@ func TestWorktreeVerdicts(t *testing.T) {
 			t.Errorf("%s/%dd = %+v, want protected with the impact as reason", tc.state, tc.age, v)
 		}
 	}
+}
+
+// nodeProject is a project whose node_modules is reproducible: package.json, a
+// lockfile and the package manager's install record, newest inside the folder.
+func nodeProject(t *testing.T, home, project string) {
+	t.Helper()
+	writeFile(t, filepath.Join(home, project, "package.json"), "{}")
+	writeFile(t, filepath.Join(home, project, "package-lock.json"), "{}")
+	fixtureDir(t, home, project+"/node_modules", 21_000_000)
+	writeFile(t, filepath.Join(home, project, "node_modules/.package-lock.json"), "{}")
 }

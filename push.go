@@ -277,6 +277,16 @@ func pushWhitelistChanged(action, path string, policy scanner.Whitelist, err err
 	evaluate("window.onNativeWhitelistChanged ? window.onNativeWhitelistChanged(" + jsonOf(payload) + ") : undefined")
 }
 
+// pushPurgeRootsChanged tells the page the build-cleanup scope changed, or why
+// the edit was refused.
+func pushPurgeRootsChanged(action, path string, roots scanner.PurgeRoots, err error) {
+	payload := map[string]any{"action": action, "path": path, "purgeRoots": roots, "ok": err == nil}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	evaluate("window.onNativePurgeRootsChanged ? window.onNativePurgeRootsChanged(" + jsonOf(payload) + ") : undefined")
+}
+
 // pushRealSystemScanNow scans installed apps, leftovers, large files, installer
 // packages and the clean groups, then sends the whole payload to the page.
 var systemScanQueue struct {
