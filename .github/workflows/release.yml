@@ -398,11 +398,18 @@ jobs:
           assets=("$RUNNER_TEMP/release"/*)
           (( ${#assets[@]} )) || { echo "::error::no assets to publish"; exit 1; }
 
+          # Pull requests are merged locally and closed, so --generate-notes would
+          # find none; the notes are this version's CHANGELOG.md section instead.
+          notes="$RUNNER_TEMP/notes.md"
+          awk -v v="## ${TAG#v}" '$0 == v { on = 1; next } on && /^## / { exit } on' CHANGELOG.md > "$notes"
+          grep -q '[^[:space:]]' "$notes" || { echo "::error::CHANGELOG.md has no section for ${TAG#v}"; exit 1; }
+          printf '\n**Full Changelog**: https://github.com/%s/commits/%s\n' "$GITHUB_REPOSITORY" "$TAG" >> "$notes"
+
           if gh release view "$TAG" > /dev/null 2>&1; then
             # Re-running a release (or repairing one whose assets were lost):
             # replace the assets instead of failing.
             gh release upload "$TAG" "${assets[@]}" --clobber
-            gh release edit "$TAG" --draft=false --latest
+            gh release edit "$TAG" --draft=false --latest --notes-file "$notes"
           else
-            gh release create "$TAG" "${assets[@]}" --title "orbit $TAG" --generate-notes --latest
+            gh release create "$TAG" "${assets[@]}" --title "orbit $TAG" --notes-file "$notes" --latest
           fi
