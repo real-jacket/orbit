@@ -788,6 +788,32 @@
   .status-trend-caption { display: flex; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-1); color: var(--text-secondary); font-size: 10.5px; }
   .status-trend-caption > span { min-width: 0; }
   .status-trend-empty { min-height: 66px; display: flex; align-items: center; color: var(--text-secondary); font-size: 10.5px; }
+  /* 状态监控：卡片区不再把进程表挤成表头；窗口矮时整页滚动，并收紧卡片与图表。 */
+  body[data-module="status"] #moduleStage { flex: none; }
+  .proc-panel { flex: none; }
+  .status-trend-lines > svg { height: 100% !important; }
+  .status-trend-lines path { vector-effect: non-scaling-stroke; }
+  @media (min-width: 1161px) and (max-height: 940px) {
+    body[data-module="status"] .workspace-body { gap: var(--space-2); padding-block: 10px 14px; }
+    body[data-module="status"] #moduleStage { gap: var(--space-2) !important; }
+    body[data-module="status"] .summary-banner { padding: 10px 16px; }
+    .telemetry-grid { gap: var(--space-2); }
+    .telemetry-card { padding: 8px 12px; gap: 2px; }
+    .telemetry-card .tc-main { min-height: 0; }
+    .telemetry-card .tc-big { font-size: 20px; line-height: 1.15; }
+    .telemetry-card .tc-sub { padding-top: 2px; }
+    .status-trend { padding-top: var(--space-1); }
+    .status-trend-lines { height: 26px; }
+    .status-trend-caption { padding-top: 2px; }
+    .status-trend-empty { min-height: 36px; }
+    .status-capacity { padding-top: var(--space-1); }
+    .status-capacity-legend { padding-top: var(--space-1); }
+    .batt-bar, .batt-stats, .batt-tip { margin-top: 3px; }
+    .proc-panel .panel-header { padding-block: 8px; }
+    .proc-panel .proc-table th { padding-block: 5px; }
+    .proc-panel .proc-table td { padding-block: 4px; }
+    .proc-table .btn { height: 26px; }
+  }
   .status-capacity { margin-top: auto; padding-top: var(--space-3); }
   .status-capacity-track { height: 12px; overflow: hidden; border-radius: 4px; background: var(--accent-emerald-soft); }
   .status-capacity-track > i { display: block; height: 100%; background: var(--accent-amber); }
@@ -6242,7 +6268,7 @@ function renderModule() {
     stage.innerHTML = `
       <div class="telemetry-grid">${buildStatusCards()}</div>
 
-      <div class="panel-card">
+      <div class="panel-card proc-panel">
         <div class="panel-header">
           <span>${t('进程 · 当前排序前 8 项')}</span>
           <span class="badge badge-protected" id="processLiveNote">${t('每 1.5 秒刷新显示')}</span>
