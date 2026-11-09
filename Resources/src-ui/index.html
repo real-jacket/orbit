@@ -788,32 +788,33 @@
   .status-trend-caption { display: flex; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-1); color: var(--text-secondary); font-size: 10.5px; }
   .status-trend-caption > span { min-width: 0; }
   .status-trend-empty { min-height: 66px; display: flex; align-items: center; color: var(--text-secondary); font-size: 10.5px; }
-  /* 状态监控：卡片区不再把进程表挤成表头；窗口矮时整页滚动，并收紧卡片与图表。 */
+  /* 状态监控：指标卡是页面主体，窗口矮时整页滚动；进程只列占用最高的 5 项，完整表格在右侧抽屉里。 */
   body[data-module="status"] #moduleStage { flex: none; }
-  .proc-panel { flex: none; }
-  .status-trend-lines > svg { height: 100% !important; }
-  .status-trend-lines path { vector-effect: non-scaling-stroke; }
-  @media (min-width: 1161px) and (max-height: 940px) {
-    body[data-module="status"] .workspace-body { gap: var(--space-2); padding-block: 10px 14px; }
-    body[data-module="status"] #moduleStage { gap: var(--space-2) !important; }
-    body[data-module="status"] .summary-banner { padding: 10px 16px; }
-    .telemetry-grid { gap: var(--space-2); }
-    .telemetry-card { padding: 8px 12px; gap: 2px; }
-    .telemetry-card .tc-main { min-height: 0; }
-    .telemetry-card .tc-big { font-size: 20px; line-height: 1.15; }
-    .telemetry-card .tc-sub { padding-top: 2px; }
-    .status-trend { padding-top: var(--space-1); }
-    .status-trend-lines { height: 26px; }
-    .status-trend-caption { padding-top: 2px; }
-    .status-trend-empty { min-height: 36px; }
-    .status-capacity { padding-top: var(--space-1); }
-    .status-capacity-legend { padding-top: var(--space-1); }
-    .batt-bar, .batt-stats, .batt-tip { margin-top: 3px; }
-    .proc-panel .panel-header { padding-block: 8px; }
-    .proc-panel .proc-table th { padding-block: 5px; }
-    .proc-panel .proc-table td { padding-block: 4px; }
-    .proc-table .btn { height: 26px; }
-  }
+  .tp-actions { display: flex; align-items: center; gap: var(--space-3); margin-left: auto; }
+  .tp-more { border: 0; background: transparent; color: var(--accent-primary); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); }
+  .tp-more:hover { background: var(--accent-soft); }
+  .tp-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 220px) 64px 24px 84px; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+  .tp-row:last-child { border-bottom: 0; }
+  .tp-row:hover, .tp-row:focus-within { background: var(--bg-card-hover); }
+  .tp-row .proc-pin { opacity: 0; }
+  .tp-row .proc-pin.on, .tp-row:hover .proc-pin, .tp-row:focus-within .proc-pin { opacity: 1; }
+  .tp-row .proc-name { max-width: 100%; display: block; font-size: 12px; font-weight: 600; }
+  .tp-row .btn { justify-self: end; height: 24px; }
+  .tp-row:hover .btn-kill, .tp-row:focus-within .btn-kill { opacity: 1; }
+  .tp-name { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+  .tp-icon { flex: none; width: 18px; height: 18px; border-radius: 4px; object-fit: cover; }
+  .tp-bar { height: 4px; border-radius: 2px; background: var(--bg-input); overflow: hidden; }
+  .tp-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--accent-primary); opacity: 0.7; }
+  .tp-val { text-align: right; font: 11.5px var(--font-mono); font-weight: 650; }
+  .tp-empty { padding: var(--space-4); color: var(--text-secondary); font-size: 11.5px; }
+  #procModal { justify-content: flex-end; align-items: stretch; }
+  .modal-sheet.proc-drawer { width: min(880px, calc(100vw - 48px)); max-width: none; height: 100%; max-height: none; border-radius: var(--radius-lg) 0 0 var(--radius-lg); display: flex; flex-direction: column; overflow: hidden; }
+  .proc-drawer .panel-header .btn { margin-left: auto; }
+  .proc-drawer-search { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-subtle); flex: none; }
+  .proc-drawer-search input { width: 100%; height: 30px; padding: 0 var(--space-3); background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); font: inherit; font-size: 12px; }
+  .proc-drawer-search input:focus-visible { outline: none; box-shadow: var(--ring); }
+  .proc-scroll { flex: 1; min-height: 0; overflow: auto; }
+  .proc-scroll .proc-table th { position: sticky; top: 0; z-index: 1; border-bottom: 0; box-shadow: inset 0 -1px 0 var(--border-subtle); }
   .status-capacity { margin-top: auto; padding-top: var(--space-3); }
   .status-capacity-track { height: 12px; overflow: hidden; border-radius: 4px; background: var(--accent-emerald-soft); }
   .status-capacity-track > i { display: block; height: 100%; background: var(--accent-amber); }
@@ -1688,6 +1689,13 @@
       <button class="btn" onclick="closeMemoryMaintenance();switchModule('status');sortProcessesBy('memory_mb');" data-i18n>查看内存进程</button>
       <div><button class="btn" id="memoryCloseBtn" data-autofocus onclick="closeMemoryMaintenance()" data-i18n>取消</button><button class="btn btn-primary" id="memoryReleaseBtn" onclick="releaseFileCache()" data-i18n>授权并释放文件缓存</button></div>
     </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="procModal" onclick="if(event.target===this)closeProcDrawer()">
+  <div class="modal-sheet proc-drawer" aria-labelledby="procModalTitle">
+    <div class="panel-header"><strong id="procModalTitle" data-i18n>全部进程</strong><span class="badge badge-protected" id="processLiveNote" data-i18n>每 1.5 秒刷新显示</span><button class="btn" onclick="closeProcDrawer()" data-i18n>关闭</button></div>
+    <div class="proc-drawer-search"><input type="search" id="procSearch" data-autofocus oninput="syncProcSearch(this.value)" placeholder="搜索进程或 PID" aria-label="搜索进程或 PID" data-i18n-attr="aria-label placeholder"/></div>
+    <div class="proc-scroll" id="procScroll"><table class="proc-table"><thead id="procHead"></thead><tbody id="procTbody"></tbody></table></div>
   </div>
 </div>
 <div class="modal-backdrop" id="confirmModal" onclick="if(event.target===this)closeConfirmSheet()">
@@ -3564,7 +3572,7 @@ function killButton(p, compact) {
   const style = compact ? 'padding:2px 6px;font-size:10px;' : 'padding:2px 8px;font-size:10.5px;';
   const label = waiting ? t('等待回执') : p.quitRequested ? t('已请求终止') : armed ? t('确认终止') : (compact ? t('终止') : t('请求终止'));
   const hint = guarded ? t('系统关键进程，已保护') : t('再次确认后发送 SIGTERM，可能丢失未保存的内容；不会自动强制结束');
-  return `<button class="btn ${armed ? 'btn-danger-solid' : waiting || p.quitRequested ? '' : 'btn-kill'}" style="${style}" ${guarded || waiting || p.quitRequested ? 'disabled' : ''} title="${hint}" aria-label="${escHtml(label + ' ' + p.name + (I18N.lang === 'en' ? ', ' : '，') + hint)}" onclick="armKill(${p.pid})">${label}</button>`;
+  return `<button class="btn ${armed ? 'btn-danger-solid' : waiting || p.quitRequested ? '' : 'btn-kill'}" style="${style}" ${guarded || waiting || p.quitRequested ? 'disabled' : ''} title="${hint}" aria-label="${escHtml(label + ' ' + p.name + (I18N.lang === 'en' ? ', ' : '，') + hint)}" data-pk="${p.pid}:kill" onclick="armKill(${p.pid})">${label}</button>`;
 }
 function armKill(pid) {
   if (pendingProcessQuits.size) { showToast(t('已有进程请求等待原生回执，请稍后再试')); return; }
@@ -3660,11 +3668,33 @@ function sortedProcessesList() {
     return (Number(b[STATE.procSortKey]) || 0) - (Number(a[STATE.procSortKey]) || 0);
   });
 }
+const PROC_TOP = 5, PROC_DRAWER_MAX = 200;
+function procAppIcon(p) { return STATE.appsList.find(a => a.icon && a.runningPid === p.pid && a.runningPath === p.path)?.icon || ''; }
+// 紧凑列表的用量条：CPU 以 100% 为满，内存相对当前所列最大值。
+function topProcVal(p) { return STATE.procSortKey === 'memory_mb' ? (p.memory_mb == null ? t('未知') : fmtProcMem(p.memory_mb)) : fmtNum(p.cpu, 1, t('未知')) + '%'; }
+function topProcBar(p, shown) {
+  const mem = STATE.procSortKey === 'memory_mb', max = mem ? Math.max(1, ...shown.map(x => x.memory_mb || 0)) : 100;
+  return Math.max(0, Math.min(100, ((mem ? p.memory_mb : p.cpu) || 0) / max * 100));
+}
+function procPinBtn(p) {
+  return `<button class="proc-pin ${p.pinned ? 'on' : ''}" data-pk="${p.pid}:pin" onclick="togglePinProcess(${p.pid})" aria-label="${p.pinned ? t('取消置顶') : t('置顶')} ${escHtml(p.name)}" aria-pressed="${p.pinned}">${UI_ICON('pin')}</button>`;
+}
+function procNameBtn(p) {
+  return `<button class="proc-name" data-pk="${p.pid}:name" onclick="revealInFinder('${jsq(p.path)}')" title="${escHtml(p.name + '\n' + p.path)}">${escHtml(p.name)}</button>${p.quitError ? `<div class="proc-error">${escHtml(p.quitError)}</div>` : ''}`;
+}
+function topProcRowsHTML(list) {
+  const shown = list.slice(0, PROC_TOP);
+  if (!shown.length) return `<div class="tp-empty">${STATE.processes.length ? t('没有匹配的进程') : t('尚未收到进程采样')}</div>`;
+  return shown.map(p => {
+    const icon = procAppIcon(p);
+    return `<div class="tp-row" data-pid="${p.pid}" data-path="${escHtml(p.path)}"><div class="tp-name">${icon ? `<img class="tp-icon" src="${escHtml(icon)}" alt="" />` : ''}<div style="min-width:0;">${procNameBtn(p)}</div></div><span class="tp-bar"><i style="width:${topProcBar(p, shown).toFixed(1)}%"></i></span><span class="tp-val">${topProcVal(p)}</span>${procPinBtn(p)}${killButton(p, false)}</div>`;
+  }).join('');
+}
 function statusProcRowsHTML(list) {
-  return list.slice(0, 8).map(p => `
+  return list.slice(0, PROC_DRAWER_MAX).map(p => `
     <tr data-pid="${p.pid}" data-path="${escHtml(p.path)}">
-      <td><button class="proc-pin ${p.pinned ? 'on' : ''}" onclick="togglePinProcess(${p.pid})" aria-label="${p.pinned ? t('取消置顶') : t('置顶')} ${escHtml(p.name)}" aria-pressed="${p.pinned}">${UI_ICON('pin')}</button></td>
-      <td><button class="proc-name" onclick="revealInFinder('${jsq(p.path)}')" title="${escHtml(p.name + '\n' + p.path)}">${escHtml(p.name)}</button>${p.quitError ? `<div class="proc-error">${escHtml(p.quitError)}</div>` : ''}</td>
+      <td>${procPinBtn(p)}</td>
+      <td>${procNameBtn(p)}</td>
       <td>${p.pid}</td>
       <td class="p-cpu" style="color:${Number(p.cpu) > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'};font-weight:700;">${fmtNum(p.cpu, 1, t('未知'))}%</td>
       <td class="p-mem">${p.memory_mb == null ? unsupported() : fmtProcMem(p.memory_mb)}</td>
@@ -3672,6 +3702,49 @@ function statusProcRowsHTML(list) {
       <td>${killButton(p, false)}</td>
     </tr>
   `).join('');
+}
+function procDrawerOpen() { return document.getElementById('procModal').classList.contains('open'); }
+function renderProcDrawer() {
+  const modal = document.getElementById('procModal'), k = STATE.procSortKey;
+  const pk = modal.contains(document.activeElement) ? document.activeElement.dataset.pk : '';
+  document.getElementById('procHead').innerHTML = `<tr><th>${t('置顶')}</th><th>${t('进程名称')}</th><th>PID</th><th tabindex="0" data-pk="th:cpu" onclick="sortProcessesBy('cpu')">${t('CPU 占用')} ${k === 'cpu' ? '▾' : ''}</th><th tabindex="0" data-pk="th:mem" onclick="sortProcessesBy('memory_mb')">${t('内存')} ${k === 'memory_mb' ? '▾' : ''}</th><th>${t('执行路径')}</th><th>${t('操作')}</th></tr>`;
+  document.getElementById('procTbody').innerHTML = statusProcRowsHTML(sortedProcessesList());
+  if (pk) modal.querySelector(`[data-pk="${pk}"]`)?.focus();
+}
+function openProcDrawer() {
+  renderProcDrawer();
+  document.getElementById('procSearch').value = STATE.searchQuery;
+  document.getElementById('procModal').classList.add('open');
+}
+function closeProcDrawer() {
+  if (!procDrawerOpen()) return;
+  document.getElementById('procModal').classList.remove('open');
+  // 抽屉开着时整页可能已重绘，打开它的按钮不再是原节点：焦点落空时回到新按钮。
+  setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) document.getElementById('procOpenBtn')?.focus(); }, 60);
+}
+// 抽屉与顶栏搜索共用同一个查询，输入时顶栏输入框同步。
+function syncProcSearch(val) { document.getElementById('searchInput').value = val; handleSearch(val); }
+// 刷新进程行：行集合没变就只改数字；有焦点、待确认或等待回执时保持行序，避免打断操作。
+function patchProcRows(host, list, limit, rowsHTML) {
+  const rows = Array.from(host.querySelectorAll('[data-pid]'));
+  const held = host.contains(document.activeElement) || STATE.killArmed != null || pendingProcessQuits.size > 0;
+  const sameSet = rows.length === Math.min(limit, list.length) && rows.every((r, i) => String(list[i].pid) === r.dataset.pid && list[i].path === r.dataset.path);
+  if (!sameSet && !held) { host.innerHTML = rowsHTML; return held; }
+  const shown = list.slice(0, limit);
+  rows.forEach(r => {
+    const p = STATE.processes.find(process => String(process.pid) === r.dataset.pid && process.path === r.dataset.path);
+    if (!p) {
+      const button = r.querySelector('.btn');
+      if (button) { button.disabled = true; button.textContent = t('状态未核验'); }
+      return;
+    }
+    const cpuCell = r.querySelector('.p-cpu'), memCell = r.querySelector('.p-mem'), val = r.querySelector('.tp-val'), bar = r.querySelector('.tp-bar > i');
+    if (cpuCell) { cpuCell.textContent = fmtNum(p.cpu, 1, t('未知')) + '%'; cpuCell.style.color = Number(p.cpu) > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'; }
+    if (memCell) memCell.textContent = p.memory_mb == null ? unsupported() : fmtProcMem(p.memory_mb);
+    if (val) val.textContent = topProcVal(p);
+    if (bar) bar.style.width = topProcBar(p, shown).toFixed(1) + '%';
+  });
+  return held;
 }
 // 1.5s 遥测到达时不再整页重建：只替换 CPU/内存/磁盘/能力卡的数值与进程表的数字列，
 // 避免打断滚动、排序与「结束进程」的二次确认状态。
@@ -3685,27 +3758,12 @@ function patchStatusLive() {
     });
     const nextPower = tmp.querySelector('#statusCardPower .tc-aside'), currentPower = document.querySelector('#statusCardPower .tc-aside');
     if (nextPower && currentPower) currentPower.textContent = nextPower.textContent;
-    const tbody = document.getElementById('procTbody');
     const list = sortedProcessesList();
-    if (tbody) {
-      const rows = Array.from(tbody.querySelectorAll('tr'));
-      const held = tbody.contains(document.activeElement) || STATE.killArmed != null || pendingProcessQuits.size > 0;
-      const sameSet = rows.length === Math.min(8, list.length) && rows.every((tr, i) => String(list[i].pid) === tr.getAttribute('data-pid') && list[i].path === tr.dataset.path);
-      if (!sameSet && !held) {
-        tbody.innerHTML = statusProcRowsHTML(list);
-      } else {
-        rows.forEach((tr, i) => {
-          const p = STATE.processes.find(process => String(process.pid) === tr.dataset.pid && process.path === tr.dataset.path);
-          if (!p) {
-            const button = tr.querySelector('td:last-child button');
-            if (button) { button.disabled = true; button.textContent = t('状态未核验'); }
-            return;
-          }
-          const cpuCell = tr.querySelector('.p-cpu'), memCell = tr.querySelector('.p-mem');
-          if (cpuCell) { cpuCell.textContent = fmtNum(p.cpu, 1, t('未知')) + '%'; cpuCell.style.color = Number(p.cpu) > 15 ? 'var(--accent-primary)' : 'var(--accent-emerald)'; }
-          if (memCell) memCell.textContent = p.memory_mb == null ? unsupported() : fmtProcMem(p.memory_mb);
-        });
-      }
+    const top = document.getElementById('topProcList');
+    if (top) patchProcRows(top, list, PROC_TOP, topProcRowsHTML(list));
+    const tbody = document.getElementById('procTbody');
+    if (tbody && procDrawerOpen()) {
+      const held = patchProcRows(tbody, list, PROC_DRAWER_MAX, statusProcRowsHTML(list));
       const note = document.getElementById('processLiveNote');
       if (note) note.textContent = held ? t('操作时保持行序') : t('每 1.5 秒刷新显示');
     }
@@ -5426,6 +5484,7 @@ function renderModule() {
   try {
   document.body.dataset.module = STATE.module;
   const mod = STATE.module;
+  if (mod !== 'status') closeProcDrawer();
   const topTitle = document.getElementById('topTitle');
   const primaryBtnText = document.getElementById('primaryBtnText');
   const heroHeadline = document.getElementById('heroHeadline');
@@ -6236,29 +6295,21 @@ function renderModule() {
     stage.innerHTML = `
       <div class="telemetry-grid">${buildStatusCards()}</div>
 
-      <div class="panel-card proc-panel">
+      <div class="panel-card top-procs">
         <div class="panel-header">
-          <span>${t('进程 · 当前排序前 8 项')}</span>
-          <span class="badge badge-protected" id="processLiveNote">${t('每 1.5 秒刷新显示')}</span>
+          <span>${t('占用最高的进程')}</span>
+          <div class="tp-actions">
+            <div class="segmented-tabs">
+              <div class="seg-tab ${STATE.procSortKey === 'cpu' ? 'active' : ''}" onclick="sortProcessesBy('cpu')">CPU</div>
+              <div class="seg-tab ${STATE.procSortKey === 'memory_mb' ? 'active' : ''}" onclick="sortProcessesBy('memory_mb')">${t('内存')}</div>
+            </div>
+            <button class="tp-more" id="procOpenBtn" onclick="openProcDrawer()">${t('全部进程')} ›</button>
+          </div>
         </div>
-        <div style="overflow-x:auto;">
-          <table class="proc-table">
-            <thead>
-              <tr>
-                <th>${t('置顶')}</th>
-                <th>${t('进程名称')}</th>
-                <th>PID</th>
-                <th onclick="sortProcessesBy('cpu')">${t('CPU 占用')} ${STATE.procSortKey==='cpu'?'▾':''}</th>
-                <th onclick="sortProcessesBy('memory_mb')">${t('内存')} ${STATE.procSortKey==='memory_mb'?'▾':''}</th>
-                <th>${t('执行路径')}</th>
-                <th>${t('操作')}</th>
-              </tr>
-            </thead>
-                        <tbody id="procTbody">${statusProcRowsHTML(sortedProcs)}</tbody>
-          </table>
-        </div>
+        <div id="topProcList">${topProcRowsHTML(sortedProcs)}</div>
       </div>
     `;
+    if (procDrawerOpen()) renderProcDrawer();
   } else if (mod === 'purge') {
     const selPurge = STATE.purgeItems.find((item, idx) => idx === STATE.selectedPurgeIdx && matchesSearch(item)) || STATE.purgeItems.find(matchesSearch);
     const purgeGb = STATE.purgeItems.filter(p => p.checked).reduce((s, p) => s + p.sizeGb, 0);
@@ -6895,6 +6946,7 @@ document.addEventListener('keydown', (e) => {
     closeDoctorModal();
     closeRuntimePanel();
     closeMemoryMaintenance();
+    closeProcDrawer();
   }
 });
 
