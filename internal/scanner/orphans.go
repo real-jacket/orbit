@@ -99,6 +99,7 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 		containerOrphans = containerOrphans[:18]
 	}
 	orphans = append(orphans, containerOrphans...)
+	orphans = append(orphans, s.scanClaudeVMOrphans(usedIDs)...)
 
 	sort.SliceStable(orphans, func(i, j int) bool {
 		return floatOf(orphans[i]["leftoverSizeGb"]) > floatOf(orphans[j]["leftoverSizeGb"])
@@ -219,7 +220,7 @@ func (s *Scanner) scanUnclaimedContainers(
 				continue
 			}
 			lower := strings.ToLower(item)
-			if ignored(lower) {
+			if ignored(lower) || isSensitiveOrphan(lower) {
 				continue
 			}
 			fullPath := filepath.Join(target.path, item)

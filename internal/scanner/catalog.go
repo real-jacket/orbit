@@ -320,7 +320,7 @@ func cleanGroupSpecs() []CatalogSpec {
 
 // scanCleanGroups lists the caches and logs the clean module offers to remove.
 func (s *Scanner) scanCleanGroups() []map[string]any {
-	specs := cleanGroupSpecs()
+	specs := append(cleanGroupSpecs(), s.moleGroupSpecs()...)
 	claims := &catalogClaims{}
 	var groups []map[string]any
 	// The AI module reports some of the same directories; its roots take part
@@ -345,7 +345,7 @@ func (s *Scanner) scanCleanGroups() []map[string]any {
 }
 
 func (s *Scanner) cleanExcludedRoots() []map[string]any {
-	return s.excludedCatalogRoots(cleanGroupSpecs())
+	return s.excludedCatalogRoots(append(cleanGroupSpecs(), s.moleGroupSpecs()...))
 }
 
 func (s *Scanner) aiExcludedRoots() []map[string]any {
