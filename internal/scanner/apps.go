@@ -199,6 +199,10 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			if reason := s.CleanupReason(fullPath); reason != "" {
 				subpaths[0]["tier"], subpaths[0]["reason"], subpaths[0]["checked"] = "protected", reason, false
 			}
+			needsAdmin := bundleNeedsAdmin(fullPath)
+			if needsAdmin && subpaths[0]["tier"] == nil {
+				subpaths[0]["tier"], subpaths[0]["reason"], subpaths[0]["checked"] = "protected", appNeedsAdminReason, false
+			}
 			if size.partial && appBytes == 0 {
 				subpaths[0]["size"], subpaths[0]["sizeGb"] = "未读取", nil
 			}
@@ -235,6 +239,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 				"version":        version,
 				"partial":        size.partial,
 				"running":        running,
+				"needsAdmin":     needsAdmin,
 				"appSizeGb":      plainGB(appBytes),
 				"leftoverSizeGb": leftoverGB,
 				"cacheSizeGb":    cacheGB,
