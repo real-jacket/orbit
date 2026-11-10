@@ -186,8 +186,8 @@ func TestScanTreeUnreadableDirectoryIsRestricted(t *testing.T) {
 	if stats.Restricted[0].Path != locked {
 		t.Fatalf("Restricted[0].Path = %q, want %q", stats.Restricted[0].Path, locked)
 	}
-	if stats.Restricted[0].Reason != "权限不足" {
-		t.Fatalf("Restricted[0].Reason = %q, want 权限不足", stats.Restricted[0].Reason)
+	if stats.Restricted[0].Reason != ReasonNotOwner {
+		t.Fatalf("Restricted[0].Reason = %q, want %q（chmod 0 是 EACCES，授权也读不了）", stats.Restricted[0].Reason, ReasonNotOwner)
 	}
 	if !stats.Partial || !node.Partial {
 		t.Fatalf("Partial 未传播: stats.Partial=%v node.Partial=%v", stats.Partial, node.Partial)

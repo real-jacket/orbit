@@ -909,8 +909,12 @@ func scanReason(err error) string {
 	if err == nil {
 		return "未知错误"
 	}
+	// EACCES is the file's own mode or owner; EPERM is macOS privacy control (TCC, SIP).
+	if errors.Is(err, syscall.EACCES) {
+		return ReasonNotOwner
+	}
 	if errors.Is(err, fs.ErrPermission) || errors.Is(err, syscall.EPERM) {
-		return "权限不足"
+		return ReasonDenied
 	}
 	reason := strings.TrimSpace(err.Error())
 	if index := strings.IndexByte(reason, '\n'); index >= 0 {

@@ -1331,6 +1331,14 @@ add('system-scan-invalid-completion', `
   onNativeRealScanComplete(structuredClone(qaFixture));
   qaAssert(STATE.scanCompleted&&document.getElementById('moduleStage').getAttribute('aria-busy')==='false','the actual receipt restores the settled state');
 `);
+add('system-scan-receipt-refresh', `
+  switchModule('clean');onNativeRealScanStarted();onNativeRealScanComplete(structuredClone(qaFixture));
+  scheduleRefresh(['~/Library/Caches/qa-already-trashed']);onNativeRealScanStarted();
+  qaAssert(STATE.scanRunning&&!document.getElementById('primaryBtnText').closest('button').disabled,'the rescan after a Trash receipt keeps the receipt-updated list actionable');
+  openConfirmSheet();qaAssert(document.getElementById('confirmModal').classList.contains('open'),'the remaining selection can be previewed while the receipt rescan runs');
+  closeConfirmSheet();onNativeRealScanComplete(structuredClone(qaFixture));
+  qaAssert(STATE.scanCompleted&&!STATE.scanRunning,'the receipt rescan settles normally');
+`);
 add('system-scan-queued-native-start', `
   switchModule('clean');qaAssert(typeof window.onNativeRealScanStarted==='function','queued scans have a native start receipt');
   onNativeRealScanStarted();onNativeRealScanComplete(structuredClone(qaFixture));

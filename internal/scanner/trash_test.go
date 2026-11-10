@@ -521,6 +521,35 @@ func TestRemoveWhitelistEntryEditsACompositeLine(t *testing.T) {
 	}
 }
 
+func TestWhitelistEditsWithoutAFileStartFromTheDefaults(t *testing.T) {
+	s := newTestScanner(t)
+	jetbrains := filepath.Join(s.home, "Library", "Caches", "JetBrains*")
+	if !containsString(s.UserWhitelistPaths(), jetbrains) {
+		t.Fatalf("UserWhitelistPaths = %v, want the default %s", s.UserWhitelistPaths(), jetbrains)
+	}
+	if _, err := s.RemoveWhitelistEntry(jetbrains); err != nil {
+		t.Fatalf("RemoveWhitelistEntry: %v", err)
+	}
+	paths := s.UserWhitelistPaths()
+	if containsString(paths, jetbrains) {
+		t.Errorf("paths = %v, want the removed default gone", paths)
+	}
+	if !containsString(paths, filepath.Join(s.home, ".gradle", "caches", "*")) {
+		t.Errorf("paths = %v, want the other defaults kept", paths)
+	}
+
+	spotlight := filepath.Join(s.home, "Library", "Caches", "com.apple.spotlight*")
+	if containsString(paths, spotlight) {
+		t.Errorf("paths = %v, want always-on safety entries kept out of the editable list", paths)
+	}
+	if _, err := s.RemoveWhitelistEntry(spotlight); err == nil {
+		t.Error("removing a safety entry reported success although it is merged back on load")
+	}
+	if !s.Whitelisted(filepath.Join(s.home, "Library", "Caches", "com.apple.spotlight.index")) {
+		t.Error("the safety entry stopped protecting its path")
+	}
+}
+
 func TestUserWhitelistPathsSplitsCompositeEntriesAndDropsTheSentinel(t *testing.T) {
 	s := newTestScanner(t)
 	first := filepath.Join(s.home, "Library", "Caches")
