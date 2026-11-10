@@ -124,6 +124,7 @@ func pushDiskAnalyze(path string, refresh bool, requestID string) {
 		for {
 			payload := analyze.PayloadFor(expandTilde(current.path), current.refresh)
 			payload.RequestID = current.id
+			classifyRestricted(payload.Restricted)
 			for i := range payload.Treemap2D {
 				tile := &payload.Treemap2D[i]
 				tile.ProtectionReason = scanner.Shared.CleanupReason(tile.Path)
@@ -418,4 +419,24 @@ func homeDir() string {
 		return home
 	}
 	return "/"
+}
+
+// classifyRestricted tells the page which unreadable paths Full Disk Access would
+// fix. The probe runs in this process, so when it passes the grant is in effect
+// and a remaining EPERM is SIP or a data vault, not a missing switch.
+func classifyRestricted(list []analyze.RestrictionInfo) {
+	if len(list) == 0 {
+		return
+	}
+	granted := scanner.Shared.FullDiskReadCheck()["passed"] == true
+	for i := range list {
+		switch {
+		case list[i].Reason == analyze.ReasonNotOwner:
+			list[i].Kind = "system"
+		case list[i].Reason == analyze.ReasonDenied && granted:
+			list[i].Kind, list[i].Reason = "system", "macOS 系统保护的目录，授予完全磁盘访问权限后也无法读取；未计入本次扫描"
+		case list[i].Reason == analyze.ReasonDenied:
+			list[i].Kind = "permission"
+		}
+	}
 }

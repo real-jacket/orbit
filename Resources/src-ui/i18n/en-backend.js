@@ -288,6 +288,8 @@
     "其它": "Other",
     "未知错误": "Unknown error",
     "权限不足": "Insufficient permissions",
+    "这是保护 macOS 自身的条目，始终生效，不能移除": "This entry protects macOS itself. It always applies and cannot be removed",
+    "只有该目录的所有者（root 或其他用户）能读取，完全磁盘访问权限也无法放行": "Only the folder's owner (root or another user) can read it. Full Disk Access cannot unlock it",
     "analyze: 扫描根目录为空": "analyze: the scan root is empty",
     "analyze: 解析扫描根目录 {path}: {error}": "analyze: couldn't resolve the scan root {path}: {error}",
     "analyze: 扫描根目录 {path}: {error}": "analyze: scan root {path}: {error}",

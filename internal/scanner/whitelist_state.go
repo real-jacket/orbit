@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,20 +46,42 @@ func (s *Scanner) Whitelisted(path string) bool {
 }
 
 // UserWhitelistPaths lists the entries the user can edit: the FINDER_METADATA
-// sentinel is an instruction rather than a path, and composite "a & b" lines
-// are split so the app can show and remove each path on its own.
+// sentinel is an instruction rather than a path, the safety patterns are merged
+// back on every load so removing them could never stick, and composite "a & b"
+// lines are split so the app can show and remove each path on its own.
 func (s *Scanner) UserWhitelistPaths() []string {
 	policy := s.whitelist()
 	paths := []string{}
 	for _, pattern := range policy.UserspacePatterns() {
 		for _, part := range strings.Split(pattern, " & ") {
 			part = strings.TrimSpace(part)
-			if part != "" {
+			if part != "" && !s.isSafetyWhitelistPattern(part) {
 				paths = append(paths, part)
 			}
 		}
 	}
 	return paths
+}
+
+func (s *Scanner) isSafetyWhitelistPattern(pattern string) bool {
+	for _, safety := range whitelistSafetyPatterns {
+		if expandWhitelistPattern(safety, s.home) == pattern {
+			return true
+		}
+	}
+	return false
+}
+
+// readWhitelistFile returns the file mole reads. Without one, mole protects its
+// default patterns, so the first edit starts from those instead of an empty
+// list: otherwise adding one path would drop every default, and removing a
+// default would change nothing.
+func (s *Scanner) readWhitelistFile() (string, error) {
+	data, err := os.ReadFile(WhitelistPath(s.home))
+	if os.IsNotExist(err) {
+		return strings.Join(whitelistDefaultPatterns, "\n") + "\n", nil
+	}
+	return string(data), err
 }
 
 // AddWhitelistEntry validates path and appends it to mole's whitelist file, so
@@ -79,9 +102,8 @@ func (s *Scanner) AddWhitelistEntry(raw string) (Whitelist, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return s.whitelist(), err
 	}
-	data, readErr := os.ReadFile(path)
-	content := string(data)
-	if readErr != nil && !os.IsNotExist(readErr) {
+	content, readErr := s.readWhitelistFile()
+	if readErr != nil {
 		return s.whitelist(), readErr
 	}
 	for _, line := range strings.Split(content, "\n") {
@@ -107,15 +129,18 @@ func (s *Scanner) RemoveWhitelistEntry(raw string) (Whitelist, error) {
 	if err != nil {
 		return s.whitelist(), err
 	}
+	if s.isSafetyWhitelistPattern(entry) {
+		return s.whitelist(), fmt.Errorf("这是保护 macOS 自身的条目，始终生效，不能移除")
+	}
 	path := WhitelistPath(s.home)
-	data, readErr := os.ReadFile(path)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return s.whitelist(), err
+	}
+	data, readErr := s.readWhitelistFile()
 	if readErr != nil {
-		if os.IsNotExist(readErr) {
-			return s.refreshWhitelist(), nil
-		}
 		return s.whitelist(), readErr
 	}
-	lines := strings.Split(string(data), "\n")
+	lines := strings.Split(data, "\n")
 	kept := make([]string, 0, len(lines))
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)

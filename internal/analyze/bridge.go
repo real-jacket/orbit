@@ -73,7 +73,13 @@ type AggregatedItem struct {
 type RestrictionInfo struct {
 	Path   string `json:"path"`
 	Reason string `json:"reason"`
+	Kind   string `json:"kind,omitempty"` // permission | system, set by the app once it knows the Full Disk Access state
 }
+
+const (
+	ReasonDenied   = "权限不足"
+	ReasonNotOwner = "只有该目录的所有者（root 或其他用户）能读取，完全磁盘访问权限也无法放行"
+)
 
 // LargeFileTile is one entry of the large-file list.
 type LargeFileTile struct {

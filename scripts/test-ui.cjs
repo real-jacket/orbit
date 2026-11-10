@@ -33,7 +33,7 @@ function loadCallback(name, target = context) {
   assert.ok(start >= 0, `${name} exists`);
   vm.runInContext(script.slice(start, script.indexOf('\n};', start) + 4), target);
 }
-['selectedSubpaths', 'selectedSizeGb', 'toggleSubpathCheck', 'toggleAppSubpathCheck', 'toggleOrphanSubpathCheck', 'normalizeComparePath', 'buildCleanEntries'].forEach(name => load(name));
+['selectedSubpaths', 'selectedSizeGb', 'toggleSubpathCheck', 'toggleAppSubpathCheck', 'toggleOrphanSubpathCheck', 'normalizeComparePath', 'scanResultsUsable', 'buildCleanEntries'].forEach(name => load(name));
 
 const app = { id: 'example', appPath: '/Applications/Example.app', checked: true, keepPersonal: true, subpaths: [
   { path: '/Applications/Example.app', kind: 'app', checked: false, sizeGb: 2 },
@@ -75,6 +75,12 @@ assert.equal(group.checked, false, 'deselecting every leftover cannot fall back 
 context.STATE.module = 'software';
 context.STATE.softwarePanelMode = 'apps';
 assert.equal(vm.runInContext('buildCleanEntries()', context), undefined, 'persisted scan results cannot authorize removal');
+context.STATE.scanRunning = true;
+assert.equal(vm.runInContext('scanResultsUsable()', context), false, 'a first scan in progress cannot authorize removal');
+context.STATE.scanRefresh = true;
+assert.equal(vm.runInContext('scanResultsUsable()', context), true, 'the rescan after a Trash receipt keeps receipt-updated results usable');
+context.STATE.scanRunning = false;
+context.STATE.scanRefresh = false;
 context.STATE.scanCompleted = true;
 context.pendingTrashRequests.set('in-flight', {});
 assert.equal(vm.runInContext('buildCleanEntries()', context), undefined, 'in-flight removal blocks another preview');
@@ -258,7 +264,7 @@ const receipts = vm.createContext({
   document: { getElementById() { return { classList: { contains() { return false; } } }; } },
 });
 receipts.window = receipts;
-['hasNum', 'fmtDiskSizeGb', 'selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'servicesHasContent', 'resolveTrash', 'busyTrash', 'rowMoving', 'movingAttr', 'lockStageForTrash', 'trashBusyCopy', 'pruneCleanedRows', 'unpruneSubpaths', 'unpruneRows', 'restoreSnapshotEntities'].forEach(name => load(name, receipts));
+['hasNum', 'fmtDiskSizeGb', 'selectedSubpaths', 'selectedSizeGb', 'normalizeComparePath', 'scanResultsUsable', 'markSubpathsMoved', 'markItemFailed', 'scanRowsWithFailures', 'buildRestoreData', 'buildCleanEntries', 'servicesHasContent', 'resolveTrash', 'busyTrash', 'rowMoving', 'movingAttr', 'lockStageForTrash', 'trashBusyCopy', 'pruneCleanedRows', 'unpruneSubpaths', 'unpruneRows', 'restoreSnapshotEntities'].forEach(name => load(name, receipts));
 ['rowKey', 'prunedRows', 'PRUNE_SELECTED_KEY', 'NATIVE_RESULT_TIMEOUT_MS'].forEach(name => loadConst(name, receipts));
 receipts.recomputeDiskAnalyzeTotals = () => {};
 const partialGroup = { id: 'cache', name: 'Cache', path: '/tmp/cache', tier: 'safe', checked: true, sizeGb: 3, subpaths: [
@@ -458,7 +464,7 @@ assert.equal(receipts.STATE.historyLogs.length, 0, 'successful retry can finish 
     setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout(id) { if (id) timers[id - 1] = null; },
   });
   refresh.window = refresh;
-  ['hasNum', 'selectedSubpaths', 'normalizeComparePath', 'markSubpathsMoved', 'endRefreshing', 'armRefreshFallback', 'scheduleRefresh', 'noteNativeScanStarted', 'reconcileAfterScan', 'dropMovedFromLists', 'pruneCleanedRows'].forEach(name => load(name, refresh));
+  ['hasNum', 'selectedSubpaths', 'normalizeComparePath', 'scanResultsUsable', 'markSubpathsMoved', 'endRefreshing', 'armRefreshFallback', 'scheduleRefresh', 'noteNativeScanStarted', 'reconcileAfterScan', 'dropMovedFromLists', 'pruneCleanedRows'].forEach(name => load(name, refresh));
   vm.runInContext('var recentMoves = new Map(), REFRESH_DEBOUNCE_MS = 2500, refreshing = false, refreshTimer = 0, refreshGuard = 0, scanStartedAt = 0, lastMoveAt = 0', refresh);
   const fire = () => timers.splice(0).forEach(fn => fn && fn());
   vm.runInContext('scheduleRefresh(["/tmp/a"]); scheduleRefresh(["/tmp/b"])', refresh);
@@ -684,6 +690,7 @@ assert.equal(vm.runInContext('groupRestrictedPaths(limitWarning)[0].pane', analy
 assert.equal(vm.runInContext('fmtDiskSizeGb(0.000004096)', analysis), '4.1 KB', 'small real allocations never display as fictional GB');
 assert.equal(vm.runInContext('fmtDiskSizeGb(0.04, 1)', analysis), '40.0 MB', 'one-decimal labels do not round a nonzero allocation to zero GB');
 assert.equal(vm.runInContext('fmtDiskSizeGb(1, 1)', analysis), '1.0 GB', 'gigabyte allocations retain their display unit');
+load('scanResultsUsable', analysis);
 load('appCacheSummary', analysis);
 analysis.STATE.scanCompleted = true;
 assert.equal(vm.runInContext('appCacheSummary({subpaths:[]}).state', analysis), '未发现已识别缓存', 'missing recognized paths are not proof of no app cache');

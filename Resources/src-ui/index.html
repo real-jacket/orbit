@@ -2132,6 +2132,7 @@ const DEFAULT_STATE = {
   cleanExcludedOpen: false,
   scanCompleted: false,
   scanRunning: false,
+  scanRefresh: false,
   scanReadWarnings: [],
   aiMoonBands: [],
   aiToolFilter: 'all',
@@ -4128,12 +4129,14 @@ function selectedSubpaths(item, mode) {
     (mode !== 'cache_only' || sp.kind === 'cache') &&
     (mode !== 'standard' || sp.kind !== 'config' || !item.keepPersonal));
 }
+// 后台刷新期间沿用已按回执更新的结果；首次扫描完成前没有可用结果。
+function scanResultsUsable() { return !!(STATE.scanCompleted || STATE.scanRunning && STATE.scanRefresh); }
 function selectedSizeGb(item, mode) {
   return selectedSubpaths(item, mode).reduce((sum, sp) => sum + (Number(sp.sizeGb) || 0), 0);
 }
 function appCacheSummary(app) {
   const paths = (app.subpaths || []).filter(sp => sp.kind === 'cache' && !sp.cleaned);
-  if (!STATE.scanCompleted) return { size: t('等待扫描'), state: '尚未测量', detail: t('等待本机扫描回执；历史数据不能授权清理。') };
+  if (!scanResultsUsable()) return { size: t('等待扫描'), state: '尚未测量', detail: t('等待本机扫描回执；历史数据不能授权清理。') };
   if (!paths.length) return { size: t('未发现'), state: '未发现已识别缓存', detail: t('只检查已识别的缓存路径，不代表应用没有缓存。Application Support 或沙盒中的私有缓存不在当前识别范围。') };
   const partial = paths.some(sp => sp.partial);
   const bytes = paths.reduce((sum, sp) => sum + (Number(sp.sizeGb) || 0), 0);
@@ -4560,14 +4563,15 @@ function restrictedRecoveryHTML(items, rescanPath) {
         <span class="permission-recovery-icon">${UI_ICON('lock')}</span>
         <div>
           <strong>${t('{n} 个路径未读取，当前体积只是已测量下限', { n: Array.isArray(items) ? items.length : 0 })}</strong>
-          <p>${permissions ? t('授权后回到 orbit 点「重新扫描」。若设置列表里没有当前应用，先在访达中显示它，再用“+”添加。') : t('这些路径未完成读取，可能达到上限、超时或发生读取错误；见各组原因。权限设置不会消除遍历上限，可进入目录分层检查。')}</p>
-          <small>${t('当前构建使用临时签名；重新打包后，macOS 可能再次要求授权。')}</small>
+          <p>${permissions ? t('完全磁盘访问权限要退出并重新打开 orbit 才生效，开关已打开也一样；之后再重新扫描。若设置列表里没有当前应用，先在访达中显示它，再用“+”添加。') : groups.every(group => group.kind === 'system') ? t('这些位置即使授予完全磁盘访问权限也无法读取，无需处理。') : t('这些路径未完成读取，可能达到上限、超时或发生读取错误；见各组原因。权限设置不会消除遍历上限，可进入目录分层检查。')}</p>
+          ${permissions && STATE.runtimeStatus?.adhoc ? `<small>${t('当前构建使用临时签名；重新打包后，macOS 可能再次要求授权。')}</small>` : ''}
         </div>
       </div>
       <div class="permission-recovery-actions">
         ${permissions ? `<button class="btn btn-primary" onclick="openPrivacySettingsForPane('${primaryPane}')">${t('打开{pane}', { pane: permissionPaneLabel(primaryPane) })}</button>
         <button class="btn" onclick="openPrivacySettingsForPane('${secondaryPane}')">${t('打开{pane}', { pane: permissionPaneLabel(secondaryPane) })}</button>
-        <button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>` : ''}
+        <button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>
+        <button class="btn" onclick="relaunchApp()">${t('重新打开 orbit')}</button>` : ''}
         <button class="btn btn-quiet" onclick="requestDiskAnalyze('${jsq(rescanPath || '')}', true)">${t('重新扫描')}</button>
       </div>
       <details class="permission-groups">
@@ -6487,6 +6491,7 @@ function renderModule() {
             `).join('') : `
               <div class="subpath-item" style="color:var(--text-muted);font-size:11px;">${t('当前白名单为空（以系统返回为准），删除链路会自动跳过受保护路径。')}</div>
             `}
+            <div class="row-sub" style="white-space:normal;padding:4px 2px;">${t('保护 macOS 自身的规则（字体、聚焦搜索等系统缓存）始终生效，不在此列出。')}</div>
           </div>
         </div>
       </div>
@@ -6703,7 +6708,7 @@ function buildRestoreData(plan, movedEntries, movedPaths) {
 }
 
 function buildCleanEntries(module = STATE.module) {
-  if (!STATE.scanCompleted) { showToast(t('请等待本机扫描结果返回后再预览')); return; }
+  if (!scanResultsUsable()) { showToast(t('请等待本机扫描结果返回后再预览')); return; }
   if (pendingTrashRequests.size) { showToast(t('已有操作正在等待系统回执，请稍后再试')); return; }
   const mode = STATE.uninstallMode || 'standard';
   const entries = [];          // 一个界面实体 = 一个 entry；entry.paths 才是发给 Go 的绝对路径
@@ -7161,9 +7166,11 @@ document.addEventListener('keydown', (e) => {
     if (scanning) return;
     scanning = true;
     STATE.scanRunning = true;
+    // 移入废纸篓后的自动重扫只是后台刷新：列表已按回执更新，可以继续操作；用户手动重扫仍要等新结果。
+    STATE.scanRefresh = STATE.scanCompleted && refreshing;
     STATE.scanCompleted = false;
     clearTimeout(scanTimer);
-    scanTimer = setTimeout(() => showToast(t('本机扫描仍在进行，目录较多时需要更久。现有结果仅供查看，请等待回执。')), 20000);
+    if (!STATE.scanRefresh) scanTimer = setTimeout(() => showToast(t('本机扫描仍在进行，目录较多时需要更久。现有结果仅供查看，请等待回执。')), 20000);
   };
   window.onNativeRealScanStarted = function () { noteNativeScanStarted(); beginScan(); updateSidebarBadges(); renderModule(); };
 
@@ -7230,7 +7237,8 @@ document.addEventListener('keydown', (e) => {
       const needsScan = !STATE.scanCompleted && !items.length;
       const refreshEmpty = refreshing && !items.length && !pendingTrashRequests.size;
       pbt.textContent = busyTrash() ? t('正在移入废纸篓') : pendingTrashRequests.size ? t('等待回执') : refreshEmpty ? t('正在刷新扫描结果') : needsScan && !scanning ? t('开始扫描') : t('预览所选');
-      pbtn.disabled = scanning || pendingTrashRequests.size > 0 || refreshEmpty || (!needsScan && (!STATE.scanCompleted || !eligible));
+      const ready = scanResultsUsable() && (STATE.scanCompleted || items.length > 0);
+      pbtn.disabled = scanning && !ready || pendingTrashRequests.size > 0 || refreshEmpty || (!needsScan && (!ready || !eligible));
       if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary()) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
     } else {
       pbtn.disabled = STATE.module === 'optimize' && (optimizeBusy() || !optimizeSelectedIds().length);
