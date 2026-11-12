@@ -65,6 +65,38 @@ func TestArtifactCleanupReasonUsesBuilderAttribution(t *testing.T) {
 	}
 }
 
+func TestExternalArtifactKeepsRunningBuilderProtection(t *testing.T) {
+	home := fixtureHome(t)
+	external := fixtureHome(t)
+	fixtureDir(t, external, "Project/target", 21_000_000)
+	project := filepath.Join(external, "Project")
+	artifact := filepath.Join(project, "target")
+	s := &Scanner{
+		home:         home,
+		processProbe: func() (string, error) { return "/sbin/launchd\n", nil },
+		builderProbe: func() ([]builderProc, error) {
+			return []builderProc{{pid: 9, name: "cargo", cwd: filepath.Join(project, "src")}}, nil
+		},
+	}
+	for _, live := range []bool{false, true} {
+		if reason := s.cleanupReason(artifact, live); !strings.Contains(reason, "正在运行并使用") {
+			t.Errorf("external project lost builder protection at live=%v: %q", live, reason)
+		}
+	}
+	rows := s.scanBuildArtifactsWithRoots([]string{external})
+	if len(rows) != 1 || rows[0]["tier"] != "protected" || rows[0]["checked"] == true {
+		t.Fatalf("external artifact must be displayed as protected: %+v", rows)
+	}
+	s.builderProbe = func() ([]builderProc, error) { return nil, errors.New("lsof unavailable") }
+	if reason := s.cleanupReason(artifact, true); !strings.Contains(reason, "无法确认") {
+		t.Errorf("a failed external-project probe must preserve data: %q", reason)
+	}
+	s.builderProbe = func() ([]builderProc, error) { return nil, nil }
+	if reason := s.cleanupReason(artifact, true); reason != "" {
+		t.Errorf("an idle external artifact should remain reviewable: %q", reason)
+	}
+}
+
 func TestBuilderSnapshotCachesDisplayOnly(t *testing.T) {
 	calls := 0
 	s := &Scanner{processTTL: time.Hour, builderProbe: func() ([]builderProc, error) { calls++; return nil, nil }}

@@ -10,8 +10,11 @@ import (
 // verdict is the recommendation for one path.
 type verdict struct{ tier, reason, unlock string }
 
-// appOwner is an installed app a cache directory can belong to.
-type appOwner struct{ key, name, path string }
+// appOwner ties an app's aliases and precise user-data roots to its bundle.
+type appOwner struct {
+	key, name, path string
+	roots           []string
+}
 
 var (
 	appOwnerMu    sync.Mutex
@@ -24,26 +27,69 @@ var (
 // scanner (processTTL > 0) reuses the list briefly; tests and the move boundary
 // always read it fresh.
 func (s *Scanner) installedAppOwners(live bool) []appOwner {
+	dirs := s.defaultAppDirs()
+	if s.appDirs == nil {
+		dirs = append(dirs, filepath.Join(s.home, "Library/Application Support/Setapp/Applications"))
+	}
+	cacheKey := s.home + "\x00installed\x00" + strings.Join(dirs, "\x00")
 	if !live && s.processTTL > 0 {
 		appOwnerMu.Lock()
-		defer appOwnerMu.Unlock()
-		if time.Since(appOwnerAt[s.home]) < 10*time.Second {
-			return appOwnerCache[s.home]
+		owners, at := appOwnerCache[cacheKey], appOwnerAt[cacheKey]
+		appOwnerMu.Unlock()
+		if time.Since(at) < 10*time.Second {
+			return owners
 		}
 	}
 	var owners []appOwner
-	for _, path := range findAppBundles([]string{"/Applications", filepath.Join(s.home, "Applications"), filepath.Join(s.home, "Library/Application Support/Setapp/Applications")}) {
-		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-		info := readBundleInfo(path)
-		display := firstNonEmpty(info.displayName, info.bundleName, name)
-		for _, key := range []string{info.identifier, info.displayName, info.bundleName, name} {
-			if key != "" {
-				owners = append(owners, appOwner{key: strings.ToLower(key), name: display, path: path})
-			}
+	for _, path := range findAppBundles(dirs) {
+		owners = append(owners, s.appOwnersFor(path, true)...)
+	}
+	if !live && s.processTTL > 0 {
+		appOwnerMu.Lock()
+		appOwnerCache[cacheKey], appOwnerAt[cacheKey] = owners, time.Now()
+		appOwnerMu.Unlock()
+	}
+	return owners
+}
+
+// The same metadata indexes installed caches and data used by running helpers.
+// Reuse the existing short-lived owner cache for display checks; live checks
+// always reread the bundle, including apps outside the usual Applications roots.
+func (s *Scanner) appOwnersFor(path string, live bool) []appOwner {
+	cacheKey := s.home + "\x00bundle\x00" + path
+	if !live && s.processTTL > 0 {
+		appOwnerMu.Lock()
+		owners, at := appOwnerCache[cacheKey], appOwnerAt[cacheKey]
+		appOwnerMu.Unlock()
+		if time.Since(at) < 10*time.Second {
+			return owners
+		}
+	}
+	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	info := readBundleInfo(path)
+	display := firstNonEmpty(info.displayName, info.bundleName, name)
+	aliases := []string{info.identifier, info.displayName, info.bundleName, name}
+	var roots []string
+	for _, alias := range aliases {
+		roots = append(roots, s.appConfigCandidates(alias, info.identifier)...)
+		if appDataAlias(alias, info.identifier) {
+			roots = append(roots, filepath.Join(s.home, "Library/Caches", alias))
+		}
+	}
+	if strings.EqualFold(info.identifier, "com.google.Chrome") {
+		roots = append(roots, filepath.Join(s.home, "Library/Caches/Google/Chrome"))
+	}
+	roots = uniqueAppPaths(roots)
+	var owners []appOwner
+	for _, alias := range aliases {
+		if alias != "" {
+			owners = append(owners, appOwner{key: strings.ToLower(alias), name: display, path: path, roots: roots})
 		}
 	}
 	if !live && s.processTTL > 0 {
-		appOwnerCache[s.home], appOwnerAt[s.home] = owners, time.Now()
+		appOwnerMu.Lock()
+		appOwnerCache[cacheKey], appOwnerAt[cacheKey] = owners, time.Now()
+		appOwnerMu.Unlock()
 	}
 	return owners
 }
@@ -92,6 +138,53 @@ func (s *Scanner) cacheOwnerRunningReason(path string, live bool) string {
 	}
 	if running, _ := appRunning(parseProcessLines(processes), owner.path); running {
 		return owner.name + " 正在运行，暂缓清理"
+	}
+	return ""
+}
+
+// Application Support caches and sandbox data have the same running owner as
+// that owner's direct Library/Caches entries. Every enclosing .app counts: a
+// helper alone still uses the outer app's product data. The move boundary also
+// checks open files for unrecognized or shared data such as Group Containers.
+func (s *Scanner) appDataCleanupReason(path string, live bool) string {
+	appData := false
+	for _, family := range []string{"Library/Caches", "Library/Application Support", "Library/Containers", "Library/Group Containers", "Library/Preferences", "Library/Saved Application State"} {
+		appData = appData || withinPath(path, filepath.Join(s.home, family))
+	}
+	if !appData {
+		return ""
+	}
+	processes, err := s.processSnapshot(live)
+	if err != nil || strings.TrimSpace(processes) == "" {
+		return "无法确认应用数据是否闲置，保持原状"
+	}
+	seen := map[string]bool{}
+	for _, process := range parseProcessLines(processes) {
+		for app := process.path; app != "/" && app != "."; app = filepath.Dir(app) {
+			key := strings.ToLower(app)
+			if !strings.EqualFold(filepath.Ext(app), ".app") || seen[key] {
+				continue
+			}
+			seen[key] = true
+			owners := s.appOwnersFor(app, live)
+			if len(owners) == 0 {
+				continue
+			}
+			for _, root := range owners[0].roots {
+				if withinPath(path, root) || withinPath(root, path) {
+					return owners[0].name + " 正在运行，暂缓清理"
+				}
+			}
+		}
+	}
+	if live {
+		open, err := s.aiHandleOpen(path, true)
+		if err != nil {
+			return "无法确认应用数据是否仍被打开，保持原状"
+		}
+		if open {
+			return "仍有进程打开这份应用数据，保持原状"
+		}
 	}
 	return ""
 }

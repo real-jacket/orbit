@@ -11,10 +11,13 @@ import (
 )
 
 func TestParsePurgePaths(t *testing.T) {
-	home := "/Users/me"
+	home := fixtureHome(t)
+	if err := os.Mkdir(filepath.Join(home, "Code"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	got := parsePurgePaths("# comment\n\n  ~/Code  \n/opt/work\n~/code\n~\n", home)
-	// ~/code repeats ~/Code only when the folder's case is ambiguous, so just check the rest.
-	if len(got) < 3 || got[0] != "/Users/me/Code" || got[1] != "/opt/work" || got[len(got)-1] != "/Users/me" {
+	// Case aliases are counted once; the whole home is never a project root.
+	if want := []string{filepath.Join(home, "Code"), "/opt/work"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("parsePurgePaths = %v", got)
 	}
 }
@@ -72,6 +75,51 @@ func TestAddAndRemovePurgeRoot(t *testing.T) {
 	roots, err = s.RemovePurgeRoot("~/work")
 	if err != nil || len(roots.Paths) != 1 || roots.Paths[0] != filepath.Join(home, "Projects") {
 		t.Fatalf("remove: %+v %v", roots, err)
+	}
+}
+
+func TestEditingInvalidPurgeScopePreservesItsSelectionAndComments(t *testing.T) {
+	home := fixtureHome(t)
+	s := &Scanner{home: home}
+	for _, name := range []string{"Projects", "Selected"} {
+		if err := os.Mkdir(filepath.Join(home, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file := PurgePathsPath(home)
+	content := "# My project scope\nrelative/projects\n"
+	writeFile(t, file, content)
+	roots, err := s.AddPurgeRoot("~/Selected")
+	if err != nil || !roots.Custom || !reflect.DeepEqual(roots.Paths, []string{filepath.Join(home, "Selected")}) || len(roots.Warnings) != 1 {
+		t.Fatalf("adding to an invalid saved scope must not import default projects: %+v, %v", roots, err)
+	}
+	if data, err := os.ReadFile(file); err != nil || string(data) != content+"~/Selected\n" {
+		t.Fatalf("scope editing changed existing comments or invalid lines: %q, %v", data, err)
+	}
+	roots, err = s.RemovePurgeRoot("~/Selected")
+	if err != nil || !roots.Custom || len(roots.Paths) != 0 || len(roots.Warnings) != 1 {
+		t.Fatalf("the remaining invalid selection must remain empty: %+v, %v", roots, err)
+	}
+	if data, err := os.ReadFile(file); err != nil || string(data) != content {
+		t.Fatalf("removing a root changed unrelated saved lines: %q, %v", data, err)
+	}
+}
+
+func TestAddingPurgeRootAtConfigLimitsLeavesTheSavedScopeUntouched(t *testing.T) {
+	for _, content := range []string{strings.Repeat("relative/projects\n", 100), strings.Repeat(" ", 1<<20)} {
+		home := fixtureHome(t)
+		s := &Scanner{home: home}
+		if err := os.Mkdir(filepath.Join(home, "Selected"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		file := PurgePathsPath(home)
+		writeFile(t, file, content)
+		if _, err := s.AddPurgeRoot("~/Selected"); err == nil {
+			t.Fatal("adding beyond the parser's limits reported success for a root it cannot scan")
+		}
+		if data, err := os.ReadFile(file); err != nil || string(data) != content {
+			t.Fatalf("a refused addition changed the existing saved scope: %d bytes, %v", len(data), err)
+		}
 	}
 }
 

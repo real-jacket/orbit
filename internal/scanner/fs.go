@@ -23,9 +23,11 @@ type fileEntry struct {
 
 // Read warnings the page shows. kind tells the page what can be done about it.
 const (
-	warnPermission = "permission" // Full Disk Access would normally fix it
+	warnPermission = "permission" // the filesystem refused a directory read
 	warnSystem     = "system"     // macOS keeps third-party apps out, granted or not
-	warnLimit      = "limit"      // a cap or timeout was hit; the size is a lower bound
+	warnLimit      = "limit"      // a traversal cap was hit; the size is a lower bound
+	warnTimeout    = "timeout"    // the filesystem did not answer before the deadline
+	warnConfig     = "config"     // a saved scan scope could not be read or validated
 	warnError      = "error"
 )
 
@@ -58,8 +60,13 @@ func readDirEntries(dir string) ([]os.DirEntry, error) {
 		return entries, err
 	}
 	directoryReads.Lock()
-	delete(directoryReads.failed, dir)
-	delete(directoryReads.kinds, dir)
+	// Listing the directory again cannot complete a previously capped traversal
+	// or cache discovery. Keep that limit until the next full scan resets it;
+	// successful reads may still clear a recovered read failure.
+	if err != nil || directoryReads.kinds[dir] != warnLimit {
+		delete(directoryReads.failed, dir)
+		delete(directoryReads.kinds, dir)
+	}
 	directoryReads.Unlock()
 	return entries, err
 }
@@ -83,14 +90,23 @@ func recordReadError(path string, err error) {
 	recordReadWarningKind(path, reason, kind)
 }
 
-// clearReadWarnings forgets the warnings under home before a new scan.
+// clearReadWarnings forgets the warnings overlapping home before a new scan.
 func clearReadWarnings(home string) {
+	clearReadWarningsForRoots([]string{home})
+}
+
+// Configured project roots can live on another volume. Clear failed parents
+// too, since they can prevent discovery of a selected root.
+func clearReadWarningsForRoots(roots []string) {
 	directoryReads.Lock()
 	defer directoryReads.Unlock()
 	for path := range directoryReads.failed {
-		if withinPath(path, home) {
-			delete(directoryReads.failed, path)
-			delete(directoryReads.kinds, path)
+		for _, root := range roots {
+			if root != "" && (withinPath(path, root) || withinPath(root, path)) {
+				delete(directoryReads.failed, path)
+				delete(directoryReads.kinds, path)
+				break
+			}
 		}
 	}
 }
@@ -99,11 +115,11 @@ func clearReadWarnings(home string) {
 func classifyReadError(path string, err error) (kind, reason string) {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return warnPermission, "目录读取超时，可能正在等待 macOS 授权；未计入本次扫描"
+		return warnTimeout, "目录读取超时，未计入本次扫描；请重新扫描或检查存储连接"
 	case errors.Is(err, syscall.EPERM) && isSystemProtected(path):
 		return warnSystem, "macOS 系统保护的目录，授予完全磁盘访问权限后也无法读取；未计入本次扫描"
 	case errors.Is(err, fs.ErrPermission):
-		return warnPermission, "没有读取权限；授予完全磁盘访问权限后重新扫描即可测量"
+		return warnPermission, "目录读取被拒绝，未计入本次扫描；请检查完全磁盘访问权限和该目录的访问权限后重新扫描"
 	}
 	return warnError, err.Error()
 }
@@ -129,12 +145,29 @@ func isSystemProtected(path string) bool {
 // inside another path with the same kind is dropped: the user sees one entry per
 // measured root, not one per folder the walk went through.
 func scanReadWarnings(home string) []map[string]any {
+	return scanReadWarningsForRoots([]string{home})
+}
+
+// scanReadWarningsForRoots includes failed descendants and failed parents of
+// the directories actually being scanned. Configured projects can live outside
+// the home directory; a parent read refusal can prevent discovering a root.
+func scanReadWarningsForRoots(roots []string) []map[string]any {
+	var scope []string
+	for _, root := range roots {
+		if root != "" {
+			scope = append(scope, filepath.Clean(root))
+		}
+	}
 	directoryReads.Lock()
 	defer directoryReads.Unlock()
 	var paths []string
 	for path := range directoryReads.failed {
-		if path == home || strings.HasPrefix(path, home+string(os.PathSeparator)) {
-			paths = append(paths, path)
+		cleanPath := filepath.Clean(path)
+		for _, root := range scope {
+			if withinPath(cleanPath, root) || withinPath(root, cleanPath) {
+				paths = append(paths, path)
+				break
+			}
 		}
 	}
 	sort.Strings(paths)

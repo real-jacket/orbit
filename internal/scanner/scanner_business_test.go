@@ -544,7 +544,15 @@ func TestCleanGroupsReportEachRootOnce(t *testing.T) {
 	fixtureDir(t, home, "Library/Caches/pip", 1<<20)
 	fixtureDir(t, home, ".npm/_cacache", 2<<20)
 
-	groups := (&Scanner{home: home}).scanCleanGroups()
+	// This fixture verifies grouping and selection with idle caches. Host npm
+	// or npx processes must not change that premise while the test is running.
+	scanner := &Scanner{
+		home:         home,
+		processProbe: func() (string, error) { return "/usr/bin/idle\n", nil },
+		handleProbe:  func(string) (bool, error) { return false, nil },
+		builderProbe: func() ([]builderProc, error) { return nil, nil },
+	}
+	groups := scanner.scanCleanGroups()
 	byID := rowsByID(groups)
 
 	userCaches, ok := byID["user_caches"]

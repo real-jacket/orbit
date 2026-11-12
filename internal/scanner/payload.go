@@ -46,7 +46,10 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	fullScanMu.Lock()
 	defer fullScanMu.Unlock()
 	policy := s.refreshWhitelist()
-	clearReadWarnings(s.home)
+	// Resolve the saved Mole project scope once. The displayed roots and the
+	// concurrent build scan must not read different revisions of purge_paths.
+	purgeRoots := s.PurgeRoots()
+	clearReadWarningsForRoots(s.scanWarningRoots(purgeRoots))
 	freeGB, totalGB := s.queryDiskSpace()
 	_, memTotalGB := s.queryMemoryUsage()
 	payload := FullScanPayload{
@@ -55,6 +58,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 		MemTotalGb:  round2(memTotalGB),
 		CPUModel:    s.queryCPUModel(),
 		HomePath:    s.home,
+		PurgeRoots:  purgeRoots,
 	}
 	// The sections read the disk independently: each keeps its own claims and
 	// shares only locked state (whitelist, read warnings, icon cache), so they
@@ -66,7 +70,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 		func() { payload.CleanGroups = view.scanCleanGroups() },
 		func() { payload.AppsList = view.scanInstalledApps() },
 		func() { payload.AIMoonBands = view.scanAICaches() },
-		func() { payload.PurgeItems = view.scanBuildArtifacts() },
+		func() { payload.PurgeItems = view.scanBuildArtifactsWithRoots(purgeRoots.AbsolutePaths()) },
 		func() { payload.OrphanLeftovers = view.scanOrphanedLeftovers() },
 		func() { payload.LargeFiles = view.scanLargeFiles() },
 		func() { payload.InstallerFiles = view.scanInstallerPackages() },
@@ -82,8 +86,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	wg.Wait()
 	payload.Whitelist = s.UserWhitelistPaths()
 	payload.WhitelistWarnings = policy.Warnings
-	payload.PurgeRoots = s.PurgeRoots()
-	payload.ReadWarnings = scanReadWarnings(s.home)
+	payload.ReadWarnings = s.scopedReadWarnings(purgeRoots)
 	return payload
 }
 

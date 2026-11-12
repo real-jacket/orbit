@@ -2954,7 +2954,9 @@ function setPurgeRoots(roots) {
   STATE.purgeRoots = {
     paths: roots.paths.filter(p => typeof p === 'string' && p),
     custom: roots.custom === true,
-    error: typeof roots.error === 'string' ? roots.error : ''
+    error: typeof roots.error === 'string' ? roots.error : '',
+    roots: Array.isArray(roots.roots) ? roots.roots.filter(root => root && typeof root.path === 'string') : [],
+    warnings: Array.isArray(roots.warnings) ? roots.warnings.filter(w => w && typeof w.path === 'string') : []
   };
 }
 window.onNativePurgeRootsChanged = function(res) {
@@ -4137,7 +4139,7 @@ function selectedSizeGb(item, mode) {
 function appCacheSummary(app) {
   const paths = (app.subpaths || []).filter(sp => sp.kind === 'cache' && !sp.cleaned);
   if (!scanResultsUsable()) return { size: t('等待扫描'), state: '尚未测量', detail: t('等待本机扫描回执；历史数据不能授权清理。') };
-  if (!paths.length) return { size: t('未发现'), state: '未发现已识别缓存', detail: t('只检查已识别的缓存路径，不代表应用没有缓存。Application Support 或沙盒中的私有缓存不在当前识别范围。') };
+  if (!paths.length) return { size: t('未发现'), state: '未发现已识别缓存', detail: t('已检查标准缓存、已识别的 Application Support 缓存与沙盒缓存路径；未发现不代表应用没有私有缓存。') };
   const partial = paths.some(sp => sp.partial);
   const bytes = paths.reduce((sum, sp) => sum + (Number(sp.sizeGb) || 0), 0);
   const size = fmtPartialGb(bytes, partial);
@@ -4450,41 +4452,43 @@ function openPrivacySettingsForPane(pane) {
 
 function permissionPaneForPath(rawPath) {
   const shown = displayPath(rawPath || '');
-  return /^~\/(Desktop|Documents|Downloads)(\/|$)/.test(shown) ||
-    /^\/Users\/[^/]+\/(Desktop|Documents|Downloads)(\/|$)/.test(shown)
-    ? 'filesAndFolders'
-    : 'fullDiskAccess';
+  if (/^~\/(Desktop|Documents|Downloads)(\/|$)/i.test(shown) ||
+    /^\/Users\/[^/]+\/(Desktop|Documents|Downloads)(\/|$)/i.test(shown)) return 'filesAndFolders';
+  if (/^(~|\/Users\/[^/]+)\/Library\/(Containers|Group Containers|Application Support|Caches|Logs|Mail|Messages|Safari|Calendars)(\/|$)/i.test(shown)) return 'fullDiskAccess';
+  return '';
 }
 
 function permissionPaneLabel(pane) {
   return pane === 'filesAndFolders' ? t('文件与文件夹') : t('完全磁盘访问权限');
 }
 
-// readWarnings[].kind: permission | system | limit | error。旧载荷没有 kind，按未分类（''）处理，行为与此前一致。
-const WARNING_KIND_ORDER = ['permission', 'error', '', 'limit', 'system'];
-function warningKind(w) { return w && ['permission', 'system', 'limit', 'error'].includes(w.kind) ? w.kind : ''; }
+// 旧载荷没有 kind，保留未分类（''）供逐个核对读取原因。
+const WARNING_KIND_ORDER = ['permission', 'config', 'error', 'timeout', '', 'limit', 'system'];
+function warningKind(w) { return w && WARNING_KIND_ORDER.includes(w.kind) ? w.kind : ''; }
 function warningSummary(list) {
-  const s = { permission: 0, error: 0, legacy: 0, limit: 0, system: 0 };
+  const s = { permission: 0, config: 0, error: 0, timeout: 0, legacy: 0, limit: 0, system: 0 };
   (Array.isArray(list) ? list : STATE.scanReadWarnings).forEach(w => { s[warningKind(w) || 'legacy']++; });
-  s.actionable = s.permission + s.error + s.legacy;
+  s.actionable = s.permission + s.config + s.error + s.timeout + s.legacy;
   s.total = s.actionable + s.limit + s.system;
   return s;
 }
 // 标题与徽章不计入 system（无需处理）；limit 只说明体积是下限，不说「受限」。
 function warningHeadline(s) {
-  if (s.permission) return t('{n} 个路径没有读取权限，请授予完全磁盘访问权限', { n: s.permission });
-  if (s.error || s.legacy) return t('部分路径未完成测量，请先查看原因');
+  if (s.permission) return t('{n} 个路径读取被拒绝，请按路径核对权限', { n: s.permission });
+  if (s.config || s.error || s.timeout || s.legacy) return t('部分路径未完成测量，请先查看原因');
   if (s.limit) return t('权限正常；{n} 个较大目录只测量了部分体积（不影响清理）', { n: s.limit });
   return '';
 }
 function warningBadge(s) {
-  return s.permission ? t('部分路径无读取权限') : s.error || s.legacy ? t('部分测量受限') : s.limit ? t('部分体积为下限') : '';
+  return s.permission ? t('部分路径无读取权限') : s.config || s.error || s.timeout || s.legacy ? t('部分测量受限') : s.limit ? t('部分体积为下限') : '';
 }
 function warningKindText(kind) {
-  if (kind === 'permission') return { title: t('没有读取权限'), note: t('需要完全磁盘访问权限；授权后回到 orbit 点「刷新扫描」。') };
+  if (kind === 'permission') return { title: t('没有读取权限'), note: t('目录不存在会跳过；读取被拒绝还可能涉及目录访问控制，完全磁盘访问权限不会绕过所有限制。') };
   if (kind === 'limit') return { title: t('只测量了部分体积'), note: t('触达测量上限或超时，体积是下限；没有被拒绝，也不影响清理。') };
   if (kind === 'system') return { title: t('macOS 系统保护'), note: t('这些位置即使授予完全磁盘访问权限也无法读取，无需处理。') };
   if (kind === 'error') return { title: t('读取出错'), note: t('读取时出现其它错误，见各组原因。') };
+  if (kind === 'timeout') return { title: t('目录读取超时'), note: t('超时不表示缺少完全磁盘访问权限；请按路径核对读取原因后重新扫描。') };
+  if (kind === 'config') return { title: t('扫描路径配置需核对'), note: t('配置未能采用时不会启用默认目录，请核对配置文件与路径。') };
   return { title: '', note: '' };
 }
 function warningRowAction(group, rt) {
@@ -4492,8 +4496,8 @@ function warningRowAction(group, rt) {
   return `<span class="row-sub">${group.kind === 'system' ? t('无需处理') : group.kind === 'limit' ? t('不影响清理') : t('查看读取原因')}</span>`;
 }
 // 运行时面板与模块内提示共用：按 kind 分节，每节一句说明；没有 kind 时不加节标题。
-function scanWarningSectionsHTML(rt) {
-  const groups = groupRestrictedPaths(STATE.scanReadWarnings).map(group => rt && !group.kind && !/^(?:~|\/Users\/[^/]+)\/(?:Desktop|Documents|Downloads|Library\/(?:Mail|Safari|Messages|Containers|Group Containers))(\/|$)/.test(group.label) ? { ...group, pane: '' } : group);
+function scanWarningSectionsHTML(rt, list = STATE.scanReadWarnings) {
+  const groups = groupRestrictedPaths(list).map(group => rt && !group.kind && !/^(?:~|\/Users\/[^/]+)\/(?:Desktop|Documents|Downloads|Library\/(?:Mail|Safari|Messages|Containers|Group Containers))(\/|$)/.test(group.label) ? { ...group, pane: '' } : group);
   const headed = groups.some(group => group.kind);
   return WARNING_KIND_ORDER.map(kind => {
     const rows = groups.filter(group => group.kind === kind);
@@ -4529,7 +4533,7 @@ function groupRestrictedPaths(items) {
     const key = label || shown;
     const reason = typeof item.reason === 'string' ? item.reason : '';
     const kind = warningKind(item);
-    const pane = (kind ? kind === 'permission' : /权限|授权|permission|not permitted|access denied/i.test(reason)) ? permissionPaneForPath(item.path) : '';
+    const pane = (kind ? kind === 'permission' : !/超时|上限|timeout|timed out|deadline/i.test(reason) && /权限|授权|permission|not permitted|access denied/i.test(reason)) ? permissionPaneForPath(item.path) : '';
     const gkey = kind + '\0' + key;
     if (!groups.has(gkey)) {
       groups.set(gkey, {
@@ -4549,6 +4553,39 @@ function groupRestrictedPaths(items) {
     if (!group.reason && typeof item.reason === 'string') group.reason = item.reason;
   });
   return Array.from(groups.values()).sort((a, b) => WARNING_KIND_ORDER.indexOf(a.kind) - WARNING_KIND_ORDER.indexOf(b.kind) || b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN'));
+}
+
+// Modern receipts identify all modules that actually read a path. Old receipts
+// use conservative path boundaries so unrelated application warnings cannot
+// make a readable custom project scope look like a permissions failure.
+function scanWarningsForModule(module = STATE.module) {
+  const warnings = Array.isArray(STATE.scanReadWarnings) ? STATE.scanReadWarnings : [];
+  if (!['clean', 'ai_moon', 'software', 'purge'].includes(module)) return warnings;
+  const roots = [];
+  const addRows = rows => (Array.isArray(rows) ? rows : []).forEach(row => {
+    if (row.path) roots.push(row.path);
+    (Array.isArray(row.subpaths) ? row.subpaths : []).forEach(sp => { if (sp.path) roots.push(sp.path); });
+  });
+  if (module === 'purge') {
+    roots.push(...(STATE.purgeRoots?.paths || []));
+    roots.push('~/Downloads', '~/Library/Caches/Homebrew/downloads');
+  } else if (module === 'software') {
+    roots.push('~/Applications', '/Applications', '/System/Applications');
+    ['Caches', 'Application Support', 'Containers', 'Group Containers', 'Preferences', 'Saved Application State', 'Logs'].forEach(name => roots.push('~/Library/' + name));
+    addRows(STATE.appsList); addRows(STATE.orphanLeftoversList);
+  } else if (module === 'clean') {
+    roots.push('~/Library/Caches', '~/Library/Logs', '~/Library/Developer/Xcode/DerivedData', '~/Library/Developer/CoreSimulator/Caches', '~/.npm/_cacache', '~/.bun/install/cache', '~/.cache/uv', '~/go/pkg/mod/cache/download', '~/.cargo/registry/cache');
+    addRows(STATE.cleanGroups); addRows(STATE.cleanExcludedRoots);
+  } else {
+    addRows(STATE.aiMoonBands); addRows(STATE.aiExcludedRoots);
+    roots.push('~/.codex', '~/.claude', '~/.cursor', '~/.copilot', '~/.gemini', '~/.continue', '~/.codeium', '~/.local/share/opencode', '~/.local/share/claude', '~/.local/share/cursor-agent');
+  }
+  const normalizedRoots = roots.map(normalizeComparePath).filter(Boolean);
+  return warnings.filter(item => {
+    if (Array.isArray(item.modules)) return item.modules.includes(module);
+    const path = normalizeComparePath(item.path);
+    return path && normalizedRoots.some(root => path === root || path.startsWith(root + '/') || root.startsWith(path + '/'));
+  });
 }
 
 function restrictedRecoveryHTML(items, rescanPath) {
@@ -5753,7 +5790,7 @@ function renderModule() {
     const orphans = STATE.orphanLeftoversList || [];
     const dualModeSwitchHtml = `
       <div class="segmented-tabs" style="align-self:flex-start;">
-        <div class="seg-tab ${panelMode === 'leftovers' ? 'active' : ''}" onclick="setSoftwarePanelMode('leftovers')">${t('已卸载残留')}${tabCount(orphans.length)}</div>
+        <div class="seg-tab ${panelMode === 'leftovers' ? 'active' : ''}" onclick="setSoftwarePanelMode('leftovers')">${t('待核对数据')}${tabCount(orphans.length)}</div>
         <div class="seg-tab ${panelMode === 'apps' ? 'active' : ''}" onclick="setSoftwarePanelMode('apps')">${t('已安装应用')}${tabCount(STATE.appsList.length)}</div>
         <div class="seg-tab ${panelMode === 'slim' ? 'active' : ''}" onclick="setSoftwarePanelMode('slim')">${t('应用瘦身')}${SLIM.scan ? tabCount(SLIM.scan.apps.filter(a => a.tier !== 'protected').length) : ''}</div>
       </div>
@@ -5765,13 +5802,13 @@ function renderModule() {
       const activeOrphans = checkedOrphans;
       const totalSelectedOrphanGb = activeOrphans.reduce((s, o) => s + selectedSizeGb(o), 0);
 
-      topTitle.textContent = t('已卸载应用残留清理 · 分离器');
+      topTitle.textContent = t('残留与未归属数据 · 分离器');
       primaryBtnText.textContent = t('一键清理所选残留 ({gb} GB)', { gb: totalSelectedOrphanGb.toFixed(2) });
       heroHeadline.textContent = selOrphan
-        ? t('发现 {n} 组已卸载应用的残留', { n: orphans.length })
-        : t('没有发现已卸载残留');
-      heroDesc.textContent = t('应用目录与已知签名只提供残留线索，不证明数据已弃用。通用容器最多列出 18 个候选；自定义安装位置与共享资料可能未识别。');
-      heroStatLabel.textContent = t('已勾选孤立残留');
+        ? t('发现 {n} 组需要核对归属的数据', { n: orphans.length })
+        : t('没有发现待核对数据');
+      heroDesc.textContent = t('未匹配到应用不代表应用已卸载或数据已弃用。已识别的现有应用数据保留；残留与未归属数据默认不选，请核对路径、用途和归属后再处理。');
+      heroStatLabel.textContent = t('已勾选待核对数据');
       heroStatValue.textContent = `${totalSelectedOrphanGb.toFixed(2)} GB`;
       heroStatSub.textContent = t('共 {n} 组 · 移入废纸篓，可尝试原路还原', { n: activeOrphans.length });
 
@@ -6565,10 +6602,15 @@ function optimizeListHTML() {
 function purgeRootsHTML() {
   const roots = STATE.purgeRoots || { paths: [], custom: false, error: '' };
   const n = roots.paths.length;
-  return `<details class="runtime-evidence clean-exclusions purge-roots" style="margin:0;padding:6px 12px 8px;border-bottom:1px solid var(--border-subtle);" ${STATE.purgeRootsOpen || roots.error ? 'open' : ''} ontoggle="if(this.isConnected)STATE.purgeRootsOpen=this.open"><summary tabindex="0">${roots.custom ? t('扫描目录 · {n} 个（自定义）', { n }) : t('扫描目录 · {n} 个（默认）', { n })}</summary>
+  const labels = { readable: t('可读取'), missing: t('目录不存在 · 已跳过'), denied: t('读取被拒绝'), unknown: t('读取状态未确认') };
+  return `<details data-purge-scan-roots class="runtime-evidence clean-exclusions purge-roots" style="margin:0;padding:6px 12px 8px;border-bottom:1px solid var(--border-subtle);" ${STATE.purgeRootsOpen || roots.error ? 'open' : ''} ontoggle="if(this.isConnected)STATE.purgeRootsOpen=this.open"><summary tabindex="0">${roots.custom ? t('扫描目录 · {n} 个（自定义）', { n }) : t('扫描目录 · {n} 个（默认）', { n })}</summary>
     <p>${roots.custom ? t('只扫描下列目录，保存在 ~/.config/mole/purge_paths，和 mo purge 共用。移除全部目录后恢复默认位置。') : t('当前使用默认位置。添加一个目录后，只扫描列表里的目录，并保存在 ~/.config/mole/purge_paths，和 mo purge 共用。')}</p>
     ${roots.error ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(roots.error))}</div>` : ''}
-    <div class="permission-group-list">${roots.paths.map((path, idx) => `<div class="subpath-item"><span class="subpath-left" style="overflow-wrap:anywhere;">${escHtml(displayPath(path))}</span>${roots.custom ? `<button class="row-remove" style="opacity:1;" onclick="removePurgeRootIdx(${idx})" title="${t('不再扫描这个目录')}">${t('移除')}</button>` : ''}</div>`).join('')}</div>
+    <div class="permission-group-list">${roots.paths.map((path, idx) => {
+      const root = (roots.roots || []).find(root => normalizeComparePath(root.path) === normalizeComparePath(path));
+      return `<div class="subpath-item"><span class="subpath-left" style="overflow-wrap:anywhere;">${escHtml(displayPath(path))}${root ? `<small style="display:block;color:var(--text-muted);" title="${escHtml(t(root.reason || ''))}">${labels[root.status] || labels.unknown}</small>` : ''}</span>${roots.custom ? `<button class="row-remove" style="opacity:1;" onclick="removePurgeRootIdx(${idx})" title="${t('不再扫描这个目录')}">${t('移除')}</button>` : ''}</div>`;
+    }).join('')}</div>
+    ${(roots.roots || []).length ? `<div class="row-sub" style="margin-top:6px;white-space:normal;">${t('目录不存在会跳过；读取被拒绝还可能涉及目录访问控制，完全磁盘访问权限不会绕过所有限制。')}</div>` : ''}
     <div style="display:flex;gap:4px;margin-top:6px;"><input type="text" id="purgeRootInput" aria-label="${t('扫描目录')}" placeholder="${t('添加扫描目录...')}" style="flex:1;min-width:0;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:10.5px;" onkeydown="if(event.key==='Enter')addPurgeRootInput()" /><button class="btn" style="padding:2px 7px;font-size:10px;" onclick="addPurgeRootInput()">${t('+ 添加')}</button></div>
   </details>`;
 }
@@ -6743,8 +6785,8 @@ function buildCleanEntries(module = STATE.module) {
   } else if (module === 'software') {
     if (STATE.softwarePanelMode === 'leftovers') {
       const active = (STATE.orphanLeftoversList || []).filter(o => o.checked);
-      if (!active.length) { showToast(t('请先勾选要清理的已卸载残留项')); return; }
-      actionLabel = `已卸载残留清理 (${active.map(o => o.name).join(', ')})`;
+      if (!active.length) { showToast(t('请先勾选并核对要处理的数据路径')); return; }
+      actionLabel = t('残留与未归属数据清理 ({names})', { names: active.map(o => o.name).join(', ') });
       active.forEach(o => {
         const subs = selectedSubpaths(o);
         const paths = subs.map(sp => absolutePath(sp.path)).filter(Boolean);
@@ -7200,7 +7242,7 @@ document.addEventListener('keydown', (e) => {
       act = STATE.module === 'ai_moon' ? "clearAIFilters()" : "setCleanFilter('all')";
     } else if (STATE.scanCompleted) {
       if (STATE.module === 'clean' && STATE.cleanExcludedRoots.length) return '<div class="empty-state">' + UI_ICON('lock') + '<div class="empty-title">' + t('已识别扫描目录被保护排除') + '</div><div class="empty-desc">' + t('没有候选不代表没有缓存；请展开上方排除原因并查看白名单。其它读取限制仍单独显示。') + '</div></div>';
-      if (warningSummary().actionable) return '<div class="empty-state">' + UI_ICON('lock') + '<div class="empty-title">' + t('部分目录未能读取') + '</div><div class="empty-desc">' + t('这里只统计可读取的目录。受限目录没有计入体积，请检查下方路径与权限提示。') + '</div></div>';
+      if (warningSummary(scanWarningsForModule()).actionable) return '<div class="empty-state">' + UI_ICON('lock') + '<div class="empty-title">' + t('部分目录未能读取') + '</div><div class="empty-desc">' + t('这里只统计已读取的部分，请检查本模块下方的路径与读取原因。') + '</div></div>';
       return '<div class="empty-state">' + UI_ICON('shield') + '<div class="empty-title">' + t('未发现可清理项目') + '</div><div class="empty-desc">' + t('本次扫描没有返回候选项。白名单仍生效，受保护的路径不会出现在清理列表中。') + '</div></div>';
     } else {
       icon = 'folder';
@@ -7216,6 +7258,7 @@ document.addEventListener('keydown', (e) => {
   function decorate() {
     const stage = document.getElementById('moduleStage');
     if (!stage) return;
+    const moduleWarnings = scanWarningsForModule();
     // 主按钮只在真的可执行时是实心可点的：文案说明「请先勾选 / 已清理完毕」时禁用，
     // 免得上一次点击还被当成一次清空操作。
     const names = { clean: t('深度清理'), ai_moon: t('AI 清理'), software: t('应用卸载'), optimize: t('系统加速'), analyze: t('空间分析'), status: t('状态监控'), history: t('历史与白名单'), purge: t('构建清理') };
@@ -7239,7 +7282,7 @@ document.addEventListener('keydown', (e) => {
       pbt.textContent = busyTrash() ? t('正在移入废纸篓') : pendingTrashRequests.size ? t('等待回执') : refreshEmpty ? t('正在刷新扫描结果') : needsScan && !scanning ? t('开始扫描') : t('预览所选');
       const ready = scanResultsUsable() && (STATE.scanCompleted || items.length > 0);
       pbtn.disabled = scanning && !ready || pendingTrashRequests.size > 0 || refreshEmpty || (!needsScan && (!ready || !eligible));
-      if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary()) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
+      if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary(moduleWarnings)) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
     } else {
       pbtn.disabled = STATE.module === 'optimize' && (optimizeBusy() || !optimizeSelectedIds().length);
       pbt.textContent = STATE.module === 'optimize' ? STATE.optimize.running ? t('正在维护') : t('执行所选') : STATE.module === 'analyze' ? STATE.analyzeLoading ? t('取消扫描') : t('重新扫描') : STATE.module === 'status' ? t('刷新状态') : t('复制记录');
@@ -7258,27 +7301,28 @@ document.addEventListener('keydown', (e) => {
     rescan.closest('button').setAttribute('aria-busy', scanning ? 'true' : 'false');
     rescan.closest('button').hidden = STATE.module === 'analyze';
     stage.setAttribute('aria-busy', scanning || refreshing || pendingTrashRequests.size > 0 || STATE.module === 'analyze' && STATE.analyzeLoading ? 'true' : 'false');
-    document.getElementById('scanSourceBadge').textContent = scanning ? t('正在读取本机') : refreshing ? t('正在刷新扫描结果') : warningBadge(warningSummary()) || (STATE.scanCompleted ? STATE.module === 'ai_moon' ? t('本地 AI 目录审查 · 不等于 CLI 清理') : t('本机扫描已返回') : t('等待本机数据'));
+    document.getElementById('scanSourceBadge').textContent = scanning ? t('正在读取本机') : refreshing ? t('正在刷新扫描结果') : warningBadge(warningSummary(moduleWarnings)) || (STATE.scanCompleted ? STATE.module === 'ai_moon' ? t('本地 AI 目录审查 · 不等于 CLI 清理') : t('本机扫描已返回') : t('等待本机数据'));
     // 历史页没有本机扫描，不显示扫描来源。
     document.getElementById('scanSourceBadge').parentElement.hidden = STATE.module === 'history';
     if (STATE.module === 'analyze') {
       document.getElementById('scanSourceBadge').textContent = STATE.analyzeLoading ? t('正在读取本地目录') : STATE.analyzeError ? t('扫描未完成，旧结果保留') : STATE.analyzeStatus ? t('orbit 本地扫描 · 仅此范围') : t('等待目录扫描');
     }
-    if (STATE.scanReadWarnings.length && ['clean', 'ai_moon', 'software', 'purge'].includes(STATE.module)) {
-      const sum = warningSummary();
+    if (moduleWarnings.length && ['clean', 'ai_moon', 'software', 'purge'].includes(STATE.module)) {
+      const sum = warningSummary(moduleWarnings);
+      const warningGroups = groupRestrictedPaths(moduleWarnings);
+      const recoveryPane = warningGroups.some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : warningGroups.some(group => group.pane === 'filesAndFolders') ? 'filesAndFolders' : '';
       const legacyOnly = sum.legacy === sum.total;
       const quiet = !sum.actionable && !sum.limit;
       const hint = document.createElement('details');
       hint.className = 'panel-card';
       hint.style.cssText = 'flex:none;padding:12px 16px;font-size:12px;line-height:1.6;';
-      const lead = legacyOnly ? t('本机扫描：{n} 个路径未完成测量，按目录查看原因', { n: sum.total }) : quiet ? t('{n} 个位置受 macOS 系统保护，无需处理', { n: sum.system }) : warningHeadline(sum);
+      const lead = legacyOnly ? t('本模块扫描：{n} 个路径未完成测量，按目录查看原因', { n: sum.total }) : quiet ? t('{n} 个位置受 macOS 系统保护，无需处理', { n: sum.system }) : warningHeadline(sum);
       hint.innerHTML = `<summary style="cursor:pointer;color:var(${quiet ? '--text-muted' : '--accent-amber'});">${lead}</summary>
-        ${legacyOnly ? `<div class="row-sub" style="white-space:normal;margin-top:8px;">${t('这是整次本机扫描的告警，包含应用数据、缓存与构建目录，不代表同等数量的应用卸载失败。原因可能是读取权限、超时或文件测量上限；未读取不等于 0 B。')}</div>` : ''}
-        ${scanWarningSectionsHTML(false)}
+        <div class="row-sub" style="white-space:normal;margin-top:8px;">${t('这里只显示本模块扫描范围内的告警。权限拒绝、超时和测量上限分别核对；全部扫描证据可在运行环境中查看，未读取不等于 0 B。')}</div>
+        ${scanWarningSectionsHTML(false, moduleWarnings)}
         <div class="permission-recovery-actions">
-          ${sum.permission ? `<button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>
-          <button class="btn" onclick="openPrivacySettingsForPane('fullDiskAccess')">${t('打开{pane}', { pane: permissionPaneLabel('fullDiskAccess') })}</button>` : sum.legacy && groupRestrictedPaths(STATE.scanReadWarnings).some(group => group.pane) ? `<button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>
-          <button class="btn" onclick="openPrivacySettingsForPane('${groupRestrictedPaths(STATE.scanReadWarnings).some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : 'filesAndFolders'}')">${t('打开{pane}', { pane: permissionPaneLabel(groupRestrictedPaths(STATE.scanReadWarnings).some(group => group.pane === 'fullDiskAccess') ? 'fullDiskAccess' : 'filesAndFolders') })}</button>` : sum.limit || sum.legacy || sum.error ? `<span class="row-sub">${t('权限设置不会取消遍历上限，可用空间分析按层检查。')}</span>` : ''}
+          ${recoveryPane ? `<button class="btn" onclick="revealCurrentApp()">${t('在访达中显示当前应用')}</button>
+          <button class="btn" onclick="openPrivacySettingsForPane('${recoveryPane}')">${t('打开{pane}', { pane: permissionPaneLabel(recoveryPane) })}</button>` : sum.actionable || sum.limit ? `<span class="row-sub">${t('请按路径核对读取原因；可用空间分析按层检查。超时和测量上限不表示缺少完全磁盘访问权限。')}</span>` : ''}
         </div>`;
       stage.appendChild(hint);
     }

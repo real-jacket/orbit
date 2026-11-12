@@ -1,11 +1,14 @@
 package scanner
 
 import (
+	"context"
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/mymoles/mole-studio/internal/fsread"
 )
 
 // Ported from tw93/Mole V1.70.0 lib/clean/purge_shared.sh MOLE_PURGE_DEFAULT_SEARCH_PATHS
@@ -28,6 +31,16 @@ type PurgeRoots struct {
 	Custom bool `json:"custom"`
 	// Error is set when that file exists but cannot be read; discovery stops.
 	Error string `json:"error,omitempty"`
+	// Roots records missing and unreadable directories without calling every
+	// unfinished measurement a Full Disk Access failure.
+	Roots    []PurgeScanRoot  `json:"roots"`
+	Warnings []map[string]any `json:"warnings"`
+}
+
+// AbsolutePaths returns a copy of the accepted scope, including missing roots.
+// An empty saved scope never activates defaults during artifact discovery.
+func (roots PurgeRoots) AbsolutePaths() []string {
+	return append([]string{}, roots.Paths...)
 }
 
 // PurgePathsPath is mole's purge_paths file, shared with `mo purge`.
@@ -44,12 +57,15 @@ func resolvePathCase(path string) string {
 		if part == "" {
 			continue
 		}
-		if exists(filepath.Join(resolved, part)) {
-			for _, entry := range readDir(resolved) {
-				if strings.EqualFold(entry.name, part) {
-					part = entry.name
-					break
-				}
+		// Case resolution is configuration parsing, not a scan. A failed or
+		// unavailable parent cannot create a permission warning for every module.
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		entries, _ := fsread.ReadDir(ctx, resolved)
+		cancel()
+		for _, entry := range entries {
+			if strings.EqualFold(entry.Name(), part) {
+				part = entry.Name()
+				break
 			}
 		}
 		resolved = filepath.Join(resolved, part)
@@ -61,23 +77,47 @@ func resolvePathCase(path string) string {
 // a comment, ~ stands for home. A path listed twice, in any letter case, once.
 // Ported from tw93/Mole V1.70.0 lib/clean/purge_shared.sh mole_purge_read_paths_config
 func parsePurgePaths(content, home string) []string {
-	var paths []string
-	seen := map[string]bool{}
+	return (&Scanner{home: home}).parsePurgeRoots(content).Paths
+}
+
+// parsePurgeRoots is shared by scans and scope editing. Active but invalid
+// lines still constitute a custom scope: silently falling back would scan
+// folders the user never selected.
+func (s *Scanner) parsePurgeRoots(content string) PurgeRoots {
+	roots := PurgeRoots{Paths: []string{}, Roots: []PurgeScanRoot{}, Warnings: []map[string]any{}}
+	var identities []os.FileInfo
+	active := 0
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if line == "~" || strings.HasPrefix(line, "~/") {
-			line = filepath.Join(home, line[1:])
+		roots.Custom = true
+		if active >= maxPurgeRoots {
+			roots.Warnings = append(roots.Warnings, map[string]any{"path": PurgePathsPath(s.home), "kind": warnConfig, "reason": "扫描目录配置超过 100 项；本次只采用前 100 项"})
+			break
 		}
-		line = resolvePathCase(line)
-		if !seen[line] {
-			seen[line] = true
-			paths = append(paths, line)
+		active++
+		path, reason := s.normalizeBuildScanRoot(line)
+		if reason != "" {
+			roots.Warnings = append(roots.Warnings, map[string]any{"path": line, "kind": warnConfig, "reason": reason})
+			continue
 		}
+		info, _ := os.Stat(path)
+		duplicate := false
+		for i, existing := range roots.Paths {
+			if path == existing || info != nil && identities[i] != nil && os.SameFile(info, identities[i]) {
+				duplicate = true
+				break
+			}
+		}
+		if duplicate {
+			continue
+		}
+		roots.Paths = append(roots.Paths, path)
+		identities = append(identities, info)
 	}
-	return paths
+	return roots
 }
 
 func (s *Scanner) defaultPurgeRoots() []string {
@@ -93,14 +133,25 @@ func (s *Scanner) defaultPurgeRoots() []string {
 // because scanning the defaults would ignore the scope the user chose.
 // Ported from tw93/Mole V1.70.0 lib/clean/project.sh load_purge_config
 func (s *Scanner) PurgeRoots() PurgeRoots {
-	data, err := os.ReadFile(PurgePathsPath(s.home))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return PurgeRoots{Error: "无法读取 ~/.config/mole/purge_paths，已停止扫描构建产物：" + err.Error()}
+	roots, _, _ := s.loadPurgeRoots()
+	return roots
+}
+
+func (s *Scanner) loadPurgeRoots() (PurgeRoots, string, bool) {
+	content, present, err := readPurgePathConfig(PurgePathsPath(s.home))
+	if err != nil {
+		reason := "无法读取 ~/.config/mole/purge_paths，已停止扫描构建产物：" + err.Error()
+		return PurgeRoots{Paths: []string{}, Custom: true, Error: reason, Roots: []PurgeScanRoot{}, Warnings: []map[string]any{{"path": PurgePathsPath(s.home), "kind": warnConfig, "reason": reason}}}, content, present
 	}
-	if paths := parsePurgePaths(string(data), s.home); len(paths) > 0 {
-		return PurgeRoots{Paths: paths, Custom: true}
+	roots := s.parsePurgeRoots(content)
+	if !roots.Custom {
+		roots = s.parsePurgeRoots(strings.Join(defaultPurgeRoots, "\n"))
+		roots.Custom = false
 	}
-	return PurgeRoots{Paths: s.defaultPurgeRoots()}
+	for _, path := range roots.Paths {
+		roots.Roots = append(roots.Roots, inspectBuildScanRoot(path))
+	}
+	return roots, content, present
 }
 
 // purgePathLine is how a root is written to the file: ~ form under home.
@@ -110,16 +161,12 @@ func (s *Scanner) purgePathLine(path string) string {
 
 // ValidatePurgeRoot turns the page's text into an existing project folder.
 func (s *Scanner) ValidatePurgeRoot(raw string) (string, error) {
-	path := s.expand(strings.TrimSpace(raw))
-	if !filepath.IsAbs(path) {
-		return "", errors.New("请输入绝对路径或以 ~ 开头的路径")
+	path, reason := s.normalizeBuildScanRoot(strings.TrimSpace(raw))
+	if reason != "" {
+		return "", errors.New(reason)
 	}
-	path = resolvePathCase(path)
-	if path == "/" || path == s.home {
-		return "", errors.New("范围太大，请选择具体的项目目录")
-	}
-	if info, err := os.Stat(path); err != nil || !info.IsDir() {
-		return "", errors.New("不是可读取的文件夹：" + s.relativize(path))
+	if root := inspectBuildScanRoot(path); root.Status != "readable" {
+		return "", errors.New("不是可读取的文件夹：" + s.relativize(path) + "；" + root.Reason)
 	}
 	return path, nil
 }
@@ -127,6 +174,9 @@ func (s *Scanner) ValidatePurgeRoot(raw string) (string, error) {
 // writePurgePaths replaces the file in one step, so an interrupted write never
 // leaves a half-written scope.
 func (s *Scanner) writePurgePaths(content string) error {
+	if len(content) > purgeConfigMaxBytes {
+		return errors.New("扫描路径配置超过 1 MB")
+	}
 	path := PurgePathsPath(s.home)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -153,23 +203,23 @@ func (s *Scanner) AddPurgeRoot(raw string) (PurgeRoots, error) {
 	if err != nil {
 		return s.PurgeRoots(), err
 	}
-	current := s.PurgeRoots()
+	current, content, _ := s.loadPurgeRoots()
 	if current.Error != "" {
 		return current, errors.New(current.Error)
 	}
-	content := ""
-	if data, readErr := os.ReadFile(PurgePathsPath(s.home)); readErr == nil {
-		content = string(data)
-	}
-	if len(parsePurgePaths(content, s.home)) == 0 {
-		content = purgePathsHeader
+	if !current.Custom {
+		if content == "" {
+			content = purgePathsHeader
+		} else if !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
 		for _, path := range current.Paths {
 			if exists(path) {
 				content += s.purgePathLine(path) + "\n"
 			}
 		}
 	}
-	for _, path := range parsePurgePaths(content, s.home) {
+	for _, path := range current.Paths {
 		if path == root {
 			return s.PurgeRoots(), nil
 		}
@@ -177,23 +227,31 @@ func (s *Scanner) AddPurgeRoot(raw string) (PurgeRoots, error) {
 	if !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
-	return s.afterPurgeWrite(content + s.purgePathLine(root) + "\n")
+	nextContent := content + s.purgePathLine(root) + "\n"
+	for _, accepted := range s.parsePurgeRoots(nextContent).Paths {
+		if accepted == root {
+			return s.afterPurgeWrite(nextContent)
+		}
+	}
+	return current, errors.New("扫描目录配置已达到 100 项，请先移除不用的目录或编辑 ~/.config/mole/purge_paths")
 }
 
 // RemovePurgeRoot removes a folder from the scope. Removing the last one
 // leaves the file with only its comments, which means the defaults again.
 func (s *Scanner) RemovePurgeRoot(raw string) (PurgeRoots, error) {
-	current := s.PurgeRoots()
+	current, content, present := s.loadPurgeRoots()
 	if current.Error != "" {
 		return current, errors.New(current.Error)
 	}
-	data, err := os.ReadFile(PurgePathsPath(s.home))
-	if err != nil {
+	if !present {
 		return current, nil // defaults are not in a file; nothing to remove
 	}
-	target := resolvePathCase(s.expand(strings.TrimSpace(raw)))
+	target, reason := s.normalizeBuildScanRoot(strings.TrimSpace(raw))
+	if reason != "" {
+		return current, errors.New(reason)
+	}
 	var kept []string
-	for _, line := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimRight(content, "\n"), "\n") {
 		if paths := parsePurgePaths(line, s.home); len(paths) == 1 && paths[0] == target {
 			continue
 		}

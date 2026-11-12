@@ -496,6 +496,7 @@ assert.equal(receipts.STATE.historyLogs.length, 0, 'successful retry can finish 
 {
   const view = vm.createContext({ STATE: { scanCompleted: true, scanReadWarnings: [] }, UI_ICON: () => '' });
   view.window = view;
+  loadConst('WARNING_KIND_ORDER', view);
   ['hasNum', 'fmtDiskSizeGb', 'tierSummary', 'warningKind', 'warningSummary', 'warningHeadline', 'warningBadge'].forEach(name => load(name, view));
   vm.runInContext(script.slice(script.indexOf('const fmtPartialGb'), script.indexOf('const spSizeText')), view);
   assert.equal(vm.runInContext('fmtPartialGb(1.5, true)', view), '≥ 1.50 GB', 'a partial size is a lower bound');
@@ -518,7 +519,7 @@ assert.equal(receipts.STATE.historyLogs.length, 0, 'successful retry can finish 
   assert.match(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only('limit') }) && view), /权限正常；2 个较大目录只测量了部分体积（不影响清理）/);
   assert.equal(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only('system') }) && view), '', 'system locations never reach the headline');
   assert.equal(only('system').actionable, 0, 'system is not actionable');
-  assert.match(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only('permission') }) && view), /2 个路径没有读取权限/);
+  assert.match(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only('permission') }) && view), /2 个路径读取被拒绝，请按路径核对权限/);
   assert.equal(only('weird').legacy, 2, 'unknown kinds fall back to the legacy summary');
   assert.equal(vm.runInContext('warningHeadline(arg)', Object.assign(view, { arg: only(undefined) }) && view), '部分路径未完成测量，请先查看原因', 'payloads without kind keep the old headline');
 }
@@ -687,6 +688,26 @@ assert.equal(groups[0].pane, 'fullDiskAccess');
 assert.equal(groups[1].pane, 'filesAndFolders', 'documents permissions point at Files and Folders');
 analysis.limitWarning = [{ path: '~/Projects/Example/target', reason: '达到文件测量上限；只计入已读取部分' }];
 assert.equal(vm.runInContext('groupRestrictedPaths(limitWarning)[0].pane', analysis), '', 'a file budget limit is not mislabeled as a missing OS permission');
+analysis.timeoutWarning = [{ path: '~/Library/Containers/com.example', kind: 'timeout', reason: '目录读取超时，可能正在等待 macOS 授权；未计入本次扫描' }];
+assert.equal(vm.runInContext('groupRestrictedPaths(timeoutWarning)[0].pane', analysis), '', 'a timeout that mentions authorization cannot claim Full Disk Access is missing');
+analysis.projectDenial = [{ path: '~/Projects/Example/build', kind: 'permission', reason: 'open: permission denied' }];
+assert.equal(vm.runInContext('groupRestrictedPaths(projectDenial)[0].pane', analysis), '', 'an ordinary project access-control failure cannot prescribe Full Disk Access');
+analysis.STATE.purgeRoots = { custom: true, paths: ['~/Work'], roots: [{ path: '~/Work', status: 'readable' }, { path: '~/old', status: 'missing' }], warnings: [] };
+analysis.STATE.scanReadWarnings = [
+  { path: '~/Library/Containers/com.example', kind: 'permission', reason: 'operation not permitted', modules: ['software'] },
+  { path: '~/Work/Example/target', kind: 'limit', reason: '达到文件测量上限', modules: ['purge'] },
+];
+load('scanWarningsForModule', analysis);
+assert.equal(vm.runInContext('scanWarningsForModule("purge").length', analysis), 1, 'build cleanup only shows warnings for its actual scan scope');
+assert.equal(vm.runInContext('scanWarningsForModule("purge")[0].kind', analysis), 'limit', 'an unrelated app denial cannot contaminate the build scan');
+analysis.STATE.scanReadWarnings = [{ path: '~/Library/Containers/com.example', kind: 'permission', reason: 'operation not permitted' }];
+assert.equal(vm.runInContext('scanWarningsForModule("purge").length', analysis), 0, 'legacy app warnings also stay outside a readable custom build scope');
+analysis.STATE.scanReadWarnings = [{ path: '~/Projects/Example/target', kind: 'limit', reason: '达到文件测量上限' }];
+assert.equal(vm.runInContext('scanWarningsForModule("purge").length', analysis), 0, 'custom build paths cannot silently inherit default project roots');
+analysis.STATE.scanReadWarnings = [{ path: '~/Downloads/Example.dmg', kind: 'permission', reason: 'operation not permitted' }];
+assert.equal(vm.runInContext('scanWarningsForModule("purge").length', analysis), 1, 'independently scanned installers retain their own reading warning');
+analysis.STATE.scanReadWarnings = [];
+assert.equal(vm.runInContext('scanWarningsForModule("purge").length', analysis), 0, 'missing build roots do not become permission warnings');
 assert.equal(vm.runInContext('fmtDiskSizeGb(0.000004096)', analysis), '4.1 KB', 'small real allocations never display as fictional GB');
 assert.equal(vm.runInContext('fmtDiskSizeGb(0.04, 1)', analysis), '40.0 MB', 'one-decimal labels do not round a nonzero allocation to zero GB');
 assert.equal(vm.runInContext('fmtDiskSizeGb(1, 1)', analysis), '1.0 GB', 'gigabyte allocations retain their display unit');
