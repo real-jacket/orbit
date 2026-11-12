@@ -368,15 +368,17 @@ func (s *Scanner) discoverArtifacts(root string, probeDeadline time.Time) []arti
 // scanBuildArtifacts lists the build artifacts in the project folders that are
 // big enough to be worth removing. An unreadable purge_paths file stops it.
 func (s *Scanner) scanBuildArtifacts() []map[string]any {
+	return s.scanBuildArtifactsWithRoots(s.PurgeRoots().Paths)
+}
+
+// A full scan passes its already-read project scope here so discovery and the
+// displayed settings cannot use different revisions of purge_paths.
+func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
 	items := []map[string]any{}
-	roots := s.PurgeRoots()
-	if roots.Error != "" {
-		return items
-	}
 	probeDeadline := time.Now().Add(purgeProbeBudget)
 	var candidates []artifactCandidate
 	seen := map[string]bool{}
-	for _, root := range roots.Paths {
+	for _, root := range roots {
 		for _, c := range s.discoverArtifacts(root, probeDeadline) {
 			if key := strings.ToLower(c.path); !seen[key] {
 				seen[key] = true

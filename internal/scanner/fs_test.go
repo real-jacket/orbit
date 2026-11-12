@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -17,7 +18,7 @@ func TestReadWarningsBelongToTheirScannerHome(t *testing.T) {
 	directoryReads.Lock()
 	directoryReads.failed[path] = "test permission refusal"
 	directoryReads.Unlock()
-	t.Cleanup(func() { directoryReads.Lock(); delete(directoryReads.failed, path); directoryReads.Unlock() })
+	t.Cleanup(func() { clearReadWarnings(path) })
 	if warnings := scanReadWarnings(home); len(warnings) != 1 || warnings[0]["path"] != path {
 		t.Fatalf("warnings = %v", warnings)
 	}
@@ -36,6 +37,59 @@ func TestDirectorySizeReportsIncompleteInventory(t *testing.T) {
 	}
 	if warnings := scanReadWarnings(home); len(warnings) != 1 || !strings.Contains(warnings[0]["reason"].(string), "上限") {
 		t.Fatalf("capped inventory must disclose its limit: %v", warnings)
+	}
+}
+
+func TestCacheDiscoveryLimitSurvivesConfigurationPartition(t *testing.T) {
+	home := fixtureHome(t)
+	root := filepath.Join(home, "Library/Application Support/Example")
+	cache := fixtureDir(t, home, "Library/Application Support/Example/GPUCache", 4096)
+	fixtureDir(t, home, "Library/Application Support/Example/Default/Code Cache", 4096)
+	for i := 0; i < 1001; i++ {
+		writeFile(t, filepath.Join(root, "state-"+strconv.Itoa(i)), "fixture")
+	}
+	t.Cleanup(func() { clearReadWarnings(root) })
+	caches := appSupportCacheCandidates(root, false)
+	if len(caches) != 1 || caches[0] != cache {
+		t.Fatalf("a capped discovery should keep only the direct cache: %v", caches)
+	}
+	partitionAppConfig(root, caches)
+	warnings := scanReadWarnings(home)
+	if len(warnings) != 1 || warnings[0]["path"] != root || warnings[0]["kind"] != "limit" {
+		t.Fatalf("configuration enumeration erased the still-applicable cache discovery limit: %v", warnings)
+	}
+}
+
+func TestSuccessfulListingClearsRecoveredReadFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read the denied fixture")
+	}
+	home := fixtureHome(t)
+	root := filepath.Join(home, "Recovered")
+	if err := os.Mkdir(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(root, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(root, 0o700)
+		directoryReads.Lock()
+		delete(directoryReads.failed, root)
+		delete(directoryReads.kinds, root)
+		directoryReads.Unlock()
+	})
+	if _, err := readDirEntries(root); !os.IsPermission(err) {
+		t.Fatalf("expected an actual permission refusal: %v", err)
+	}
+	if err := os.Chmod(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readDirEntries(root); err != nil {
+		t.Fatalf("recovered directory is not readable: %v", err)
+	}
+	if warnings := scanReadWarnings(home); len(warnings) != 0 {
+		t.Fatalf("a recovered directory kept its stale permission warning: %v", warnings)
 	}
 }
 
@@ -131,7 +185,7 @@ func TestReadErrorsAreClassifiedByCause(t *testing.T) {
 		{"apple cache refuses even with access", home + "/Library/Caches/com.apple.homed/x", &fs.PathError{Op: "open", Err: syscall.EPERM}, warnSystem},
 		{"user cache that needs a grant", home + "/Library/Caches/Spotify", &fs.PathError{Op: "open", Err: syscall.EPERM}, warnPermission},
 		{"plain access refusal", home + "/Desktop", &fs.PathError{Op: "open", Err: syscall.EACCES}, warnPermission},
-		{"a prompt nobody answered", home + "/Documents", context.DeadlineExceeded, warnPermission},
+		{"unavailable storage timed out", home + "/Documents", context.DeadlineExceeded, warnTimeout},
 		{"anything else is an error", home + "/Movies", &fs.PathError{Op: "open", Err: syscall.EIO}, warnError},
 	}
 	for _, c := range cases {

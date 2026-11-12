@@ -1,6 +1,6 @@
 # Mole CLI 能力对照
 
-核对日期：2026-11-08。基准：[tw93/Mole V1.70.0](https://github.com/tw93/Mole/tree/V1.70.0)（`7ec1af8`）。
+核对日期：2026-11-12。基准：[tw93/Mole V1.70.0](https://github.com/tw93/Mole/tree/V1.70.0)（`7ec1af8`）。
 
 ## 做法：移植规则，不调用 `mo`
 
@@ -65,11 +65,11 @@ orbit 的分级：推荐清理（默认勾选，可重建且没在用）、需�
 | Xcode | `clean_xcode_device_support` | 「Xcode 设备调试符号与测试设备数据」：保留最近使用的 2 个系统版本，其余推荐清理 |
 | macOS 用户状态 | `clean_system_state` | 「macOS 用户级缓存与状态」 |
 | 设备固件 | `clean_cached_device_firmware` | 「设备固件安装包缓存」：`.ipsw` 文件，正被打开的保留 |
-| Application Support 里的缓存与日志 | `clean_application_support_logs` | 「应用的浏览器内核缓存与崩溃报告」：沿用 Mole 的名称保护和白名单；应用运行时受保护，应用已卸载的交给「已卸载残留」 |
+| Application Support 里的缓存与日志 | `clean_application_support_logs` | 「应用的浏览器内核缓存与崩溃报告」：沿用 Mole 的名称保护和白名单；应用运行时受保护，归属无法确认的交给「待核对数据」 |
 | 空沙盒容器 | `clean_orphaned_container_stubs` | 「已卸载应用留下的空沙盒容器」：只处理 Mole 列出的那几类 |
 | 邮件附件副本 | `clean_mail_downloads` | 「邮件附件的本地副本」：30 天以上、未改动过的副本，需确认（邮件若已从服务器删除，这可能是唯一一份） |
 | 最近使用的项目 | `clean_recent_items` | 「最近使用的项目记录」：需确认，移入废纸篓可还原 |
-| App leftovers | `clean_orphaned_app_data`、`scan_installed_apps`、`bundle_has_installed_app` | 应用卸载 · 已卸载残留；Claude 虚拟机包按 Mole 的 `is_claude_vm_bundle_orphaned` 单独判断 |
+| App leftovers | `clean_orphaned_app_data`、`scan_installed_apps`、`bundle_has_installed_app` | 应用卸载 · 待核对数据；Claude 虚拟机包按 Mole 的 `is_claude_vm_bundle_orphaned` 单独判断 |
 
 `~/Library/Caches` 下 Mole 逐个列出的缓存（云盘、虚拟机、下载工具等）由通用的「用户缓存与诊断日志」分组覆盖，
 并按 Mole 的清单判为可重建（`cache_policy.go` 的 `regenerablePrefixes`）。
@@ -114,6 +114,17 @@ Mole CLI 没有单独的 AI 清理命令；相关规则在 `mo clean` 的 `clean
 | 系统设置里的登录项 | `remove_login_item` | 不做：要通过 osascript 申请自动化授权，删掉后无法还原；回执提示到系统设置检查 |
 | 需要管理员权限的系统路径（LaunchDaemons、PrivilegedHelperTools） | 用 sudo 删除 | 只列出，不删除 |
 
+Mole 的应用归属检查同时参考安装清单、Bundle ID 和共享残留；目录名没匹配到应用不能证明应用已经卸载。
+orbit 会检查厂商目录下子目录的精确归属，例如已安装 `com.citrolabs.ego.lite` 时，
+`Application Support/Citro Labs/ego lite` 属于 ego lite，即使应用包被改名也保持归属。不会因为一个已安装子目录
+就把同一厂商的所有兄弟目录归给它。仍不能确认的目录显示「待核对数据」，默认不勾选；沙盒容器、Group Containers
+和配置目录属于个人数据，不整体当作缓存。
+
+「仅缓存」沿用 Mole `clean_application_support_logs`、`clean_browsers` 的可重建目录判断，在应用的
+Application Support、沙盒数据、`User Data` profiles 和 Electron `Partitions` 内寻找缓存与日志叶子目录，
+不选择它们的配置父目录。应用重名、显示名称与目录名称不同（如 VS Code 的 `Code`）、应用改名及后台 helper
+都通过安装元数据核对；扫描和移入废纸篓前分别检查运行状态及打开的文件。
+
 ## 系统加速（`mo optimize`）
 
 Mole 的 19 项全部列在 orbit 里，先只读检查，再由用户勾选执行。每项执行后有回执；能撤销的（移入废纸篓的文件、
@@ -145,6 +156,10 @@ Mole 的 19 项全部列在 orbit 里，先只读检查，再由用户勾选执�
   （`.cache`、`.vite`、`.package-lock.json` 等）不算手动改动。
 - **安装包：** Mole 的扫描位置（下载、桌面、文稿、共享、Homebrew、iCloud 下载、邮件附件、Telegram）、
   安装包类型和「压缩包里含有安装程序」的判断都已移植。移入废纸篓前再核对一次大小和修改时间，文件变了就跳过。
+- **扫描范围与读取告警：** 扫描、页面目录列表和告警共用一次 `purge_paths` 快照；无效或不可读取的自定义配置
+  不回退到默认目录。缺失目录显示为跳过，真正的拒绝、读取超时、测量上限、配置错误和系统保护分别报告。
+  每个模块只展示自身范围内的告警；完整证据仍在运行时诊断中。完全磁盘访问权限不能绕过目录 ACL 等访问控制。
+  配置允许的外部项目目录仍接受构建工具运行保护，移动前重新核验。
 
 ## 应用瘦身（`mo slim`）
 

@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -186,9 +187,8 @@ func ignored(lower string) bool {
 	return strings.Contains(lower, ".apple.")
 }
 
-// scanUnclaimedContainers lists the directories under ~/Library that belong to
-// no installed app: the leftovers of a normal uninstall, where the bundle is
-// gone but its support files are not.
+// scanUnclaimedContainers lists Library directories without a known owner.
+// Name and bundle-id matching alone cannot establish that an app was removed.
 func (s *Scanner) scanUnclaimedContainers(
 	home string,
 	claimedPaths map[string]struct{},
@@ -201,10 +201,10 @@ func (s *Scanner) scanUnclaimedContainers(
 		category string
 		key      string
 	}{
-		{home + "/Library/Containers", "cache", "孤立沙盒容器残留", "containers"},
-		{home + "/Library/Group Containers", "cache", "孤立沙盒容器残留", "group_containers"},
-		{home + "/Library/Application Support", "config", "已卸载应用支持残留", "application_support"},
-		{home + "/Library/Caches", "cache", "已卸载应用支持残留", "caches"},
+		{home + "/Library/Containers", "config", "未归属沙盒数据", "containers"},
+		{home + "/Library/Group Containers", "config", "未归属沙盒数据", "group_containers"},
+		{home + "/Library/Application Support", "config", "未归属应用数据", "application_support"},
+		{home + "/Library/Caches", "cache", "未归属缓存", "caches"},
 	}
 
 	found := []map[string]any{}
@@ -235,6 +235,12 @@ func (s *Scanner) scanUnclaimedContainers(
 			if s.matchesInstalled(lower, installedNames, installedBundleIDs) {
 				continue
 			}
+			// Support and cache roots often group app data under the developer's
+			// name (for example Citro Labs/ego lite). A parent directory cannot
+			// be abandoned while an app's product directory beneath it is owned.
+			if (target.key == "application_support" || target.key == "caches") && entry.isDir && s.hasInstalledSupportChild(fullPath, installedNames, installedBundleIDs) {
+				continue
+			}
 			size := s.fastDirectorySize(fullPath, orphanFileCap)
 			if size.bytes < 15_000_000 && !size.partial {
 				continue
@@ -244,16 +250,17 @@ func (s *Scanner) scanUnclaimedContainers(
 			row := map[string]any{
 				// Two roots can hold a directory with the same name, so the
 				// root is part of the id (S-12).
-				"id":             uniqueOrphanID(usedIDs, "orphan_"+target.key+"_"+item),
-				"name":           item,
-				"category":       target.category,
-				"bundleId":       item,
-				"statusText":     "未发现对应主程序 · 待确认",
-				"leftoverSizeGb": leftoverGB,
+				"id":              uniqueOrphanID(usedIDs, "orphan_"+target.key+"_"+item),
+				"name":            item,
+				"category":        target.category,
+				"bundleId":        item,
+				"statusText":      "归属未确认 · 待核对",
+				"ownershipStatus": "unclaimed",
+				"leftoverSizeGb":  leftoverGB,
 				// A directory without a signature match is only a candidate:
 				// it is shown, but the user has to select it (S-06).
 				"checked": false,
-				"impact":  "已检查的应用目录中未发现对应主程序，不能证明数据已经弃用；外置卷、自定义安装位置与共享容器可能未被识别，请先确认。",
+				"impact":  "未匹配到已安装应用的名称或标识；目录可能属于共享厂商数据、外置卷或自定义安装位置，仅列为待核对候选，不能证明应用已卸载或数据已经弃用。",
 				"partial": size.partial,
 				"subpaths": []map[string]any{{
 					"path":    s.relativize(fullPath),
@@ -276,6 +283,45 @@ func (s *Scanner) scanUnclaimedContainers(
 		}
 	}
 	return found
+}
+
+// hasInstalledSupportChild checks known product paths and one directory level
+// by exact app name or bundle identifier; a prefix does not establish ownership.
+// An unreadable vendor folder cannot establish that its data is abandoned.
+func (s *Scanner) hasInstalledSupportChild(path string, installedNames, installedBundleIDs map[string]struct{}) bool {
+	// Stable product paths still identify the owner when its app bundle or
+	// display name changes. Only a product directory that actually exists
+	// beneath this vendor can establish ownership of the vendor parent.
+	for bundleID := range installedBundleIDs {
+		for _, root := range appSupportRoots(s.home, "", bundleID) {
+			if !withinPath(root, path) {
+				continue
+			}
+			info, err := os.Lstat(root)
+			if err == nil && info.IsDir() {
+				return true
+			}
+			if err != nil && !os.IsNotExist(err) {
+				return true // an unreadable product cannot be ruled out
+			}
+		}
+	}
+	entries, err := readDirEntries(path)
+	if err != nil {
+		return true
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		lower := strings.ToLower(entry.Name())
+		_, nameMatch := installedNames[lower]
+		_, bundleMatch := installedBundleIDs[lower]
+		if nameMatch || bundleMatch {
+			return true
+		}
+	}
+	return false
 }
 
 // matchesInstalled reports whether a directory name belongs to an installed

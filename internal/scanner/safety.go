@@ -242,6 +242,9 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 			return "路径经过符号链接，不能证明清理边界；请在访达中检查原始路径"
 		}
 	}
+	if reason := s.appDataCleanupReason(path, live); reason != "" {
+		return reason
+	}
 	if reason, known := s.aiSessionCleanupReason(path, live); known {
 		return reason
 	}
@@ -338,7 +341,7 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 	if isAgentWorktreeArtifact(path, s.home) && ambiguousArtifactName(filepath.Base(path)) && !gitIgnored(path) {
 		return "该目录没有被 .gitignore 忽略，可能是源码的一部分，保持原状"
 	}
-	if derived := inDerivedData(path); withinPath(path, s.home) && (derived || isArtifactName(filepath.Base(path))) {
+	if derived := inDerivedData(path); derived || isArtifactName(filepath.Base(path)) {
 		builders, err := s.builderSnapshot(live)
 		if err != nil {
 			return "无法确认构建工具闲置，保持原状"

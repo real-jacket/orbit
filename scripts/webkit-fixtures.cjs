@@ -156,7 +156,7 @@ add('whitelist-awaits-receipt', `switchModule('clean');const count=STATE.cleanGr
 add('sensors-become-unavailable', `switchModule('status');const data=structuredClone(qaTelemetry);delete data.net;delete data.diskIo;delete data.gpuPct;delete data.cpuTempC;delete data.fans;data.processes[0].memory_mb=null;onNativeRealTelemetry(data);qaAssert(document.getElementById('statusCardNet').textContent.includes('本机不提供'),'missing sensor replaces old reading');qaAssert(document.getElementById('statusCardGpu').textContent.includes('本机不提供'),'missing GPU does not keep stale value');qaAssert(STATE.processes[0].memory_mb===null,'unreported process memory cannot become zero');`);
 add('status-live-preserves-page', `switchModule('status');const panel=document.querySelector('.top-procs');const row=document.querySelector('#topProcList .tp-row');const data=structuredClone(qaTelemetry);data.processes[0].cpu=16;onNativeRealTelemetry(data);qaAssert(document.querySelector('.top-procs')===panel,'telemetry does not rebuild the process panel');qaAssert(document.querySelector('#topProcList .tp-row')===row,'unchanged process set preserves row identity');qaAssert(row.querySelector('.tp-cpu').textContent==='16.0%','current CPU is patched');`);
 add('startup-missing-data', `STATE=structuredClone(DEFAULT_STATE);switchModule('status');qaAssert(memPercent()===null&&diskUsedPercent()===null,'unmeasured capacities are unknown');qaAssert(document.getElementById('sidebarFreeDisk').textContent.includes('未知'),'sidebar cannot show fabricated free space');qaAssert(!buildMenuBarTrayHTML().includes('已用 0.0 / 0 GB'),'tray never invents zero memory');`);
-add('scan-permission-partial', `onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Desktop',reason:'目录读取超时，未计入本次扫描'}]});switchModule('clean');qaAssert(document.querySelector('.empty-title').textContent.includes('未能读取'),'restricted scan cannot claim an empty directory');qaAssert(document.getElementById('scanSourceBadge').textContent.includes('受限'),'summary discloses partial data');const detail=document.querySelector('#moduleStage details');qaAssert(detail&&detail.textContent.includes('Desktop'),'restricted paths are inspectable');detail.open=true;`);
+add('scan-permission-partial', `onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Library/Caches/Unread',reason:'目录读取超时，未计入本次扫描'}]});switchModule('clean');qaAssert(document.querySelector('.empty-title').textContent.includes('未能读取'),'restricted scan cannot claim an empty directory');qaAssert(document.getElementById('scanSourceBadge').textContent.includes('受限'),'summary discloses partial data');const detail=document.querySelector('#moduleStage details');qaAssert(detail&&detail.textContent.includes('Library/Caches'),'restricted paths within this module are inspectable');detail.open=true;`);
 for (const module of ['clean', 'ai_moon', 'software', 'purge']) {
   add(`${module}-failure-state`, `switchModule('${module}');${module === 'software' ? 'toggleAppCheck(0);' : ''}openConfirmSheet();executeConfirmedClean();const request=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(request,'selected paths produce a request');onNativeTrashResult({requestId:request.requestId,moved:[],movedCount:0,failed:request.paths.map(path=>({path,error:'隔离测试：读取被拒绝'}))});onNativeRealScanComplete(structuredClone(qaFixture));qaAssert(document.getElementById('moduleStage').textContent.includes('隔离测试：读取被拒绝'),'automatic rescan preserves the failed path reason in its source module');`);
 }
@@ -213,9 +213,9 @@ add('analyze-protected-large-file', `switchModule('analyze');STATE.analyzeLargeF
 add('permission-toast-path-actions', `switchModule('clean');const requestId='qa-permission-toast';const deniedPath=qaFixture.homePath+'/Documents/protected';pendingTrashRequests.set(requestId,{entries:[{label:'protected',sizeGb:1,paths:[deniedPath],basketOnFail:false}],options:{title:'隔离权限回执'},requested:1});onNativeTrashResult({requestId,moved:[],movedCount:0,failed:[{path:deniedPath,error:'权限不足',pane:'filesAndFolders'}]});qaAssert(document.querySelector('.permission-toast'),'permission failure exposes a recovery surface');qaAssert(document.querySelector('.permission-toast-path').textContent.includes('Documents/protected'),'the failed path stays visible');document.querySelector('[data-perm-reveal]').click();qaAssert(__qa.actions.some(a=>a.action==='revealAppBundle'),'permission toast can reveal the exact running app');`);
 add('uninstall-app-management-refusal', `switchModule('software');const requestId='qa-am-refusal';const appPath='/Applications/Canvas Pro.app';pendingTrashRequests.set(requestId,{entries:[{label:'Canvas Pro',sizeGb:1,paths:[appPath],basketOnFail:false}],options:{title:'隔离卸载回执'},requested:1});onNativeTrashResult({requestId,moved:[],movedCount:0,failed:[{path:appPath,error:'macOS 拒绝移动应用',pane:'appManagement'}]});const hint=document.getElementById('permHint');qaAssert(hint&&hint.textContent.includes('需要先开启「应用管理」'),'a refused uninstall names the one switch it needs');const open=hint.querySelector('[data-perm-open]');qaAssert(open.textContent==='去开启','the receipt offers 去开启');__qa.actions=[];open.click();qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='openPrivacySettings'&&__qa.actions[0].pane==='appManagement','去开启 opens the App Management pane');qaAssert(!/TCC|probe|ad-hoc|本地签名/i.test(hint.textContent||'')&&!document.getElementById('permHint'),'plain copy, and the hint closes after the action');`);
 add('scan-warning-paths-markup-safe', `
-  const unusualPath="/Volumes/Owner's <Disk>&quot;/Folder/item";
-  onNativeRealScanComplete({...structuredClone(qaFixture),readWarnings:[null,{},'invalid',{path:12},{path:'  '},{path:unusualPath,reason:'读取失败 <details> &quot;'}]});
-  switchModule('clean');await qaSettle();
+  const unusualRoot="/Volumes/Owner's <Disk>&quot;/Folder", unusualPath=unusualRoot+'/item';
+  onNativeRealScanComplete({...structuredClone(qaFixture),purgeRoots:{paths:[unusualRoot],custom:true,roots:[],warnings:[]},readWarnings:[null,{},'invalid',{path:12},{path:'  '},{path:unusualPath,reason:'读取失败 <details> &quot;'}]});
+  switchModule('purge');await qaSettle();
   const hint=[...document.querySelectorAll('#moduleStage details.panel-card')].find(d=>d.querySelector('summary'));
   qaAssert(STATE.scanReadWarnings.length===1&&hint,'only well-formed native warning paths reach the module footer');
   hint.open=true;
@@ -227,9 +227,9 @@ add('apps-cache-not-found', `
   const app=structuredClone(qaFixture.appsList[0]);app.cacheSizeGb=0;app.subpaths=app.subpaths.filter(sp=>sp.kind!=='cache');
   onNativeRealScanComplete({...structuredClone(qaFixture),appsList:[app],readWarnings:[{path:qaFixture.homePath+'/Projects/Canvas/target',reason:'达到文件测量上限；只计入已读取部分'}]});
   switchModule('software');setUninstallMode('cache_only');
-  qaAssert(document.querySelector('.app-cache-note').textContent.includes('不代表应用没有缓存'),'unrecognized private cache is not presented as zero');
-  qaAssert(document.querySelector('#moduleStage details summary').textContent.includes('本机扫描'),'read warnings identify their full-scan scope');
-  qaAssert(document.querySelector('#moduleStage details').textContent.includes('不代表同等数量的应用卸载失败'),'a global warning is not an uninstall failure');
+  qaAssert(document.querySelector('.app-cache-note').textContent.includes('不代表应用没有私有缓存'),'unrecognized private cache is not presented as zero');
+  qaAssert(!document.querySelector('#moduleStage .permission-group-row'),'an unrelated project limit does not appear as an application read warning');
+  qaAssert(document.getElementById('scanSourceBadge').textContent==='本机扫描已返回','unrelated read limits do not mark this application scan as incomplete');
   qaAssert(document.getElementById('primaryBtnText').closest('button').disabled,'no recognized cache cannot authorize a removal');
 `);
 add('apps-cache-protected', `
@@ -1891,6 +1891,99 @@ add('clean-inspector-scan-skeleton', `
   qaAssert(blank&&blank.querySelectorAll('.skel').length>=3&&blank.getAttribute('role')==='status','a running scan shows skeleton lines in the inspector');
   qaAssert(!text().includes('选择左侧任一项查看详情'),'a running scan never asks for a selection');
 `);
+
+const purgeScopeFixture = `
+  const config={custom:true,error:'',paths:['~/Projects','~/GitHub','~/dev'],roots:[
+    {path:'~/Projects',status:'readable',reason:''},
+    {path:'~/GitHub',status:'missing',reason:'目录不存在，已跳过'},
+    {path:'~/dev',status:'missing',reason:'目录不存在，已跳过'}
+  ],warnings:[]};
+`;
+for (const [width,lang] of [[1380,'zh'],[880,'en']]) {
+  add('purge-custom-scope-'+lang, `${purgeScopeFixture}
+    onNativeRealScanComplete({...structuredClone(qaFixture),purgeRoots:config,readWarnings:[{path:qaFixture.homePath+'/Library/Containers/Denied App/Data',kind:'permission',reason:'读取被拒绝',modules:['software']}]});
+    switchModule('purge');const scope=document.querySelector('[data-purge-scan-roots]');scope.querySelector('summary').click();
+    qaAssert(scope.open&&scope.textContent.includes('自定义')&&scope.textContent.includes('~/Projects'),'build scope discloses the saved project roots');
+    qaAssert(scope.textContent.includes('~/GitHub')&&scope.textContent.includes('目录不存在 · 已跳过'),'missing roots are shown as skipped');
+    qaAssert(!scope.textContent.includes('~/code'),'saved roots do not silently expand to native defaults');
+    qaAssert(!document.querySelector('#moduleStage .permission-group-row')&&document.getElementById('scanSourceBadge').textContent==='本机扫描已返回','an unrelated app denial cannot mark readable build roots as denied');
+    qaAssert(STATE.scanReadWarnings.length===1,'global runtime evidence retains the other module warning');
+    ${lang==='en' ? "await qaEn('custom build scope');document.querySelector('[data-purge-scan-roots]').open=true;STATE.purgeRootsOpen=true;qaAssert(document.querySelector('[data-purge-scan-roots]').open,'the saved scope is inspectable in English');" : ''}
+    qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'opening scan scope only inspects data');
+  `);
+  Object.assign(scenarios.at(-1),{width,height:width===880?620:860});
+}
+add('purge-default-scope', `${purgeScopeFixture}
+  config.custom=false;config.paths=['~/www','~/dev','~/Projects','~/GitHub','~/Code','~/Workspace','~/Repos','~/Development','~/Developer','~/src'];
+  config.roots=config.paths.map((path,index)=>({path,status:index?'missing':'readable',reason:index?'目录不存在，已跳过':''}));
+  onNativeRealScanComplete({...structuredClone(qaFixture),purgeRoots:config});switchModule('purge');
+  const scope=document.querySelector('[data-purge-scan-roots]');scope.open=true;
+  qaAssert(scope.textContent.includes('默认')&&scope.textContent.includes('10 个')&&scope.textContent.includes('~/Code'),'fallback coverage is disclosed separately from saved paths');
+`);
+add('purge-timeout-does-not-request-permission', `${purgeScopeFixture}
+  onNativeRealScanComplete({...structuredClone(qaFixture),purgeRoots:config,readWarnings:[
+    {path:qaFixture.homePath+'/Projects/Canvas',kind:'timeout',reason:'目录读取超时，可能正在等待 macOS 授权；未计入本次扫描',modules:['purge']},
+    {path:qaFixture.homePath+'/Library/Containers/Denied App',kind:'permission',reason:'读取被拒绝',modules:['software']}
+  ]});switchModule('purge');
+  const rows=document.querySelectorAll('#moduleStage .permission-group-row');
+  qaAssert(rows.length===1&&rows[0].textContent.includes('超时'),'the build page shows only its timeout');
+  qaAssert(!document.querySelector('#moduleStage [onclick*="openPrivacySettings"]'),'a typed timeout mentioning authorization offers no permission action');
+  qaAssert(document.getElementById('scanSourceBadge').textContent==='部分测量受限','the real incomplete read remains visible');
+`);
+add('purge-project-denial-does-not-request-fda', `${purgeScopeFixture}
+  config.roots[0]={path:'~/Projects',status:'denied',reason:'目录读取被拒绝，请检查目录的访问控制'};
+  onNativeRealScanComplete({...structuredClone(qaFixture),purgeRoots:config,readWarnings:[{path:qaFixture.homePath+'/Projects/Canvas',kind:'permission',reason:'读取被拒绝',modules:['purge']}]});switchModule('purge');
+  document.querySelector('[data-purge-scan-roots]').open=true;
+  qaAssert(document.querySelector('#moduleStage .permission-group-row').textContent.includes('读取被拒绝'),'an actual project denial retains its exact evidence');
+  qaAssert(!document.querySelector('#moduleStage [onclick*="openPrivacySettings"]'),'an ordinary project access-control denial does not prescribe Full Disk Access');
+`);
+const supportCacheFixture = `
+  const app={...structuredClone(qaFixture.appsList[0]),id:'code-cache-fixture',name:'Code',bundleId:'com.microsoft.VSCode',appPath:'/Applications/Visual Studio Code.app',cacheSizeGb:0.01096,configSizeGb:0.2,leftoverSizeGb:0.21096,subpaths:[
+    {path:'/Applications/Visual Studio Code.app',kind:'app',sizeGb:1.5,size:'1.50 GB',checked:true},
+    {path:'~/Library/Application Support/Code/GPUCache',kind:'cache',sizeGb:0.004,size:'4.0 MB',checked:true},
+    {path:'~/Library/Application Support/Code/Partitions/vscode-browser/Cache',kind:'cache',sizeGb:0.00696,size:'7.0 MB',checked:true},
+    {path:'~/Library/Application Support/Code/User',kind:'config',sizeGb:0.2,size:'200.0 MB',checked:false}
+  ]};
+`;
+for (const [width,lang] of [[1380,'zh'],[880,'en']]) {
+  add('apps-support-cache-preview-'+lang, `${supportCacheFixture}
+    onNativeRealScanComplete({...structuredClone(qaFixture),appsList:[app]});switchModule('software');
+    ${lang==='en' ? "await qaEn('Application Support cache options');" : ''}
+    setUninstallMode('cache_only');toggleAppCheck(0);
+    qaAssert(document.querySelector('.bento-4').textContent.includes('11.0 MB'),'Application Support cache has a measured nonzero size');
+    openConfirmSheet();const preview=document.getElementById('confirmModalItemsList').textContent;
+    qaAssert(preview.includes('Code/GPUCache')&&preview.includes('Partitions/vscode-browser/Cache'),'the preview contains the precise regenerable leaves');
+    qaAssert(!preview.includes('Code/User')&&!preview.includes('/Applications/'),'the cache preview preserves app and personal settings');
+    ${lang==='en' ? "await qaEn('Application Support cache preview');" : ''}
+    qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'a cache preview never removes data');
+  `);
+  Object.assign(scenarios.at(-1),{width,height:width===880?620:860});
+}
+add('apps-running-ego-cache-measurement', `${supportCacheFixture}
+  Object.assign(app,{id:'ego-cache-fixture',name:'ego lite',bundleId:'com.citrolabs.ego.lite',appPath:'/Applications/ego lite.app',running:true,runningPid:4242,cacheSizeGb:0.09529,configSizeGb:0.2,leftoverSizeGb:0.29529});
+  app.subpaths=[{path:app.appPath,kind:'app',sizeGb:1.5,size:'1.50 GB',tier:'protected',checked:false},
+    {path:'~/Library/Application Support/Citro Labs/ego lite/component_crx_cache',kind:'cache',sizeGb:0.09529,size:'95.3 MB',tier:'protected',checked:false,reason:'ego lite 正在运行，暂缓清理'},
+    {path:'~/Library/Application Support/Citro Labs/ego lite/Local Storage',kind:'config',sizeGb:0.2,size:'200.0 MB',tier:'protected',checked:false}];
+  onNativeRealScanComplete({...structuredClone(qaFixture),appsList:[app]});switchModule('software');setUninstallMode('cache_only');
+  qaAssert(document.querySelector('.bento-4').textContent.includes('95.3 MB')&&document.querySelector('.app-cache-note').textContent.includes('正在运行'),'running Ego cache bytes remain visible with the protection reason');
+  qaAssert([...document.querySelectorAll('.app-path-entry input')].every(input=>input.disabled&&!input.checked),'running cache and personal data stay unselectable');
+  toggleAppCheck(0);openConfirmSheet();qaAssert(!document.getElementById('confirmModal').classList.contains('open'),'a protected running cache cannot open a removal preview');
+  qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'protected cache interaction never removes data');
+`);
+for (const [width,lang] of [[1380,'zh'],[880,'en']]) {
+  add('apps-unclaimed-data-'+lang, `
+    const orphan={...structuredClone(qaFixture.orphanLeftoversList[0]),id:'unclaimed-vendor',name:'Unclaimed Vendor',path:'~/Library/Application Support/Unclaimed Vendor',category:'未归属应用数据',statusText:'归属未确认 · 待核对',ownershipStatus:'unclaimed',checked:false,
+      impact:'未匹配到已安装应用的名称或标识；目录可能属于共享厂商数据、外置卷或自定义安装位置，仅列为待核对候选，不能证明应用已卸载或数据已经弃用。',
+      subpaths:[{path:'~/Library/Application Support/Unclaimed Vendor',kind:'config',sizeGb:1,size:'1.00 GB',checked:false,tier:'review'}]};
+    onNativeRealScanComplete({...structuredClone(qaFixture),orphanLeftoversList:[orphan]});switchModule('software');setSoftwarePanelMode('leftovers');
+    qaAssert(document.querySelector('.segmented-tabs').textContent.includes('待核对数据')&&!document.querySelector('.segmented-tabs').textContent.includes('已卸载残留'),'unmatched ownership is not labelled a verified uninstall');
+    qaAssert(document.getElementById('moduleStage').textContent.includes('归属未确认 · 待核对')&&document.getElementById('heroDesc').textContent.includes('不代表应用已卸载'),'unknown ownership remains explicit in details and guidance');
+    qaAssert([...document.querySelectorAll('#moduleStage input[type=checkbox]')].every(input=>!input.checked),'unknown data starts unselected');
+    qaAssert(document.getElementById('primaryBtnText').closest('button').disabled,'unknown ownership does not authorize deletion');
+    ${lang==='en' ? "await qaEn('unclaimed app data');" : ''}
+  `);
+  Object.assign(scenarios.at(-1),{width,height:width===880?620:860});
+}
 // English: every module, live-switched from Chinese, at a wide and a narrow window. Fails on any CJK left on screen
 // (user data and the 中 / EN toggle are exempt) and checks the usual overflow rules.
 for (const [width, theme] of [[1380, 'dark'], [880, 'light']]) for (const mod of modules) {
@@ -1996,11 +2089,11 @@ add('tier-generic-sentence-without-reason', `
 `);
 // 测量告警按 kind 分组：每种 kind 的标题、徽章、模块内提示、运行时横幅各自独立。
 const warnKinds = {
-  permission: { warnings: `[{path:qaFixture.homePath+'/Library/Mail',reason:'读取被拒绝（permission denied）',kind:'permission'},{path:qaFixture.homePath+'/Library/Safari',reason:'读取被拒绝（permission denied）',kind:'permission'}]`, head: '2 个路径没有读取权限，请授予完全磁盘访问权限', badge: '部分路径无读取权限', pane: true },
-  limit: { warnings: `[{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量',kind:'limit'},{path:qaFixture.homePath+'/Projects/Huge Cache',reason:'达到目录探索上限，未完成测量',kind:'limit'}]`, head: '权限正常；2 个较大目录只测量了部分体积（不影响清理）', badge: '部分体积为下限', pane: false },
-  system: { warnings: `[{path:'/Library/Application Support/com.apple.TCC',reason:'macOS 系统保护，无法读取',kind:'system'}]`, head: '1 个位置受 macOS 系统保护，无需处理', badge: '', pane: false },
-  error: { warnings: `[{path:qaFixture.homePath+'/Projects/Broken',reason:'读取失败（i/o error）',kind:'error'}]`, head: '部分路径未完成测量，请先查看原因', badge: '部分测量受限', pane: false },
-  legacy: { warnings: `[{path:qaFixture.homePath+'/Library/Containers/Denied App/Data',reason:'读取被拒绝（permission denied）'},{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'达到目录探索上限，未完成测量'}]`, head: '本机扫描：2 个路径未完成测量，按目录查看原因', badge: '部分测量受限', pane: true },
+  permission: { warnings: `[{path:qaFixture.homePath+'/Library/Caches/Denied App',reason:'读取被拒绝（permission denied）',kind:'permission'},{path:qaFixture.homePath+'/Library/Logs/Denied App',reason:'读取被拒绝（permission denied）',kind:'permission'}]`, head: '2 个路径读取被拒绝，请按路径核对权限', badge: '部分路径无读取权限', pane: true },
+  limit: { warnings: `[{path:qaFixture.homePath+'/Library/Caches/Very Large Cache',reason:'达到目录探索上限，未完成测量',kind:'limit'},{path:qaFixture.homePath+'/Library/Logs/Huge Logs',reason:'达到目录探索上限，未完成测量',kind:'limit'}]`, head: '权限正常；2 个较大目录只测量了部分体积（不影响清理）', badge: '部分体积为下限', pane: false },
+  system: { warnings: `[{path:qaFixture.homePath+'/Library/Caches/SystemProtected',reason:'macOS 系统保护，无法读取',kind:'system'}]`, head: '1 个位置受 macOS 系统保护，无需处理', badge: '', pane: false },
+  error: { warnings: `[{path:qaFixture.homePath+'/Library/Caches/Broken',reason:'读取失败（i/o error）',kind:'error'}]`, head: '部分路径未完成测量，请先查看原因', badge: '部分测量受限', pane: false },
+  legacy: { warnings: `[{path:qaFixture.homePath+'/Library/Caches/Denied App/Data',reason:'读取被拒绝（permission denied）'},{path:qaFixture.homePath+'/Library/Logs/Very Large Logs',reason:'达到目录探索上限，未完成测量'}]`, head: '本模块扫描：2 个路径未完成测量，按目录查看原因', badge: '部分测量受限', pane: true },
 };
 for (const kind of Object.keys(warnKinds)) for (const lang of ['zh', 'en']) {
   const w = warnKinds[kind];
@@ -2024,12 +2117,12 @@ for (const kind of Object.keys(warnKinds)) for (const lang of ['zh', 'en']) {
   Object.assign(scenarios.at(-1), { width: 1060, height: 760 });
 }
 add('warnings-empty-state-limit', `
-  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Projects/Very Large Build',reason:'x',kind:'limit'}]});
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Library/Caches/Very Large Cache',reason:'x',kind:'limit'}]});
   switchModule('clean');await qaSettle();
   qaAssert(document.getElementById('heroHeadline').textContent.includes('权限正常；1 个较大目录只测量了部分体积'),'an empty list with only limit warnings never says permission is missing: '+document.getElementById('heroHeadline').textContent);
 `);
 add('warnings-system-only-not-in-headline', `
-  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:'/Library/Application Support/com.apple.TCC',reason:'x',kind:'system'}]});
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:qaFixture.homePath+'/Library/Caches/SystemProtected',reason:'x',kind:'system'}]});
   switchModule('clean');await qaSettle();
   qaAssert(!/测量|权限/.test(document.getElementById('heroHeadline').textContent),'system-protected locations are not counted in the headline: '+document.getElementById('heroHeadline').textContent);
 `);
