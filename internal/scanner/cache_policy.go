@@ -193,10 +193,10 @@ func (s *Scanner) appDataCleanupReason(path string, live bool) string {
 // app owns them.
 var regenerableCaches = map[string]string{
 	"go-build": "Go 编译缓存", "typescript": "TypeScript 类型缓存", "node-gyp": "node-gyp 头文件缓存",
-	"electron": "Electron 下载缓存", "ms-playwright": "Playwright 浏览器下载缓存", "pip": "pip 下载缓存",
+	"electron": "Electron 下载缓存", "pip": "pip 下载缓存",
 	"homebrew": "Homebrew 下载缓存", "bun": "Bun 下载缓存", "yarn": "Yarn 下载缓存", "pnpm": "pnpm 下载缓存",
 	"cocoapods": "CocoaPods 缓存", "org.swift.swiftpm": "SwiftPM 缓存", "pypoetry": "Poetry 缓存",
-	"pre-commit": "pre-commit 环境缓存", "cypress": "Cypress 下载缓存", "puppeteer": "Puppeteer 下载缓存",
+	"pre-commit": "pre-commit 环境缓存", "puppeteer": "Puppeteer 下载缓存",
 	"prisma": "Prisma 引擎缓存", "jetbrains": "JetBrains 索引缓存", "sentrycrash": "崩溃上报缓存",
 	// Library/Caches entries Mole removes.
 	// Ported from tw93/Mole V1.70.0 lib/clean/user.sh
@@ -219,7 +219,7 @@ var regenerablePrefixes = map[string]string{
 var notCaches = []string{
 	"keychain", "cloudkit", "icloud", "clouddocs", "com.apple.bird", "cloudd", "familycircle", "accounts",
 	"com.apple.mail", "photos", "mobilesms", "messages", "imessage", "addressbook", "contacts", "passwords",
-	"homekit", "homed", "healthd", "com.apple.containermanagerd",
+	"homekit", "homed", "healthd", "com.apple.containermanagerd", "coreaudio", "com.apple.audio.",
 }
 
 // offlineContent are apps that keep downloaded or synced content in Caches.

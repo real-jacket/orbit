@@ -783,5 +783,24 @@
     D["{tool} · " + zh] = "{tool} · " + en;
   }
 
+  D["模拟器设备没有关机或状态无法确认，保持原状"] = "The simulator device isn't shut down or its state can't be confirmed; left as is";
+  D["iOS 模拟器"] = "iOS Simulator";
+  D["Volta 下载的 Node、npm 与 Yarn 安装包，已解包的版本不受影响；清理后安装新版本时需要重新下载，请确认"] = "Node, npm and Yarn installers downloaded by Volta; unpacked versions are unaffected. After cleanup, installing a new version downloads it again. Please confirm";
+  D["Gradle Wrapper 下载的 Gradle 发行版，清理后下次构建需要重新下载，请确认"] = "Gradle distributions downloaded by the Gradle Wrapper; the next build downloads them again after cleanup. Please confirm";
+  D["已关机模拟器设备的诊断日志与系统缓存，下次启动该设备时会重新生成"] = "Diagnostic logs and system caches of a shut-down simulator device; regenerated the next time the device boots";
+  D["已关机模拟器设备下载的系统资产（如 Siri 模型），清理后下次启动该设备会重新下载，体积可能很大，请确认"] = "System assets downloaded by a shut-down simulator device (such as Siri models); the device downloads them again on its next boot, which can be large. Please confirm";
+  D["webpack 构建缓存"] = "webpack build cache";
+  D["当前选用的动态壁纸与屏幕保护资源，清理后系统会重新下载，保持原状"] = "Assets of the wallpaper and screen saver you selected; macOS downloads them again after cleanup, so they're left as is";
+  D["系统账户资料保持原状"] = "System account data is left as is";
+  D["邮件资料保持原状"] = "Mail data is left as is";
+  D["日历资料保持原状"] = "Calendar data is left as is";
+  D["通讯录资料保持原状"] = "Contacts data is left as is";
+  D["浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"] = "Browsers downloaded by a browser automation tool; tests can't run without them, so they're left as is";
+  D["Google 服务的标识与上报队列，清理后可能引发持续写入，保持原状"] = "Identifier store and upload queue of Google services; removing them can start continuous writes, so they're left as is";
+  D["系统服务状态，不属于普通缓存，保持原状"] = "System service state, not an ordinary cache; left as is";
+  D["Spotlight 索引，清理后系统会立即重建，无法腾出空间，保持原状"] = "Spotlight index; macOS rebuilds it at once after cleanup, so no space is freed. Left as is";
+  D["这是另一个卷的挂载点，不是本卷上的文件，不能移入废纸篓"] = "This is the mount point of another volume, not files on this volume; it can't be moved to the Trash";
+  D["其中挂载着另一个卷（{path}），不能整体移入废纸篓；请进入后处理其余子项"] = "Another volume is mounted inside ({path}), so it can't be moved to the Trash as a whole; open it and handle the other items";
+  D["这里挂载着另一个卷，其中的内容不占用本卷空间，未计入体积"] = "Another volume is mounted here; its contents don't use space on this volume and aren't counted";
   I18N.add(D);
 })();

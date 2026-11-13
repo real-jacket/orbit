@@ -2956,7 +2956,8 @@ function setPurgeRoots(roots) {
     custom: roots.custom === true,
     error: typeof roots.error === 'string' ? roots.error : '',
     roots: Array.isArray(roots.roots) ? roots.roots.filter(root => root && typeof root.path === 'string') : [],
-    warnings: Array.isArray(roots.warnings) ? roots.warnings.filter(w => w && typeof w.path === 'string') : []
+    warnings: Array.isArray(roots.warnings) ? roots.warnings.filter(w => w && typeof w.path === 'string') : [],
+    suggested: Array.isArray(roots.suggested) ? roots.suggested.filter(p => typeof p === 'string' && p) : []
   };
 }
 window.onNativePurgeRootsChanged = function(res) {
@@ -2974,6 +2975,12 @@ function addPurgeRootInput() {
   sendNativeBridge({ action: 'addPurgeRoot', path: val });
   inp.value = '';
   showToast(t('正在添加扫描目录 {path}，等待系统回执…', { path: val }));
+}
+function addSuggestedPurgeRoot(idx) {
+  const path = (STATE.purgeRoots.suggested || [])[idx];
+  if (!path) return;
+  sendNativeBridge({ action: 'addPurgeRoot', path });
+  showToast(t('正在添加扫描目录 {path}，等待系统回执…', { path: displayPath(path) }));
 }
 function removePurgeRootIdx(idx) {
   const path = (STATE.purgeRoots.paths || [])[idx];
@@ -6602,8 +6609,9 @@ function optimizeListHTML() {
 function purgeRootsHTML() {
   const roots = STATE.purgeRoots || { paths: [], custom: false, error: '' };
   const n = roots.paths.length;
+  const suggested = roots.suggested || [];
   const labels = { readable: t('可读取'), missing: t('目录不存在 · 已跳过'), denied: t('读取被拒绝'), unknown: t('读取状态未确认') };
-  return `<details data-purge-scan-roots class="runtime-evidence clean-exclusions purge-roots" style="margin:0;padding:6px 12px 8px;border-bottom:1px solid var(--border-subtle);" ${STATE.purgeRootsOpen || roots.error ? 'open' : ''} ontoggle="if(this.isConnected)STATE.purgeRootsOpen=this.open"><summary tabindex="0">${roots.custom ? t('扫描目录 · {n} 个（自定义）', { n }) : t('扫描目录 · {n} 个（默认）', { n })}</summary>
+  return `<details data-purge-scan-roots class="runtime-evidence clean-exclusions purge-roots" style="margin:0;padding:6px 12px 8px;border-bottom:1px solid var(--border-subtle);" ${STATE.purgeRootsOpen || roots.error ? 'open' : ''} ontoggle="if(this.isConnected)STATE.purgeRootsOpen=this.open"><summary tabindex="0">${roots.custom ? t('扫描目录 · {n} 个（自定义）', { n }) : t('扫描目录 · {n} 个（默认）', { n })}${suggested.length ? ' · ' + t('另有 {n} 个项目目录未扫描', { n: suggested.length }) : ''}</summary>
     <p>${roots.custom ? t('只扫描下列目录，保存在 ~/.config/mole/purge_paths，和 mo purge 共用。移除全部目录后恢复默认位置。') : t('当前使用默认位置。添加一个目录后，只扫描列表里的目录，并保存在 ~/.config/mole/purge_paths，和 mo purge 共用。')}</p>
     ${roots.error ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(roots.error))}</div>` : ''}
     <div class="permission-group-list">${roots.paths.map((path, idx) => {
@@ -6611,6 +6619,7 @@ function purgeRootsHTML() {
       return `<div class="subpath-item"><span class="subpath-left" style="overflow-wrap:anywhere;">${escHtml(displayPath(path))}${root ? `<small style="display:block;color:var(--text-muted);" title="${escHtml(t(root.reason || ''))}">${labels[root.status] || labels.unknown}</small>` : ''}</span>${roots.custom ? `<button class="row-remove" style="opacity:1;" onclick="removePurgeRootIdx(${idx})" title="${t('不再扫描这个目录')}">${t('移除')}</button>` : ''}</div>`;
     }).join('')}</div>
     ${(roots.roots || []).length ? `<div class="row-sub" style="margin-top:6px;white-space:normal;">${t('目录不存在会跳过；读取被拒绝还可能涉及目录访问控制，完全磁盘访问权限不会绕过所有限制。')}</div>` : ''}
+    ${suggested.length ? `<div data-purge-suggested class="row-sub" style="margin-top:6px;white-space:normal;">${t('家目录里这些文件夹含有项目，但不在扫描范围内；添加后才会扫描其中的构建产物。')}</div><div class="permission-group-list">${suggested.map((path, idx) => `<div class="subpath-item"><span class="subpath-left" style="overflow-wrap:anywhere;">${escHtml(displayPath(path))}</span><button class="btn" style="padding:2px 7px;font-size:10px;" onclick="addSuggestedPurgeRoot(${idx})">${t('+ 添加')}</button></div>`).join('')}</div>` : ''}
     <div style="display:flex;gap:4px;margin-top:6px;"><input type="text" id="purgeRootInput" aria-label="${t('扫描目录')}" placeholder="${t('添加扫描目录...')}" style="flex:1;min-width:0;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 6px;color:var(--text-primary);font-size:10.5px;" onkeydown="if(event.key==='Enter')addPurgeRootInput()" /><button class="btn" style="padding:2px 7px;font-size:10px;" onclick="addPurgeRootInput()">${t('+ 添加')}</button></div>
   </details>`;
 }

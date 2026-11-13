@@ -123,6 +123,21 @@ func builtinCleanupProtection(path, home string, relax func(rule string) bool) (
 		{"Library/Application Support/Code/User/globalStorage/github.copilot-chat", "Copilot Chat 会话与索引保持原状"},
 		{"Library/Application Support/ChatGPT", "对话与个人资料保持原状"},
 		{"Library/Application Support/orbit", "本应用的恢复清单与运行状态保持原状"},
+		// Ported from tw93/Mole V1.70.0 lib/core/app_protection.sh should_protect_path
+		{"Library/Application Support/com.apple.wallpaper", "当前选用的动态壁纸与屏幕保护资源，清理后系统会重新下载，保持原状"},
+		{"Library/Application Support/com.apple.idleassetsd", "当前选用的动态壁纸与屏幕保护资源，清理后系统会重新下载，保持原状"},
+		{"Library/Accounts", "系统账户资料保持原状"}, {"Library/Mail", "邮件资料保持原状"},
+		{"Library/Calendars", "日历资料保持原状"}, {"Library/Contacts", "通讯录资料保持原状"},
+		{"Library/Caches/ms-playwright", "浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"},
+		{"Library/Caches/camoufox", "浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"},
+		{"Library/Caches/Cypress", "浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"},
+		{"Library/Caches/GIPPseudonymousID", "Google 服务的标识与上报队列，清理后可能引发持续写入，保持原状"},
+		{"Library/Caches/CCTClearcutLogger", "Google 服务的标识与上报队列，清理后可能引发持续写入，保持原状"},
+		{"Library/Caches/com.apple.ap.adprivacyd", "系统服务状态，不属于普通缓存，保持原状"},
+		{"Library/Caches/com.apple.WorkflowKit.BackgroundShortcutRunner.ShortcutsSandboxCache", "系统服务状态，不属于普通缓存，保持原状"},
+		{"Library/Caches/com.apple.siriactionsd.ShortcutsSandboxCache", "系统服务状态，不属于普通缓存，保持原状"},
+		// Not a Mole rule: Spotlight rebuilds the index at once, so removing it frees nothing.
+		{"Library/Metadata/CoreSpotlight", "Spotlight 索引，清理后系统会立即重建，无法腾出空间，保持原状"},
 	} {
 		root := filepath.Join(home, rule.path)
 		if withinPath(path, root) || withinPath(root, path) {
@@ -222,6 +237,12 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 	if reason := s.ownerRunningReason(path, live); reason != "" {
 		return reason
 	}
+	if point := mountWithin(path); point != "" {
+		if point == path {
+			return "这是另一个卷的挂载点，不是本卷上的文件，不能移入废纸篓"
+		}
+		return "其中挂载着另一个卷（" + s.relativize(point) + "），不能整体移入废纸篓；请进入后处理其余子项"
+	}
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil && !os.IsNotExist(err) {
 		return "路径状态无法核验，保持原状：" + err.Error()
@@ -304,7 +325,7 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 				command = strings.TrimSpace(command)
 				for _, owner := range rule.owners {
 					if filepath.Base(command) == owner || strings.HasPrefix(filepath.Base(command), owner+" ") || strings.HasPrefix(filepath.Base(command), owner+".") || strings.Contains(command, "/"+owner+".app/") {
-						return owner + " 正在运行，暂缓清理"
+						return ownerLabel(owner) + " 正在运行，暂缓清理"
 					}
 				}
 			}

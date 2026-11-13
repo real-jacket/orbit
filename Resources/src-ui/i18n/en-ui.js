@@ -1143,4 +1143,6 @@ I18N.add({
   "占用最高的进程": "Top processes",
   "全部进程": "All processes",
   "没有匹配的进程": "No matching processes",
+  "另有 {n} 个项目目录未扫描": "{n} more project {n|folder|folders} not scanned",
+  "家目录里这些文件夹含有项目，但不在扫描范围内；添加后才会扫描其中的构建产物。": "These folders in your home folder contain projects but are outside the scan scope; their build artifacts are scanned only after you add them.",
 });

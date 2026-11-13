@@ -258,6 +258,8 @@ type dirSize struct {
 	directory bool
 	deadline  time.Time
 	linked    map[[2]uint64]bool
+	dev       uint64 // the volume the root is on; entries of another volume are not counted
+	mount     string // the first folder found to hold another volume
 }
 
 // walkSlots bounds how many directory walks run at once; each one fans out over
@@ -305,7 +307,13 @@ func (s *Scanner) measureDirectory(path string, maxFiles int, budget time.Durati
 	walkSlots <- struct{}{}
 	defer func() { <-walkSlots }()
 	total := dirSize{modified: info.ModTime().Unix(), deadline: time.Now().Add(budget), directory: true}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		total.dev = uint64(uint32(stat.Dev))
+	}
 	readErr := walkDir(path, maxFiles, &total)
+	if total.mount != "" {
+		recordReadWarningKind(total.mount, mountedVolumeReason, warnSystem)
+	}
 	switch {
 	case readErr != nil:
 		recordReadError(path, readErr)
@@ -315,6 +323,43 @@ func (s *Scanner) measureDirectory(path string, maxFiles int, budget time.Durati
 		recordReadWarning(path, "达到文件测量上限；只计入已读取部分")
 	}
 	return total
+}
+
+const mountedVolumeReason = "这里挂载着另一个卷，其中的内容不占用本卷空间，未计入体积"
+
+// mountPoints lists where volumes are mounted; tests replace it.
+var mountPoints = func() []string {
+	n, err := syscall.Getfsstat(nil, 2) // MNT_NOWAIT
+	if err != nil || n <= 0 {
+		return nil
+	}
+	buf := make([]syscall.Statfs_t, n+4)
+	if n, err = syscall.Getfsstat(buf, 2); err != nil {
+		return nil
+	}
+	points := make([]string, 0, n)
+	for _, fs := range buf[:n] {
+		name := make([]byte, 0, len(fs.Mntonname))
+		for _, c := range fs.Mntonname {
+			if c == 0 {
+				break
+			}
+			name = append(name, byte(c))
+		}
+		points = append(points, string(name))
+	}
+	return points
+}
+
+// mountWithin is a volume mounted at path or below it. Such a folder cannot be
+// moved to the Trash, and the mounted content is not its own.
+func mountWithin(path string) string {
+	for _, point := range mountPoints() {
+		if point != "/" && withinPath(point, path) {
+			return point
+		}
+	}
+	return ""
 }
 
 // walkDir accumulates the sizes of the regular files under dir into total, and
@@ -368,6 +413,14 @@ func (r *walkRun) visit(dir string, root bool) {
 			r.total.partial = true
 			r.stop.Store(true)
 			break
+		}
+		// A mounted volume (a simulator runtime, a device file system view) is
+		// not this folder's bytes: moving the folder to the Trash frees none of it.
+		if r.total.dev != 0 && item.dev != 0 && uint64(uint32(item.dev)) != r.total.dev {
+			if r.total.mount == "" {
+				r.total.mount = dir
+			}
+			continue
 		}
 		r.total.count++
 		switch item.kind {
