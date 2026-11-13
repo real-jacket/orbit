@@ -317,3 +317,102 @@ func TestGapRecentItemsGoToTheTrash(t *testing.T) {
 		t.Error("the list is gone from its place")
 	}
 }
+
+const shutDownDevice = `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>isDeleted</key><false/><key>state</key><integer>1</integer></dict></plist>`
+
+func TestSimulatorLeavesNeedAShutDownDevice(t *testing.T) {
+	s := gapScanner(t, "/usr/bin/idle\n")
+	devices := filepath.Join(s.home, simulatorDevices)
+	off, on := filepath.Join(devices, "OFF"), filepath.Join(devices, "ON")
+	writeFile(t, filepath.Join(off, "device.plist"), shutDownDevice)
+	writeFile(t, filepath.Join(on, "device.plist"), strings.Replace(shutDownDevice, "<integer>1</integer>", "<integer>3</integer>", 1))
+	for _, device := range []string{off, on} {
+		writeFile(t, filepath.Join(device, "data/var/db/diagnostics/log.tracev3"), "log")
+		writeFile(t, filepath.Join(device, "data/private/var/MobileAsset/AssetsV2/model.bin"), "asset")
+		writeFile(t, filepath.Join(device, "data/Containers/app.db"), "user data")
+	}
+	var paths []string
+	for _, hit := range append(simulatorLeaves("data/var/db/diagnostics")(s), simulatorLeaves("data/private/var/MobileAsset/AssetsV2")(s)...) {
+		paths = append(paths, hit.path)
+	}
+	if len(paths) != 2 || !strings.HasPrefix(paths[0], off) || !strings.HasPrefix(paths[1], off) {
+		t.Fatalf("only the shut-down device's leaves may be listed, got %v", paths)
+	}
+	leaf := filepath.Join(off, "data/var/db/diagnostics")
+	if reason := s.cleanupReason(leaf, true); reason != "" {
+		t.Fatalf("shut-down leaf refused: %s", reason)
+	}
+	if reason := s.cleanupReason(filepath.Join(on, "data/var/db/diagnostics"), true); !strings.Contains(reason, "没有关机") {
+		t.Fatalf("booted device's leaf must stay, got %q", reason)
+	}
+	// A device booted through simctl has no Simulator.app process, only launchd_sim.
+	booted := gapScanner(t, "/usr/bin/idle\nlaunchd_sim\n")
+	booted.home = s.home
+	if reason := booted.cleanupReason(leaf, true); reason != "iOS 模拟器 正在运行，暂缓清理" {
+		t.Fatalf("a booted simulator must protect device data, got %q", reason)
+	}
+}
+
+func TestSelectedWallpaperAndSpotlightIndexStay(t *testing.T) {
+	s := gapScanner(t, "/usr/bin/idle\n")
+	for _, rel := range []string{"Library/Application Support/com.apple.wallpaper/aerials/videos/a.mov", "Library/Metadata/CoreSpotlight/index.db",
+		"Library/Caches/ms-playwright/chromium/chrome", "Library/Caches/Cypress/13/Cypress.app/x", "Library/Caches/GIPPseudonymousID/id"} {
+		p := filepath.Join(s.home, rel)
+		writeFile(t, p, "data")
+		for dir := filepath.Dir(p); dir != filepath.Join(s.home, "Library/Application Support") && dir != filepath.Join(s.home, "Library/Metadata") && dir != filepath.Join(s.home, "Library/Caches"); dir = filepath.Dir(dir) {
+			if s.cleanupReason(dir, true) == "" {
+				t.Fatalf("%s must be protected", dir)
+			}
+		}
+	}
+}
+
+func TestMeasurementAndTrashStopAtMountedVolumes(t *testing.T) {
+	s := gapScanner(t, "/usr/bin/idle\n")
+	dir := filepath.Join(s.home, "Library/Developer/CoreDevice")
+	writeFile(t, filepath.Join(dir, "Devices/db.sqlite"), "own")
+	writeFile(t, filepath.Join(dir, "DeviceFS/big.bin"), strings.Repeat("x", 1<<20))
+	saved := mountPoints
+	t.Cleanup(func() { mountPoints = saved })
+	mountPoints = func() []string { return []string{"/", filepath.Join(dir, "DeviceFS")} }
+	if reason := s.cleanupReason(dir, true); !strings.Contains(reason, "挂载着另一个卷") {
+		t.Fatalf("a folder holding a mounted volume must not move, got %q", reason)
+	}
+	if reason := s.cleanupReason(filepath.Join(dir, "DeviceFS"), true); !strings.Contains(reason, "挂载点") {
+		t.Fatalf("a mount point must not move, got %q", reason)
+	}
+	if reason := s.cleanupReason(filepath.Join(dir, "Devices"), true); reason != "" {
+		t.Fatalf("a sibling on this volume is unaffected, got %q", reason)
+	}
+	// The walk drops entries whose device differs from the root's.
+	total := dirSize{dev: 1}
+	run := &walkRun{total: &total}
+	run.total.count = 0
+	items := []dirItem{{name: "a", kind: itemFile, bytes: 10, dev: 1}, {name: "b", kind: itemFile, bytes: 99, dev: 2}}
+	for _, item := range items {
+		if total.dev != 0 && item.dev != 0 && uint64(uint32(item.dev)) != total.dev {
+			continue
+		}
+		run.addFile(item)
+	}
+	if total.bytes != 10 {
+		t.Fatalf("bytes of another volume were counted: %d", total.bytes)
+	}
+}
+
+func TestPurgeSuggestsUnscannedProjectFolders(t *testing.T) {
+	s := gapScanner(t, "/usr/bin/idle\n")
+	writeFile(t, filepath.Join(s.home, "code/demo/app/package.json"), "{}")
+	writeFile(t, filepath.Join(s.home, "notes/todo.txt"), "no project")
+	writeFile(t, filepath.Join(s.home, "Documents/proj/package.json"), "{}")
+	writeFile(t, filepath.Join(s.home, "Projects/x/go.mod"), "module x")
+	writeFile(t, filepath.Join(s.home, ".config/mole/purge_paths"), "~/Projects\n")
+	roots := s.PurgeRoots()
+	want := filepath.Join(s.home, "code")
+	if len(roots.Suggested) != 1 || !strings.EqualFold(roots.Suggested[0], want) {
+		t.Fatalf("suggested = %v, want only %s", roots.Suggested, want)
+	}
+	if len(roots.Paths) != 1 {
+		t.Fatalf("a suggestion must not change the scope: %v", roots.Paths)
+	}
+}

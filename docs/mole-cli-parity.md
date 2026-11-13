@@ -63,6 +63,8 @@ orbit 的分级：推荐清理（默认勾选，可重建且没在用）、需�
 | App caches / Apps & utilities / Cloud & Office | `clean_app_caches`、`app_caches.sh` 各 `clean_*`、`clean_office_apps` | 「应用内置缓存与日志」，含微信容器缓存、Xcode 工具缓存 |
 | Developer tools | `dev.sh` 各 `clean_dev_*`、`clean_dev_jvm` | 「开发工具缓存与临时文件」「开发包管理器下载缓存」「Gradle 与 CocoaPods 缓存」 |
 | Xcode | `clean_xcode_device_support` | 「Xcode 设备调试符号与测试设备数据」：保留最近使用的 2 个系统版本，其余推荐清理 |
+| 模拟器设备数据 | `_simulator_device_leaf_targets`、`_simulator_device_is_shut_down` | 同一分组：只列出 `device.plist` 为关机状态的设备的诊断日志、缓存（推荐）与系统资产（需确认）；有 `launchd_sim` 进程即视为模拟器在运行 |
+| 路径保护表 | `should_protect_path` | 已移植其中的壁纸与屏保资源、账户/邮件/日历/通讯录、Playwright/Cypress/camoufox、Google 标识队列等条目；另加 Spotlight 索引（orbit 自有） |
 | macOS 用户状态 | `clean_system_state` | 「macOS 用户级缓存与状态」 |
 | 设备固件 | `clean_cached_device_firmware` | 「设备固件安装包缓存」：`.ipsw` 文件，正被打开的保留 |
 | Application Support 里的缓存与日志 | `clean_application_support_logs` | 「应用的浏览器内核缓存与崩溃报告」：沿用 Mole 的名称保护和白名单；应用运行时受保护，归属无法确认的交给「待核对数据」 |
@@ -74,6 +76,9 @@ orbit 的分级：推荐清理（默认勾选，可重建且没在用）、需�
 `~/Library/Caches` 下 Mole 逐个列出的缓存（云盘、虚拟机、下载工具等）由通用的「用户缓存与诊断日志」分组覆盖，
 并按 Mole 的清单判为可重建（`cache_policy.go` 的 `regenerablePrefixes`）。
 
+orbit 自有、不来自 Mole 的规则（标注为 shortcut）：GVM 模块下载缓存、Volta 临时文件与安装包、Gradle Wrapper 发行版、
+`.webpack_cache`。体积测量不跨卷：目录里挂载的其他卷（模拟器运行时、设备文件系统视图）不计入，也不能随目录移入废纸篓。
+
 **有意不做：**
 
 | Mole 部分 | 原因 |
@@ -84,6 +89,8 @@ orbit 的分级：推荐清理（默认勾选，可重建且没在用）、需�
 | 孤立的系统服务（`clean_orphaned_system_services`：LaunchDaemons、PrivilegedHelperTools） | 需要 sudo |
 | Docker 的 `prune`、`brew cleanup` 等工具自带清理命令 | 由工具直接永久删除，无法先放进废纸篓 |
 | 递归删除 `.DS_Store`（`clean_finder_metadata`） | 空间收益很小；系统加速里改为「禁止在网络与 U 盘上写 .DS_Store」 |
+| 浏览器代码签名副本（`clean_browser_code_sign_clones`） | 位于 `/var/folders/*/X`，是应用包的 APFS 克隆，删除后几乎不释放空间；Mole 也不报告其体积 |
+| 删除模拟器设备与运行时（`simctl delete`） | 由 Xcode 工具直接永久删除，无法先放进废纸篓 |
 | 外接卷（`mo clean --external`） | 外接卷的废纸篓在卷上，还原路径不同，暂不支持 |
 
 ## AI 清理
@@ -150,7 +157,8 @@ Mole 的 19 项全部列在 orbit 里，先只读检查，再由用户勾选执�
 
 - **构建产物：** Mole 的产物目录名（`MOLE_PURGE_TARGETS`）、项目标识文件、跳过的目录、`CACHEDIR.TAG`、
   .NET `bin` 判断、Git 跟踪文件检查和 `node_modules` 保护都已移植。默认扫描位置沿用 Mole 的列表，但不含 Agent 工作树目录（AI 清理单独列出）和 `~/Library/CloudStorage`（还不能判断哪些文件只在云端）；在页面上添加扫描目录后
-  写入 `~/.config/mole/purge_paths`，`mo purge` 也会读到同一份列表。
+  写入 `~/.config/mole/purge_paths`，`mo purge` 也会读到同一份列表。Mole 首次运行时会自动发现家目录里的项目目录并写入配置；
+  orbit 只把发现的目录显示为建议，由用户点击添加。
 - **分级：** 7 天内有改动、构建工具正在运行、目录里有 Git 跟踪的文件或密钥文件时受保护；安装之后被手动改过、
   缺少锁文件或安装记录、7 到 30 天没动过的需确认；其余推荐清理。包管理器和打包工具自己会改写的状态文件
   （`.cache`、`.vite`、`.package-lock.json` 等）不算手动改动。

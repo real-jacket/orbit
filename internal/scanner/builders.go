@@ -36,7 +36,7 @@ var cacheOwnerRules = []struct {
 	{[]string{"Library/Caches/Google"}, []string{"Google Chrome"}, ""},
 	{[]string{"Library/Caches/Firefox"}, []string{"Firefox"}, ""},
 	{[]string{"Library/Developer/Xcode/DerivedData"}, []string{"Xcode", "xcodebuild", "swift-frontend"}, ""},
-	{[]string{"Library/Developer/CoreSimulator/Caches"}, []string{"Simulator", "CoreSimulatorService"}, ""},
+	{[]string{"Library/Developer/CoreSimulator/Caches"}, []string{"Simulator", "CoreSimulatorService", simulatorBooted}, ""},
 	{[]string{"Library/Caches/Cursor"}, []string{"Cursor", "cursor-agent"}, ""},
 	{[]string{"Library/Logs/Claude"}, []string{"Claude"}, ""},
 	{[]string{"Library/Caches/com.openai.chat"}, []string{"ChatGPT"}, ""},

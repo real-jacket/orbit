@@ -33,8 +33,11 @@ type PurgeRoots struct {
 	Error string `json:"error,omitempty"`
 	// Roots records missing and unreadable directories without calling every
 	// unfinished measurement a Full Disk Access failure.
-	Roots    []PurgeScanRoot  `json:"roots"`
-	Warnings []map[string]any `json:"warnings"`
+	Roots []PurgeScanRoot `json:"roots"`
+	// Suggested are project folders in the home directory the scope leaves out.
+	// They are only shown; nothing is scanned or saved until the user adds one.
+	Suggested []string         `json:"suggested"`
+	Warnings  []map[string]any `json:"warnings"`
 }
 
 // AbsolutePaths returns a copy of the accepted scope, including missing roots.
@@ -141,7 +144,7 @@ func (s *Scanner) loadPurgeRoots() (PurgeRoots, string, bool) {
 	content, present, err := readPurgePathConfig(PurgePathsPath(s.home))
 	if err != nil {
 		reason := "无法读取 ~/.config/mole/purge_paths，已停止扫描构建产物：" + err.Error()
-		return PurgeRoots{Paths: []string{}, Custom: true, Error: reason, Roots: []PurgeScanRoot{}, Warnings: []map[string]any{{"path": PurgePathsPath(s.home), "kind": warnConfig, "reason": reason}}}, content, present
+		return PurgeRoots{Paths: []string{}, Custom: true, Error: reason, Roots: []PurgeScanRoot{}, Suggested: []string{}, Warnings: []map[string]any{{"path": PurgePathsPath(s.home), "kind": warnConfig, "reason": reason}}}, content, present
 	}
 	roots := s.parsePurgeRoots(content)
 	if !roots.Custom {
@@ -151,6 +154,7 @@ func (s *Scanner) loadPurgeRoots() (PurgeRoots, string, bool) {
 	for _, path := range roots.Paths {
 		roots.Roots = append(roots.Roots, inspectBuildScanRoot(path))
 	}
+	roots.Suggested = s.suggestedPurgeRoots(roots.Paths)
 	return roots, content, present
 }
 
@@ -265,4 +269,69 @@ func (s *Scanner) afterPurgeWrite(content string) (PurgeRoots, error) {
 		return s.PurgeRoots(), err
 	}
 	return s.PurgeRoots(), nil
+}
+
+const maxSuggestedPurgeRoots = 5
+
+// Folders of the home directory that are never project containers. Desktop,
+// Documents and Downloads are left out too: looking inside them can raise a
+// macOS permission prompt, which a suggestion is not worth.
+var purgeSuggestSkip = map[string]bool{
+	"Library": true, "Applications": true, "Movies": true, "Music": true, "Pictures": true, "Public": true,
+	"Desktop": true, "Documents": true, "Downloads": true,
+}
+
+// suggestedPurgeRoots lists the direct children of home that hold a project
+// (an indicator file at most two levels down) and are not scanned yet.
+// Ported from tw93/Mole V1.70.0 lib/clean/project.sh discover_project_dirs is_project_container
+func (s *Scanner) suggestedPurgeRoots(current []string) []string {
+	suggested := []string{}
+	if s.home == "" || s.home == "/" {
+		return suggested
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for _, entry := range readDir(s.home) {
+		if len(suggested) >= maxSuggestedPurgeRoots || time.Now().After(deadline) {
+			break
+		}
+		if !entry.isDir || isHidden(entry.name) || purgeSuggestSkip[entry.name] || artifactKinds[entry.name] != "" || isBundleDir(entry.name) {
+			continue
+		}
+		path, reason := s.normalizeBuildScanRoot(filepath.Join(s.home, entry.name))
+		if reason != "" || !withinPath(path, s.home) {
+			continue
+		}
+		covered := false
+		for _, root := range current {
+			covered = covered || withinPath(path, root) || withinPath(root, path)
+		}
+		if covered || containsString(suggested, path) || !holdsProject(path, 2, deadline) {
+			continue
+		}
+		suggested = append(suggested, path)
+	}
+	return suggested
+}
+
+// holdsProject looks for a project indicator in dir or up to depth levels below.
+func holdsProject(dir string, depth int, deadline time.Time) bool {
+	if isPurgeProjectRoot(dir) {
+		return true
+	}
+	if depth == 0 || time.Now().After(deadline) {
+		return false
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for i, entry := range entries {
+		if i >= 200 {
+			break
+		}
+		if entry.IsDir() && !isHidden(entry.Name()) && artifactKinds[entry.Name()] == "" && holdsProject(filepath.Join(dir, entry.Name()), depth-1, deadline) {
+			return true
+		}
+	}
+	return false
 }

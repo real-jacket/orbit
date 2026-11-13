@@ -25,6 +25,8 @@ var artifactKinds = map[string]string{
 	".angular": "Angular 构建缓存", ".svelte-kit": "SvelteKit 构建产物", ".astro": "Astro 构建缓存",
 	"coverage": "代码覆盖率报告", "DerivedData": "Xcode 构建缓存", "Pods": "CocoaPods 依赖", ".cxx": "Android NDK 构建缓存",
 	".expo": "Expo 缓存", ".build": "Swift 构建产物",
+	// Not a Mole target: webpack's persistent cache, when a project keeps it outside node_modules.
+	".webpack_cache": "webpack 构建缓存",
 }
 
 const cacheDirTagKind = "带 CACHEDIR.TAG 标记的缓存目录"

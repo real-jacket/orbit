@@ -90,6 +90,23 @@ func join(parts ...[]moleRule) []moleRule {
 	return all
 }
 
+// simulatorBooted is the launchd of a booted simulator device. Simulator.app
+// need not be open for a device to run (simctl, xcodebuild, Xcode previews).
+const (
+	simulatorBooted  = "launchd_sim"
+	simulatorDevices = "Library/Developer/CoreSimulator/Devices"
+)
+
+var simulatorOwners = []string{"Simulator", "CoreSimulatorService", "Xcode", "xcodebuild", simulatorBooted}
+
+// ownerLabel is how a running owner is named to the user.
+func ownerLabel(owner string) string {
+	if owner == simulatorBooted {
+		return "iOS 模拟器"
+	}
+	return owner
+}
+
 const (
 	appSupport = "Library/Application Support/"
 	containers = "Library/Containers/"
@@ -194,7 +211,13 @@ var moleGroups = append([]moleGroup{
 				"tnpm", ".tnpm/_cacache", "npm", ".npm/_prebuilds"),
 			tools("log", "tnpm", ".tnpm/_logs", "npm", ".npm/_logs", "Cacher", ".cacher/logs", "Kite", ".kite/logs"),
 			tools("temp", "CPAN", ".cpan/build", "Podman", ".local/share/containers/storage/tmp", "Vagrant", ".vagrant.d/tmp",
-				"Vim", ".viminfo.tmp"),
+				"Vim", ".viminfo.tmp", "Volta", ".volta/tmp"),
+			// shortcut: version manager caches are not Mole rules; they were found by hand in a storage audit, drop if the reasons prove wrong.
+			[]moleRule{
+				sf("Go (GVM)", "pkg", ".gvm/pkgsets/*/global/pkg/mod/cache/download").by("go"),
+				rv("Volta 下载的 Node、npm 与 Yarn 安装包，已解包的版本不受影响；清理后安装新版本时需要重新下载，请确认", ".volta/tools/inventory/*"),
+				rv("Gradle Wrapper 下载的 Gradle 发行版，清理后下次构建需要重新下载，请确认", ".gradle/wrapper/dists").tool("gradle"),
+			},
 			[]moleRule{
 				ok("Zsh 补全缓存，下次启动 shell 时会自动重新生成", ".zcompdump*"),
 				ok("less 的命令历史，清理后只是少了翻页搜索记录", ".lesshst"),
@@ -211,10 +234,16 @@ var moleGroups = append([]moleGroup{
 			// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh clean_xcode_tools
 			sf("Xcode", "temp", "Library/Developer/Xcode/Products").by("Xcode", "xcodebuild"),
 			sf("Xcode", "cache", "Library/Developer/Xcode/UserData/IB Support/*").by("Xcode"),
-			sf("XCTest devices", "temp", "Library/Developer/XCTestDevices/*").by("Xcode", "xcodebuild", "Simulator"),
-			sf("Simulator", "temp", "Library/Developer/CoreSimulator/Devices/*/data/tmp/*").by("Simulator", "CoreSimulatorService", "Xcode"),
+			sf("XCTest devices", "temp", "Library/Developer/XCTestDevices/*").by("Xcode", "xcodebuild", "Simulator", simulatorBooted),
+			sf("Simulator", "temp", "Library/Developer/CoreSimulator/Devices/*/data/tmp/*").by(simulatorOwners...),
 			sf("Simulator", "cache", "Library/Developer/CoreSimulator/Profiles/Runtimes/*/Contents/Resources/RuntimeRoot/System/Library/Caches/*").
-				by("Simulator", "CoreSimulatorService", "Xcode"),
+				by(simulatorOwners...),
+			// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh _simulator_device_leaf_targets
+			ok("已关机模拟器设备的诊断日志与系统缓存，下次启动该设备时会重新生成", simulatorDevices).by(simulatorOwners...).
+				found(simulatorLeaves("data/var/db/diagnostics", "data/var/db/uuidtext", "data/Library/Caches",
+					"data/Library/Application Support/PRBPosterExtensionDataStore")),
+			rv("已关机模拟器设备下载的系统资产（如 Siri 模型），清理后下次启动该设备会重新下载，体积可能很大，请确认", simulatorDevices).
+				by(simulatorOwners...).found(simulatorLeaves("data/private/var/MobileAsset/AssetsV2")),
 		}),
 	},
 	{

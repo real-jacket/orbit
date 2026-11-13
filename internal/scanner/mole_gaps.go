@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -320,6 +321,9 @@ func (s *Scanner) gapsCleanupReason(p string, live bool) string {
 			return app + " 正在运行，暂缓清理"
 		}
 	}
+	if device, ok := simulatorLeafDevice(p, s.home); ok && !simulatorShutDown(device) {
+		return "模拟器设备没有关机或状态无法确认，保持原状"
+	}
 	if s.isFirmwarePath(p) {
 		open, err := s.aiHandleOpen(p, live)
 		if err != nil {
@@ -342,4 +346,64 @@ func recentItemPaths() []string {
 		}
 	}
 	return append(paths, "Library/Preferences/com.apple.recentitems.plist")
+}
+
+var simulatorLeafNames = []string{"data/private/var/MobileAsset/AssetsV2", "data/var/db/diagnostics", "data/var/db/uuidtext",
+	"data/Library/Caches", "data/Library/Application Support/PRBPosterExtensionDataStore"}
+
+var (
+	simulatorStateKey   = regexp.MustCompile(`<key>state</key>\s*<integer>(\d+)</integer>`)
+	simulatorDeletedKey = regexp.MustCompile(`<key>isDeleted</key>\s*<true/>`)
+)
+
+// simulatorShutDown reads the device's own record: state 1 and not deleted.
+// An unreadable record is unknown, which counts as running.
+// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh _simulator_device_is_shut_down
+func simulatorShutDown(device string) bool {
+	plist := filepath.Join(device, "device.plist")
+	data, err := os.ReadFile(plist)
+	if err != nil {
+		return false
+	}
+	if isBinaryPlist(data) {
+		if data, err = convertPlistToXML(plist); err != nil {
+			return false
+		}
+	}
+	states := simulatorStateKey.FindAllSubmatch(data, -1)
+	return len(states) == 1 && string(states[0][1]) == "1" && !simulatorDeletedKey.Match(data)
+}
+
+// simulatorLeafDevice is the device folder when p is one of the listed leaves.
+func simulatorLeafDevice(p, home string) (string, bool) {
+	rel, err := filepath.Rel(filepath.Join(home, simulatorDevices), p)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", false
+	}
+	udid, leaf, found := strings.Cut(rel, string(filepath.Separator))
+	if !found || !containsString(simulatorLeafNames, leaf) {
+		return "", false
+	}
+	return filepath.Join(home, simulatorDevices, udid), true
+}
+
+// simulatorLeaves lists the given regenerable folders of every shut-down device.
+// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh _simulator_device_leaf_targets
+func simulatorLeaves(leaves ...string) func(*Scanner) []moleHit {
+	return func(s *Scanner) []moleHit {
+		var hits []moleHit
+		root := filepath.Join(s.home, simulatorDevices)
+		for _, entry := range readDir(root) {
+			device := filepath.Join(root, entry.name)
+			if !realDir(device) || !simulatorShutDown(device) {
+				continue
+			}
+			for _, leaf := range leaves {
+				if p := filepath.Join(device, leaf); realDir(p) {
+					hits = append(hits, moleHit{path: p})
+				}
+			}
+		}
+		return hits
+	}
 }
