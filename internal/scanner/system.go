@@ -132,7 +132,8 @@ func (s *Scanner) queryCPUModel() string {
 // sampleRealProcesses reports the busiest processes and how much of the CPU
 // they use between them.
 func (s *Scanner) sampleRealProcesses() (cpuTotal float64, processes []map[string]any) {
-	out, err := exec.Command("/bin/ps", "-Aceo", "pid,%cpu,rss,comm", "-r").Output()
+	// -c strips executable paths, breaking Finder and native identity checks.
+	out, err := exec.Command("/bin/ps", "-Aeo", "pid,%cpu,rss,comm", "-r").Output()
 	if err != nil {
 		return 0, nil
 	}
@@ -143,7 +144,7 @@ func (s *Scanner) sampleRealProcesses() (cpuTotal float64, processes []map[strin
 	return parseProcesses(string(out), cores)
 }
 
-// parseProcesses reads what `ps -Aceo pid,%cpu,rss,comm -r` printed.
+// parseProcesses reads what `ps -Aeo pid,%cpu,rss,comm -r` printed.
 func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[string]any) {
 	var cpuSum float64
 	processes = []map[string]any{}
@@ -165,7 +166,8 @@ func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[st
 		cpu, _ := strconv.ParseFloat(parts[1], 64)
 		rssKB, _ := strconv.ParseFloat(parts[2], 64)
 		comm := parts[3]
-		if comm == "ps" || comm == "kernel_task" {
+		name := filepath.Base(comm)
+		if name == "ps" || name == "kernel_task" {
 			continue
 		}
 		cpuSum += cpu
@@ -179,7 +181,7 @@ func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[st
 		// file in Finder.
 		processes = append(processes, map[string]any{
 			"pid":       pid,
-			"name":      filepath.Base(comm),
+			"name":      name,
 			"cpu":       cpu,
 			"memory_mb": memoryMB,
 			"power":     0,

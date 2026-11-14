@@ -618,7 +618,7 @@ func TestHumanizeTrashErrorPointsAtTheRightSettingsPane(t *testing.T) {
 		{"/Users/me/Downloads/report.pdf", "filesAndFolders", "文件与文件夹"},
 		{"/Users/me/Documents/tax", "filesAndFolders", "文件与文件夹"},
 		{"/Users/me/Desktop/shot.png", "filesAndFolders", "文件与文件夹"},
-		{"/Users/me/Notes/todo.md", "fullDiskAccess", "权限不足"},
+		{"/Users/me/Notes/todo.md", "", "权限不足"},
 		// Another app's data container: the switch that unblocks it is the App
 		// Data policy, and the pane that carries it is Full Disk Access.
 		{"/Users/me/Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram", "fullDiskAccess", "数据容器"},

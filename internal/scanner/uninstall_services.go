@@ -181,7 +181,7 @@ func (p *uninstallPlan) addApp(path string) {
 // Ported from tw93/Mole V1.70.0 lib/uninstall/batch.sh discover_login_item_helper_bundle_ids
 func loginItemHelperIDs(appPath string) []string {
 	root := filepath.Join(appPath, "Contents/Library/LoginItems")
-	entries, err := os.ReadDir(root)
+	entries, err := readDirEntries(root)
 	if err != nil {
 		return nil
 	}
@@ -324,6 +324,9 @@ func (p *uninstallPlan) siblingInstalled(app uninstallApp) bool {
 	for _, dir := range p.s.defaultAppDirs() {
 		entries, err := readDirEntries(dir)
 		if err != nil {
+			if !os.IsNotExist(err) {
+				return true
+			}
 			continue
 		}
 		for _, entry := range entries {
@@ -331,7 +334,8 @@ func (p *uninstallPlan) siblingInstalled(app uninstallApp) bool {
 			if _, selected := p.apps[other]; selected || !isAppBundle(other) || other == app.path {
 				continue
 			}
-			if bundlesShareRemnants(app.bundleID, readBundleInfo(other).identifier, app.path, other) {
+			id := readBundleInfo(other).identifier
+			if id == "" || bundlesShareRemnants(app.bundleID, id, app.path, other) {
 				return true
 			}
 		}

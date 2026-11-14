@@ -34,9 +34,8 @@ import (
 )
 
 // evaluate runs a statement in every page that shows the app: the main window
-// and, while it is open, the menu-bar panel. It mirrors the Swift helper of the
-// same name, which also evaluated on both web views.
-func evaluate(script string) {
+// and the menu-bar panel. Operation receipts also reach a retained hidden panel.
+func evaluate(script string, includeHidden ...bool) {
 	debugEval := os.Getenv("MOLE_DEBUG") != ""
 	run := func(page *mygo.Page) {
 		if page == nil {
@@ -49,7 +48,7 @@ func evaluate(script string) {
 	if w := activeMainWindow(); w != nil {
 		run(w.Page())
 	}
-	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && w.IsVisible() {
+	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() && (w.IsVisible() || len(includeHidden) > 0 && includeHidden[0]) {
 		run(w.Page())
 	}
 }
@@ -205,7 +204,7 @@ func pushTrashResult(requestID string, outcome scanner.TrashOutcome, configRefs 
 	if services != nil { // only an uninstall: what was stopped, started again, failed, and the Homebrew note
 		payload["services"] = services
 	}
-	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult(" + jsonOf(payload) + ") : undefined")
+	evaluate("window.onNativeTrashResult ? window.onNativeTrashResult("+jsonOf(payload)+") : undefined", true)
 }
 
 // pushRestoreResult sends the receipt for a restore request.
@@ -268,7 +267,7 @@ func pushDoctorReport(requestID string, checks []map[string]any) {
 	if checks == nil {
 		checks = []map[string]any{}
 	}
-	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport(" + jsonOf(map[string]any{"requestId": requestID, "checks": checks}) + ") : undefined")
+	evaluate("window.onNativeDoctorReport ? window.onNativeDoctorReport("+jsonOf(map[string]any{"requestId": requestID, "checks": checks})+") : undefined", true)
 }
 
 // pushFlyoutTheme tells the menu-bar panel which theme the main window chose.
@@ -294,7 +293,7 @@ func pushFlyoutLanguage(lang string) {
 // The state lives in Go, so the window and the menu-bar panel cannot disagree
 // and a caffeinate that exits on its own timer still turns the switch off.
 func pushCaffeinateState(active bool) {
-	evaluate("window.onNativeCaffeinate ? window.onNativeCaffeinate(" + jsonOf(map[string]any{"active": active}) + ") : undefined")
+	evaluate("window.onNativeCaffeinate ? window.onNativeCaffeinate("+jsonOf(map[string]any{"active": active})+") : undefined", true)
 }
 
 // pushWhitelistChanged tells the page the protection list changed, so it can

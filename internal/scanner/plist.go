@@ -17,6 +17,7 @@ import (
 func parsePlistFile(path string) (map[string]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		recordReadError(path, err)
 		return nil, err
 	}
 	if props := parsePlist(data); len(props) > 0 {

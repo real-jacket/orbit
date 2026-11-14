@@ -72,7 +72,7 @@ var extensionDirs = []string{".vscode/extensions", ".cursor/extensions", ".winds
 
 // launcherDirs are the folders a launcher may live in. Absolute folders belong to
 // the real machine, so a scanner with its app folders redirected (tests) skips them.
-func (s *Scanner) launcherDirs(extra []string) []string {
+func (s *Scanner) launcherDirs(extra []string) ([]string, error) {
 	var dirs []string
 	for _, pattern := range append(append([]string{}, aiLauncherDirs...), extra...) {
 		if filepath.IsAbs(pattern) {
@@ -82,16 +82,32 @@ func (s *Scanner) launcherDirs(extra []string) []string {
 		} else {
 			pattern = filepath.Join(s.home, pattern)
 		}
-		matches, _ := filepath.Glob(pattern)
-		dirs = append(dirs, matches...)
+		// shortcut: known launcher layouts use one */ segment; extend when another layout is added.
+		if base, suffix, wildcard := strings.Cut(pattern, "*/"); wildcard {
+			entries, err := readDirEntries(filepath.Clean(base))
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return nil, err
+				}
+				continue
+			}
+			for _, entry := range entries {
+				if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+					dirs = append(dirs, filepath.Join(base, entry.Name(), suffix))
+				}
+			}
+		} else {
+			dirs = append(dirs, pattern)
+		}
 	}
-	return dirs
+	return dirs, nil
 }
 
 // present is false only when path certainly does not exist: any other error
 // means the answer is unknown, and unknown counts as installed.
 func present(path string) bool {
 	_, err := os.Lstat(path)
+	recordReadError(path, err)
 	return err == nil || !os.IsNotExist(err)
 }
 
@@ -107,7 +123,7 @@ func (s *Scanner) ownerAbsent(o personalOwner, except map[string]bool) bool {
 		if len(o.ids) == 0 {
 			continue
 		}
-		entries, err := os.ReadDir(dir)
+		entries, err := readDirEntries(dir)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -120,6 +136,9 @@ func (s *Scanner) ownerAbsent(o personalOwner, except map[string]bool) bool {
 				continue
 			}
 			id := readBundleInfo(path).identifier
+			if id == "" {
+				return false
+			}
 			for _, want := range o.ids {
 				if strings.EqualFold(id, want) {
 					return false
@@ -127,10 +146,16 @@ func (s *Scanner) ownerAbsent(o personalOwner, except map[string]bool) bool {
 			}
 		}
 	}
-	for _, dir := range s.launcherDirs(o.bins) {
-		for _, cmd := range o.cmds {
-			if present(filepath.Join(dir, cmd)) {
-				return false
+	if len(o.cmds) > 0 {
+		dirs, err := s.launcherDirs(o.bins)
+		if err != nil {
+			return false
+		}
+		for _, dir := range dirs {
+			for _, cmd := range o.cmds {
+				if present(filepath.Join(dir, cmd)) {
+					return false
+				}
 			}
 		}
 	}
@@ -138,7 +163,7 @@ func (s *Scanner) ownerAbsent(o personalOwner, except map[string]bool) bool {
 		if len(o.exts) == 0 {
 			break
 		}
-		entries, err := os.ReadDir(filepath.Join(s.home, rel))
+		entries, err := readDirEntries(filepath.Join(s.home, rel))
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue

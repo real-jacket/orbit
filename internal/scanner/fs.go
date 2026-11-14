@@ -86,6 +86,9 @@ func recordReadWarningKind(path, reason, kind string) {
 
 // recordReadError notes that path could not be read.
 func recordReadError(path string, err error) {
+	if err == nil || os.IsNotExist(err) {
+		return
+	}
 	kind, reason := classifyReadError(path, err)
 	recordReadWarningKind(path, reason, kind)
 }

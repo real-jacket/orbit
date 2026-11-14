@@ -1,6 +1,8 @@
 package scanner
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -67,6 +69,9 @@ func (s *Scanner) appOwnersFor(path string, live bool) []appOwner {
 	}
 	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	info := readBundleInfo(path)
+	if info.err != nil && !errors.Is(info.err, os.ErrNotExist) {
+		return nil
+	}
 	display := firstNonEmpty(info.displayName, info.bundleName, name)
 	aliases := []string{info.identifier, info.displayName, info.bundleName, name}
 	var roots []string
@@ -154,26 +159,15 @@ func (s *Scanner) appDataCleanupReason(path string, live bool) string {
 	if !appData {
 		return ""
 	}
-	processes, err := s.processSnapshot(live)
-	if err != nil || strings.TrimSpace(processes) == "" {
+	owners, err := s.runningAppOwners(live)
+	if err != nil {
 		return "无法确认应用数据是否闲置，保持原状"
 	}
-	seen := map[string]bool{}
-	for _, process := range parseProcessLines(processes) {
-		for app := process.path; app != "/" && app != "."; app = filepath.Dir(app) {
-			key := strings.ToLower(app)
-			if !strings.EqualFold(filepath.Ext(app), ".app") || seen[key] {
-				continue
-			}
-			seen[key] = true
-			owners := s.appOwnersFor(app, live)
-			if len(owners) == 0 {
-				continue
-			}
-			for _, root := range owners[0].roots {
-				if withinPath(path, root) || withinPath(root, path) {
-					return owners[0].name + " 正在运行，暂缓清理"
-				}
+	lowerPath := strings.ToLower(filepath.Clean(path))
+	for _, owner := range owners {
+		for _, root := range owner.roots {
+			if withinPath(lowerPath, root) || withinPath(root, lowerPath) {
+				return owner.name + " 正在运行，暂缓清理"
 			}
 		}
 	}
@@ -187,6 +181,44 @@ func (s *Scanner) appDataCleanupReason(path string, live bool) string {
 		}
 	}
 	return ""
+}
+
+func (s *Scanner) runningAppOwners(live bool) ([]appOwner, error) {
+	if !live && s.runningAppSnapshot != nil {
+		return s.runningAppSnapshot()
+	}
+	processes, err := s.processSnapshot(live)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(processes) == "" {
+		return nil, errors.New("empty process table")
+	}
+	var running []appOwner
+	seen := map[string]bool{}
+	for _, process := range parseProcessLines(processes) {
+		for app := process.path; app != "/" && app != "."; app = filepath.Dir(app) {
+			if !strings.EqualFold(filepath.Ext(app), ".app") {
+				continue
+			}
+			key := strings.ToLower(app)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			owners := s.appOwnersFor(app, live)
+			if len(owners) == 0 {
+				return nil, errors.New("running app metadata unavailable")
+			}
+			owner := owners[0]
+			owner.roots = append([]string(nil), owner.roots...)
+			for i, root := range owner.roots {
+				owner.roots[i] = strings.ToLower(root)
+			}
+			running = append(running, owner)
+		}
+	}
+	return running, nil
 }
 
 // regenerableCaches are tool caches that rebuild on demand, whether or not an

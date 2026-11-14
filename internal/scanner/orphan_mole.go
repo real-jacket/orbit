@@ -17,7 +17,7 @@ func findAppBundles(dirs []string) []string {
 	var found []string
 	var walk func(dir string, depth int)
 	walk = func(dir string, depth int) {
-		entries, err := os.ReadDir(dir)
+		entries, err := readDirEntries(dir)
 		if err != nil {
 			return
 		}
@@ -95,6 +95,9 @@ func (s *Scanner) claudeVMReason(path string, live bool) string {
 	if _, installed := ids[claudeBundleID]; installed {
 		return "Claude 桌面版仍已安装，这个虚拟机文件保持原状"
 	}
+	if len(scanReadWarningsForRoots(s.appInventoryDirs(s.home))) > 0 {
+		return "无法确认 Claude 桌面版是否已卸载，虚拟机文件保持原状"
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		return "路径状态无法核验，保持原状"
@@ -111,7 +114,7 @@ func (s *Scanner) scanClaudeVMOrphans(usedIDs map[string]struct{}) []map[string]
 	var rows []map[string]any
 	var walk func(dir string, depth int)
 	walk = func(dir string, depth int) {
-		entries, err := os.ReadDir(dir)
+		entries, err := readDirEntries(dir)
 		if err != nil {
 			return
 		}

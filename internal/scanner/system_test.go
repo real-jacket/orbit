@@ -2,19 +2,21 @@ package scanner
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
 
-// psOutput is the shape of `ps -Aceo pid,%cpu,rss,comm -r`, padding included.
+// psOutput is the shape of `ps -Aeo pid,%cpu,rss,comm -r`, padding included.
 const psOutput = `  PID  %CPU    RSS COMM
     1   0.0  21500 /sbin/launchd
    71   0.0  12044 /usr/libexec/logd
   320   0.3  48000 /Applications/Safari.app/Contents/MacOS/Safari
   412   1.2  90000 /Applications/Visual Studio Code.app/Contents/MacOS/Electron
   455   2.5  30000 kernel_task
-  480   0.0  10000 ps
+  480   0.0  10000 /bin/ps
   501   0.0    512 /usr/bin/tiny
   502   4.0  64000 /usr/libexec/one
   503   1.0  64000 /usr/libexec/two
@@ -90,6 +92,23 @@ func TestParseProcessesKeepsSpacesInCommandPaths(t *testing.T) {
 	if got := electron["pinned"].(bool); got {
 		t.Error("pinned = true, want false")
 	}
+}
+
+func TestRealProcessSampleIncludesExecutablePaths(t *testing.T) {
+	if testing.Short() || runtime.GOOS != "darwin" {
+		t.Skip("reads the macOS process table")
+	}
+	_, processes := Shared.sampleRealProcesses()
+	for _, process := range processes {
+		if process["pid"] == os.Getpid() {
+			path := process["path"].(string)
+			if !filepath.IsAbs(path) || filepath.Base(path) != process["name"] {
+				t.Fatalf("current process lost its executable path: %v", process)
+			}
+			return
+		}
+	}
+	t.Fatal("the live sample omitted the current process")
 }
 
 func TestParseProcessesNeverReportsZeroMemory(t *testing.T) {

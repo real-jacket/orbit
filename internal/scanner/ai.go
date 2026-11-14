@@ -53,6 +53,7 @@ func (s *Scanner) versionInventory(spec aiVersionSpec, live bool) []aiVersion {
 		}
 		path := filepath.Join(root, entry.Name())
 		info, err := entry.Info()
+		recordReadError(path, err)
 		version := aiVersion{path: path}
 		if err != nil {
 			version.reason = "版本元数据无法读取，保持原状"
@@ -111,8 +112,10 @@ func (s *Scanner) versionInventory(spec aiVersionSpec, live bool) []aiVersion {
 
 func (s *Scanner) activeAIVersion(spec aiVersionSpec) (string, error) {
 	if spec.marker != "" {
-		data, err := os.ReadFile(filepath.Join(s.home, spec.marker))
+		marker := filepath.Join(s.home, spec.marker)
+		data, err := os.ReadFile(marker)
 		if err != nil {
+			recordReadError(marker, err)
 			return "", err
 		}
 		name := strings.TrimSpace(strings.SplitN(string(data), "\n", 2)[0])
@@ -129,7 +132,10 @@ func (s *Scanner) activeAIVersion(spec aiVersionSpec) (string, error) {
 	if spec.launcher == "" {
 		return "", os.ErrNotExist
 	}
-	return filepath.EvalSymlinks(filepath.Join(s.home, spec.launcher))
+	launcher := filepath.Join(s.home, spec.launcher)
+	active, err := filepath.EvalSymlinks(launcher)
+	recordReadError(launcher, err)
+	return active, err
 }
 
 func validAIVersionName(name string) bool {
