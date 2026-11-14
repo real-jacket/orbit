@@ -55,7 +55,7 @@ Beyond the module list:
 - **Pre-execution diff** — deletions are previewed as a structured sheet (paths, safety tier, Trash
   recovery checkpoint) before anything runs.
 - **Preview before removal** — the confirmation shows the exact paths and freezes the submitted selection.
-- **Menu bar presence** — scaled CPU/network trends, native memory pressure and memory/storage capacity bars; conditional battery, read-only process links and a receipt-backed two-hour awake switch. Quick cleanup opens the frozen selected-path review in the main window; optional file-cache release runs `/usr/sbin/purge` after macOS administrator authorization (the one place orbit asks for it) and never claims to clear application RAM. The main window also opens this panel directly.
+- **Menu bar presence** — scaled CPU/network trends, native memory pressure and memory/storage capacity bars; conditional battery, local process search and CPU/memory column sorting without switching toasts. Update checks sit at the top right and the footer keeps three actions. Clean shows measured safe/review totals with rescan beside its heading, and opens the main cleanup module directly. Memory optimization directly requests macOS administrator authorization for `/usr/sbin/purge`, with progress and receipts inline; it releases file caches and never claims to clear application RAM. The two-hour awake switch remains receipt-backed. The main window also opens this panel directly.
 - **Runtime & permissions** — nothing about permissions is shown while Full Disk Access works. When it is missing, one line explains it and opens a step by step guide (open System Settings, reveal orbit in Finder, live status, relaunch). Full Disk Access is read from the TCC database itself, and App Management from real moves. The app menu's runtime panel identifies the current bundle or temporary executable.
 - **Live local scan** — installed apps, leftover Library paths, and large files are sampled on the Mac and pushed into the UI over the JS bridge.
 - **Three uninstall modes** — Standard, Complete, and Cache-only, with per-path selection before anything moves to the Trash.
@@ -340,7 +340,8 @@ The app deletes files, so the guardrails are the point:
 - orbit never asks for administrator rights to remove or change anything. Optimize tasks that need `sudo` are
   listed with that reason and not run; tasks that would destroy data the Trash cannot hold are not run
   either. Apps owned by root are left to Finder, which asks for the password itself. The only
-  administrator prompt is the optional file-cache release in the menu bar, and only after you confirm it.
+  administrator prompt is the optional file-cache release, requested when you click Optimize Memory in
+  the menu bar; macOS provides the authorization dialog.
 - Settings changes (optimize) record the previous value, so they can be undone.
 - Protected paths you add are kept in `~/.config/mole/whitelist`.
 
@@ -349,7 +350,8 @@ The app deletes files, so the guardrails are the point:
 orbit is an independent project. It is **not** affiliated with or endorsed by
 [tw93/mole](https://github.com/tw93/mole).
 
-Parts of its cleanup rules are ported from Mole V1.70.0 (shell → Go). Upstream `mo` is licensed
+Parts of its cleanup rules were originally ported from Mole V1.70.0 (shell → Go), with applicable
+rules and cache targets synced through V1.72.0. Upstream `mo` is licensed
 GPL-3.0, and orbit is licensed GPL-3.0 to match. Each ported rule carries a comment such as
 `// Ported from tw93/Mole V1.70.0 lib/clean/user.sh clean_browsers`; `make mole-sync` reads those
 markers and prints what changed upstream in exactly those functions since, so the rules can follow new

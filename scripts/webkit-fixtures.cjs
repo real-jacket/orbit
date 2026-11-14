@@ -1164,10 +1164,11 @@ add('tray-telemetry-disk-capacity-before-scan',compactTraySetup+`
   const disk=tray.querySelector('[data-tray-metric="disk"]');
   qaAssert(disk.textContent.includes('100.0 GB')&&Math.abs(parseFloat(disk.querySelector('[data-capacity-used]').style.width)-75)<0.01,'disk visualization is available before a slow full file scan');
 `);
-add('tray-quick-clean-frozen-preview',`
+add('tray-quick-clean-navigation-and-confirmation',`
   switchModule('status');__qa.actions=[];openQuickClean();
-  qaAssert(STATE.module==='clean'&&document.getElementById('confirmModal').classList.contains('open'),'one quick entry opens the existing exact-path review in the main window');
+  qaAssert(STATE.module==='clean'&&!document.getElementById('confirmModal').classList.contains('open'),'quick entry opens the cleanup page without another preview');
   qaAssert(!__qa.actions.some(action=>action.action==='trashRealPaths'),'quick entry never deletes before confirmation');
+  openConfirmSheet();
   const preview=document.getElementById('confirmModalItemsList').textContent;
   qaAssert(preview.includes('/one')&&!preview.includes('SessionStore'),'quick cleaning reuses selected cache paths and excludes protected assets');
   STATE.cleanGroups[0].subpaths.push({...structuredClone(STATE.cleanGroups[0].subpaths[0]),path:'~/Library/Caches/AddedAfterPreview',checked:true,tier:'safe',sizeGb:1});
@@ -1291,7 +1292,7 @@ add('tray-safe-detail-routes',compactTraySetup+`
   __qa.actions=[];tray.querySelector('[data-tray-key="cpu"]').click();
   qaAssert(STATE.trayView==='processes'&&STATE.procSortKey==='cpu'&&!__qa.actions.length,'CPU opens local process tools');
   setTrayView('overview');tray.querySelector('[data-tray-key="memory"]').click();
-  qaAssert(document.getElementById('memoryModal').classList.contains('open')&&!__qa.actions.length,'memory management stays in the tray');closeMemoryMaintenance();
+  qaAssert(STATE.trayView==='processes'&&STATE.procSortKey==='memory_mb'&&!document.getElementById('memoryModal').classList.contains('open')&&!__qa.actions.length,'memory readings open local processes sorted by memory');setTrayView('overview');
   tray.querySelector('[data-tray-key="disk"]').click();qaAssert(STATE.trayView==='clean'&&!__qa.actions.length,'disk opens local cache selection');
   setTrayView('overview');
   qaAssert(tray.querySelector('[data-tray-metric="network"]').tagName==='DIV','network rates do not imply a main-window route');
@@ -1351,7 +1352,7 @@ add('tray-compact-height-scroll',compactTraySetup+`
 const trayHeight=680;
 for(const scenario of scenarios.slice(trayScenarioStart))Object.assign(scenario,{width:420,height:trayHeight});
 Object.assign(scenarios.at(-1),{width:356,height:480});
-for(const scenario of scenarios.slice(trayScenarioStart).filter(item=>item.name.startsWith('memory-')||item.name.startsWith('modal-hidden-')||item.name==='tray-quick-clean-frozen-preview'))Object.assign(scenario,{width:880,height:620});
+for(const scenario of scenarios.slice(trayScenarioStart).filter(item=>item.name.startsWith('memory-')||item.name.startsWith('modal-hidden-')||item.name==='tray-quick-clean-navigation-and-confirmation'))Object.assign(scenario,{width:880,height:620});
 const newTrayStart=scenarios.length;
 const trayThreeProcesses=compactTraySetup+`
   const sample=structuredClone(qaTelemetry);sample.processes.push({pid:8333,name:'Canvas Renderer',cpu:8,memory_mb:2048,path:'/Applications/Canvas Renderer.app'});onNativeRealTelemetry(sample);
@@ -1399,13 +1400,13 @@ add('tray-releases-focus-when-hidden',compactTraySetup+`
   qaAssert(document.activeElement===card,'the main window keeps focus when it blurs');
   card.blur();document.body.classList.add('menubar-mode');
 `);
-add('quick-clean-nothing-selected-hint',`
+add('quick-clean-nothing-selected-navigation',`
   onNativeRealScanComplete(structuredClone(qaFixture));
   STATE.cleanGroups.forEach(group=>{group.checked=false;});
   switchModule('status');openQuickClean();
   const toast=document.getElementById('toastBanner');
   qaAssert(STATE.module==='clean'&&!document.getElementById('confirmModal').classList.contains('open'),'quick clean opens the list without a review sheet when nothing is selected');
-  qaAssert(toast.style.display==='block'&&toast.textContent.includes('尚未勾选清理项，请先在列表中勾选要清理的项目'),'the user gets a calm in-page hint instead of silence');
+  qaAssert(toast.style.display!=='block'&&!__qa.actions.some(action=>action.action==='trashRealPaths'),'navigation needs no toast or cleanup authorization');
 `);
 for(const scenario of scenarios.slice(newTrayStart).filter(item=>item.name.startsWith('tray-')))Object.assign(scenario,{width:420,height:trayHeight});
 add('tray-tools-hidden-panels-stay-idle',`
@@ -1431,6 +1432,7 @@ for(const theme of ['light','dark'])for(const lang of ['zh','en'])for(const view
   ${lang==='en'?"qaEnglishFixture();I18N.setLang('en',false);renderMenuBarTrayContent();":''}
   await qaSettle();
   qaAssert(tray.querySelectorAll('.tray-tabs button').length===3,'three local sections remain compact');
+  qaAssert(tray.querySelectorAll('.tray-footer button').length===3&&tray.querySelector('.tray-head [data-tray-key="update"]'),'updates live at the top right and the footer contains three actions');
   const buttons=[...tray.querySelectorAll('button')];
   qaAssert(buttons.every(button=>{const rect=button.getBoundingClientRect();return rect.width>=24&&rect.height>=24&&rect.left>=0&&rect.right<=innerWidth+1;}),'all menu actions meet their minimum target size and fit');
   ${view==='processes'?"qaAssert(getComputedStyle(tray.querySelector('.btn-kill')).opacity==='1','the local termination action stays visible without hovering a table row');":''}
@@ -1477,6 +1479,36 @@ add('tray-tools-search-all-and-sort',compactTraySetup+`
   setTraySearch('/usr/local/bin/worker-349');qaAssert(tray.querySelectorAll('.tray-proc').length===1&&tray.querySelector('.tray-proc').dataset.trayPid==='9349','executable paths are searchable');
   setTraySearch('not-present');qaAssert(tray.querySelector('.tray-empty').textContent.includes('没有匹配'),'no matches have an honest empty state');
   qaAssert(!__qa.actions.length,'search and sorting never send a native command');
+`);
+add('tray-sort-retains-draft-selection-and-focus',trayThreeProcesses+`
+  setTrayView('processes');setTraySearch('Canvas');selectTrayProcess(8123);
+  const search=tray.querySelector('[data-tray-key="process-search"]');search.focus();search.setSelectionRange(2,2);
+  const before={render:window.renderModule,toast:window.showToast};let renders=0,toasts=0;
+  window.renderModule=()=>{renders++;before.render();};window.showToast=()=>{toasts++;};
+  try{
+    sortProcessesBy('memory_mb');
+    qaAssert(tray.querySelector('.tray-proc').dataset.trayPid==='8333','memory header sorts the same process list');
+    qaAssert(STATE.traySearch==='Canvas'&&STATE.trayProcess.pid===8123&&tray.querySelector('.tray-process-detail'),'sorting retains the filter and inspected process');
+    qaAssert(tray.querySelector('[data-tray-key="process-search"]')===search&&document.activeElement===search&&search.selectionStart===2,'sorting retains the search node, caret and focus');
+    const header=tray.querySelector('[data-tray-key="sort:cpu"]');header.focus();header.click();
+    qaAssert(tray.querySelector('[data-tray-key="sort:cpu"]')===header&&document.activeElement===header&&header.getAttribute('aria-pressed')==='true','the clicked sort header retains focus and shows the order');
+    sortProcessesBy('cpu');sortProcessesBy('not-a-sort');
+    qaAssert(STATE.procSortKey==='cpu'&&!renders&&!toasts&&!__qa.actions.length,'sorting never rebuilds the main module, raises a toast or sends a command');
+  }finally{window.renderModule=before.render;window.showToast=before.toast;}
+`);
+add('tray-clean-summary-excludes-protected-and-labels-partial',compactTraySetup+`
+  STATE.cleanGroups=[{...structuredClone(qaFixture.cleanGroups[0]),tier:'review',sizeGb:90,partial:true,subpaths:[
+    {path:'~/Library/Caches/Safe',sizeGb:1,tier:'safe'},
+    {path:'~/Library/Caches/Review',sizeGb:2,tier:'review'},
+    {path:'~/Library/Caches/Unknown',sizeGb:null,tier:'review',partial:true},
+    {path:'~/Library/Caches/Protected',sizeGb:87,tier:'protected'}
+  ]}];setTrayView('clean');
+  const total=tray.querySelector('.tray-clean-overview strong'),rows=[...tray.querySelectorAll('.tray-clean-row')];
+  qaAssert(total.textContent==='至少 3.00 GB'&&rows[0].textContent.includes('1.00 GB')&&rows[1].textContent.includes('2.00 GB'),'summary uses path tiers, excludes protected bytes and labels lower bounds');
+  qaAssert(!tray.querySelector('input[type="checkbox"]')&&!tray.textContent.includes('预览所选'),'menu cleanup has no selection or preview step');
+  const scan=tray.querySelector('[data-tray-key="scan"]');qaAssert(scan.closest('.tray-proc-toolbar'),'rescan belongs beside the cleanup heading');
+  __qa.actions=[];tray.querySelector('[data-tray-key="clean-open"]').click();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='menubarOpenClean'&&!document.getElementById('confirmModal').classList.contains('open'),'open cleanup is a direct main-window route');
 `);
 add('tray-tools-process-read-actions',compactTraySetup+`
   const path=${JSON.stringify("/Applications/Canvas & Partner's.app/Contents/MacOS/Canvas")};
@@ -1541,58 +1573,55 @@ add('tray-tools-process-source-states',compactTraySetup+`
   onNativeRealTelemetry({...cached,processes:[]});qaAssert(tray.textContent.includes('本次采样未列出进程'),'a measured empty list is distinct from an unavailable source');
   onNativeRealTelemetry({...cached,processes:null});qaAssert(tray.textContent.includes('尚未收到进程采样')&&!STATE.processReceivedAt,'a missing process source clears stale rows and its timestamp');
 `);
-add('tray-tools-clean-selection-and-preview',compactTraySetup+`
+add('tray-tools-clean-summary-and-direct-entry',compactTraySetup+`
   STATE.cleanGroups.push({...structuredClone(qaFixture.cleanGroups[0]),id:'protected',name:'Protected Cache',tier:'protected',checked:true});
   setTrayView('clean');__qa.actions=[];
-  qaAssert(!tray.textContent.includes('Protected Cache')&&tray.querySelectorAll('.tray-clean-row').length===3,'protected groups cannot be selected in the menu');
-  const review=tray.querySelector('[data-tray-key="clean:review"]');qaAssert(!review.checked,'review-tier data stays unselected');review.click();
-  qaAssert(STATE.cleanGroups.find(g=>g.id==='review').checked&&tray.querySelector('[data-tray-key="clean:review"]').checked,'a native checkbox updates the actual shared selection');
-  tray.querySelector('[data-tray-key="clean-preview"]').click();await qaSettle();
-  qaAssert(document.getElementById('confirmModal').classList.contains('open')&&document.getElementById('confirmModalItemsList').textContent.includes('/one'),'local preview lists frozen exact paths');
-  qaAssert(document.activeElement.textContent.includes('取消')&&tray.inert,'confirmation defaults to Cancel and isolates the menu');
-  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await qaSettle();
-  qaAssert(!tray.inert&&!document.getElementById('confirmModal').classList.contains('open')&&!__qa.actions.length,'cancelling the preview never deletes or opens the main window');
+  qaAssert(!tray.textContent.includes('Protected Cache')&&tray.querySelectorAll('.tray-clean-row').length===2&&!tray.querySelector('input[type="checkbox"]'),'the menu summarizes eligible tiers without a selection workflow');
+  qaAssert(tray.querySelector('.tray-clean-overview strong').textContent==='6.00 GB'&&!STATE.cleanGroups.find(g=>g.id==='review').checked,'summary uses measured eligible bytes and preserves the main selection');
+  tray.querySelector('[data-tray-key="clean-open"]').click();await qaSettle();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='menubarOpenClean'&&!tray.inert&&!document.getElementById('confirmModal').classList.contains('open'),'cleanup opens its main page directly without previewing or deleting');
 `);
-add('tray-tools-clean-frozen-and-partial-receipt',compactTraySetup+`
-  window.isNativeMacApp=true;setTrayView('clean');__qa.actions=[];tray.querySelector('[data-tray-key="clean-preview"]').click();
-  STATE.cleanGroups[0].subpaths.push({path:'~/Library/Caches/NewAfterReview',checked:true,tier:'safe',sizeGb:1});
-  document.getElementById('confirmModalConfirmBtn').click();
-  const request=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(request&&request.paths.every(p=>!p.includes('NewAfterReview')),'the menu cannot enlarge a frozen cleanup plan');
-  onNativeTrashResult({requestId:request.requestId,moved:[{original:request.paths[0],trashed:'/trash/one'}],movedCount:1,failed:request.paths.slice(1).map(path=>({path,error:'Permission denied'}))});renderMenuBarTrayContent();
-  qaAssert(STATE.historyLogs[0].restoreData.paths.length===1&&tray.textContent.includes('Permission denied'),'only successful moves are recorded and refused paths remain visible');
+add('tray-tools-clean-rescan-placement',compactTraySetup+`
+  window.isNativeMacApp=true;setTrayView('clean');__qa.actions=[];
+  const scan=tray.querySelector('[data-tray-key="scan"]');scan.focus();scan.click();
+  qaAssert(scan.closest('.tray-proc-toolbar')&&__qa.actions.filter(a=>a.action==='requestRealSystemScan').length===1,'the single rescan action belongs to the cleanup header');
+  onNativeRealScanStarted();renderMenuBarTrayContent();
+  qaAssert(tray.querySelector('[data-tray-key="scan"]').disabled&&tray.querySelector('[data-tray-key="scan"]').textContent.includes('正在扫描'),'a running scan is reflected at its original control');
+  qaAssert(document.getElementById('toastBanner').style.display!=='block','rescan progress does not cover the panel with a toast');
 `);
 add('tray-tools-clean-unavailable-and-permissions',compactTraySetup+`
   STATE=structuredClone(DEFAULT_STATE);STATE.trayView='clean';renderMenuBarTrayContent();__qa.actions=[];
-  qaAssert(tray.textContent.includes('还没有扫描结果')&&tray.querySelector('[data-tray-key="clean-preview"]').disabled,'startup cannot authorize cleanup from old data');
+  qaAssert(tray.textContent.includes('还没有扫描结果')&&tray.querySelector('[data-tray-key="clean-open"]')&&!tray.querySelector('input[type="checkbox"]'),'startup can open cleanup without authorizing old data');
   onNativeRealScanStarted();renderMenuBarTrayContent();qaAssert(tray.textContent.includes('正在扫描'),'an active scan is visible');
   onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:'~/Library/Caches/Restricted',kind:'permission',reason:'Permission denied',modules:['clean']}]});
-  qaAssert(tray.querySelector('[data-tray-key="clean-preview"]').disabled&&tray.querySelector('[data-tray-key="clean-permissions"]'),'empty denied scans keep an exact-permission recovery entry');
+  qaAssert(tray.querySelector('[data-tray-key="clean-open"]')&&tray.querySelector('[data-tray-key="clean-permissions"]'),'empty denied scans keep cleanup navigation and an exact-permission recovery entry');
   tray.querySelector('[data-tray-key="clean-permissions"]').click();await qaSettle();
   qaAssert(document.getElementById('runtimeModal').classList.contains('open')&&tray.inert,'permission details remain in the menu dialog');
   qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'permission inspection never deletes data');
 `);
-add('tray-tools-memory-focus-and-local-sort',compactTraySetup+`
-  const opener=tray.querySelector('[data-tray-key="memory-tools"]');opener.focus();opener.click();await qaSettle();
-  qaAssert(document.activeElement===document.getElementById('memoryCloseBtn')&&tray.inert,'memory consent isolates menu controls and starts on Cancel');
-  const action=document.getElementById('memoryReleaseBtn');action.focus();action.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));
-  qaAssert(document.activeElement.closest('#memoryModal'),'Tab cannot leave the menu confirmation');
-  document.querySelector('#memoryModal .memory-panel-footer > button').click();await qaSettle();
-  qaAssert(STATE.trayView==='processes'&&STATE.procSortKey==='memory_mb'&&!tray.inert&&!document.getElementById('memoryModal').classList.contains('open'),'View memory processes sorts the local menu list');
-  qaAssert(!__qa.actions.some(a=>a.action.startsWith('menubarOpen')),'memory inspection does not route to the main app');
+add('tray-tools-memory-direct-authorization',compactTraySetup+`
+  window.isNativeMacApp=true;renderMenuBarTrayContent();__qa.actions=[];
+  const opener=tray.querySelector('[data-tray-key="memory-tools"]');opener.focus();opener.click();opener.click();await qaSettle();
+  const request=__qa.actions.find(a=>a.action==='releaseFileCache');
+  qaAssert(request?.confirmed&&request.requestId&&__qa.actions.length===1,'the direct action sends one correlated request for macOS authorization');
+  qaAssert(!tray.inert&&!document.getElementById('memoryModal').classList.contains('open')&&tray.querySelector('[data-tray-key="memory-tools"]').disabled,'authorization requires no intermediate app dialog and pending clicks cannot repeat it');
+  onNativeCachePurgeResult({requestId:'old',ok:true});qaAssert(STATE.memoryMaintenance.pending,'a stale result cannot settle the direct action');
+  onNativeCachePurgeResult({requestId:request.requestId,ok:true});
+  qaAssert(!STATE.memoryMaintenance.pending&&tray.querySelector('.tray-memory-status').textContent.includes('命令已完成')&&!tray.querySelector('[data-tray-key="memory-tools"]').disabled,'a real result appears inline and permits another explicit action');
 `);
 for(const outcome of ['cancelled','failed','unknown'])add('tray-tools-memory-'+outcome,compactTraySetup+`
-  window.isNativeMacApp=true;tray.querySelector('[data-tray-key="memory-tools"]').click();__qa.actions=[];releaseFileCache();
+  window.isNativeMacApp=true;renderMenuBarTrayContent();__qa.actions=[];tray.querySelector('[data-tray-key="memory-tools"]').click();
   const request=__qa.actions.find(a=>a.action==='releaseFileCache');
   onNativeCachePurgeResult({requestId:request.requestId,ok:false,cancelled:${outcome==='cancelled'},unknown:${outcome==='unknown'},error:'Permission denied'});
-  qaAssert(!STATE.memoryMaintenance.pending&&document.getElementById('memoryMaintenanceStatus').textContent.includes('${outcome==='cancelled'?'已取消':outcome==='unknown'?'状态未知':'Permission denied'}'),'native ${outcome} stays explicit inside the menu');
-  qaAssert(document.getElementById('memoryReleaseBtn').disabled===${outcome==='unknown'},'an unknown outcome cannot be submitted again');
+  qaAssert(!STATE.memoryMaintenance.pending&&tray.querySelector('.tray-memory-status').textContent.includes('${outcome==='cancelled'?'已取消':outcome==='unknown'?'状态未知':'Permission denied'}')&&!document.getElementById('memoryModal').classList.contains('open'),'native ${outcome} stays explicit inline without another dialog');
+  qaAssert(tray.querySelector('[data-tray-key="memory-tools"]').disabled===${outcome==='unknown'},'an unknown outcome cannot be submitted again');
 `);
 add('tray-tools-memory-hidden-receipt',compactTraySetup+`
-  window.isNativeMacApp=true;openMemoryMaintenance();__qa.actions=[];releaseFileCache();const request=__qa.actions.find(a=>a.action==='releaseFileCache');
-  closeMemoryMaintenance();Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});
+  window.isNativeMacApp=true;__qa.actions=[];releaseFileCache();const request=__qa.actions.find(a=>a.action==='releaseFileCache');
+  Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});
   try{onNativeCachePurgeResult({requestId:request.requestId,ok:false,cancelled:true});}finally{delete document.visibilityState;}
-  openMemoryMaintenance();await qaSettle();
-  qaAssert(!STATE.memoryMaintenance.pending&&!document.getElementById('memoryReleaseBtn').disabled&&document.getElementById('memoryMaintenanceStatus').textContent.includes('已取消'),'a hidden-panel receipt settles the retained operation before reopening');
+  renderMenuBarTrayContent();await qaSettle();
+  qaAssert(!STATE.memoryMaintenance.pending&&!tray.querySelector('[data-tray-key="memory-tools"]').disabled&&tray.querySelector('.tray-memory-status').textContent.includes('已取消'),'a hidden-panel receipt settles the retained operation before reopening');
 `);
 add('tray-tools-keyboard-search-and-tabs',compactTraySetup+`
   __qa.actions=[];document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'k',metaKey:true,bubbles:true,cancelable:true}));
@@ -1604,13 +1633,19 @@ add('tray-tools-keyboard-search-and-tabs',compactTraySetup+`
   qaAssert(!__qa.actions.length,'keyboard navigation is read only');
 `);
 for(const scenario of scenarios.slice(trayToolsStart))Object.assign(scenario,{width:420,height:trayHeight});
-for(const view of ['processes','clean','memory','doctor','preview']){
-  const steps={processes:"setTrayView('processes');selectTrayProcess(8123);",clean:"setTrayView('clean');",memory:'openMemoryMaintenance();',doctor:'openDoctorModal(true);',preview:"setTrayView('clean');openQuickClean();"}[view];
+for(const view of ['processes','clean','memory','doctor']){
+  const steps={processes:"setTrayView('processes');selectTrayProcess(8123);",clean:"setTrayView('clean');",memory:"window.isNativeMacApp=true;releaseFileCache();",doctor:'openDoctorModal(true);'}[view];
   add('tray-tools-short-'+view,compactTraySetup+steps+`
     await qaSettle();
     const modal=document.querySelector('.modal-backdrop.open');
     if(modal){const bounds=modal.querySelector('.modal-sheet').getBoundingClientRect();qaAssert(bounds.left>=0&&bounds.right<=innerWidth&&bounds.top>=0&&bounds.bottom<=innerHeight,'menu dialog stays inside a small viewport');}
-    else{tray.scrollTop=tray.scrollHeight;const quit=tray.querySelector('[data-tray-key="quit"]').getBoundingClientRect();qaAssert(quit.top>=0&&quit.bottom<=innerHeight,'footer actions remain reachable by scrolling');}
+    else{
+      tray.scrollTop=tray.scrollHeight;
+      const quit=tray.querySelector('[data-tray-key="quit"]').getBoundingClientRect();
+      qaAssert(quit.top>=0&&quit.bottom<=innerHeight,'footer actions remain reachable by scrolling');
+      const content=tray.querySelector('.tray-clean-summary,.tray-process-detail'),tools=tray.querySelector('.tray-actions').getBoundingClientRect();
+      if(content){const bounds=content.getBoundingClientRect();qaAssert(bounds.bottom<=tools.top+1&&bounds.top>=0,'cleanup and process actions stay reachable above the bottom tools without overlap');}
+    }
   `);Object.assign(scenarios.at(-1),{width:356,height:480});
 }
 add('runtime-header-tools-reachable',`

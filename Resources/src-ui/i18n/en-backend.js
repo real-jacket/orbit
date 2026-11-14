@@ -5,6 +5,18 @@
 (function () {
   const D = {
     // ---- safety.go: protection reasons ----
+    "T3 Code · 预览缓存": "T3 Code · Preview caches",
+    "只清理浏览器预览分区的程序缓存与代码缓存，不含登录、站点数据或任务历史": "Only app and code caches in browser preview partitions; no sign-ins, site data or task history",
+    "只处理 t3code-preview 分区内的 Cache 与 Code Cache；保留 Cookies、IndexedDB、Local Storage、Service Worker 和 .t3。工具运行、文件打开或状态未知时保留。": "Only Cache and Code Cache inside t3code-preview partitions. Cookies, IndexedDB, Local Storage, Service Worker and .t3 are preserved. Kept while the tool runs, files are open or state is unknown.",
+    "不是已识别的 Claude 虚拟机包，保持原状": "Not a recognized Claude VM bundle; left untouched",
+    "Claude 会话、文件历史与提示词历史保持原状，仅核验后的过期单元可单独处理": "Claude sessions, file history and prompt history are preserved; only verified expired units may be handled separately",
+    "T3 Code 任务历史与凭据保持原状": "T3 Code task history and credentials are preserved",
+    "T3 Code 登录、站点数据与个人资料保持原状": "T3 Code sign-ins, site data and personal data are preserved",
+    "Codex 浏览器登录与运行资料保持原状，仅清理已识别的缓存目录": "Codex browser sign-ins and runtime data are preserved; only recognized cache folders may be cleaned",
+    "SwiftPM 依赖与工作区状态保持原状；请重新扫描，仅清理编译与索引产物": "SwiftPM dependencies and workspace state are preserved. Scan again to clean compilation and index output only",
+    "SwiftPM 编译或索引产物仍被打开或状态未知，保持原状": "SwiftPM compilation or index output is still open, or its state is unknown; left untouched",
+    "沙盒内含有 macOS 系统保护的文件，移入废纸篓后可能无法清空，保持原状": "The container holds files protected by macOS. Moving it to Trash could prevent emptying Trash; left untouched",
+    "无法核验沙盒内的系统保护，保持原状": "System protection inside the container could not be verified; left untouched",
     "当前应用、恢复清单与运行状态保持原状": "The app itself, its restore manifest and its runtime state are left untouched",
     "系统文件不能清理": "System files can't be cleaned",
     "核心目录不能整体移除，请进入后检查子项": "Core folders can't be removed as a whole; open the folder and review the items inside",

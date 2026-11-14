@@ -119,7 +119,7 @@ type chromiumVariant struct {
 	models bool     // Chrome only: on-device model folders
 }
 
-// Ported from tw93/Mole V1.70.0 lib/clean/user.sh clean_browsers (Chrome, Arc, Brave, Dia, Helium and the other Chromium browsers)
+// Ported from tw93/Mole V1.72.0 lib/clean/user.sh clean_browsers (Chrome, Arc, Brave, Dia, Helium and the other Chromium browsers)
 // shortcut: the union of cache folder names is tried for every variant, a name a browser never creates just does not exist; upgrade if a browser reuses one of them for user data.
 func chromiumRules() []moleRule {
 	variants := []chromiumVariant{
@@ -177,7 +177,7 @@ var moleGroups = append([]moleGroup{
 		impact:  "浏览器的页面、代码和着色器缓存可以重建，不影响书签、密码和登录状态；Service Worker 的缓存存储由你确认。",
 		rebuild: "下次打开网页时重新生成",
 		rules: join(chromiumRules(), []moleRule{
-			// Ported from tw93/Mole V1.70.0 lib/clean/user.sh clean_browsers (Firefox, GoogleUpdater)
+			// Ported from tw93/Mole V1.72.0 lib/clean/user.sh clean_browsers (Firefox, GoogleUpdater)
 			sf("Firefox", "cache", appSupport+"Firefox/Profiles/*/cache2").by("Firefox"),
 			sf("Google Updater", "cache", appSupport+"Google/GoogleUpdater/crx_cache", appSupport+"Google/GoogleUpdater/*.old"),
 		}),
@@ -204,7 +204,7 @@ var moleGroups = append([]moleGroup{
 				"Expo", ".expo/native-modules-cache", "Expo", ".expo/schema-cache", "Expo", ".expo/template-cache",
 				"Expo", ".expo/versions-cache"),
 			tools("pkg",
-				"Electron", ".cache/electron", "Puppeteer", ".cache/puppeteer", "Prisma", ".cache/prisma",
+				"Electron", ".cache/electron", "Prisma", ".cache/prisma",
 				"node-gyp", ".cache/node-gyp", "node-gyp", ".node-gyp", "pyenv", ".pyenv/cache", "rbenv", ".rbenv/cache",
 				"RubyGems", ".gem/ruby/*/cache", "Bundler", ".bundle/cache", "Composer", ".composer/cache",
 				"Hex", ".hex/cache", "opam", ".opam/download-cache", "rustup", ".rustup/downloads",

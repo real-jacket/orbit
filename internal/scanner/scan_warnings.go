@@ -17,8 +17,11 @@ func (s *Scanner) scanWarningScopes(config PurgeRoots) []scanWarningScope {
 		}
 	}
 	var aiRoots []string
-	for _, entry := range aiCacheSpecs() {
+	for _, entry := range s.aiDataSpecs() {
 		aiRoots = append(aiRoots, s.specRoots([]CatalogSpec{entry.spec}, "")...)
+	}
+	for _, root := range []string{"Library/Application Support/t3code-v2", "Library/Application Support/T3 Code (Alpha)"} {
+		aiRoots = append(aiRoots, filepath.Join(s.home, root))
 	}
 	for _, spec := range aiVersionSpecs {
 		aiRoots = append(aiRoots, filepath.Join(s.home, spec.root))

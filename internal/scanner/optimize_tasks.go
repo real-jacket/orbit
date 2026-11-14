@@ -20,7 +20,7 @@ const (
 	plistLintBatch    = 256       // Ported from tw93/Mole V1.70.0 lib/optimize/maintenance.sh _repair_preference_plists_in_dir (batch lint)
 	receiptDetailCap  = 20        // the page lists at most this many touched items per receipt
 	dsstoreDomain     = "com.apple.desktopservices"
-	spotlightDomain   = "com.apple.spotlight"
+	spotlightDomain   = "com.apple.Spotlight"
 	spotlightRulesKey = "EnabledPreferenceRules"
 	globalDomain      = "NSGlobalDomain"
 )
@@ -656,7 +656,7 @@ type spotlightState struct {
 }
 
 // spotlightScan finds rule entries that name an app which is gone.
-// Ported from tw93/Mole V1.70.0 lib/optimize/tasks.sh opt_prune_spotlight_orphan_rules
+// Ported from tw93/Mole V1.72.0 lib/optimize/tasks.sh opt_prune_spotlight_orphan_rules
 func (s *Scanner) spotlightScan(ctx context.Context) (spotlightState, error) {
 	frag, present, err := s.defaultsGet(ctx, spotlightDomain, spotlightRulesKey)
 	if err != nil {

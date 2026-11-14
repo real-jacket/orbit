@@ -98,7 +98,7 @@ func hasCacheDirTag(dir string) bool {
 // levels deep. It never follows a link, never descends into an artifact, a
 // bundle or a pruned folder, and lists a direct child of root only when root is
 // itself a project. Running past the deadline leaves one warning on the root.
-// Ported from tw93/Mole V1.70.0 lib/clean/project.sh scan_purge_targets
+// Ported from tw93/Mole V1.72.0 lib/clean/project.sh scan_purge_targets
 func (s *Scanner) walkArtifacts(root string, deadline time.Time, out *[]artifactCandidate) {
 	if !s.walkArtifactsIn(root, root, 1, isPurgeProjectRoot(root), deadline, out) {
 		recordReadWarning(root, "构建目录遍历达到扫描上限；只统计已访问路径")
@@ -130,7 +130,11 @@ func (s *Scanner) walkArtifactsIn(root, dir string, depth int, rootIsProject boo
 		}
 		if isArtifact {
 			if _, protected := s.scanProtection(path); !protected && (depth > 1 || rootIsProject) && artifactShape(path, name) {
-				*out = append(*out, artifactCandidate{path: path, name: name, kind: kind})
+				for _, output := range swiftPMArtifacts(path) {
+					if _, protected := s.scanProtection(output); !protected {
+						*out = append(*out, artifactCandidate{path: output, name: filepath.Base(output), kind: kind})
+					}
+				}
 			}
 			continue
 		}
@@ -396,6 +400,9 @@ func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
 	}
 	for i, c := range candidates {
 		project := dirName(c.path)
+		if scratch := swiftPMOutputRoot(c.path); scratch != "" {
+			project = filepath.Dir(scratch)
+		}
 		// The newest file inside says when the artifact was last used; the
 		// project says whether anyone still works in it.
 		active := max(c.modified, projectActivity(project))

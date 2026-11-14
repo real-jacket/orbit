@@ -17,6 +17,7 @@ var builderNames = map[string]bool{
 	"java": true, "gradle": true, "python": true, "python3": true, "uv": true, "xcodebuild": true, "swift-frontend": true,
 	"xcode": true, "sourcekitservice": true, "xcbbuildservice": true,
 	"ruby": true, "npx": true,
+	"swift": true, "swiftc": true, "swift-build": true, "swift-package": true, "swift-driver": true, "sourcekit-lsp": true,
 }
 
 // isBuilderName also admits versioned interpreters such as python3.12.

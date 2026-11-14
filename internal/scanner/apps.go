@@ -1,11 +1,13 @@
 package scanner
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 const sharedRemnantsReason = "另一份相同标识的应用仍安装在这台 Mac 上，这些数据还在被它使用"
@@ -534,7 +536,7 @@ type bundleInfo struct {
 func readBundleInfo(path string) bundleInfo {
 	props, err := parsePlistFile(filepath.Join(path, "Contents", "Info.plist"))
 	if err != nil {
-		// Ported from tw93/Mole V1.70.0 lib/clean/apps.sh scan_installed_apps: an iOS app on
+		// Ported from tw93/Mole V1.72.0 lib/clean/apps.sh scan_installed_apps: an iOS app on
 		// Apple Silicon keeps its plist under Wrapper/<name>.app, not Contents/.
 		wrapped, readErr := readDirEntries(filepath.Join(path, "Wrapper"))
 		if readErr != nil && !os.IsNotExist(readErr) {
@@ -612,10 +614,16 @@ func (s *Scanner) installedAppIndex(home string) (names, bundleIDs map[string]st
 			}
 		}
 	}
-	// Ported from tw93/Mole V1.70.0 lib/clean/apps.sh scan_installed_apps: a login item's
-	// LaunchAgent label also names an installed owner.
+	// Ported from tw93/Mole V1.72.0 lib/clean/apps.sh scan_installed_apps:
+	// only provably dead jobs lose their ownership claim, within a shared budget.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	mounts, mountErr := configuredLaunchAgentMounts()
 	for _, path := range s.matchingWildcardPaths(filepath.Join(home, "Library/LaunchAgents"), "") {
 		if label, ok := strings.CutSuffix(baseName(path), ".plist"); ok && label != "" {
+			if mountErr == nil && ctx.Err() == nil && !s.launchAgentCanRun(ctx, path, mounts) {
+				continue
+			}
 			bundleIDs[strings.ToLower(label)] = struct{}{}
 		}
 	}

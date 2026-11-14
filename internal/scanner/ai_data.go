@@ -15,6 +15,7 @@ type aiDataSpec struct {
 	band     string
 	owners   []string
 	logFiles bool
+	previews bool
 }
 
 func aiCacheSpecs() []aiDataSpec {
@@ -41,6 +42,12 @@ func aiCacheSpecs() []aiDataSpec {
 			for _, name := range []string{"Cache", "Code Cache", "GPUCache"} {
 				roots = append(roots, "~/Library/Application Support/Codex/Default/"+name)
 			}
+			// Ported from tw93/Mole V1.72.0 lib/clean/dev.sh clean_codex_desktop_caches
+			for _, profile := range []string{"Default", "Default/Partitions/codex-browser-app", "codex-browser-app"} {
+				for _, name := range []string{"Cache", "Code Cache"} {
+					roots = append(roots, "~/Library/Caches/Codex/"+profile+"/"+name)
+				}
+			}
 		}
 		specs = append(specs, aiDataSpec{
 			spec: CatalogSpec{ID: "ai_" + tool.id + "_cache", Category: tool.name, Name: tool.name + " · 可重建缓存", Roots: roots, Tier: "safe",
@@ -50,6 +57,15 @@ func aiCacheSpecs() []aiDataSpec {
 			tool: tool.name, band: "可重建缓存", owners: tool.owners,
 		})
 	}
+	// Ported from tw93/Mole V1.72.0 lib/clean/dev.sh clean_t3code_desktop_caches
+	specs = append(specs, aiDataSpec{
+		spec: CatalogSpec{ID: "ai_t3code_cache", Category: "T3 Code", Name: "T3 Code · 预览缓存", Tier: "safe",
+			Roots:   []string{"~/Library/Application Support/t3code-v2", "~/Library/Application Support/T3 Code (Alpha)"},
+			Reason:  "只清理浏览器预览分区的程序缓存与代码缓存，不含登录、站点数据或任务历史",
+			Impact:  "只处理 t3code-preview 分区内的 Cache 与 Code Cache；保留 Cookies、IndexedDB、Local Storage、Service Worker 和 .t3。工具运行、文件打开或状态未知时保留。",
+			Rebuild: "下次运行按需重建"},
+		tool: "T3 Code", band: "可重建缓存", owners: []string{"T3 Code", "T3 Code (Alpha)", "t3code"}, previews: true,
+	})
 	for _, tool := range []struct {
 		id, name string
 		roots    []string
@@ -101,6 +117,33 @@ func aiCacheSpecs() []aiDataSpec {
 	return specs
 }
 
+// Resolve preview partitions for every catalog consumer; safety recognizes the same exact leaves without walking.
+func (s *Scanner) aiDataSpecs() []aiDataSpec {
+	specs := aiCacheSpecs()
+	for i, entry := range specs {
+		if !entry.previews {
+			continue
+		}
+		var roots []string
+		for _, raw := range entry.spec.Roots {
+			parent := filepath.Join(s.expand(raw), "Partitions")
+			entries, err := readDirEntries(parent)
+			if err != nil {
+				continue
+			}
+			for _, partition := range entries {
+				if partition.IsDir() && strings.HasPrefix(partition.Name(), "t3code-preview-") {
+					for _, leaf := range []string{"Cache", "Code Cache"} {
+						roots = append(roots, raw+"/Partitions/"+partition.Name()+"/"+leaf)
+					}
+				}
+			}
+		}
+		specs[i].spec.Roots = roots
+	}
+	return specs
+}
+
 func aiCleanupData(path, home string) (aiDataSpec, string, bool) {
 	for _, entry := range aiCacheSpecs() {
 		if entry.spec.Tier == "protected" {
@@ -108,6 +151,16 @@ func aiCleanupData(path, home string) (aiDataSpec, string, bool) {
 		}
 		for _, raw := range entry.spec.Roots {
 			root := filepath.Join(home, strings.TrimPrefix(raw, "~/"))
+			if entry.previews {
+				if !withinPath(path, root) || len(path) <= len(root) {
+					continue
+				}
+				parts := strings.Split(path[len(root)+1:], string(filepath.Separator))
+				if len(parts) < 3 || !strings.EqualFold(parts[0], "Partitions") || !strings.HasPrefix(strings.ToLower(parts[1]), "t3code-preview-") || !strings.EqualFold(parts[2], "Cache") && !strings.EqualFold(parts[2], "Code Cache") {
+					continue
+				}
+				root = filepath.Join(root, parts[0], parts[1], parts[2])
+			}
 			if entry.logFiles {
 				if filepath.Dir(path) == root && aiDiagnosticName(filepath.Base(path), entry.tool) {
 					return entry, root, true
@@ -189,6 +242,9 @@ func (s *Scanner) aiDataCleanupReason(path, root string, entry aiDataSpec, live 
 	for _, command := range strings.Split(processes, "\n") {
 		// Case matters: the Claude Desktop app is "Claude", the Claude Code CLI is "claude".
 		name := filepath.Base(strings.TrimSpace(command))
+		if entry.previews && strings.Contains(command, "/T3 Code") && strings.Contains(command, ".app/") {
+			return entry.tool + " 正在运行，暂缓清理"
+		}
 		for _, owner := range entry.owners {
 			if name == owner || strings.HasPrefix(name, owner+" ") || strings.HasPrefix(name, owner+".") || strings.Contains(command, "/"+owner+".app/") {
 				return entry.tool + " 正在运行，暂缓清理"

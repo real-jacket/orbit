@@ -15,6 +15,7 @@ var worktreeArtifactNames = map[string]string{
 	"node_modules": "依赖目录", ".next": "Next.js 构建缓存", ".nuxt": "Nuxt 构建缓存", ".turbo": "Turborepo 缓存",
 	".parcel-cache": "Parcel 缓存", "dist": "构建产物", "build": "构建产物", "target": "Rust / Java 构建产物",
 	".venv": "Python 虚拟环境", "venv": "Python 虚拟环境",
+	".build": "Swift 构建产物",
 }
 
 var agentWorktreeRoots = []struct{ root, tool string }{{".codex/worktrees", "Codex"}, {".cursor/worktrees", "Cursor"}}
@@ -38,6 +39,9 @@ func isArtifactName(name string) bool {
 // isAgentWorktreeArtifact is a path-only test: path is exactly an artifact
 // directory inside an agent worktree, not nested in another artifact or .git.
 func isAgentWorktreeArtifact(path, home string) bool {
+	if scratch := swiftPMOutputRoot(path); scratch != "" {
+		path = scratch
+	}
 	if _, ok := worktreeArtifactNames[filepath.Base(path)]; !ok {
 		return false
 	}

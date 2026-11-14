@@ -479,7 +479,7 @@ func currentCaffeinateActive() bool {
 
 func menuBarNavigationScript(action, query string) string {
 	if action == "menubarOpenClean" {
-		return "openQuickClean();"
+		return "switchModule('clean');"
 	}
 	if action == "menubarOpenMemory" {
 		return "openMemoryMaintenance();"
