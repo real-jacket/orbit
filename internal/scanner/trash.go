@@ -508,7 +508,7 @@ func humanizeTrashError(path string, err error) (string, string) {
 		if needsFullDiskAccess(path) {
 			return "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 orbit。", "fullDiskAccess"
 		}
-		return "权限不足，可能需要在系统设置里授予完全磁盘访问权限", "fullDiskAccess"
+		return "权限不足：请在访达中检查该路径、父目录及废纸篓的访问权限后重试", ""
 	case errors.Is(err, syscall.EXDEV):
 		if isSystemVolume(path) {
 			return "这是 macOS 系统卷上的文件（只读保护），不能移入废纸篓", ""

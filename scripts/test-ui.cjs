@@ -692,6 +692,8 @@ analysis.timeoutWarning = [{ path: '~/Library/Containers/com.example', kind: 'ti
 assert.equal(vm.runInContext('groupRestrictedPaths(timeoutWarning)[0].pane', analysis), '', 'a timeout that mentions authorization cannot claim Full Disk Access is missing');
 analysis.projectDenial = [{ path: '~/Projects/Example/build', kind: 'permission', reason: 'open: permission denied' }];
 assert.equal(vm.runInContext('groupRestrictedPaths(projectDenial)[0].pane', analysis), '', 'an ordinary project access-control failure cannot prescribe Full Disk Access');
+assert.equal(vm.runInContext('groupRestrictedPaths(projectDenial)[0].label', analysis), '~/Projects/Example/build', 'one denied path must show the exact location, not only its parent');
+assert.equal(vm.runInContext('groupRestrictedPaths(projectDenial)[0].path', analysis), '/Users/me/Projects/Example/build', 'revealing a single warning opens its exact path');
 analysis.STATE.purgeRoots = { custom: true, paths: ['~/Work'], roots: [{ path: '~/Work', status: 'readable' }, { path: '~/old', status: 'missing' }], warnings: [] };
 analysis.STATE.scanReadWarnings = [
   { path: '~/Library/Containers/com.example', kind: 'permission', reason: 'operation not permitted', modules: ['software'] },
@@ -717,6 +719,9 @@ analysis.STATE.scanCompleted = true;
 assert.equal(vm.runInContext('appCacheSummary({subpaths:[]}).state', analysis), '未发现已识别缓存', 'missing recognized paths are not proof of no app cache');
 assert.equal(vm.runInContext('appCacheSummary({subpaths:[{kind:"cache",sizeGb:0.04,tier:"protected",reason:"正在运行"}]}).state', analysis), '安全保留');
 assert.equal(vm.runInContext('appCacheSummary({subpaths:[{kind:"cache",sizeGb:null,partial:true}]}).size', analysis), '未读取', 'unread cache bytes do not turn into zero');
+assert.equal(vm.runInContext('appCacheSummary({cachePartial:true,subpaths:[]}).state', analysis), '测量未完成', 'failed cache discovery is different from no known cache');
+assert.equal(vm.runInContext('appCacheSummary({cachePartial:true,subpaths:[]}).size', analysis), '未读取', 'failed discovery never claims a zero-byte cache');
+assert.equal(vm.runInContext('appCacheSummary({cachePartial:true,subpaths:[{kind:"cache",sizeGb:0.04}]}).state', analysis), '测量未完成', 'a known cache cannot hide another unread discovery root');
 ['svgSparkline', 'statusTrend', 'fmtBytesPerSec', 'numOrNull', 'fmtNum'].forEach(name => load(name, analysis));
 assert.equal(vm.runInContext('statusTrend([], "#d97757", "CPU")', analysis), '', 'missing measurements have no invented chart');
 assert.ok(!vm.runInContext('statusTrend([24], "#d97757", "CPU")', analysis).includes('<svg'), 'one measurement cannot invent a history');
@@ -783,6 +788,22 @@ vm.runInContext('killProcessByPid(8123)', quits);
 quits.onNativeProcessQuitResult({ requestId: quits.sent[1].requestId, pid: 8123, ok: true });
 assert.equal(quits.STATE.processes.length, 1, 'SIGTERM acknowledgement is not proof that the process exited');
 assert.equal(quits.STATE.processes[0].quitRequested, true);
+quits.setTimeout = () => 0;
+quits.clearTimeout = () => {};
+quits.pendingProcessQuits.clear();
+quits.STATE.processes[0].quitRequested = false;
+load('armKill', quits);
+vm.runInContext('armKill(8123)', quits);
+const quitCount = quits.sent.length;
+assert.equal(quits.STATE.killArmedIdentity.path, '/Applications/Canvas.app/Contents/MacOS/Canvas', 'the first confirmation records the executable identity');
+quits.STATE.processes[0].path = '/Applications/Other.app/Contents/MacOS/Canvas';
+vm.runInContext('armKill(8123)', quits);
+assert.equal(quits.sent.length, quitCount, 'a reused PID or changed executable cannot inherit an armed confirmation');
+assert.equal(quits.STATE.killArmed, null, 'a mismatched process identity cancels the confirmation');
+quits.STATE.processes[0].path = 'Canvas';
+vm.runInContext('armKill(8123); killProcessByPid(8123)', quits);
+assert.equal(quits.sent.length, quitCount, 'a command name alone cannot authorize termination');
+assert.equal(quits.STATE.killArmed, null, 'a missing executable path cannot arm confirmation');
 const saved = vm.createContext({});
 load('dropSavedFailures', saved);
 const savedState = { cleanGroups: [{ failed: true, failedReason: 'old' }], aiMoonBands: [], appsList: [{ failed: true, failedReason: 'macOS 拒绝移动应用', needsAdmin: true }, null],

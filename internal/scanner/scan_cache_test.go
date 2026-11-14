@@ -2,6 +2,8 @@ package scanner
 
 import (
 	"errors"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -107,5 +109,34 @@ func TestScanViewKeepsProbesAndHasItsOwnProcessCache(t *testing.T) {
 	}
 	if s.openSnapshot != nil {
 		t.Fatal("the scanner itself must not carry a display snapshot")
+	}
+}
+
+func TestScanViewAppActivityIsRecheckedAtMoveBoundary(t *testing.T) {
+	home := fixtureHome(t)
+	app := filepath.Join(home, "Applications/Editor.app")
+	helper := filepath.Join(app, "Contents/Frameworks/Helper.app")
+	writeFile(t, filepath.Join(app, "Contents/Info.plist"), `<plist><dict><key>CFBundleIdentifier</key><string>com.microsoft.VSCode</string></dict></plist>`)
+	writeFile(t, filepath.Join(helper, "Contents/Info.plist"), `<plist><dict><key>CFBundleIdentifier</key><string>com.example.Helper</string></dict></plist>`)
+	cache := fixtureDir(t, home, "Library/Application Support/Code/Code Cache", 4096)
+	helperCache := fixtureDir(t, home, "Library/Caches/com.example.Helper", 4096)
+	processes := "/sbin/launchd\n"
+	s := &Scanner{home: home, processProbe: func() (string, error) { return processes, nil }, handleProbe: func(string) (bool, error) { return false, nil }}
+	view := s.scanView()
+	if reason := view.CleanupReason(cache); reason != "" {
+		t.Fatalf("idle cache refused: %s", reason)
+	}
+	processes = "912 " + filepath.Join(helper, "Contents/MacOS/Helper") + "\n"
+	for _, path := range []string{cache, helperCache} {
+		if reason := view.cleanupReason(path, true); !strings.Contains(reason, "正在运行") {
+			t.Errorf("live move missed helper activity: %s: %q", path, reason)
+		}
+		if reason := s.scanView().CleanupReason(path); !strings.Contains(reason, "正在运行") {
+			t.Errorf("new scan reused an idle app snapshot: %s: %q", path, reason)
+		}
+	}
+	processes = ""
+	if reason := view.cleanupReason(cache, true); !strings.Contains(reason, "无法确认") {
+		t.Fatalf("live move accepted an empty process table: %q", reason)
 	}
 }

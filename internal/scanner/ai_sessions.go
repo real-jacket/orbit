@@ -83,18 +83,25 @@ func aiSessionShape(path, home string) bool {
 func aiNewestModified(path string) time.Time {
 	info, err := os.Lstat(path)
 	if err != nil {
+		recordReadError(path, err)
 		return time.Now()
 	}
 	newest, count := info.ModTime(), 0
 	if info.IsDir() {
-		err = filepath.WalkDir(path, func(_ string, entry fs.DirEntry, err error) error {
+		err = filepath.WalkDir(path, func(current string, entry fs.DirEntry, err error) error {
 			if err != nil {
+				recordReadError(current, err)
 				return err
 			}
 			if count++; count > aiSessionWalkCap {
 				return fs.SkipAll
 			}
-			if info, err := entry.Info(); err == nil && info.ModTime().After(newest) {
+			info, err := entry.Info()
+			if err != nil {
+				recordReadError(current, err)
+				return err
+			}
+			if info.ModTime().After(newest) {
 				newest = info.ModTime()
 			}
 			return nil
@@ -432,23 +439,6 @@ func (s *Scanner) aiToolUninstalled(tool string) bool {
 		if _, err := exec.LookPath(command); err == nil {
 			return false
 		}
-		// A Finder-launched app has a bare PATH, so look where version managers and installers put launchers.
-		for _, pattern := range aiLauncherDirs {
-			if !filepath.IsAbs(pattern) {
-				pattern = filepath.Join(s.home, pattern)
-			}
-			dirs, _ := filepath.Glob(pattern)
-			for _, dir := range dirs {
-				if exists(filepath.Join(dir, command)) {
-					return false
-				}
-			}
-		}
 	}
-	for _, app := range spec.apps {
-		if exists("/Applications/"+app+".app") || exists(filepath.Join(s.home, "Applications", app+".app")) {
-			return false
-		}
-	}
-	return true
+	return s.ownerAbsent(personalOwner{apps: spec.apps, cmds: spec.commands}, nil)
 }

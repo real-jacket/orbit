@@ -97,6 +97,7 @@ func (s *Scanner) scanView() *Scanner {
 	view := &Scanner{home: s.home, processProbe: s.processProbe, handleProbe: s.handleProbe, installProbe: s.installProbe, builderProbe: s.builderProbe, aiUnits: s.aiUnits, processTTL: s.processTTL}
 	snapshot := sync.OnceValue(openFileSnapshot)
 	view.openSnapshot = func(path string) (bool, error) { return snapshot()(path) }
+	view.runningAppSnapshot = sync.OnceValues(func() ([]appOwner, error) { return view.runningAppOwners(true) })
 	return view
 }
 

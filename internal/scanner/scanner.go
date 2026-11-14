@@ -42,6 +42,8 @@ type Scanner struct {
 	// openSnapshot answers display-time open-file checks from one system-wide
 	// lsof taken on first use; set only on a scan-scoped view.
 	openSnapshot func(string) (bool, error)
+	// Running app metadata belongs to one scan; the move boundary rereads it.
+	runningAppSnapshot func() ([]appOwner, error)
 
 	unitMu    sync.Mutex // guards the short-lived session enumeration cache
 	unitCache []aiSessionUnit
@@ -228,6 +230,7 @@ func itoa64(n int64) string {
 // exists reports whether path exists.
 func exists(path string) bool {
 	_, err := os.Stat(path)
+	recordReadError(path, err)
 	return err == nil
 }
 
@@ -266,9 +269,9 @@ type dirSize struct {
 // the shared walkWorkers.
 var walkSlots = make(chan struct{}, 2)
 
-// walkWorkers is the process-wide pool of extra goroutines walks may spawn; a
-// walk that finds it empty descends inline, so it never waits on it.
-var walkWorkers = make(chan struct{}, 8)
+// walkWorkers is the process-wide pool of extra goroutines walks may spawn.
+// Keep it small to avoid CPU spikes; a walk with no free slot descends inline.
+var walkWorkers = make(chan struct{}, 2)
 
 // scanWalkBudget is how long one measured root may be walked. A full scan has
 // no file cap: a big cache is measured completely unless this runs out.

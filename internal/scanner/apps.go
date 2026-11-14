@@ -122,7 +122,9 @@ func (s *Scanner) appCacheCandidates(name, bundleID string) []string {
 	}
 	if appDataComponent(bundleID) {
 		path := filepath.Join(s.home, "Library/Containers", bundleID, "Data/Library/Caches")
-		if info, err := os.Lstat(path); err == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
+		info, err := os.Lstat(path)
+		recordReadError(path, err)
+		if err == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
 			paths = append(paths, path)
 		}
 	}
@@ -196,6 +198,7 @@ func appSupportCacheLeaves(root string, browser bool) []string {
 	cacheDirectory := func(leaf string) bool {
 		for path := filepath.Join(root, leaf); ; path = filepath.Dir(path) {
 			info, err := os.Lstat(path)
+			recordReadError(path, err)
 			if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 				return false
 			}
@@ -244,6 +247,7 @@ func appProfileName(name string) bool {
 
 func appSupportCacheCandidates(root string, browser bool) []string {
 	info, err := os.Lstat(root)
+	recordReadError(root, err)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil
 	}
@@ -424,10 +428,14 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			if size.partial && appBytes == 0 {
 				subpaths[0]["size"], subpaths[0]["sizeGb"] = "未读取", nil
 			}
-			var cacheCandidates, configCandidates []string
+			var cacheCandidates, cacheRoots, configCandidates []string
 			for _, alias := range []string{name, info.bundleName, strings.TrimSuffix(item, ".app")} {
 				cacheCandidates = append(cacheCandidates, s.appCacheCandidates(alias, bundleID)...)
+				cacheRoots = append(cacheRoots, appSupportRoots(s.home, alias, bundleID)...)
 				configCandidates = append(configCandidates, s.appConfigCandidates(alias, bundleID)...)
+			}
+			if appDataComponent(bundleID) {
+				cacheRoots = append(cacheRoots, filepath.Join(s.home, "Library/Containers", bundleID, "Data/Library/Caches"))
 			}
 			cacheCandidates = uniqueAppPaths(cacheCandidates)
 			configCandidates = uniqueAppPaths(configCandidates)
@@ -436,6 +444,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 			// ratio; a group that was not found reports zero.
 			self := &uninstallApp{path: fullPath, name: name, bundleID: bundleID}
 			cacheBytes := s.appendExistingFor(self, cacheCandidates, "cache", true, &subpaths)
+			cachePartial := info.err != nil && !os.IsNotExist(info.err) || len(scanReadWarningsForRoots(append(cacheRoots, cacheCandidates...))) > 0
 			var measuredCaches []string
 			for _, subpath := range subpaths {
 				if subpath["kind"] == "cache" {
@@ -476,6 +485,7 @@ func (s *Scanner) scanInstalledApps(appDirs ...string) []map[string]any {
 				"appSizeGb":      plainGB(appBytes),
 				"leftoverSizeGb": leftoverGB,
 				"cacheSizeGb":    cacheGB,
+				"cachePartial":   cachePartial,
 				"configSizeGb":   configGB,
 				// Nothing is pre-selected: uninstalling an app is not a
 				// safe-by-default action.
@@ -516,6 +526,7 @@ type bundleInfo struct {
 	bundleName   string
 	identifier   string
 	shortVersion string
+	err          error
 }
 
 // readBundleInfo reads an app bundle's Info.plist, the three keys the uninstall
@@ -525,12 +536,22 @@ func readBundleInfo(path string) bundleInfo {
 	if err != nil {
 		// Ported from tw93/Mole V1.70.0 lib/clean/apps.sh scan_installed_apps: an iOS app on
 		// Apple Silicon keeps its plist under Wrapper/<name>.app, not Contents/.
-		wrapped, _ := filepath.Glob(filepath.Join(path, "Wrapper", "*.app", "Info.plist"))
-		if len(wrapped) == 0 {
-			return bundleInfo{}
+		wrapped, readErr := readDirEntries(filepath.Join(path, "Wrapper"))
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return bundleInfo{err: readErr}
 		}
-		if props, err = parsePlistFile(wrapped[0]); err != nil {
-			return bundleInfo{}
+		for _, entry := range wrapped {
+			if !strings.HasSuffix(entry.Name(), ".app") {
+				continue
+			}
+			props, readErr = parsePlistFile(filepath.Join(path, "Wrapper", entry.Name(), "Info.plist"))
+			if !os.IsNotExist(readErr) {
+				err = readErr
+				break
+			}
+		}
+		if err != nil {
+			return bundleInfo{err: err}
 		}
 	}
 	return bundleInfo{
@@ -545,7 +566,7 @@ func readBundleInfo(path string) bundleInfo {
 // prefix, then makes them full paths. An empty prefix matches everything.
 func (s *Scanner) matchingWildcardPaths(parentDir, prefix string) []string {
 	expanded := s.expand(parentDir)
-	items, err := os.ReadDir(expanded)
+	items, err := readDirEntries(expanded)
 	if err != nil {
 		return nil
 	}
@@ -561,14 +582,11 @@ func (s *Scanner) matchingWildcardPaths(parentDir, prefix string) []string {
 	return paths
 }
 
-// installedAppIndex collects the names and bundle identifiers of every app the
-// machine reports as installed, which decides whether a leftover directory
-// still has an owner. System apps and Homebrew formulas count as installed too,
-// otherwise their support folders were offered as "leftovers".
-func (s *Scanner) installedAppIndex(home string) (names, bundleIDs map[string]struct{}) {
-	names = map[string]struct{}{}
-	bundleIDs = map[string]struct{}{}
-	appDirs := []string{
+func (s *Scanner) appInventoryDirs(home string) []string {
+	if s.appDirs != nil {
+		return s.appDirs
+	}
+	return []string{
 		"/Applications",
 		"/System/Applications",
 		filepath.Join(home, "Applications"),
@@ -576,7 +594,16 @@ func (s *Scanner) installedAppIndex(home string) (names, bundleIDs map[string]st
 		"/usr/local/Caskroom",
 		filepath.Join(home, "Library/Application Support/Setapp/Applications"),
 	}
-	for _, path := range findAppBundles(appDirs) {
+}
+
+// installedAppIndex collects the names and bundle identifiers of every app the
+// machine reports as installed, which decides whether a leftover directory
+// still has an owner. System apps and Homebrew formulas count as installed too,
+// otherwise their support folders were offered as "leftovers".
+func (s *Scanner) installedAppIndex(home string) (names, bundleIDs map[string]struct{}) {
+	names = map[string]struct{}{}
+	bundleIDs = map[string]struct{}{}
+	for _, path := range findAppBundles(s.appInventoryDirs(home)) {
 		names[strings.ToLower(strings.TrimSuffix(baseName(path), filepath.Ext(path)))] = struct{}{}
 		info := readBundleInfo(path)
 		for _, value := range []string{info.identifier, info.displayName, info.bundleName} {

@@ -163,7 +163,7 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 			if err != nil {
 				result["error"] = err.Error()
 			}
-			evaluate("window.onNativeProcessQuitResult ? window.onNativeProcessQuitResult(" + jsonOf(result) + ") : undefined")
+			evaluate("window.onNativeProcessQuitResult ? window.onNativeProcessQuitResult("+jsonOf(result)+") : undefined", true)
 			pushRealTelemetryNow()
 		}()
 	case "measurePathFully":
@@ -213,7 +213,7 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		confirmed, _ := payload["confirmed"].(bool)
 		started, err := beginFileCachePurge(requestID, confirmed)
 		if err != nil {
-			evaluate("window.onNativeCachePurgeResult ? window.onNativeCachePurgeResult(" + jsonOf(map[string]any{"requestId": requestID, "ok": false, "error": err.Error()}) + ") : undefined")
+			evaluate("window.onNativeCachePurgeResult ? window.onNativeCachePurgeResult("+jsonOf(map[string]any{"requestId": requestID, "ok": false, "error": err.Error()})+") : undefined", true)
 			return nil
 		}
 		if started {
@@ -328,7 +328,7 @@ func executeFileCachePurge(requestID string) {
 	fileCachePurgeState.requestID = ""
 	fileCachePurgeState.unknown = result["unknown"] == true
 	fileCachePurgeState.Unlock()
-	evaluate("window.onNativeCachePurgeResult ? window.onNativeCachePurgeResult(" + jsonOf(result) + ") : undefined")
+	evaluate("window.onNativeCachePurgeResult ? window.onNativeCachePurgeResult("+jsonOf(result)+") : undefined", true)
 	pushRealTelemetryNow()
 }
 
@@ -452,7 +452,7 @@ func processQuitReason(pid, uid int, currentPath, expectedName, expectedPath str
 			return "系统关键进程或当前应用已保护"
 		}
 	}
-	if expectedName == "" || expectedPath == "" || name != expectedName || currentPath != expectedPath {
+	if expectedName == "" || !filepath.IsAbs(expectedPath) || name != expectedName || currentPath != expectedPath {
 		return "进程身份已变化，请刷新列表后重新确认"
 	}
 	return ""

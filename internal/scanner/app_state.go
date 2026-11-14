@@ -3,7 +3,6 @@ package scanner
 import (
 	"bytes"
 	"context"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -27,7 +26,7 @@ func (s *Scanner) launchRoots() []string {
 func (s *Scanner) loadLaunchItems() []launchItem {
 	var items []launchItem
 	for _, root := range s.launchRoots() {
-		entries, err := os.ReadDir(root)
+		entries, err := readDirEntries(root)
 		if err != nil {
 			continue
 		}

@@ -97,6 +97,7 @@ func TestProcessQuitRechecksIdentityAndProtectsTheNativeBoundary(t *testing.T) {
 		{"critical name", pid, os.Getuid(), "/System/Library/Finder", "Finder", "/System/Library/Finder"},
 		{"recycled pid", pid, os.Getuid(), "/usr/bin/different", "Canvas Editor", path},
 		{"missing identity", pid, os.Getuid(), path, "", ""},
+		{"command name only", pid, os.Getuid(), "Canvas", "Canvas", "Canvas"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if processQuitReason(tc.pid, tc.uid, tc.current, tc.expectedName, tc.expectedPath) == "" {
@@ -281,6 +282,60 @@ func TestDispatchHandlesEveryActionThePagePosts(t *testing.T) {
 	for action := range posted {
 		if !handled[action] {
 			t.Errorf("the page posts %q but Dispatch has no case for it", action)
+		}
+	}
+}
+
+func TestMenuBarOperationReceiptsReachHiddenPanel(t *testing.T) {
+	want := map[string]bool{
+		"onNativeProcessQuitResult": true, "onNativeCachePurgeResult": true,
+		"onNativeTrashResult": true, "onNativeDoctorReport": true,
+		"onNativeCaffeinate": true, "onNativeRuntimeStatus": true,
+		"onNativeRealTelemetry": false,
+	}
+	seen := map[string]bool{}
+	for _, path := range []string{"bridge.go", "push.go", "runtime.go"} {
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) == 0 {
+				return true
+			}
+			fn, ok := call.Fun.(*ast.Ident)
+			if !ok || fn.Name != "evaluate" {
+				return true
+			}
+			ast.Inspect(call.Args[0], func(n ast.Node) bool {
+				literal, ok := n.(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					return true
+				}
+				text, _ := strconv.Unquote(literal.Value)
+				for callback, hidden := range want {
+					if !strings.Contains(text, "window."+callback) {
+						continue
+					}
+					seen[callback] = true
+					actual := false
+					if len(call.Args) == 2 {
+						flag, ok := call.Args[1].(*ast.Ident)
+						actual = ok && flag.Name == "true"
+					}
+					if actual != hidden {
+						t.Errorf("%s hidden-panel delivery = %v, want %v", callback, actual, hidden)
+					}
+				}
+				return true
+			})
+			return true
+		})
+	}
+	for callback := range want {
+		if !seen[callback] {
+			t.Errorf("missing native callback %s", callback)
 		}
 	}
 }

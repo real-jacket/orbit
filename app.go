@@ -212,6 +212,7 @@ func showFlyout() {
 		return
 	}
 	w.Show()
+	w.SetTitle(appName + " " + L("菜单栏工具", "Menu bar panel"))
 	w.Focus()
 	if fresh {
 		return // the new page asks for its state in OnDidFinishLoad; pushing now would send the payload twice
@@ -221,10 +222,8 @@ func showFlyout() {
 	pushCaffeinateState(currentCaffeinateActive())
 }
 
-// ensureFlyout returns the menu-bar panel, creating it the first time. A
-// popover that the system closed may take its window with it, so a destroyed
-// panel is replaced rather than reused. fresh reports a panel created by this
-// call, whose page has not loaded yet.
+// ensureFlyout retains the focusable panel across outside clicks so drafts and
+// pending receipts survive. fresh reports a new page that has not loaded yet.
 func ensureFlyout() (panel *mygo.Window, fresh bool) {
 	if w := flyoutWindow.Load(); w != nil && !w.IsDestroyed() {
 		return w, false
@@ -235,10 +234,9 @@ func ensureFlyout() (panel *mygo.Window, fresh bool) {
 	panel = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray:         trayItem,
 		URL:          "/?mode=menubar",
-		Width:        380,
-		Height:       588,
+		Width:        420,
+		Height:       680,
 		Placement:    mygo.PlacementBottom,
-		Popover:      true,
 		Focusable:    true,
 		Hidden:       true,
 		CornerRadius: 12,
@@ -252,6 +250,13 @@ func ensureFlyout() (panel *mygo.Window, fresh bool) {
 		pushCaffeinateState(currentCaffeinateActive())
 		pushFlyoutTheme(loadSavedTheme())
 		pushFlyoutLanguage(language())
+	})
+	panel.OnClose(func(e *mygo.CloseEvent) {
+		if quitting.Load() {
+			return
+		}
+		e.PreventDefault()
+		panel.Hide()
 	})
 	panel.OnClosed(func() {
 		flyoutWindow.CompareAndSwap(panel, nil)

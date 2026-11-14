@@ -93,6 +93,111 @@ const scenarios = [];
 const modules = ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'];
 for (const width of [1380, 1060, 880]) for (const theme of ['dark', 'light']) for (const mod of modules) scenarios.push({ name: `${width}-${theme}-${mod}`, width, height: width === 880 ? 620 : 860, script: `qaReset(); document.documentElement.dataset.theme='${theme}'; switchModule('${mod}');` });
 const add = (name, script) => scenarios.push({ name, width: 1380, height: 860, script: 'qaReset();window.isNativeMacApp=false;closeMemoryMaintenance();clearTimeout(window._memoryMaintenanceTimer);await Promise.resolve(); ' + script });
+const historyFooterScript = `
+  STATE.historyLogs=Array.from({length:16},(_,idx)=>({...structuredClone(STATE.historyLogs[0]),id:'fixture-history-'+idx}));
+  STATE.whitelist=[qaFixture.homePath+'/.ollama/models',qaFixture.homePath+'/Library/Caches/com.apple.e5rt.e5bundlecache',qaFixture.homePath+'/Library/Logs'];
+  switchModule('history');setHistoryTab('whitelist');await qaSettle();
+  const scrollArea=document.getElementById('historyWhitelistPane'),note=scrollArea.querySelector('[data-history-core-note]');
+  scrollArea.querySelector('.list-body').scrollTop=scrollArea.querySelector('.list-body').scrollHeight;await qaSettle();
+  document.querySelector('.workspace-body').scrollTop=document.querySelector('.workspace-body').scrollHeight;await qaSettle();
+  const text=document.createRange();text.selectNodeContents(note);
+  const bounds=note.getBoundingClientRect(),textBounds=text.getBoundingClientRect(),viewport=scrollArea.getBoundingClientRect();
+  qaAssert(note.clientHeight>=note.scrollHeight,'the footer note is not compressed or clipped: '+note.clientHeight+' < '+note.scrollHeight);
+  qaAssert(textBounds.top>=bounds.top-1&&textBounds.bottom<=bounds.bottom+1,'the footer contains the full text height');
+  qaAssert(bounds.top>=viewport.top-1&&bounds.bottom<=viewport.bottom+1,'scrolling to the end fully reveals the footer note');
+  qaAssert(bounds.top>=document.querySelector('.top-header').getBoundingClientRect().bottom-1&&bounds.bottom<=innerHeight+1,'the complete footer note is visible inside the window');
+`;
+for(const width of [880,1380])for(const theme of ['dark','light'])for(const lang of ['zh','en'])scenarios.push({name:'history-footer-'+width+'-'+theme+'-'+lang,width,height:width===880?620:860,script:'qaReset();document.documentElement.dataset.theme="'+theme+'";'+(lang==='en'?'await qaEn("history footer",async()=>{});':'')+historyFooterScript});
+const historyCompactPrep = `
+  STATE.historyLogs=Array.from({length:16},(_,idx)=>({...structuredClone(STATE.historyLogs[0]),id:'fixture-history-'+idx,action:['深度清理','AI 清理','应用卸载','构建清理'][idx%4],time:'2026-11-14 08:'+String(45-idx),sizeGb:(idx+1)*0.12}));
+  STATE.historyLogs[1].partialRestoreAt=Date.now();
+  STATE.historyLogs[1].failedPaths=[{path:qaFixture.homePath+'/Library/Caches/Canvas/two',error:'Permission denied'}];
+  STATE.historyLogs[2].restoreData.unavailableReason='这条记录没有保存原始路径';
+  STATE.whitelist=Array.from({length:40},(_,idx)=>qaFixture.homePath+'/Documents/Protected/'+String(idx+1).padStart(2,'0'));
+  STATE.whitelistWarnings=['/tmp/fixture-rule: Permission denied'];
+  switchModule('history');await qaSettle();
+`;
+const historyCompactSteps = {
+  list: `
+    const rows=Array.from(document.querySelectorAll('.history-record'));
+    qaAssert(rows.length===16&&rows.every(d=>!d.open),'records start as compact summaries');
+    qaAssert(rows.every(d=>d.querySelector('summary').getBoundingClientRect().height<=72),'summary rows stay compact');
+    qaAssert(!document.getElementById('historyWhitelistPane').getClientRects().length,'protected paths are in their own tab');
+    qaAssert(!document.querySelector('.summary-banner').getClientRects().length&&!document.querySelector('.search-box').getClientRects().length,'history removes duplicate summary and unused search');
+    qaAssert(document.querySelector('[data-history-copy]').getClientRects().length,'copy is available for records');
+    qaAssert(rows[1].querySelector('.badge').textContent===t('部分完成')&&rows[2].querySelector('.badge').textContent===t('清单未保存'),'partial and unavailable records stay visible in summaries');
+  `,
+  details: `
+    document.querySelectorAll('.history-record')[1].open=true;
+    document.querySelectorAll('.history-record')[1].querySelector('.history-paths').open=true;
+    qaAssert(document.querySelector('.history-record[open] .history-failure').textContent.includes('Permission denied'),'expanded record keeps the failure path and reason');
+    qaAssert(document.querySelector('.history-record[open] button').disabled===false,'the saved manifest remains available for retry');
+  `,
+  protection: `
+    setHistoryTab('whitelist');await qaSettle();
+    qaAssert(document.querySelectorAll('.history-whitelist-row').length===40,'all authoritative protected paths remain available');
+    qaAssert(!document.getElementById('historyRestorePane').getClientRects().length&&!document.querySelector('[data-history-copy]').getClientRects().length,'protection view hides history and its copy action');
+    const note=document.querySelector('[data-history-core-note]'),bounds=note.getBoundingClientRect();
+    qaAssert(note.clientHeight>=note.scrollHeight&&bounds.bottom<=innerHeight,'the core protection note remains complete with a long list');
+    qaAssert(document.querySelector('.history-tab-warning').getClientRects().length&&document.querySelector('.history-warning').getClientRects().length,'inactive protection rules stay visible');
+  `,
+  empty: `
+    STATE.historyLogs=[];STATE.whitelist=[];STATE.whitelistWarnings=[];renderModule();await qaSettle();
+    qaAssert(document.querySelector('#historyRestorePane .empty-title').textContent===t('还没有清理记录'),'empty history has its own truthful state');
+    qaAssert(document.querySelector('[data-history-copy]').disabled,'empty history cannot copy records');
+    setHistoryTab('whitelist');
+    qaAssert(document.querySelector('#historyWhitelistPane .empty-title').textContent===t('还没有自定义保护路径'),'empty protection list has its own state');
+    qaAssert(document.querySelector('[data-history-core-note]').getClientRects().length&&document.getElementById('customWhitelistInput').getClientRects().length,'empty protection keeps system rules and add control visible');
+  `,
+};
+const historyContrastCheck = `
+  const rgb=value=>value.match(/[0-9.]+/g).map(Number);
+  const luminance=values=>values.slice(0,3).map(v=>v/255).map(v=>v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4)).reduce((n,v,i)=>n+v*[0.2126,0.7152,0.0722][i],0);
+  const panelRGB=rgb(getComputedStyle(document.querySelector('.history-panel')).backgroundColor);
+  document.querySelectorAll('.history-note,.history-record-main .row-sub,.history-record .badge,.history-warning').forEach(node=>{
+    if(!node.getClientRects().length)return;
+    const style=getComputedStyle(node),foreground=rgb(style.color),background=rgb(style.backgroundColor),alpha=background[3]??1;
+    const base=background.slice(0,3).map((v,i)=>v*alpha+panelRGB[i]*(1-alpha)),a=luminance(foreground),b=luminance(base);
+    qaAssert((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)>=4.5,'history small text meets 4.5 contrast: '+node.className);
+  });
+`;
+for(const width of [880,1380])for(const theme of ['dark','light'])for(const lang of ['zh','en'])for(const [kind,steps] of Object.entries(historyCompactSteps))scenarios.push({name:'history-compact-'+kind+'-'+width+'-'+theme+'-'+lang,width,height:width===880?620:860,script:'qaReset();document.documentElement.dataset.theme="'+theme+'";'+(lang==='en'?'await qaEn("history compact",async()=>{});':'')+historyCompactPrep+steps+'await qaSettle();'+historyContrastCheck+(lang==='en'?'qaAssert(qaLeaks().length===0,"compact history has no untranslated text");':'')+'qaAssert(!__qa.actions.some(a=>["trashRealPaths","restoreTrashSnapshot","addWhitelist","removeWhitelist"].includes(a.action)),"viewing records and tabs never mutates files or protection");'});
+add('history-tabs-preserve-state', historyCompactPrep + `
+  let record=document.querySelector('.history-record');record.open=true;record.querySelector('.history-paths').open=true;record.querySelector('summary').focus();
+  renderModule();await qaSettle();
+  record=document.querySelector('.history-record');
+  qaAssert(record.open&&record.querySelector('.history-paths').open&&document.activeElement===record.querySelector('summary'),'rendering preserves disclosure and keyboard focus');
+  document.querySelectorAll('.history-record')[1].open=true;
+  qaAssert(document.querySelectorAll('.history-record[open]').length===1,'only one record expands at a time');
+  const tab=document.getElementById('historyRestoreTab');tab.focus();tab.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+  qaAssert(document.activeElement===document.getElementById('historyWhitelistTab'),'arrow key reaches protection tab');
+  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));
+  qaAssert(STATE.historyTab==='whitelist'&&document.getElementById('historyWhitelistTab').getAttribute('aria-selected')==='true','space activates the tab and accessible state');
+  let input=document.getElementById('customWhitelistInput');input.value='~/Documents/Unsubmitted';input.focus();
+  document.querySelector('.history-warning').open=true;renderModule();await qaSettle();
+  input=document.getElementById('customWhitelistInput');
+  qaAssert(STATE.historyTab==='whitelist'&&input.value==='~/Documents/Unsubmitted'&&document.activeElement===input,'rendering preserves tab, draft and input focus');
+  qaAssert(document.querySelector('.history-warning').open,'expanded protection reasons survive rendering');
+  setHistoryTab('restore');setHistoryTab('whitelist');
+  qaAssert(input.value==='~/Documents/Unsubmitted','tab switching keeps the draft');
+  setHistoryTab('invalid');qaAssert(STATE.historyTab==='restore','unknown tab safely falls back to records');
+  qaAssert(!__qa.actions.some(a=>['addWhitelist','removeWhitelist','restoreTrashSnapshot','trashRealPaths'].includes(a.action)),'navigation never sends mutation requests');
+`);
+add('history-protection-awaits-receipt', `
+  switchModule('history');setHistoryTab('whitelist');
+  const before=STATE.whitelist.slice(),input=document.getElementById('customWhitelistInput');
+  input.value='relative/path';input.form.requestSubmit();
+  qaAssert(!__qa.actions.some(a=>a.action==='addWhitelist'),'form retains absolute path validation');
+  input.value='~/Documents/New Protection';input.form.requestSubmit();
+  const request=__qa.actions.find(a=>a.action==='addWhitelist');
+  qaAssert(request.path===qaFixture.homePath+'/Documents/New Protection'&&STATE.whitelist.length===before.length,'form submits exact path and waits for native receipt');
+  onNativeWhitelistChanged({ok:false,action:'addWhitelist',path:request.path,error:'Permission denied',whitelist:before});
+  qaAssert(STATE.historyTab==='whitelist'&&document.querySelectorAll('.history-whitelist-row').length===before.length,'failed addition retains the protection list and tab');
+  document.querySelector('.history-whitelist-row .row-remove').click();
+  qaAssert(__qa.actions.some(a=>a.action==='removeWhitelist'&&a.path===absolutePath(before[0]))&&STATE.whitelist.length===before.length,'remove waits for authoritative receipt');
+  onNativeWhitelistChanged({ok:false,action:'removeWhitelist',path:absolutePath(before[0]),error:'Permission denied',whitelist:before});
+  qaAssert(STATE.whitelist[0]===before[0]&&document.querySelectorAll('.history-whitelist-row').length===before.length,'failed removal keeps the protected path');
+`);
 add('apps-search', `switchModule('software'); handleSearch('canvas editor'); qaAssert(document.querySelectorAll('#moduleStage .list-row').length===1,'app search filters rows'); qaAssert(STATE.appsList.every(a=>!a.checked),'search does not authorize deletion');`);
 add('apps-selection-confirm', `switchModule('software'); toggleAppCheck(0); openConfirmSheet(); await new Promise(r=>setTimeout(r,80)); qaAssert(document.querySelector('.app-shell').inert,'modal isolates background'); qaAssert(document.activeElement.textContent.includes('取消'),'cancel is initial focus'); qaAssert(document.getElementById('confirmModalItemsList').textContent.includes('Canvas Editor 0.app'),'exact app path is previewed');`);
 add('apps-no-bundle-confirm', `switchModule('software'); toggleAppCheck(0); toggleAppSubpathCheck(0,0); openConfirmSheet(); qaAssert(!document.getElementById('confirmModalItemsList').textContent.includes('/Applications/'),'unchecked bundle not previewed');qaAssert(document.getElementById('confirmModalTitle').textContent.includes('缓存与配置'),'preview cannot claim the app will be uninstalled');qaAssert(document.getElementById('heroStatSub').textContent.includes('保留应用'),'selection summary describes the actual selected paths');`);
@@ -106,7 +211,7 @@ add('doctor-wait', `openDoctorModal(true); qaAssert(document.getElementById('btn
 add('doctor-result', `openDoctorModal(true); onNativeDoctorReport({requestId:_doctorRequestId,checks:[{id:'disk',title:'磁盘剩余空间',detail:'隔离测试结果',passed:true},{id:'permission',title:'完全磁盘访问',detail:'隔离测试结果',passed:false}]}); qaAssert(!document.getElementById('btnDoctorReRun').disabled,'receipt ends wait');`);
 add('menu-tray', `document.body.classList.add('menubar-mode'); renderMenuBarTrayContent(); qaAssert(document.getElementById('menubarTrayShell').textContent.length>20,'tray renders');`);
 scenarios[scenarios.length-1].width=356;scenarios[scenarios.length-1].height=480;
-add('tray-doctor-single-request', `document.body.classList.add('menubar-mode');renderMenuBarTrayContent();document.querySelector('#menubarTrayShell button[onclick*="menubarOpenDoctor"]').click();qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='menubarOpenDoctor','tray opens diagnosis only in the main window');qaAssert(!document.getElementById('doctorModal').classList.contains('open'),'tray does not create a second diagnosis modal');`);
+add('tray-doctor-single-request', `document.body.classList.add('menubar-mode');renderMenuBarTrayContent();__qa.actions=[];document.querySelector('#menubarTrayShell [data-tray-key="doctor"]').click();qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='runDoctorReCheck','tray diagnosis posts one correlated check');qaAssert(document.getElementById('doctorModal').classList.contains('open'),'diagnosis stays inside the tray');`);
 scenarios[scenarios.length-1].width=356;scenarios[scenarios.length-1].height=480;
 add('modal-keyboard', `switchModule('software'); toggleAppCheck(0); const opener=document.getElementById('primaryBtnText').closest('button');opener.focus();openConfirmSheet();await new Promise(r=>setTimeout(r,80));const cancel=document.activeElement;cancel.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true}));qaAssert(document.activeElement.id==='confirmModalConfirmBtn','Shift-Tab stays inside confirmation');document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true}));qaAssert(document.activeElement===cancel,'Tab cycles to cancel');document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'3',metaKey:true,bubbles:true}));qaAssert(STATE.module==='software','modal blocks module shortcut');document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await new Promise(r=>setTimeout(r,50));qaAssert(!document.querySelector('.app-shell').inert,'Escape releases background');qaAssert(document.activeElement===opener,'Escape restores opener focus');`);
 add('palette-navigation', `openCommandPalette('系统加速');qaAssert(document.querySelectorAll('#cmdPaletteList .list-row').length===1,'palette filters');document.querySelector('#cmdPaletteList .list-row').click();qaAssert(STATE.module==='optimize','palette reaches maintenance');`);
@@ -221,7 +326,7 @@ add('scan-warning-paths-markup-safe', `
   hint.open=true;
   qaAssert(!hint.querySelector('disk')&&hint.querySelectorAll('details').length===0,'unread paths and reasons cannot create markup');
   __qa.actions=[];hint.querySelector('.permission-group-path').click();
-  qaAssert(__qa.actions[0].action==='revealInFinder'&&__qa.actions[0].path==="/Volumes/Owner's <Disk>&quot;/Folder",'a grouped path keeps quotes and entities across the HTML and native message boundary');
+  qaAssert(__qa.actions[0].action==='revealInFinder'&&__qa.actions[0].path===unusualPath,'a single warning keeps its exact path, quotes and entities across the HTML and native message boundary');
 `);
 add('apps-cache-not-found', `
   const app=structuredClone(qaFixture.appsList[0]);app.cacheSizeGb=0;app.subpaths=app.subpaths.filter(sp=>sp.kind!=='cache');
@@ -231,6 +336,23 @@ add('apps-cache-not-found', `
   qaAssert(!document.querySelector('#moduleStage .permission-group-row'),'an unrelated project limit does not appear as an application read warning');
   qaAssert(document.getElementById('scanSourceBadge').textContent==='本机扫描已返回','unrelated read limits do not mark this application scan as incomplete');
   qaAssert(document.getElementById('primaryBtnText').closest('button').disabled,'no recognized cache cannot authorize a removal');
+`);
+add('apps-cache-discovery-denied', `
+  await qaEn('apps-cache-discovery-denied',()=>{
+  const app=structuredClone(qaFixture.appsList[0]);app.cachePartial=true;app.cacheSizeGb=0;app.subpaths=app.subpaths.filter(sp=>sp.kind!=='cache');
+  const deniedPath=qaFixture.homePath+'/Library/Application Support/Canvas 0';
+  onNativeRealScanComplete({...structuredClone(qaFixture),appsList:[app],readWarnings:[{path:deniedPath,kind:'permission',reason:'目录读取被拒绝，未计入本次扫描；请检查完全磁盘访问权限和该目录的访问权限后重新扫描',modules:['software']}]});
+  switchModule('software');setUninstallMode('cache_only');
+  qaAssert(document.querySelector('.bento-4').textContent.includes(t('未读取')),'failed discovery cannot claim an empty cache');
+  qaAssert(document.querySelector('.app-cache-note').textContent.includes(t('缓存路径未能全部读取，显示值只是已测量下限；请查看本模块的读取告警并重新扫描。')),'cache discovery uncertainty directs the user to the module warning');
+  const warning=document.querySelector('.permission-group-path');
+  qaAssert(warning.textContent.includes('~/Library/Application Support/Canvas 0'),'one warning displays the exact denied path');
+  warning.closest('details').querySelector('summary').click();warning.scrollIntoView({block:'nearest'});
+  qaAssert(warning.getBoundingClientRect().height>0,'the exact denied path is visible in the expanded warning');
+  __qa.actions=[];warning.click();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='revealInFinder'&&__qa.actions[0].path===deniedPath,'Finder receives the exact denied path');
+  qaAssert(document.getElementById('primaryBtnText').closest('button').disabled,'no cache paths cannot authorize a removal');
+  });
 `);
 add('apps-cache-protected', `
   const app=structuredClone(qaFixture.appsList[0]);const cache=app.subpaths.find(sp=>sp.kind==='cache');
@@ -768,6 +890,12 @@ add('analyze-map-refold-focus-path',smallItemRefoldSetup+`
   }finally{style.remove();}
 `);
 add('analyze-visible-map-reveal-refold-inspect',`
+  const resizeMap=async()=>{
+    const before=document.querySelector('.treemap-stage');
+    window.dispatchEvent(new Event('resize'));
+    for(let attempt=0;attempt<40&&document.querySelector('.treemap-stage')===before;attempt++)await new Promise(resolve=>setTimeout(resolve,25));
+    qaAssert(document.querySelector('.treemap-stage')!==before,'the debounced resize completes before inspecting focus');
+  };
   switchModule('analyze');
   STATE.treemap2D=[{name:'Main',path:'~/Main',diskGb:10,isDir:true,childrenLoaded:true,children:[]},...Array.from({length:20},(_,index)=>({name:'Medium '+index,path:'~/medium-'+index,diskGb:1,isDir:true,childrenLoaded:true,children:[]}))];
   STATE.analyzeAllocGb=30;STATE.analyzeAggregated=null;STATE.analyzeLargeFiles=[];renderModule();
@@ -780,14 +908,14 @@ add('analyze-visible-map-reveal-refold-inspect',`
   qaAssert(rect.width>0&&rect.height>0&&rect.left>=0&&rect.right<=innerWidth&&rect.top>=0&&rect.bottom<=innerHeight,'the focused map tile lies inside the viewport');
   const style=document.createElement('style');style.textContent='#moduleStage .analysis-map{width:300px;height:156px;max-width:100%}';document.head.appendChild(style);
   try{
-    window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,180));
+    await resizeMap();
     qaAssert(!document.querySelector('.treemap-tile[data-path="'+path+'"]'),'the original map path really becomes folded');
     const small=document.querySelector('.analysis-other-row[data-path="'+path+'"]');
     qaAssert(small&&small.querySelector('.analysis-other-path'),'the same small path has a readable inspect target');
     const focused=document.activeElement,owner=focused.closest('[data-path]');
     qaAssert(owner?.dataset.path===path&&focused.dataset.analyzeAction==='inspect','a tile that folds away falls back to inspecting the same path, actual '+focused.outerHTML.slice(0,200));
     for(const intent of ['new-focus','body-pointer']){
-      style.remove();window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,180));
+      style.remove();await resizeMap();
       const next=document.querySelector('.treemap-tile[data-path="'+path+'"]');
       qaAssert(next&&next.getClientRects().length,'the same visible map tile is restored before the '+intent+' check');
       next.click();next.focus({preventScroll:true});
@@ -798,7 +926,7 @@ add('analyze-visible-map-reveal-refold-inspect',`
         intended=document.querySelector('.analysis-sort');intended.focus({preventScroll:true});
         qaAssert(document.activeElement===intended,'the user deliberately places focus on the sort control');
       }else{document.body.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));document.activeElement.blur();}
-      window.dispatchEvent(new Event('resize'));await new Promise(resolve=>setTimeout(resolve,180));
+      await resizeMap();
       qaAssert(intent==='new-focus'?document.activeElement.matches('.analysis-sort')&&document.activeElement.getAttribute('onclick')===intended.getAttribute('onclick'):document.activeElement===document.body,'cached map focus does not override '+intent+' after reflow; actual '+document.activeElement.outerHTML.slice(0,180));
     }
   }finally{style.remove();}
@@ -1160,15 +1288,21 @@ add('tray-idle-rates-and-pressure',compactTraySetup+`
   qaAssert(tray.querySelector('[data-tray-metric="network"]').textContent.includes('本机不提供速率'),'a disappearing network source replaces its old reading');
 `);
 add('tray-safe-detail-routes',compactTraySetup+`
-  const routes={cpu:'menubarOpenStatus',memory:'menubarOpenStatus',disk:'menubarOpenAnalyze',network:'menubarOpenStatus',status:'menubarOpenStatus',clean:'menubarOpenClean','memory-tools':'menubarOpenMemory',doctor:'menubarOpenDoctor',main:'menubarShowMain',quit:'menubarQuit'};
+  __qa.actions=[];tray.querySelector('[data-tray-key="cpu"]').click();
+  qaAssert(STATE.trayView==='processes'&&STATE.procSortKey==='cpu'&&!__qa.actions.length,'CPU opens local process tools');
+  setTrayView('overview');tray.querySelector('[data-tray-key="memory"]').click();
+  qaAssert(document.getElementById('memoryModal').classList.contains('open')&&!__qa.actions.length,'memory management stays in the tray');closeMemoryMaintenance();
+  tray.querySelector('[data-tray-key="disk"]').click();qaAssert(STATE.trayView==='clean'&&!__qa.actions.length,'disk opens local cache selection');
+  setTrayView('overview');
+  qaAssert(tray.querySelector('[data-tray-metric="network"]').tagName==='DIV','network rates do not imply a main-window route');
+  const routes={main:'menubarShowMain',update:'checkForUpdates',quit:'menubarQuit'};
   for(const [key,action] of Object.entries(routes)){
     __qa.actions=[];tray.querySelector('[data-tray-key="'+key+'"]').click();
     qaAssert(__qa.actions.length===1&&__qa.actions[0].action===action,'each '+key+' tool posts one intended route');
   }
-  __qa.actions=[];tray.querySelector('[data-tray-key="process:8123"]').click();
-  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='menubarOpenStatus'&&__qa.actions[0].query==='8123','a process opens its PID in the main status view');
-  qaAssert(!tray.querySelector('[onclick*="armKill"]')&&!tray.querySelector('[onclick*="trashRealPaths"]'),'the compact tray has no destructive shortcuts');
-  qaAssert(!document.getElementById('confirmModal').classList.contains('open')&&!document.getElementById('doctorModal').classList.contains('open'),'detail routes do not create dialogs inside the tray');
+  __qa.actions=[];tray.querySelector('[data-tray-pid="8123"]').click();
+  qaAssert(!__qa.actions.length&&STATE.trayProcess.pid===8123&&tray.querySelector('.tray-process-detail'),'a process opens its details locally without sending a command');
+  qaAssert(!document.getElementById('confirmModal').classList.contains('open'),'process inspection cannot open a cleanup confirmation');
 `);
 add('tray-refresh-tool-focus',compactTraySetup+`
   const doctor=tray.querySelector('[data-tray-key="doctor"]');doctor.focus();
@@ -1178,10 +1312,10 @@ add('tray-refresh-tool-focus',compactTraySetup+`
   qaAssert(tray.querySelector('[data-tray-metric="cpu"]').textContent.includes('42.0%'),'preserving focus does not freeze readings');
 `);
 add('tray-refresh-process-identity',compactTraySetup+`
-  const process=tray.querySelector('[data-tray-key="process:8123"]');process.focus();
+  const process=tray.querySelector('[data-tray-pid="8123"]');process.focus();
   const update=structuredClone(qaTelemetry);update.processes.reverse();update.processes[0].cpu=50;onNativeRealTelemetry(update);
-  qaAssert(tray.querySelector('[data-tray-key="process:8123"]')===process&&document.activeElement===process,'process reorder keeps the same PID button and focus');
-  __qa.actions=[];process.click();qaAssert(__qa.actions[0].query==='8123','the retained process button cannot act on the new row index');
+  qaAssert(tray.querySelector('[data-tray-pid="8123"]')===process&&document.activeElement===process,'process reorder keeps the same PID button and focus');
+  __qa.actions=[];process.click();qaAssert(!__qa.actions.length&&STATE.trayProcess.pid===8123,'the retained process button cannot act on the new row index');
   update.processes=update.processes.filter(item=>item.pid!==8123);onNativeRealTelemetry(update);
   qaAssert(document.activeElement===tray.querySelector('[data-tray-key="status"]'),'a removed process falls back to all processes, not a different PID');
 `);
@@ -1214,8 +1348,8 @@ add('tray-compact-height-scroll',compactTraySetup+`
   qaAssert(Math.abs(tray.scrollTop-before)<2&&document.activeElement===quit,'a shorter popup preserves scrolling and tool focus');
   const bounds=quit.getBoundingClientRect();qaAssert(bounds.top>=0&&bounds.bottom<=innerHeight+1,'footer tools stay reachable inside the smaller height');
 `);
-const trayHeight=588;
-for(const scenario of scenarios.slice(trayScenarioStart))Object.assign(scenario,{width:380,height:trayHeight});
+const trayHeight=680;
+for(const scenario of scenarios.slice(trayScenarioStart))Object.assign(scenario,{width:420,height:trayHeight});
 Object.assign(scenarios.at(-1),{width:356,height:480});
 for(const scenario of scenarios.slice(trayScenarioStart).filter(item=>item.name.startsWith('memory-')||item.name.startsWith('modal-hidden-')||item.name==='tray-quick-clean-frozen-preview'))Object.assign(scenario,{width:880,height:620});
 const newTrayStart=scenarios.length;
@@ -1273,7 +1407,212 @@ add('quick-clean-nothing-selected-hint',`
   qaAssert(STATE.module==='clean'&&!document.getElementById('confirmModal').classList.contains('open'),'quick clean opens the list without a review sheet when nothing is selected');
   qaAssert(toast.style.display==='block'&&toast.textContent.includes('尚未勾选清理项，请先在列表中勾选要清理的项目'),'the user gets a calm in-page hint instead of silence');
 `);
-for(const scenario of scenarios.slice(newTrayStart).filter(item=>item.name.startsWith('tray-')))Object.assign(scenario,{width:380,height:trayHeight});
+for(const scenario of scenarios.slice(newTrayStart).filter(item=>item.name.startsWith('tray-')))Object.assign(scenario,{width:420,height:trayHeight});
+add('tray-tools-hidden-panels-stay-idle',`
+  toggleSystemMenuBarDemo(false);
+  const original=buildMenuBarTrayHTML;let builds=0;
+  window.buildMenuBarTrayHTML=()=>{builds++;return original();};
+  try{
+    onNativeRealTelemetry({...structuredClone(qaTelemetry),cpu:37});
+    qaAssert(builds===0&&stateCpuPct()===37,'hidden panels skip list construction while live telemetry stays current');
+    toggleSystemMenuBarDemo(true);
+    qaAssert(builds===1&&document.querySelector('#macSysPopover .tray-tabs'),'opening the preview builds the current local tools');
+    toggleSystemMenuBarDemo(false);onNativeRealTelemetry(structuredClone(qaTelemetry));
+    qaAssert(builds===1,'closing the preview leaves subsequent telemetry idle');
+  }finally{window.buildMenuBarTrayHTML=original;toggleSystemMenuBarDemo(false);}
+`);
+const trayToolsStart=scenarios.length;
+for(const theme of ['light','dark'])for(const lang of ['zh','en'])for(const view of ['overview','processes','clean'])add('tray-tools-'+view+'-'+theme+'-'+lang,compactTraySetup+`
+  document.documentElement.dataset.theme='${theme}';
+  const sample=structuredClone(qaTelemetry);
+  sample.processes=Array.from({length:32},(_,i)=>({pid:9000+i,name:i===0?'A long background worker process name that must truncate safely':'Background Worker '+i,cpu:50-i,memory_mb:2048-i*32,path:'/Applications/Canvas.app/Contents/Frameworks/Helpers/Worker '+i}));
+  onNativeRealTelemetry(sample);setTrayView('${view}');
+  ${view==='processes'?'selectTrayProcess(9000);':''}
+  ${lang==='en'?"qaEnglishFixture();I18N.setLang('en',false);renderMenuBarTrayContent();":''}
+  await qaSettle();
+  qaAssert(tray.querySelectorAll('.tray-tabs button').length===3,'three local sections remain compact');
+  const buttons=[...tray.querySelectorAll('button')];
+  qaAssert(buttons.every(button=>{const rect=button.getBoundingClientRect();return rect.width>=24&&rect.height>=24&&rect.left>=0&&rect.right<=innerWidth+1;}),'all menu actions meet their minimum target size and fit');
+  ${view==='processes'?"qaAssert(getComputedStyle(tray.querySelector('.btn-kill')).opacity==='1','the local termination action stays visible without hovering a table row');":''}
+  qaAssert(tray.scrollHeight<=tray.clientHeight+1,'the shipped panel keeps its actions visible without outer scrolling');
+  ${view==='overview'?`const list=tray.querySelector('.tray-scroll-list'),bounds=list.getBoundingClientRect(),actions=tray.querySelector('.tray-actions').getBoundingClientRect(),footer=tray.querySelector('.tray-footer').getBoundingClientRect();
+  const visible=[...list.querySelectorAll('.tray-proc')].filter(row=>{const rect=row.getBoundingClientRect();return rect.top>=bounds.top&&rect.bottom<=bounds.bottom+1;});
+  qaAssert(list.querySelectorAll('.tray-proc').length===20&&visible.length>=5,'overview uses the available height to display more than three real processes');
+  qaAssert(actions.top-bounds.bottom<=14&&footer.top-actions.bottom<=10,'processes fill the panel and both footer rows stay together');`:''}
+  ${lang==='en'?"qaAssert(!qaLeaks().length,'menu tools have no untranslated interface text: '+qaLeaks().join(' | '));":''}
+  qaAssert(!__qa.actions.some(a=>['menubarOpenStatus','menubarOpenClean','menubarOpenMemory','trashRealPaths','killProcess'].includes(a.action)),'navigation and inspection do not open the main app or execute a command');
+  const rgb=value=>value.match(/[0-9.]+/g).map(Number);
+  const luminance=values=>values.slice(0,3).map(v=>v/255).map(v=>v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4)).reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
+  tray.querySelectorAll('.tray-list-note,.tray-text-button,.tray-metric-head,.tray-proc-name,.tray-clean-row small,.tray-process-path,.tray-metric-value>b').forEach(node=>{
+    if(!node.getClientRects().length||node.closest(':disabled'))return;
+    const layers=[];for(let parent=node;parent&&parent!==tray;parent=parent.parentElement)layers.unshift(rgb(getComputedStyle(parent).backgroundColor));
+    let background=rgb(getComputedStyle(tray).backgroundColor);
+    for(const layer of layers){const alpha=layer[3]??1;background=layer.slice(0,3).map((v,i)=>v*alpha+background[i]*(1-alpha));}
+    const a=luminance(rgb(getComputedStyle(node).color)),b=luminance(background);
+    qaAssert((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)>=4.5,'menu text meets 4.5 contrast: '+node.className);
+  });
+`);
+add('tray-tools-overview-scroll-and-inspect',compactTraySetup+`
+  const sample=structuredClone(qaTelemetry);sample.processes=Array.from({length:32},(_,i)=>({pid:9000+i,name:'Background Worker '+i,cpu:50-i,memory_mb:512-i,path:'/usr/local/bin/worker-'+i}));
+  onNativeRealTelemetry(sample);const list=tray.querySelector('.tray-scroll-list');list.scrollTop=list.scrollHeight;const before=list.scrollTop;
+  qaAssert(before>0,'overview offers additional processes by scrolling its list');
+  onNativeRealTelemetry({...sample,cpu:38});const updated=tray.querySelector('.tray-scroll-list');
+  qaAssert(Math.abs(updated.scrollTop-before)<2,'telemetry retains the overview scroll position');
+  const last=updated.querySelectorAll('.tray-proc')[19],bounds=updated.getBoundingClientRect(),row=last.getBoundingClientRect();
+  qaAssert(row.bottom<=bounds.bottom+1&&row.top>=bounds.top,'the extra process is reachable without scrolling the footer away');
+  __qa.actions=[];last.click();
+  qaAssert(STATE.trayView==='processes'&&STATE.trayProcess.pid===9019&&tray.querySelector('.tray-process-detail').textContent.includes('/usr/local/bin/worker-19'),'an extra overview row opens its exact local details');
+  qaAssert(!__qa.actions.length,'overview inspection never opens the main app or executes a command');
+`);
+add('tray-tools-search-all-and-sort',compactTraySetup+`
+  const sample=structuredClone(qaTelemetry);sample.processes=Array.from({length:350},(_,i)=>({pid:9000+i,name:'Background Worker '+i,cpu:i/10,memory_mb:350-i,path:'/usr/local/bin/worker-'+i}));
+  onNativeRealTelemetry(sample);setTrayView('processes');
+  qaAssert(tray.querySelectorAll('.tray-proc').length===200&&tray.textContent.includes('200 / 350'),'rendering is bounded and the full match count is visible');
+  tray.querySelector('[data-tray-key="sort:memory_mb"]').click();
+  qaAssert(tray.querySelector('.tray-proc').dataset.trayPid==='9000','memory sorting uses the sampled RSS');
+  const input=tray.querySelector('[data-tray-key="process-search"]');input.focus();input.value='9000';input.setSelectionRange(2,2);input.dispatchEvent(new Event('input',{bubbles:true}));
+  qaAssert(tray.querySelectorAll('.tray-proc').length===1&&tray.querySelector('.tray-proc').dataset.trayPid==='9000','search finds a process beyond the first 200 CPU matches');
+  onNativeRealTelemetry(sample);
+  qaAssert(tray.querySelector('[data-tray-key="process-search"]')===input&&document.activeElement===input&&input.value==='9000'&&input.selectionStart===2,'telemetry preserves the search draft, node, caret and focus');
+  setTraySearch('/usr/local/bin/worker-349');qaAssert(tray.querySelectorAll('.tray-proc').length===1&&tray.querySelector('.tray-proc').dataset.trayPid==='9349','executable paths are searchable');
+  setTraySearch('not-present');qaAssert(tray.querySelector('.tray-empty').textContent.includes('没有匹配'),'no matches have an honest empty state');
+  qaAssert(!__qa.actions.length,'search and sorting never send a native command');
+`);
+add('tray-tools-process-read-actions',compactTraySetup+`
+  const path=${JSON.stringify("/Applications/Canvas & Partner's.app/Contents/MacOS/Canvas")};
+  STATE.processes[0].path=path;renderMenuBarTrayContent();selectTrayProcess(8123);__qa.actions=[];
+  const detail=tray.querySelector('.tray-process-detail');
+  qaAssert(detail.textContent.includes(path)&&detail.textContent.includes('PID 8123'),'PID and exact executable path stay in the panel');
+  detail.querySelector('[data-tray-key^="copy:"]').click();
+  qaAssert(__qa.actions.length===1&&__qa.actions[0].action==='copyText'&&__qa.actions[0].text===path,'copy preserves spaces, quotes and ampersands');
+  tray.querySelector('[data-tray-key^="reveal:"]').click();
+  qaAssert(__qa.actions[1].action==='revealInFinder'&&__qa.actions[1].path===path,'Finder receives the selected executable');
+  tray.querySelector('[data-tray-key^="pin:"]').click();
+  qaAssert(STATE.processes.find(p=>p.pid===8123).pinned&&tray.querySelector('[data-tray-key^="pin:"]').getAttribute('aria-pressed')==='true','pinning is available locally');
+  qaAssert(!__qa.actions.some(a=>['killProcess','trashRealPaths','menubarOpenStatus'].includes(a.action)),'read controls never terminate or navigate to the main app');
+`);
+add('tray-tools-quit-confirm-and-receipt',compactTraySetup+`
+  selectTrayProcess(8123);__qa.actions=[];const quit=()=>tray.querySelector('[data-pk="8123:kill"]');
+  quit().click();qaAssert(!__qa.actions.length&&quit().textContent.includes('确认终止')&&tray.textContent.includes('未保存'),'first click only arms an explicit warned confirmation');
+  quit().click();const request=__qa.actions.find(a=>a.action==='killProcess');
+  qaAssert(request&&request.pid===8123&&request.path===STATE.trayProcess.path&&quit().disabled,'second click sends one identity-bound request and waits');
+  onNativeProcessQuitResult({requestId:'old',pid:8123,ok:true});qaAssert(quit().disabled,'unrelated receipts cannot settle a request');
+  onNativeProcessQuitResult({requestId:request.requestId,pid:8123,ok:false,error:'Permission denied'});
+  qaAssert(!quit().disabled&&tray.querySelector('.tray-process-detail').textContent.includes('Permission denied'),'a native refusal preserves the process and reports the reason');
+  quit().click();quit().click();const second=__qa.actions.filter(a=>a.action==='killProcess').at(-1);
+  onNativeProcessQuitResult({requestId:second.requestId,pid:8123,ok:true});
+  qaAssert(quit().disabled&&STATE.processes.some(p=>p.pid===8123)&&quit().textContent.includes('已请求终止'),'a SIGTERM receipt never claims the process exited');
+`);
+add('tray-tools-process-path-unavailable',compactTraySetup+`
+  STATE.processes[0].path='Canvas';selectTrayProcess(8123);__qa.actions=[];
+  const detail=tray.querySelector('.tray-process-detail');
+  qaAssert(detail.textContent.includes('未提供完整可执行路径'),'a command name is not presented as an executable path');
+  qaAssert(!detail.querySelector('[data-tray-key^="reveal:"]')&&!detail.querySelector('[data-tray-key^="copy:"]'),'unknown paths cannot open Finder or copy an invented path');
+  qaAssert(detail.querySelector('[data-pk="8123:kill"]').disabled,'unverified process identity disables termination');
+  armKill(8123);killProcessByPid(8123);
+  qaAssert(!__qa.actions.length&&STATE.killArmed===null,'programmatic termination also refuses a command name alone');
+`);
+add('tray-tools-quit-identity-change',compactTraySetup+`
+  selectTrayProcess(8123);__qa.actions=[];const stale=tray.querySelector('[data-pk="8123:kill"]');stale.click();
+  const sample=structuredClone(qaTelemetry);sample.processes[0].path='/Applications/Reused.app/Contents/MacOS/Reused';sample.processes[0].name='Reused';onNativeRealTelemetry(sample);
+  qaAssert(!tray.querySelector('[onclick*="armKill"]')&&tray.querySelector('.tray-process-detail').textContent.includes('重新选择'),'a reused PID loses its old process actions');
+  stale.click();qaAssert(!__qa.actions.some(a=>a.action==='killProcess')&&STATE.killArmed===null,'even a detached stale confirmation cannot terminate the replacement process');
+`);
+add('tray-tools-quit-hide-and-cancel',compactTraySetup+`
+  selectTrayProcess(8123);__qa.actions=[];tray.querySelector('[data-pk="8123:kill"]').click();
+  tray.querySelector('[data-tray-key="kill-cancel"]').click();qaAssert(STATE.killArmed===null&&!__qa.actions.length,'Cancel disarms without sending a command');
+  tray.querySelector('[data-pk="8123:kill"]').click();window.dispatchEvent(new Event('blur'));
+  qaAssert(STATE.killArmed===null&&!STATE.killArmedIdentity&&!tray.querySelector('[data-tray-key="kill-cancel"]'),'hiding the panel clears a pending confirmation');
+  STATE.processes[0].name='Finder';selectTrayProcess(8123);
+  qaAssert(tray.querySelector('[data-pk="8123:kill"]').disabled,'critical processes remain protected');
+`);
+add('tray-tools-process-scroll-and-disappearance',compactTraySetup+`
+  const sample=structuredClone(qaTelemetry);sample.processes=Array.from({length:80},(_,i)=>({pid:9000+i,name:'Worker '+i,cpu:80-i,memory_mb:i+1,path:'/usr/local/bin/worker-'+i}));onNativeRealTelemetry(sample);setTrayView('processes');
+  const list=tray.querySelector('.tray-scroll-list');list.scrollTop=400;const before=list.scrollTop;
+  const process=tray.querySelector('[data-tray-pid="9010"]');process.focus({preventScroll:true});sample.processes.reverse();onNativeRealTelemetry(sample);
+  qaAssert(document.activeElement===process&&Math.abs(tray.querySelector('.tray-scroll-list').scrollTop-before)<2,'process telemetry preserves nested scrolling and identity-based focus');
+  selectTrayProcess(9010);sample.processes=sample.processes.filter(p=>p.pid!==9010);onNativeRealTelemetry(sample);
+  qaAssert(tray.querySelector('.tray-process-detail').textContent.includes('重新选择')&&!tray.querySelector('[onclick*="armKill"]'),'a disappeared process keeps an honest explanation rather than another process actions');
+`);
+add('tray-tools-process-source-states',compactTraySetup+`
+  setTrayView('processes');const sampledAt=STATE.processReceivedAt;
+  const cached=structuredClone(qaTelemetry);delete cached.processes;onNativeRealTelemetry(cached);
+  qaAssert(STATE.processReceivedAt===sampledAt&&tray.querySelectorAll('.tray-proc').length===2,'a metric-only update does not claim a fresh process sample');
+  onNativeRealTelemetry({...cached,processes:[]});qaAssert(tray.textContent.includes('本次采样未列出进程'),'a measured empty list is distinct from an unavailable source');
+  onNativeRealTelemetry({...cached,processes:null});qaAssert(tray.textContent.includes('尚未收到进程采样')&&!STATE.processReceivedAt,'a missing process source clears stale rows and its timestamp');
+`);
+add('tray-tools-clean-selection-and-preview',compactTraySetup+`
+  STATE.cleanGroups.push({...structuredClone(qaFixture.cleanGroups[0]),id:'protected',name:'Protected Cache',tier:'protected',checked:true});
+  setTrayView('clean');__qa.actions=[];
+  qaAssert(!tray.textContent.includes('Protected Cache')&&tray.querySelectorAll('.tray-clean-row').length===3,'protected groups cannot be selected in the menu');
+  const review=tray.querySelector('[data-tray-key="clean:review"]');qaAssert(!review.checked,'review-tier data stays unselected');review.click();
+  qaAssert(STATE.cleanGroups.find(g=>g.id==='review').checked&&tray.querySelector('[data-tray-key="clean:review"]').checked,'a native checkbox updates the actual shared selection');
+  tray.querySelector('[data-tray-key="clean-preview"]').click();await qaSettle();
+  qaAssert(document.getElementById('confirmModal').classList.contains('open')&&document.getElementById('confirmModalItemsList').textContent.includes('/one'),'local preview lists frozen exact paths');
+  qaAssert(document.activeElement.textContent.includes('取消')&&tray.inert,'confirmation defaults to Cancel and isolates the menu');
+  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await qaSettle();
+  qaAssert(!tray.inert&&!document.getElementById('confirmModal').classList.contains('open')&&!__qa.actions.length,'cancelling the preview never deletes or opens the main window');
+`);
+add('tray-tools-clean-frozen-and-partial-receipt',compactTraySetup+`
+  window.isNativeMacApp=true;setTrayView('clean');__qa.actions=[];tray.querySelector('[data-tray-key="clean-preview"]').click();
+  STATE.cleanGroups[0].subpaths.push({path:'~/Library/Caches/NewAfterReview',checked:true,tier:'safe',sizeGb:1});
+  document.getElementById('confirmModalConfirmBtn').click();
+  const request=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(request&&request.paths.every(p=>!p.includes('NewAfterReview')),'the menu cannot enlarge a frozen cleanup plan');
+  onNativeTrashResult({requestId:request.requestId,moved:[{original:request.paths[0],trashed:'/trash/one'}],movedCount:1,failed:request.paths.slice(1).map(path=>({path,error:'Permission denied'}))});renderMenuBarTrayContent();
+  qaAssert(STATE.historyLogs[0].restoreData.paths.length===1&&tray.textContent.includes('Permission denied'),'only successful moves are recorded and refused paths remain visible');
+`);
+add('tray-tools-clean-unavailable-and-permissions',compactTraySetup+`
+  STATE=structuredClone(DEFAULT_STATE);STATE.trayView='clean';renderMenuBarTrayContent();__qa.actions=[];
+  qaAssert(tray.textContent.includes('还没有扫描结果')&&tray.querySelector('[data-tray-key="clean-preview"]').disabled,'startup cannot authorize cleanup from old data');
+  onNativeRealScanStarted();renderMenuBarTrayContent();qaAssert(tray.textContent.includes('正在扫描'),'an active scan is visible');
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],readWarnings:[{path:'~/Library/Caches/Restricted',kind:'permission',reason:'Permission denied',modules:['clean']}]});
+  qaAssert(tray.querySelector('[data-tray-key="clean-preview"]').disabled&&tray.querySelector('[data-tray-key="clean-permissions"]'),'empty denied scans keep an exact-permission recovery entry');
+  tray.querySelector('[data-tray-key="clean-permissions"]').click();await qaSettle();
+  qaAssert(document.getElementById('runtimeModal').classList.contains('open')&&tray.inert,'permission details remain in the menu dialog');
+  qaAssert(!__qa.actions.some(a=>a.action==='trashRealPaths'),'permission inspection never deletes data');
+`);
+add('tray-tools-memory-focus-and-local-sort',compactTraySetup+`
+  const opener=tray.querySelector('[data-tray-key="memory-tools"]');opener.focus();opener.click();await qaSettle();
+  qaAssert(document.activeElement===document.getElementById('memoryCloseBtn')&&tray.inert,'memory consent isolates menu controls and starts on Cancel');
+  const action=document.getElementById('memoryReleaseBtn');action.focus();action.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));
+  qaAssert(document.activeElement.closest('#memoryModal'),'Tab cannot leave the menu confirmation');
+  document.querySelector('#memoryModal .memory-panel-footer > button').click();await qaSettle();
+  qaAssert(STATE.trayView==='processes'&&STATE.procSortKey==='memory_mb'&&!tray.inert&&!document.getElementById('memoryModal').classList.contains('open'),'View memory processes sorts the local menu list');
+  qaAssert(!__qa.actions.some(a=>a.action.startsWith('menubarOpen')),'memory inspection does not route to the main app');
+`);
+for(const outcome of ['cancelled','failed','unknown'])add('tray-tools-memory-'+outcome,compactTraySetup+`
+  window.isNativeMacApp=true;tray.querySelector('[data-tray-key="memory-tools"]').click();__qa.actions=[];releaseFileCache();
+  const request=__qa.actions.find(a=>a.action==='releaseFileCache');
+  onNativeCachePurgeResult({requestId:request.requestId,ok:false,cancelled:${outcome==='cancelled'},unknown:${outcome==='unknown'},error:'Permission denied'});
+  qaAssert(!STATE.memoryMaintenance.pending&&document.getElementById('memoryMaintenanceStatus').textContent.includes('${outcome==='cancelled'?'已取消':outcome==='unknown'?'状态未知':'Permission denied'}'),'native ${outcome} stays explicit inside the menu');
+  qaAssert(document.getElementById('memoryReleaseBtn').disabled===${outcome==='unknown'},'an unknown outcome cannot be submitted again');
+`);
+add('tray-tools-memory-hidden-receipt',compactTraySetup+`
+  window.isNativeMacApp=true;openMemoryMaintenance();__qa.actions=[];releaseFileCache();const request=__qa.actions.find(a=>a.action==='releaseFileCache');
+  closeMemoryMaintenance();Object.defineProperty(document,'visibilityState',{configurable:true,get:()=> 'hidden'});
+  try{onNativeCachePurgeResult({requestId:request.requestId,ok:false,cancelled:true});}finally{delete document.visibilityState;}
+  openMemoryMaintenance();await qaSettle();
+  qaAssert(!STATE.memoryMaintenance.pending&&!document.getElementById('memoryReleaseBtn').disabled&&document.getElementById('memoryMaintenanceStatus').textContent.includes('已取消'),'a hidden-panel receipt settles the retained operation before reopening');
+`);
+add('tray-tools-keyboard-search-and-tabs',compactTraySetup+`
+  __qa.actions=[];document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'k',metaKey:true,bubbles:true,cancelable:true}));
+  qaAssert(STATE.trayView==='processes'&&document.activeElement.dataset.trayKey==='process-search'&&!document.getElementById('cmdPaletteModal').classList.contains('open'),'Command-K focuses local process search');
+  document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'3',metaKey:true,bubbles:true,cancelable:true}));
+  qaAssert(STATE.trayView==='clean'&&STATE.module==='clean','Command-3 changes menu section, not the hidden main module');
+  const tab=tray.querySelector('[data-tray-key="overview"]');tab.focus();tab.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+  qaAssert(document.activeElement.dataset.trayKey==='status','the menu uses native tab keyboard navigation');
+  qaAssert(!__qa.actions.length,'keyboard navigation is read only');
+`);
+for(const scenario of scenarios.slice(trayToolsStart))Object.assign(scenario,{width:420,height:trayHeight});
+for(const view of ['processes','clean','memory','doctor','preview']){
+  const steps={processes:"setTrayView('processes');selectTrayProcess(8123);",clean:"setTrayView('clean');",memory:'openMemoryMaintenance();',doctor:'openDoctorModal(true);',preview:"setTrayView('clean');openQuickClean();"}[view];
+  add('tray-tools-short-'+view,compactTraySetup+steps+`
+    await qaSettle();
+    const modal=document.querySelector('.modal-backdrop.open');
+    if(modal){const bounds=modal.querySelector('.modal-sheet').getBoundingClientRect();qaAssert(bounds.left>=0&&bounds.right<=innerWidth&&bounds.top>=0&&bounds.bottom<=innerHeight,'menu dialog stays inside a small viewport');}
+    else{tray.scrollTop=tray.scrollHeight;const quit=tray.querySelector('[data-tray-key="quit"]').getBoundingClientRect();qaAssert(quit.top>=0&&quit.bottom<=innerHeight,'footer actions remain reachable by scrolling');}
+  `);Object.assign(scenarios.at(-1),{width:356,height:480});
+}
 add('runtime-header-tools-reachable',`
   qaAssert(![...document.querySelectorAll('.header-controls button')].some(button=>button.textContent.includes('权限')||(button.getAttribute('onclick')||'').includes('openRuntimePanel')),'the toolbar has no permission button');
   openRuntimePanel();
@@ -1976,7 +2315,8 @@ for (const [width,lang] of [[1380,'zh'],[880,'en']]) {
       impact:'未匹配到已安装应用的名称或标识；目录可能属于共享厂商数据、外置卷或自定义安装位置，仅列为待核对候选，不能证明应用已卸载或数据已经弃用。',
       subpaths:[{path:'~/Library/Application Support/Unclaimed Vendor',kind:'config',sizeGb:1,size:'1.00 GB',checked:false,tier:'review'}]};
     onNativeRealScanComplete({...structuredClone(qaFixture),orphanLeftoversList:[orphan]});switchModule('software');setSoftwarePanelMode('leftovers');
-    qaAssert(document.querySelector('.segmented-tabs').textContent.includes('待核对数据')&&!document.querySelector('.segmented-tabs').textContent.includes('已卸载残留'),'unmatched ownership is not labelled a verified uninstall');
+    const tabs=document.querySelector('#moduleStage .segmented-tabs');
+    qaAssert(tabs.textContent.includes('待核对数据')&&!tabs.textContent.includes('已卸载残留'),'unmatched ownership is not labelled a verified uninstall');
     qaAssert(document.getElementById('moduleStage').textContent.includes('归属未确认 · 待核对')&&document.getElementById('heroDesc').textContent.includes('不代表应用已卸载'),'unknown ownership remains explicit in details and guidance');
     qaAssert([...document.querySelectorAll('#moduleStage input[type=checkbox]')].every(input=>!input.checked),'unknown data starts unselected');
     qaAssert(document.getElementById('primaryBtnText').closest('button').disabled,'unknown ownership does not authorize deletion');
@@ -2238,10 +2578,10 @@ const slimKinds = {
   receipt: lang => `toggleSlimCheck('canvas');toggleSlimCheck('notes');openSlimConfirm();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='slimApps');qaAssert(req&&req.requestId&&req.paths.length===2&&req.identities['/Applications/Canvas Editor.app']==='canvas-identity','slim request carries paths and identities');onNativeSlimResult({requestId:req.requestId,outcome:${JSON.stringify(slimOutcome)}});onNativeSlimScan({requestId:SLIM.requestId,scan:${JSON.stringify(slimAfter)}});${slimWalk(lang, 'slim receipt')}qaAssert(document.querySelectorAll('[data-slim-result="ok"]').length===1&&document.querySelectorAll('[data-slim-result="skip"]').length===1,'receipt shows one slimmed and one skipped');qaAssert(document.querySelectorAll('[data-slim-app]').length===4,'list is rescanned');`,
   config: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');qaAssert(req.configRefs===true,'software uninstall asks for config references');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],configRefs:${JSON.stringify(configRefs)}});${slimWalk(lang, 'config refs receipt')}qaAssert(document.querySelectorAll('#configRefsCard [data-config-ref]').length===3,'card lists every reference');qaAssert(!document.getElementById('configRefsCard').textContent.includes('export'),'no file content is shown');`,
   services: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],services:${JSON.stringify(services)}});${slimWalk(lang, 'uninstall services receipt')}const card=document.getElementById('servicesCard');qaAssert(card&&card.querySelectorAll('[data-service-line]').length===4,'card lists stopped, failed, Homebrew and login item lines');qaAssert(card.textContent.includes('brew uninstall --cask canvas-editor')&&card.textContent.includes('Input/output error'),'exact command and launchctl words are shown');`,
-  serviceshistory: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],services:${JSON.stringify(services)}});switchModule('history');await qaSettle();document.querySelectorAll('.history-paths').forEach(d=>{if(d.querySelector('[data-service-line]'))d.open=true});${slimWalk(lang, 'history services')}qaAssert(document.querySelectorAll('.history-paths [data-service-line]').length===4,'history entry keeps the service receipt');`,
+  serviceshistory: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],services:${JSON.stringify(services)}});switchModule('history');await qaSettle();document.querySelector('.history-record').open=true;document.querySelectorAll('.history-paths').forEach(d=>{if(d.querySelector('[data-service-line]'))d.open=true});${slimWalk(lang, 'history services')}qaAssert(document.querySelectorAll('.history-paths [data-service-line]').length===4,'history entry keeps the service receipt');`,
   servicesrestore: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],services:${JSON.stringify(services)}});switchModule('history');restoreHistorySnapshot(0);const rr=__qa.actions.find(a=>a.action==='restoreTrashSnapshot');qaAssert(rr&&rr.requestId,'restore request sent');onNativeRestoreResult({requestId:rr.requestId,restored:rr.paths,restoredCount:rr.paths.length,failed:[],restarted:['com.canvas.editor.agent'],restartFailed:[]});await qaSettle();${slimWalk(lang, 'restore restarts services')}qaAssert(/${lang === 'en' ? 'background service' : '后台服务'}/.test(document.getElementById('toastBanner').textContent),'toast says the service was loaded again');`,
   servicesreloaded: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:[],movedCount:0,failed:req.paths.map(p=>({path:p,error:'路径不存在'})),services:${JSON.stringify(servicesReloaded)}});${slimWalk(lang, 'services reloaded after a failed move')}qaAssert(document.querySelectorAll('#servicesCard [data-service-line]').length===2,'reloaded and login item lines');`,
-  history: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],configRefs:${JSON.stringify(configRefs)}});switchModule('history');await qaSettle();document.querySelectorAll('.history-paths').forEach(d=>{if(d.textContent.includes('.zshrc'))d.open=true});${slimWalk(lang, 'history config refs')}qaAssert(document.querySelectorAll('.history-paths [data-config-ref]').length===3,'history entry keeps the references');`,
+  history: lang => `switchModule('software');setSoftwarePanelMode('apps');toggleAppCheck(0);openConfirmSheet();executeConfirmedClean();const req=__qa.actions.find(a=>a.action==='trashRealPaths');onNativeTrashResult({requestId:req.requestId,moved:req.paths.map(p=>({original:p,trashed:'/trash'+p})),movedCount:req.paths.length,failed:[],configRefs:${JSON.stringify(configRefs)}});switchModule('history');await qaSettle();document.querySelector('.history-record').open=true;document.querySelectorAll('.history-paths').forEach(d=>{if(d.textContent.includes('.zshrc'))d.open=true});${slimWalk(lang, 'history config refs')}qaAssert(document.querySelectorAll('.history-paths [data-config-ref]').length===3,'history entry keeps the references');`,
 };
 for (const lang of ['zh', 'en']) for (const theme of ['dark', 'light']) for (const [kind, body] of Object.entries(slimKinds)) {
   add((lang === 'en' ? 'en-' : '') + 'slim-' + kind + '-' + theme, slimPrep(theme, lang) + body(lang));

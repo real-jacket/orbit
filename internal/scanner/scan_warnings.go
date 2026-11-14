@@ -27,6 +27,20 @@ func (s *Scanner) scanWarningScopes(config PurgeRoots) []scanWarningScope {
 		aiRoots = append(aiRoots, filepath.Join(s.home, root))
 	}
 	softwareRoots := []string{"/Applications", "/System/Applications", filepath.Join(s.home, "Applications")}
+	appRoots := s.defaultAppDirs()
+	aiRoots = append(aiRoots, appRoots...)
+	softwareRoots = append(softwareRoots, appRoots...)
+	softwareRoots = append(softwareRoots, s.launchRoots()...)
+	softwareRoots = append(softwareRoots, "/opt/homebrew/Caskroom", "/usr/local/Caskroom", "/opt/homebrew/Cellar", "/usr/local/Cellar", "/opt/homebrew/bin", "/usr/local/bin", filepath.Join(s.home, "Library/Application Support/Setapp/Applications"))
+	ownerRoots := append(append([]string{}, aiLauncherDirs...), extensionDirs...)
+	ownerRoots = append(ownerRoots, ".opencode/bin")
+	for _, root := range moleLeadingRoots(ownerRoots) {
+		if !filepath.IsAbs(root) {
+			root = filepath.Join(s.home, root)
+		}
+		aiRoots = append(aiRoots, root)
+		softwareRoots = append(softwareRoots, root)
+	}
 	for _, family := range []string{"Caches", "Application Support", "Containers", "Group Containers", "Preferences", "Saved Application State", "Logs", "LaunchAgents"} {
 		softwareRoots = append(softwareRoots, filepath.Join(s.home, "Library", family))
 	}

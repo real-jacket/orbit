@@ -106,6 +106,6 @@ func pushRuntimeStatus(requestID string, checkFolders bool) {
 			status["folderReadAccess"] = scanner.Shared.FolderReadChecks()
 		}
 		status["checkedAt"] = time.Now().UnixMilli()
-		evaluate("window.onNativeRuntimeStatus ? window.onNativeRuntimeStatus(" + jsonOf(status) + ") : undefined")
+		evaluate("window.onNativeRuntimeStatus ? window.onNativeRuntimeStatus("+jsonOf(status)+") : undefined", true)
 	}()
 }
