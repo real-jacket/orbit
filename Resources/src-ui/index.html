@@ -1078,6 +1078,7 @@
   .tray-heading strong { font-size: 13px; font-weight: 700; }
   .tray-heading small, .tray-updated { font-size: 10.5px; color: var(--text-secondary); }
   .tray-updated { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tray-head .tray-text-button { flex: none; }
   .tray-tabs { flex: none; }
   .tray-tabs button.seg-tab { flex: 1; border: 0; font-family: inherit; min-height: 32px; }
   .tray-tabs button.seg-tab:not(.active) { background: transparent; }
@@ -1114,17 +1115,21 @@
   .tray-proc-head .tray-text-button { min-height: 24px; padding: 2px 4px; }
   .tray-proc { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 4px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-primary); text-align: left; font-size: 11px; cursor: pointer; }
   .tray-proc-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .tray-proc-meta { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary); flex: none; }
+  .tray-proc-meta { display: grid; grid-template-columns: 60px 64px; align-items: center; gap: 8px; text-align: right; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary); flex: none; }
   .tray-proc-meta b { color: var(--text-primary); }
-  .tray-proc-chev { flex: none; color: var(--text-muted); }
+  .tray-proc-chev { flex: none; width: 8px; color: var(--text-muted); }
   .tray-proc:hover .tray-proc-chev { color: var(--text-primary); }
   .tray-proc[aria-pressed="true"] { background: var(--accent-soft); }
   .tray-proc-name small { display: block; font: 10px/1.5 var(--font-mono); color: var(--text-secondary); }
-  .tray-proc-view, .tray-clean-view { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 160px; }
+  .tray-proc-view, .tray-clean-view { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .tray-proc-view { display: contents; }
   .tray-scroll-list { overflow-y: auto; min-height: 80px; flex: 1; overscroll-behavior: contain; }
   .tray-proc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; }
-  .tray-proc-toolbar .seg-tab { border: 0; background: transparent; min-height: 28px; padding: 4px 8px; font-family: inherit; }
-  .tray-proc-toolbar .seg-tab.active { background: var(--bg-surface); }
+  .tray-proc-toolbar .tray-text-button { flex: none; }
+  .tray-proc-columns { display: flex; align-items: center; gap: 8px; padding: 0 6px; color: var(--text-secondary); font-size: 10.5px; flex: none; }
+  .tray-proc-columns > span:first-child { flex: 1; }
+  .tray-proc-columns .tray-text-button { justify-content: flex-end; padding: 2px 0; }
+  .tray-proc-columns .tray-text-button[aria-pressed="true"] { color: var(--accent-primary); }
   .tray-list-note { color: var(--text-secondary); font-size: 10.5px; line-height: 1.5; }
   .search-box.tray-search { width: 100%; flex: none; }
   .tray-search input { width: 100%; color: var(--text-primary); }
@@ -1136,14 +1141,15 @@
   .tray-process-tools .btn-kill { opacity: 1; }
   .tray-process-tools .btn.btn-kill:disabled { opacity: 0.45; }
   .tray-process-tools .tray-text-button:last-child { margin-left: auto; }
-  .tray-clean-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 4px; border-bottom: 1px solid var(--border-subtle); cursor: pointer; }
-  .tray-clean-row > span { flex: 1; min-width: 0; }
-  .tray-clean-row strong { display: block; font-size: 11.5px; }
-  .tray-clean-row small { color: var(--text-secondary); font-size: 10.5px; }
+  .tray-clean-overview { display: grid; gap: 8px; padding: 24px 4px; }
+  .tray-clean-overview > strong { font: 700 32px/1.2 var(--font-mono); }
+  .tray-clean-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 8px 4px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 11.5px; }
   .tray-clean-row > b { font: 11px var(--font-mono); white-space: nowrap; }
-  .tray-clean-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border-subtle); padding-top: 8px; flex: none; }
+  .tray-clean-summary { margin-top: auto; padding-top: 8px; flex: none; }
+  .tray-clean-summary .tray-tool { width: 100%; }
   .tray-empty { padding: 10px 6px; color: var(--text-muted); font-size: 11px; }
   .tray-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: none; }
+  .tray-memory-status { flex: none; }
   .tray-tool { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 8px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); color: var(--text-primary); font-size: 11px; font-weight: 600; cursor: pointer; }
   .tray-tool .ui-ico { width: 14px; height: 14px; }
   .tray-tool.tray-quick { background: var(--accent-primary); color: var(--accent-ink); border-color: transparent; }
@@ -1157,10 +1163,10 @@
   .tray-awake[aria-checked="true"] .tray-switch { background: var(--accent-primary); }
   .tray-awake[aria-checked="true"] .tray-switch i { transform: translateX(12px); background: var(--bg-surface); }
   .tray-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; }
-  .tray-text-button { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; min-height: 28px; padding: 4px 6px; background: transparent; color: var(--text-secondary); font-size: 10.5px; cursor: pointer; }
+  .tray-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 6px; min-height: 28px; padding: 4px 6px; background: transparent; color: var(--text-secondary); font-size: 10.5px; cursor: pointer; }
   button.tray-metric:hover, .tray-proc:hover, .tray-tool:hover, .tray-text-button:hover { background: var(--bg-card-hover); color: var(--text-primary); }
   div.tray-metric { cursor: default; }
-  .tray-metric:focus-visible, .tray-proc:focus-visible, .tray-tool:focus-visible, .tray-text-button:focus-visible, .tray-tabs .seg-tab:focus-visible, .tray-proc-toolbar .seg-tab:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+  .tray-metric:focus-visible, .tray-proc:focus-visible, .tray-tool:focus-visible, .tray-text-button:focus-visible, .tray-tabs .seg-tab:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
   .tray-tool:disabled { opacity: 0.6; cursor: wait; }
   .tray-quit:hover { color: var(--accent-rose); }
   .runtime-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-surface); flex: none; }
@@ -3271,18 +3277,31 @@ function buildMenuBarTrayHTML() {
   const processes = view === 'processes' ? STATE.processes.filter(p => !query || `${p.name} ${p.pid} ${p.path}`.toLowerCase().includes(query)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (Number(b[STATE.procSortKey]) || 0) - (Number(a[STATE.procSortKey]) || 0) || a.pid - b.pid) : [];
   const processRow = (process, full = false) => `<button class="tray-proc" data-tray-key="process:${process.pid}:${escHtml(process.path)}" data-tray-pid="${process.pid}" onclick="selectTrayProcess(${process.pid})" ${full ? `aria-pressed="${STATE.trayProcess?.pid === process.pid && STATE.trayProcess?.path === process.path}"` : ''} title="${escHtml(process.name + '\n' + process.path)}">
     <span class="tray-proc-name">${process.pinned ? UI_ICON('pin') : ''}${escHtml(process.name)}${full ? `<small>PID ${process.pid}</small>` : ''}</span><span class="tray-proc-meta"><b title="CPU">${hasNum(process.cpu) ? fmtNum(process.cpu, 1) + '%' : t('未知')}</b><span title="${t('内存')}">${hasNum(process.memory_mb) ? fmtProcMem(process.memory_mb) : t('未知')}</span></span><span class="tray-proc-chev" aria-hidden="true">›</span></button>`;
-  const groups = STATE.cleanGroups.filter(group => group.tier !== 'protected');
-  const cleanSize = groups.filter(group => group.checked).reduce((sum, group) => sum + selectedSizeGb(group), 0);
+  const cleanTotals = { safe: { size: 0, known: false, partial: false }, review: { size: 0, known: false, partial: false } };
+  let cleanGroups = 0;
+  for (const group of STATE.cleanGroups) {
+    if (group.tier === 'protected') continue;
+    const paths = (group.subpaths?.length ? group.subpaths : [group]).filter(path => path.tier !== 'protected');
+    if (paths.length) cleanGroups++;
+    for (const path of paths) {
+      const total = cleanTotals[path.tier === 'safe' || !path.tier && group.tier === 'safe' ? 'safe' : 'review'];
+      if (hasNum(path.sizeGb) && path.sizeGb >= 0) { total.size += path.sizeGb; total.known = true; }
+      total.partial ||= !!path.partial || !!group.partial || !hasNum(path.sizeGb);
+    }
+  }
+  const cleanTotal = { size: cleanTotals.safe.size + cleanTotals.review.size, known: cleanTotals.safe.known || cleanTotals.review.known, partial: cleanTotals.safe.partial || cleanTotals.review.partial };
+  const cleanSize = total => !total.known && total.partial ? t('未读取') : total.partial ? t('至少 {size}', { size: fmtDiskSizeGb(total.size) }) : fmtDiskSizeGb(total.size);
+  const memoryOperation = STATE.memoryMaintenance;
   return `
     <div class="tray-head">
       <div class="app-icon-box brand-plate tray-brand">${get_skeuo_svg('brand', 'tray')}</div>
-      <div class="tray-heading"><strong>orbit</strong><small>${t('系统概览')}</small></div><time class="tray-updated">${updated}</time>
+      <div class="tray-heading"><strong>orbit</strong><time class="tray-updated" data-tray-key="updated">${updated}</time></div><button class="tray-text-button" data-tray-key="update" onclick="sendNativeBridge({action:'checkForUpdates'})">${t('检查更新')}</button>
     </div>
     <div class="segmented-tabs tray-tabs" role="tablist" aria-label="${t('菜单栏工具')}">${[['overview', t('概览')], ['processes', STATE.processReceivedAt ? t('进程 {n}', { n: STATE.processes.length }) : t('进程')], ['clean', t('清理')]].map(([key, label]) => `<button class="seg-tab ${view === key ? 'active' : ''}" role="tab" aria-selected="${view === key}" data-tray-key="${key === 'processes' ? 'status' : key}" onclick="setTrayView('${key}')">${label}</button>`).join('')}</div>
     ${view === 'overview' ? `
     <div class="tray-metrics">
-      ${metric('cpu', 'cpu', t('处理器'), hasNum(cpu) ? fmtNum(cpu, 1) + '%' : t('未知'), '', "setTrayView('processes');sortProcessesBy('cpu')", 'var(--text-primary)', cpuTrend, temperature ? `<span class="tray-temperature" title="${escHtml(t(th[0]))}">${temperature}</span>` : '')}
-      ${metric('memory', 'memory', t('内存压力'), pressureWord || t('未知'), memory, 'openMemoryMaintenance()', pr[1], memoryCapacityGraph())}
+      ${metric('cpu', 'cpu', t('处理器'), hasNum(cpu) ? fmtNum(cpu, 1) + '%' : t('未知'), '', "STATE.procSortKey='cpu';setTrayView('processes')", 'var(--text-primary)', cpuTrend, temperature ? `<span class="tray-temperature" title="${escHtml(t(th[0]))}">${temperature}</span>` : '')}
+      ${metric('memory', 'memory', t('内存压力'), pressureWord || t('未知'), memory, "STATE.procSortKey='memory_mb';setTrayView('processes')", pr[1], memoryCapacityGraph())}
       ${metric('disk', 'disk', t('磁盘可用'), hasNum(STATE.freeDiskGb) ? fmtDiskSizeGb(STATE.freeDiskGb, 1) : t('未知'), t('启动磁盘'), "setTrayView('clean')", 'var(--text-primary)', diskGraph)}
       <div class="tray-metric" data-tray-metric="network" aria-label="${escHtml(t('网络速率，下载 {down}，上传 {up}', { down: download || t('未知'), up: upload || t('未知') }))}">
         <span class="tray-metric-head"><span>${UI_ICON('network')} ${t('网络')}</span></span>
@@ -3298,27 +3317,29 @@ function buildMenuBarTrayHTML() {
     ` : view === 'processes' ? `
     <div class="tray-proc-view">
       <div class="search-box tray-search">${UI_ICON('search')}<input type="search" data-tray-key="process-search" value="${escHtml(STATE.traySearch || '')}" aria-label="${t('搜索进程或 PID')}" placeholder="${t('搜索进程或 PID')}" oninput="setTraySearch(this.value)" /></div>
-      <div class="tray-proc-toolbar"><span class="tray-list-note">${STATE.processReceivedAt ? t('显示 {shown} / {total} 个匹配进程', { shown: Math.min(PROC_DRAWER_MAX, processes.length), total: processes.length }) : t('等待采样')}</span><div class="segmented-tabs">${[['cpu', 'CPU'], ['memory_mb', t('内存')]].map(([key, label]) => `<button class="seg-tab ${STATE.procSortKey === key ? 'active' : ''}" data-tray-key="sort:${key}" onclick="sortProcessesBy('${key}')" aria-pressed="${STATE.procSortKey === key}">${label}</button>`).join('')}</div></div>
-      <div class="tray-list-note">${t('CPU 按单核 100% 计，多核进程可超过 100%')} · ${STATE.processReceivedAt ? t('进程采样 {time}', { time: new Date(STATE.processReceivedAt).toLocaleTimeString(I18N.lang === 'en' ? 'en-US' : 'zh-CN') }) : t('等待采样')}</div>
+      <div class="tray-list-note">${STATE.processReceivedAt ? t('显示 {shown} / {total} 个匹配进程', { shown: Math.min(PROC_DRAWER_MAX, processes.length), total: processes.length }) : t('等待采样')}</div>
+      <div class="tray-proc-columns"><span>${t('进程名称')}</span><span class="tray-proc-meta">${[['cpu', 'CPU'], ['memory_mb', t('内存')]].map(([key, label]) => `<button class="tray-text-button" data-tray-key="sort:${key}" onclick="sortProcessesBy('${key}')" aria-pressed="${STATE.procSortKey === key}" aria-label="${escHtml(t('按 {field} 排序', { field: label }))}" ${key === 'cpu' ? `title="${t('CPU 按单核 100% 计，多核进程可超过 100%')}"` : ''}>${label}${STATE.procSortKey === key ? ' ↓' : ''}</button>`).join('')}</span><span class="tray-proc-chev"></span></div>
       <div class="tray-proc-list tray-scroll-list" role="group" aria-label="${t('全部进程')}">${processes.length ? processes.slice(0, PROC_DRAWER_MAX).map(process => processRow(process, true)).join('') : `<div class="tray-empty">${query ? t('没有匹配的进程') : STATE.processReceivedAt ? t('本次采样未列出进程') : t('尚未收到进程采样')}</div>`}</div>
       ${buildTrayProcessDetailHTML()}
     </div>
     ` : `
     <div class="tray-clean-view">
-      <p class="tray-list-note">${t('选择缓存目录后预览具体路径，确认前不会删除。')}</p>
-      <div class="tray-scroll-list">${groups.length ? groups.map(group => `<label class="tray-clean-row"><input type="checkbox" data-tray-key="clean:${escHtml(group.id || group.path)}" ${group.checked ? 'checked' : ''} ${!scanResultsUsable() || pendingTrashRequests.size || !selectedSubpaths(group).length && group.sizeGb <= 0 ? 'disabled' : ''} aria-label="${escHtml(t('选择 {name}', { name: group.name }))}" onchange="toggleCleanCheck(${STATE.cleanGroups.indexOf(group)},event);renderMenuBarTrayContent()" /><span><strong>${escHtml(t(group.name))}</strong><small>${group.failedReason ? escHtml(t(group.failedReason)) : group.tier === 'review' ? t('需核对用途') : t('缓存与日志')}</small></span><b>${group.partial && !group.sizeGb ? t('未读取') : fmtDiskSizeGb(group.sizeGb)}</b></label>`).join('') : `<div class="tray-empty">${STATE.scanRunning ? t('正在扫描') : STATE.scanCompleted ? t('未发现可清理项目') : t('还没有扫描结果')}</div>`}</div>
+      <div class="tray-proc-toolbar"><strong>${t('缓存与日志')}</strong><button class="tray-text-button" data-tray-key="scan" ${STATE.scanRunning || pendingTrashRequests.size || pendingRestoreRequests.size ? 'disabled' : ''} onclick="triggerNativeRescan(true);renderMenuBarTrayContent()">${UI_ICON('refresh')} ${STATE.scanRunning ? t('正在扫描') : t('重新扫描')}</button></div>
+      <div class="tray-clean-overview"><strong>${STATE.scanCompleted ? cleanSize(cleanTotal) : t('等待扫描')}</strong><span class="tray-list-note">${STATE.scanRunning ? t('正在扫描') : STATE.scanCompleted ? cleanGroups ? t('发现 {n} 类缓存与日志', { n: cleanGroups }) : t('未发现可清理项目') : t('还没有扫描结果')}</span></div>
+      ${STATE.scanCompleted ? ['safe', 'review'].map(tier => `<div class="tray-clean-row"><span>${tier === 'safe' ? t('推荐清理') : t('需确认')}</span><b>${cleanSize(cleanTotals[tier])}</b></div>`).join('') : ''}
+      <p class="tray-list-note">${t('在主窗口选择具体项目并清理。')}</p>
       ${warningSummary(scanWarningsForModule('clean')).actionable ? `<p class="tray-list-note">${t('部分路径未完成读取，请核对具体目录。')} <button class="tray-text-button" data-tray-key="clean-permissions" onclick="openRuntimePanel()">${t('查看权限')}</button></p>` : ''}
-      <div class="tray-clean-summary"><span class="tray-list-note" role="status">${pendingTrashRequests.size ? t('等待系统回执…') : scanResultsUsable() ? t('已选 {size}', { size: fmtDiskSizeGb(cleanSize) }) : t('等待本机扫描')}</span><button class="tray-tool tray-quick" data-tray-key="clean-preview" ${!scanResultsUsable() || cleanSize <= 0 || pendingTrashRequests.size || pendingRestoreRequests.size ? 'disabled' : ''} onclick="openQuickClean()">${t('预览所选')}</button></div>
-      <button class="tray-text-button" data-tray-key="scan" ${STATE.scanRunning || pendingTrashRequests.size ? 'disabled' : ''} onclick="sendNativeBridge({action:'requestRealSystemScan'})">${STATE.scanRunning ? t('正在扫描') : t('重新扫描')}</button>
+      <div class="tray-clean-summary"><button class="tray-tool tray-quick" data-tray-key="clean-open" onclick="openQuickClean()">${t('进入清理')}</button></div>
     </div>
     `}
     <div class="tray-actions">
-      <button class="tray-tool" data-tray-key="memory-tools" onclick="openMemoryMaintenance()">${UI_ICON('memory')} ${t('内存管理…')}</button>
+      <button class="tray-tool" data-tray-key="memory-tools" onclick="releaseFileCache()" aria-busy="${memoryOperation.pending}" ${memoryOperation.pending || memoryOperation.unknown || !window.isNativeMacApp ? 'disabled' : ''} title="${t('释放系统文件缓存；需要管理员授权，重新读取文件可能暂时变慢。')}"><span class="tray-awake-label">${UI_ICON('memory')}<span>${memoryOperation.pending ? t('正在优化…') : memoryOperation.unknown ? t('执行状态未知') : t('优化内存')}<small>${t('文件缓存 · 需授权')}</small></span></span></button>
       <button class="tray-tool tray-awake" data-tray-key="caffeinate" role="switch" aria-checked="${STATE.caffeinateActive}" aria-busy="${pending}" ${pending ? 'disabled' : ''} onclick="toggleCaffeinateState()">
         <span class="tray-awake-label">${UI_ICON('plug')}<span>${sleepLabel}<small>${STATE.caffeinateActive ? t('已开启 · 最长 2 小时') : t('最长保持 2 小时')}</small></span></span><span class="tray-switch" aria-hidden="true"><i></i></span>
       </button>
     </div>
-    <div class="tray-footer"><button class="tray-text-button" data-tray-key="main" onclick="sendNativeBridge({action:'menubarShowMain'})">${t('打开主窗口')}</button><button class="tray-text-button" data-tray-key="doctor" onclick="openDoctorModal(false)">${t('系统体检')}</button><button class="tray-text-button" data-tray-key="update" onclick="sendNativeBridge({action:'checkForUpdates'})">${t('检查更新…')}</button><button class="tray-text-button tray-quit" data-tray-key="quit" onclick="sendNativeBridge({action:'menubarQuit'})">${t('退出 orbit')}</button></div>
+    ${memoryOperation.status ? `<p class="tray-list-note tray-memory-status" data-tray-key="memory-status" role="status">${escHtml(t(memoryOperation.status))}</p>` : ''}
+    <div class="tray-footer"><button class="tray-text-button" data-tray-key="main" onclick="sendNativeBridge({action:'menubarShowMain'})">${t('打开主窗口')}</button><button class="tray-text-button" data-tray-key="doctor" onclick="openDoctorModal(false)">${t('系统体检')}</button><button class="tray-text-button tray-quit" data-tray-key="quit" onclick="sendNativeBridge({action:'menubarQuit'})">${t('退出 orbit')}</button></div>
   `;
 }
 
@@ -3386,8 +3407,11 @@ function memoryCapacityGraph() {
 }
 
 function openQuickClean() {
+  if (document.body.classList.contains('menubar-mode')) {
+    sendNativeBridge({ action: 'menubarOpenClean' });
+    return;
+  }
   switchModule('clean');
-  openConfirmSheet();
 }
 
 function openMemoryMaintenance() {
@@ -3418,7 +3442,7 @@ function releaseFileCache() {
   if (operation.pending || operation.unknown || !window.isNativeMacApp) return;
   operation.requestId = `file-cache-${Date.now()}-${++bridgeRequestSeq}`;
   operation.pending = true;
-  operation.status = '等待 macOS 授权及命令回执。取消授权不会执行文件缓存释放。';
+  operation.status = '等待 macOS 授权及命令回执…';
   const requestId = operation.requestId;
   clearTimeout(window._memoryMaintenanceTimer);
   window._memoryMaintenanceTimer = setTimeout(() => {
@@ -3426,8 +3450,10 @@ function releaseFileCache() {
     operation.unknown = true;
     operation.status = '尚未收到系统回执，执行状态未知；为防重复，不会再次提交。';
     renderMemoryMaintenance();
+    renderMenuBarTrayContent();
   }, 100000);
   renderMemoryMaintenance();
+  renderMenuBarTrayContent();
   sendNativeBridge({ action: 'releaseFileCache', requestId, confirmed: true });
 }
 
@@ -3439,9 +3465,10 @@ window.onNativeCachePurgeResult = function(result) {
   operation.unknown = result.unknown === true;
   operation.status = operation.unknown ? '执行状态未知；命令可能仍在运行，本次不再重复释放。请在活动监视器核对 purge 进程。'
     : result.cancelled === true ? '已取消管理员授权，未执行文件缓存释放。'
-    : result.ok === true ? '文件缓存释放命令已完成。应用内存不会因此清空，缓存会按需重建。'
+    : result.ok === true ? '文件缓存释放命令已完成。'
     : '文件缓存释放未完成：' + (result.error || '系统未提供失败详情');
   renderMemoryMaintenance();
+  renderMenuBarTrayContent();
 };
 
 function renderMenuBarTrayContent() {
@@ -5466,10 +5493,12 @@ function togglePinProcess(pid) {
   renderMenuBarTrayContent();
 }
 function sortProcessesBy(key) {
+  if (!['cpu', 'memory_mb'].includes(key) || STATE.procSortKey === key) return;
   STATE.procSortKey = key;
-  renderModule();
+  const top = document.getElementById('topProcList');
+  if (top) top.innerHTML = topProcRowsHTML(sortedProcessesList());
+  if (procDrawerOpen()) renderProcDrawer();
   renderMenuBarTrayContent();
-  showToast(key === 'memory_mb' ? t('已按 内存占用 实时排序进程') : t('已按 CPU 占用 实时排序进程'));
 }
 function killProcessByPid(pid) {
   const proc = STATE.processes.find(p => p.pid === pid);

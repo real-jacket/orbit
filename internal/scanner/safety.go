@@ -73,6 +73,13 @@ func builtinCleanupProtection(path, home string, relax func(rule string) bool) (
 	if _, _, known := aiCleanupData(path, home); known || aiSessionShape(path, home) {
 		return Protection{}, false
 	}
+	// Ported from tw93/Mole V1.72.0 lib/core/app_protection.sh should_protect_path
+	for _, name := range []string{".claude/projects", ".claude/file-history", ".claude/history.jsonl"} {
+		root := filepath.Join(home, name)
+		if withinPath(path, root) || withinPath(root, path) {
+			return Protection{Pattern: root, Descendant: path != root && withinPath(root, path), Reason: "Claude 会话、文件历史与提示词历史保持原状，仅核验后的过期单元可单独处理"}, true
+		}
+	}
 	// Build artifacts inside an agent worktree are regenerable; CleanupReason
 	// checks git-ignore and builders. The worktree's own source stays protected.
 	if isAgentWorktreeArtifact(path, home) || isAgentWorktreeRoot(path, home) {
@@ -110,6 +117,10 @@ func builtinCleanupProtection(path, home string, relax func(rule string) bool) (
 		{".cache/lm-studio/models", "本地模型与共享资源保持原状"},
 		{".cache/huggingface", "共享模型缓存只检查，请使用模型管理工具按修订处理"},
 		{".ollama", "本地模型与运行资料保持原状"},
+		{".t3", "T3 Code 任务历史与凭据保持原状"},
+		{"Library/Application Support/t3code-v2", "T3 Code 登录、站点数据与个人资料保持原状"},
+		{"Library/Application Support/T3 Code (Alpha)", "T3 Code 登录、站点数据与个人资料保持原状"},
+		{"Library/Caches/Codex", "Codex 浏览器登录与运行资料保持原状，仅清理已识别的缓存目录"},
 		{"Library/Application Support/Codex", "Codex 会话与运行资料保持原状"},
 		{"Library/Application Support/com.openai.codex", "Codex 会话与运行资料保持原状"},
 		{"Library/Caches/com.openai.codex", "Codex 运行缓存可能包含活跃状态，保持原状"},
@@ -123,7 +134,7 @@ func builtinCleanupProtection(path, home string, relax func(rule string) bool) (
 		{"Library/Application Support/Code/User/globalStorage/github.copilot-chat", "Copilot Chat 会话与索引保持原状"},
 		{"Library/Application Support/ChatGPT", "对话与个人资料保持原状"},
 		{"Library/Application Support/orbit", "本应用的恢复清单与运行状态保持原状"},
-		// Ported from tw93/Mole V1.70.0 lib/core/app_protection.sh should_protect_path
+		// Ported from tw93/Mole V1.72.0 lib/core/app_protection.sh should_protect_path
 		{"Library/Application Support/com.apple.wallpaper", "当前选用的动态壁纸与屏幕保护资源，清理后系统会重新下载，保持原状"},
 		{"Library/Application Support/com.apple.idleassetsd", "当前选用的动态壁纸与屏幕保护资源，清理后系统会重新下载，保持原状"},
 		{"Library/Accounts", "系统账户资料保持原状"}, {"Library/Mail", "邮件资料保持原状"},
@@ -131,6 +142,7 @@ func builtinCleanupProtection(path, home string, relax func(rule string) bool) (
 		{"Library/Caches/ms-playwright", "浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"},
 		{"Library/Caches/camoufox", "浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"},
 		{"Library/Caches/Cypress", "浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"},
+		{".cache/puppeteer", "浏览器自动化工具下载的浏览器，清理后测试无法运行，保持原状"},
 		{"Library/Caches/GIPPseudonymousID", "Google 服务的标识与上报队列，清理后可能引发持续写入，保持原状"},
 		{"Library/Caches/CCTClearcutLogger", "Google 服务的标识与上报队列，清理后可能引发持续写入，保持原状"},
 		{"Library/Caches/com.apple.ap.adprivacyd", "系统服务状态，不属于普通缓存，保持原状"},
@@ -263,6 +275,11 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 			return "路径经过符号链接，不能证明清理边界；请在访达中检查原始路径"
 		}
 	}
+	if live {
+		if reason := s.probeContainerSystemProtection(path); reason != "" {
+			return reason
+		}
+	}
 	if reason := s.appDataCleanupReason(path, live); reason != "" {
 		return reason
 	}
@@ -362,7 +379,22 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 	if isAgentWorktreeArtifact(path, s.home) && ambiguousArtifactName(filepath.Base(path)) && !gitIgnored(path) {
 		return "该目录没有被 .gitignore 忽略，可能是源码的一部分，保持原状"
 	}
-	if derived := inDerivedData(path); derived || isArtifactName(filepath.Base(path)) {
+	if swiftPMPackagedScratch(path) {
+		return "SwiftPM 依赖与工作区状态保持原状；请重新扫描，仅清理编译与索引产物"
+	}
+	scratch := swiftPMOutputRoot(path)
+	swiftPM := scratch != "" || isSwiftPMScratchRoot(path)
+	if live && swiftPM {
+		candidate := artifactCandidate{path: path, name: filepath.Base(path)}
+		guardArtifact(&candidate, time.Now().Add(2*time.Second))
+		if candidate.protect != "" {
+			return candidate.protect
+		}
+		if candidate.unverified != "" {
+			return candidate.unverified
+		}
+	}
+	if derived := inDerivedData(path); derived || swiftPM || isArtifactName(filepath.Base(path)) {
 		builders, err := s.builderSnapshot(live)
 		if err != nil {
 			return "无法确认构建工具闲置，保持原状"
@@ -371,9 +403,43 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 			if name, busy := xcodeUsing(builders); busy {
 				return "Xcode 或其构建服务（" + name + "）正在运行，暂缓清理构建缓存"
 			}
-		} else if builder, busy := builderUsing(builders, filepath.Dir(path)); busy {
-			return "构建或依赖工具（" + builder + "）正在运行并使用这个项目，暂缓清理"
+		} else {
+			project := filepath.Dir(path)
+			if scratch != "" {
+				project = filepath.Dir(scratch)
+				if protection, protected := s.scanProtection(scratch); protected && !protection.Descendant {
+					return "白名单保护"
+				}
+			}
+			if builder, busy := builderUsing(builders, project); busy {
+				return "构建或依赖工具（" + builder + "）正在运行并使用这个项目，暂缓清理"
+			}
+			if swiftPM {
+				open, err := s.aiHandleOpen(path, live)
+				if err != nil || open {
+					return "SwiftPM 编译或索引产物仍被打开或状态未知，保持原状"
+				}
+			}
 		}
+	}
+	return ""
+}
+
+// Ported from tw93/Mole V1.72.0 lib/uninstall/batch.sh _uninstall_container_holds_system_protected_entry
+// A SIP-protected container in the Trash can prevent every later Empty Trash.
+func (s *Scanner) probeContainerSystemProtection(path string) string {
+	parent := filepath.Dir(path)
+	if !strings.EqualFold(parent, filepath.Join(s.home, "Library/Containers")) && !strings.EqualFold(parent, filepath.Join(s.home, "Library/Group Containers")) || s.probeFullDisk() != "granted" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := s.runCmd(ctx, "", "/usr/bin/find", path, "-maxdepth", "4", "(", "-flags", "+restricted", "-o", "-flags", "+sunlnk", "-o", "-xattrname", "com.apple.rootless", ")", "-print", "-quit")
+	if strings.TrimSpace(out) != "" {
+		return "沙盒内含有 macOS 系统保护的文件，移入废纸篓后可能无法清空，保持原状"
+	}
+	if err != nil {
+		return "无法核验沙盒内的系统保护，保持原状"
 	}
 	return ""
 }

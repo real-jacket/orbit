@@ -126,9 +126,9 @@ func TestTrashReceiptMapsAcceptOnlyStringTargets(t *testing.T) {
 	}
 }
 
-func TestMenuBarNavigationKeepsReviewInTheMainWindow(t *testing.T) {
-	if menuBarNavigationScript("menubarOpenClean", "") != "openQuickClean();" || menuBarNavigationScript("menubarOpenMemory", "") != "openMemoryMaintenance();" {
-		t.Fatal("quick tools must open their review in the main window rather than execute from the popup")
+func TestMenuBarNavigationOpensCleanWithoutReview(t *testing.T) {
+	if menuBarNavigationScript("menubarOpenClean", "") != "switchModule('clean');" || menuBarNavigationScript("menubarOpenMemory", "") != "openMemoryMaintenance();" {
+		t.Fatal("cleanup navigation must open the clean module without an extra preview")
 	}
 	if script := menuBarNavigationScript("menubarOpenAnalyze", "ignored"); script != "switchModule('analyze');" {
 		t.Fatalf("analysis route = %q", script)

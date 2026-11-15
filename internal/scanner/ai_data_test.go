@@ -51,6 +51,64 @@ func TestAIDesktopCachesHaveNarrowIdleCleanupScopes(t *testing.T) {
 	}
 }
 
+func TestCodexAndT3PreviewCachesKeepProfilesAndLiveData(t *testing.T) {
+	s, _ := ownerScanner(t)
+	var caches []string
+	for _, root := range []string{
+		"Library/Caches/Codex/Default/Cache",
+		"Library/Caches/Codex/Default/Partitions/codex-browser-app/Code Cache",
+		"Library/Caches/Codex/codex-browser-app/Cache",
+		"Library/Application Support/t3code-v2/Partitions/t3code-preview-main/Cache",
+		"Library/Application Support/T3 Code (Alpha)/Partitions/t3code-preview-old/Code Cache",
+	} {
+		cache := fixtureDir(t, s.home, root, 4096)
+		caches = append(caches, cache)
+		if reason := s.cleanupReason(cache, true); reason != "" {
+			t.Fatalf("an idle, closed cache leaf must be reviewable: %s: %s", root, reason)
+		}
+	}
+	for _, root := range []string{
+		"Library/Caches/Codex", "Library/Caches/Codex/Default/Cookies",
+		"Library/Application Support/t3code-v2", "Library/Application Support/t3code-v2/Cache",
+		"Library/Application Support/t3code-v2/Partitions/default/Cache",
+		"Library/Application Support/t3code-v2/Partitions/t3code-preview-main/IndexedDB",
+		"Library/Application Support/t3code-v2/Partitions/t3code-preview-main/Service Worker",
+		".t3/threads",
+	} {
+		path := fixtureDir(t, s.home, root, 4096)
+		if reason := s.cleanupReason(path, true); reason == "" {
+			t.Errorf("a profile, login or thread store must never share the cache exception: %s", root)
+		}
+	}
+	rows := s.scanAICaches()
+	for i, path := range caches {
+		tool := "Codex"
+		if i >= 3 {
+			tool = "T3 Code"
+		}
+		if row := ownerRow(rows, tool, s.relativize(path)); row == nil || row["tier"] != "safe" || row["checked"] != true {
+			t.Errorf("resolved cache leaves must reach the actual AI catalog: %s: %v", path, row)
+		}
+	}
+	s.processProbe = func() (string, error) { return "/Applications/T3 Code Beta.app/Contents/MacOS/Helper\n", nil }
+	if reason := s.cleanupReason(caches[3], true); !strings.Contains(reason, "正在运行") {
+		t.Fatalf("a T3 build or helper that starts after scan must retain previews: %q", reason)
+	}
+	s.processProbe = func() (string, error) { return "/sbin/launchd\n", nil }
+	s.handleProbe = func(string) (bool, error) { return true, nil }
+	if reason := s.cleanupReason(caches[0], true); !strings.Contains(reason, "打开") {
+		t.Fatalf("a live Codex cache handle must block removal: %q", reason)
+	}
+	s.handleProbe = func(string) (bool, error) { return false, nil }
+	alias := filepath.Join(s.home, "Library/Application Support/t3code-v2/Partitions/t3code-preview-link")
+	if err := os.Symlink(filepath.Join(s.home, ".t3"), alias); err != nil {
+		t.Fatal(err)
+	}
+	if reason := s.cleanupReason(filepath.Join(alias, "Cache"), true); reason == "" {
+		t.Fatal("a preview-named link must not expand cleanup into thread storage")
+	}
+}
+
 func TestAIAgentDiagnosticsUseExactFilesAndRetention(t *testing.T) {
 	home := fixtureHome(t)
 	scanner := &Scanner{home: home, appDirs: []string{t.TempDir()}, processProbe: func() (string, error) { return "/usr/bin/idle\n", nil }, handleProbe: func(string) (bool, error) { return false, nil }}

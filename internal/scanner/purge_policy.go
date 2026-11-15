@@ -25,6 +25,10 @@ func rebuildCommand(project, name string) string {
 		return false
 	}
 	switch name {
+	case ".build":
+		if has("Package.swift") {
+			return "swift build"
+		}
 	case "node_modules":
 		switch {
 		case has("pnpm-lock.yaml"):
@@ -81,7 +85,7 @@ func rebuildCommand(project, name string) string {
 // the 30-day line is a heuristic, and a running builder is checked separately.
 func projectActivity(project string) int64 {
 	latest := modifiedTime(project)
-	for _, file := range []string{"package.json", "Cargo.toml", "pyproject.toml", ".git/index", ".git/HEAD"} {
+	for _, file := range []string{"package.json", "Cargo.toml", "pyproject.toml", "Package.swift", "Package.resolved", ".git/index", ".git/HEAD"} {
 		latest = max(latest, modifiedTime(filepath.Join(project, file)))
 	}
 	return latest
@@ -99,6 +103,9 @@ func idleDays(modified int64) int {
 // builder check runs afterwards and can still demote it to protected.
 func artifactVerdict(path string, modified int64) verdict {
 	name, project := filepath.Base(path), filepath.Dir(path)
+	if scratch := swiftPMOutputRoot(path); scratch != "" {
+		name, project = ".build", filepath.Dir(scratch)
+	}
 	days := idleDays(modified)
 	how := rebuildCommand(project, name)
 	if how == "" {
@@ -123,8 +130,12 @@ func artifactVerdict(path string, modified int64) verdict {
 // worktree: idle >= 7 days is safe, newer is review. Agents rebuild on demand.
 func (s *Scanner) worktreeArtifactVerdict(path string, size dirSize) verdict {
 	name := filepath.Base(path)
+	project := filepath.Dir(path)
+	if scratch := swiftPMOutputRoot(path); scratch != "" {
+		name, project = ".build", filepath.Dir(scratch)
+	}
 	kind := worktreeArtifactNames[name]
-	how := rebuildCommand(filepath.Dir(path), name)
+	how := rebuildCommand(project, name)
 	if how == "" {
 		how = "重新安装或重新编译"
 	}
@@ -160,7 +171,7 @@ func worktreeArtifacts(worktree string) []string {
 			}
 			path := filepath.Join(dir, entry.Name())
 			if worktreeArtifactNames[entry.Name()] != "" {
-				found = append(found, path)
+				found = append(found, swiftPMArtifacts(path)...)
 			} else if depth < 2 {
 				walk(path, depth+1)
 			}

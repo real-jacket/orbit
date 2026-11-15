@@ -1,6 +1,6 @@
 # Mole CLI 能力对照
 
-核对日期：2026-11-12。基准：[tw93/Mole V1.70.0](https://github.com/tw93/Mole/tree/V1.70.0)（`7ec1af8`）。
+核对日期：2026-11-15。最新核对：[tw93/Mole V1.72.0](https://github.com/tw93/Mole/tree/V1.72.0)（`f0bcdc9`）；原始规则基准为 V1.70.0（`7ec1af8`）。标记保留每条规则实际移植的版本，未变的规则不统一改号。
 
 ## 做法：移植规则，不调用 `mo`
 
@@ -10,7 +10,7 @@ orbit 不运行 `mo`，也不需要装 Mole。早期版本只调用过 `mo analy
 - `mo clean`、`mo purge`、`mo installer`、`mo optimize` 没有 JSON 输出，只有终端文字；`--select` / `--categories`
   已在 V1.70 移除，GUI 无法逐项勾选、预览后再执行。
 - `mo clean` / `purge` / `installer` 是永久删除；orbit 的每一次移除都进废纸篓，并写还原清单。
-- `mo` 会在需要时弹 sudo；orbit 是不提权的用户态应用。
+- `mo` 会在需要时弹 sudo；orbit 的文件清理保持用户态，只有用户主动点击释放系统文件缓存时才请求 macOS 管理员授权。
 
 所以 orbit 把 Mole 的**判断逻辑**（路径清单、可重建证据、运行中保护、白名单、年龄阈值）移植成 Go，执行仍走
 orbit 自己的预览 → 确认 → 移入废纸篓 → 回执 → 还原。两个项目都是 GPL-3.0。
@@ -27,12 +27,28 @@ orbit 自己的预览 → 确认 → 移入废纸篓 → 回执 → 还原。两
 
 ```bash
 make mole-sync                 # 对比到 Mole 最新发布版本
-make mole-sync MOLE_TAG=V1.71.0
+make mole-sync MOLE_TAG=V1.72.0
 ```
 
 `scripts/mole-sync.sh` 读取全部标记，只对比这些函数和变量在两个版本之间的差异（函数改了打印 diff，删掉或改名
 单独提示），再列出上游改动过、但还没有任何标记引用的规则文件。照着报告改完规则后，把对应标记的版本号改成新版本。
 脚本只读 Mole 仓库，不改 orbit 的任何文件。
+
+### 本次 V1.72 同步
+
+| 规则 | orbit 的变化与边界 |
+| --- | --- |
+| SwiftPM 构建目录 | `.build` 和带有效 SwiftPM `CACHEDIR.TAG` 的自定义 scratch 目录包含依赖时，只列出已识别的编译与索引产物；保留 checkouts、repositories、二进制 artifacts 与工作区状态。SourceKit 的 index-build 也拆分。移动前重新检查新依赖、Git/密钥内容、白名单、构建工具及打开的文件。 |
+| Claude 历史与 Puppeteer | `.claude` 根、projects、file-history、history.jsonl 不因应用卸载而放开整目录清理；orbit 已有的明确过期会话单元仍单独核验。Puppeteer 下载的浏览器保持原状。 |
+| Claude VM | 只识别 vm_bundles 直属的 .bundle；最新子文件也必须闲置 7 天，无法完整读取时保留。 |
+| 失效 LaunchAgent 的应用归属 | 可证明程序或直接脚本已不存在的任务不再作为安装证据。Program 优先，Disabled 不单独证明失效；PATH、未知参数、符号链接、隐私路径、卷与配置挂载点保持归属。整个判定共用 5 秒预算，超出后保留余下归属。复杂启动器与本地安装根以外的路径暂不判失效。 |
+| 卸载沙盒 | 只在直属 Containers / Group Containers 根即将移动、且已确认完全磁盘访问时，用系统 find 检查 4 层内的 restricted / sunlnk / com.apple.rootless；保护命中、读取失败或超时都保留，避免把无法清空的目录送进废纸篓。缓存子路径不触发这次遍历。 |
+| Spotlight 与项目配置 | 孤立搜索规则使用正确的 com.apple.Spotlight 域。空或仅注释的 purge_paths 继续使用默认范围；无效或不可读的配置仍不回退。 |
+| 既有 AI 缓存能力补齐 | 加入 Codex 桌面端的六个固定 Cache / Code Cache 目录，及 T3 Code 当前与 Alpha 配置里的 t3code-preview 分区缓存；保留登录、站点数据、Service Worker、.t3 任务历史，重新核验工具运行和打开文件。 |
+
+上游 scan_project_cache_root 对 `.tmp` / `.build-*` 的遍历优化属于 CLI 的全家目录缓存发现；orbit 没有调用该遍历，保持配置项目范围内的构建发现，带 SwiftPM 标记的自定义 scratch 目录仍可识别。终端输出、系统级永久删除与 CLI 自更新不移入 GUI 执行流程。
+
+本次核对后，`mole-sync` 仍会报告 dev.sh、user.sh、uninstall/batch.sh 的整文件差异：这些旧标记包含多项规则，不代表整份脚本都已移植。实际采纳的变化按函数单独更新标记；Codex 更新暂存等尚未采纳的部分继续在下表说明。
 
 ## 命令总表
 
@@ -64,7 +80,7 @@ orbit 的分级：推荐清理（默认勾选，可重建且没在用）、需�
 | Developer tools | `dev.sh` 各 `clean_dev_*`、`clean_dev_jvm` | 「开发工具缓存与临时文件」「开发包管理器下载缓存」「Gradle 与 CocoaPods 缓存」 |
 | Xcode | `clean_xcode_device_support` | 「Xcode 设备调试符号与测试设备数据」：保留最近使用的 2 个系统版本，其余推荐清理 |
 | 模拟器设备数据 | `_simulator_device_leaf_targets`、`_simulator_device_is_shut_down` | 同一分组：只列出 `device.plist` 为关机状态的设备的诊断日志、缓存（推荐）与系统资产（需确认）；有 `launchd_sim` 进程即视为模拟器在运行 |
-| 路径保护表 | `should_protect_path` | 已移植其中的壁纸与屏保资源、账户/邮件/日历/通讯录、Playwright/Cypress/camoufox、Google 标识队列等条目；另加 Spotlight 索引（orbit 自有） |
+| 路径保护表 | `should_protect_path` | 已移植其中的 Claude 历史、Puppeteer/Playwright/Cypress/camoufox 浏览器资源、壁纸与屏保、账户/邮件/日历/通讯录、Google 标识队列等条目；另加 Spotlight 索引（orbit 自有） |
 | macOS 用户状态 | `clean_system_state` | 「macOS 用户级缓存与状态」 |
 | 设备固件 | `clean_cached_device_firmware` | 「设备固件安装包缓存」：`.ipsw` 文件，正被打开的保留 |
 | Application Support 里的缓存与日志 | `clean_application_support_logs` | 「应用的浏览器内核缓存与崩溃报告」：沿用 Mole 的名称保护和白名单；应用运行时受保护，归属无法确认的交给「待核对数据」 |
@@ -104,8 +120,9 @@ Mole CLI 没有单独的 AI 清理命令；相关规则在 `mo clean` 的 `clean
 | Claude Desktop 内置的 Claude Code 与虚拟机 | 从 `.sdk-version` 判断当前版本，应用运行时跳过 | 相同 |
 | ChatGPT / Claude Desktop / LM Studio 缓存 | 清理 | 清理，工具运行时受保护 |
 | 会话、凭据、配置、模型、扩展、Agent 工作树 | 排除 | 只检查，不可勾选 |
-| Codex 运行缓存（staging 目录） | 清理 | 只检查，尚未移植 |
-| T3 Code 预览缓存（V1.70 新增） | 清理 | 尚未移植 |
+| Codex 桌面浏览器缓存 | 六个固定 Cache / Code Cache 目录 | 相同；保留 Cookies、IndexedDB、Local Storage 与配置父目录 |
+| Codex 更新暂存（staging 目录） | 核验安装版本、等待更新与文件活跃状态后清理 | 仍只检查，尚未移植版本级清理 |
+| T3 Code 预览缓存 | 当前与 Alpha 配置中的 t3code-preview 分区 Cache / Code Cache | 已移植；其余站点与任务数据保留 |
 
 ## 应用卸载（`mo uninstall`）
 

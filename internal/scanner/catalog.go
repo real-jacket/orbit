@@ -325,7 +325,7 @@ func (s *Scanner) scanCleanGroups() []map[string]any {
 	// The AI module reports some of the same directories; its roots take part
 	// in the dedupe too, or a cache would be counted in both payload sections.
 	moduleSpecs := append([]CatalogSpec{}, specs...)
-	for _, entry := range aiCacheSpecs() {
+	for _, entry := range s.aiDataSpecs() {
 		moduleSpecs = append(moduleSpecs, entry.spec)
 	}
 	for _, spec := range specs {
@@ -349,7 +349,7 @@ func (s *Scanner) cleanExcludedRoots() []map[string]any {
 
 func (s *Scanner) aiExcludedRoots() []map[string]any {
 	var specs []CatalogSpec
-	for _, entry := range aiCacheSpecs() {
+	for _, entry := range s.aiDataSpecs() {
 		if !entry.logFiles && entry.spec.Tier != "protected" {
 			specs = append(specs, entry.spec)
 		}
@@ -393,7 +393,7 @@ func (s *Scanner) scanAICaches() []map[string]any {
 	items := s.scanAIVersions(claims)
 	// Before the protected session rows, so their measured bytes exclude these units.
 	items = append(items, s.scanAISessions(claims)...)
-	for _, entry := range aiCacheSpecs() {
+	for _, entry := range s.aiDataSpecs() {
 		var row map[string]any
 		if entry.logFiles {
 			if _, owner, gone := s.goneOwner(s.expand(entry.spec.Roots[0])); gone {
@@ -424,7 +424,7 @@ func (s *Scanner) scanAICaches() []map[string]any {
 // twice. Rows are statically known, so this does not depend on scan order.
 func (s *Scanner) catalogRoots() []string {
 	specs := cleanGroupSpecs()
-	for _, entry := range aiCacheSpecs() {
+	for _, entry := range s.aiDataSpecs() {
 		specs = append(specs, entry.spec)
 	}
 	var roots []string

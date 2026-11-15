@@ -144,10 +144,12 @@ func TestPermissionAuditUnreadableClaudeInventoryKeepsVM(t *testing.T) {
 			s, apps := ownerScanner(t)
 			t.Cleanup(func() { clearReadWarnings(s.home) })
 			plist := filepath.Join(apps, "Renamed.app/Contents/Info.plist")
-			vm := fixtureDir(t, s.home, claudeSupportDir+"/vm/old.bundle", 4096)
+			vm := fixtureDir(t, s.home, claudeVMDir+"/old.bundle", 4096)
 			old := time.Now().Add(-10 * 24 * time.Hour)
-			if err := os.Chtimes(vm, old, old); err != nil {
-				t.Fatal(err)
+			for _, path := range []string{vm, filepath.Join(vm, "payload.bin")} {
+				if err := os.Chtimes(path, old, old); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if reason := s.claudeVMReason(vm, false); reason != "" {
 				t.Fatalf("isolated inventory has no installed owner: %q", reason)

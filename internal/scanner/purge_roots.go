@@ -41,7 +41,7 @@ type PurgeRoots struct {
 }
 
 // AbsolutePaths returns a copy of the accepted scope, including missing roots.
-// An empty saved scope never activates defaults during artifact discovery.
+// An invalid or unreadable saved scope never activates defaults.
 func (roots PurgeRoots) AbsolutePaths() []string {
 	return append([]string{}, roots.Paths...)
 }
@@ -134,7 +134,7 @@ func (s *Scanner) defaultPurgeRoots() []string {
 // PurgeRoots reports where the next scan will look. A missing or empty file
 // means the defaults; a file that exists but cannot be read stops discovery,
 // because scanning the defaults would ignore the scope the user chose.
-// Ported from tw93/Mole V1.70.0 lib/clean/project.sh load_purge_config
+// Ported from tw93/Mole V1.72.0 lib/clean/project.sh load_purge_config
 func (s *Scanner) PurgeRoots() PurgeRoots {
 	roots, _, _ := s.loadPurgeRoots()
 	return roots
