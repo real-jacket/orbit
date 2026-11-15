@@ -360,13 +360,17 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 	if reason := s.cacheOwnerRunningReason(path, live); reason != "" {
 		return reason
 	}
-	if isAgentWorktreeRoot(path, s.home) {
-		// Only a clean, long-idle checkout nobody is working in may move.
+	worktree := exists(filepath.Join(path, ".git")) || isAgentWorktreeRoot(path, s.home) && !isAgentWorktreeArtifact(path, s.home)
+	if worktree {
+		tree, err := gitWorktreeAt(path)
+		if err != nil {
+			return err.Error()
+		}
+		if tree.reason != "" {
+			return tree.reason
+		}
 		if state := worktreeState(path); !strings.HasPrefix(state, "工作区干净") {
 			return worktreeKept(state)
-		}
-		if idleDays(projectActivity(path)) < 30 {
-			return "工作树最近 30 天内有活动，保持原状"
 		}
 		builders, err := s.builderSnapshot(live)
 		if err != nil {
@@ -374,6 +378,18 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 		}
 		if builder, busy := builderUsing(builders, path); busy {
 			return "构建或依赖工具（" + builder + "）正在运行并使用这个项目，暂缓清理"
+		}
+		var open bool
+		switch {
+		case s.handleProbe != nil:
+			open, err = s.handleProbe(path)
+		case !live && s.openSnapshot != nil:
+			open, err = s.openSnapshot(path)
+		default:
+			open, err = openFileSnapshot()(path)
+		}
+		if open || err != nil {
+			return "工作树仍被进程打开或占用状态无法核验，保持原状"
 		}
 	}
 	if isAgentWorktreeArtifact(path, s.home) && ambiguousArtifactName(filepath.Base(path)) && !gitIgnored(path) {
@@ -384,13 +400,13 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 	}
 	scratch := swiftPMOutputRoot(path)
 	swiftPM := scratch != "" || isSwiftPMScratchRoot(path)
-	if live && swiftPM {
+	if live && !worktree && (swiftPM || isArtifactName(filepath.Base(path))) {
 		candidate := artifactCandidate{path: path, name: filepath.Base(path)}
 		guardArtifact(&candidate, time.Now().Add(2*time.Second))
 		if candidate.protect != "" {
 			return candidate.protect
 		}
-		if candidate.unverified != "" {
+		if swiftPM && candidate.unverified != "" {
 			return candidate.unverified
 		}
 	}

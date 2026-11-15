@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
-	artifactSafeDays   = 30 // untouched this long: recommended, pre-checked
-	artifactReviewDays = 7  // untouched this long: offered, needs a look
-	worktreeSafeDays   = 7  // agent worktree artifacts go idle sooner
+	artifactSafeDays = 30 // untouched this long: recommended, pre-checked
+	worktreeSafeDays = 7  // agent worktree artifacts go idle sooner
 )
 
 // rebuildCommand names the real command that brings back artifact name in
@@ -79,18 +79,6 @@ func rebuildCommand(project, name string) string {
 	return ""
 }
 
-// projectActivity is the newest sign of work on project outside the artifact:
-// the project folder, its manifest and the git index (commits and checkouts
-// rewrite it). shortcut: edits deep in source folders change none of these, so
-// the 30-day line is a heuristic, and a running builder is checked separately.
-func projectActivity(project string) int64 {
-	latest := modifiedTime(project)
-	for _, file := range []string{"package.json", "Cargo.toml", "pyproject.toml", "Package.swift", "Package.resolved", ".git/index", ".git/HEAD"} {
-		latest = max(latest, modifiedTime(filepath.Join(project, file)))
-	}
-	return latest
-}
-
 // idleDays is how many whole days ago modified was; unknown times count as busy.
 func idleDays(modified int64) int {
 	if modified <= 0 {
@@ -119,16 +107,24 @@ func artifactVerdict(path string, modified int64) verdict {
 		return verdict{tier: "review", reason: "读不到修改时间，无法判断是否还在使用，请确认后再清理"}
 	case days >= artifactSafeDays:
 		return verdict{tier: "safe", reason: fmt.Sprintf("%d 天未修改，可用 %s 重建", days, how)}
-	case days >= artifactReviewDays:
-		return verdict{tier: "review", reason: fmt.Sprintf("%d 天未修改，项目可能仍在使用；清理后需用 %s 重建", days, how)}
 	}
-	return verdict{tier: "protected", reason: fmt.Sprintf("最近 %d 天内刚修改过，项目可能正在使用，暂缓清理", days),
-		unlock: "该项目闲置一周以上后重新扫描即可清理"}
+	return verdict{tier: "review", reason: fmt.Sprintf("%d 天未修改；确认不再需要这些产物后，可清理并用 %s 重建", days, how)}
 }
 
 // worktreeArtifactVerdict is the same decision for an artifact inside an agent
 // worktree: idle >= 7 days is safe, newer is review. Agents rebuild on demand.
 func (s *Scanner) worktreeArtifactVerdict(path string, size dirSize) verdict {
+	candidate := artifactCandidate{path: path, name: filepath.Base(path)}
+	guardArtifact(&candidate, time.Now().Add(2*time.Second))
+	if candidate.protect != "" {
+		return verdict{tier: "protected", reason: candidate.protect}
+	}
+	if candidate.unverified != "" {
+		return verdict{tier: "review", reason: candidate.unverified}
+	}
+	if size.partial {
+		return verdict{tier: "review", reason: "目录太大没有读完，无法确认里面最近是否改动过，请确认后再清理"}
+	}
 	name := filepath.Base(path)
 	project := filepath.Dir(path)
 	if scratch := swiftPMOutputRoot(path); scratch != "" {

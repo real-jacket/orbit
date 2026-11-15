@@ -65,6 +65,7 @@ func (s *Scanner) BuildFullScanPayload() FullScanPayload {
 	// run side by side, slowest first. The view shares one `ps` table and one
 	// lsof snapshot between them.
 	view := s.scanView()
+	view.projects = sync.OnceValue(func() projectDiscovery { return view.discoverProjects(purgeRoots.AbsolutePaths()) })
 	var wg sync.WaitGroup
 	for _, section := range []func(){
 		func() { payload.CleanGroups = view.scanCleanGroups() },

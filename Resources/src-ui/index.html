@@ -1079,9 +1079,6 @@
   .tray-heading small, .tray-updated { font-size: 10.5px; color: var(--text-secondary); }
   .tray-updated { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tray-head .tray-text-button { flex: none; }
-  .tray-tabs { flex: none; }
-  .tray-tabs button.seg-tab { flex: 1; border: 0; font-family: inherit; min-height: 32px; }
-  .tray-tabs button.seg-tab:not(.active) { background: transparent; }
   .tray-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: none; }
   .tray-metric { display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 112px; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-surface); color: var(--text-primary); text-align: left; cursor: pointer; }
   .tray-metric-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--text-secondary); }
@@ -1121,7 +1118,6 @@
   .tray-proc:hover .tray-proc-chev { color: var(--text-primary); }
   .tray-proc[aria-pressed="true"] { background: var(--accent-soft); }
   .tray-proc-name small { display: block; font: 10px/1.5 var(--font-mono); color: var(--text-secondary); }
-  .tray-proc-view, .tray-clean-view { display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .tray-proc-view { display: contents; }
   .tray-scroll-list { overflow-y: auto; min-height: 80px; flex: 1; overscroll-behavior: contain; }
   .tray-proc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; }
@@ -1141,18 +1137,12 @@
   .tray-process-tools .btn-kill { opacity: 1; }
   .tray-process-tools .btn.btn-kill:disabled { opacity: 0.45; }
   .tray-process-tools .tray-text-button:last-child { margin-left: auto; }
-  .tray-clean-overview { display: grid; gap: 8px; padding: 24px 4px; }
-  .tray-clean-overview > strong { font: 700 32px/1.2 var(--font-mono); }
-  .tray-clean-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 8px 4px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 11.5px; }
-  .tray-clean-row > b { font: 11px var(--font-mono); white-space: nowrap; }
-  .tray-clean-summary { margin-top: auto; padding-top: 8px; flex: none; }
-  .tray-clean-summary .tray-tool { width: 100%; }
   .tray-empty { padding: 10px 6px; color: var(--text-muted); font-size: 11px; }
   .tray-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: none; }
   .tray-memory-status { flex: none; }
   .tray-tool { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 8px; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--bg-surface); color: var(--text-primary); font-size: 11px; font-weight: 600; cursor: pointer; }
   .tray-tool .ui-ico { width: 14px; height: 14px; }
-  .tray-tool.tray-quick { background: var(--accent-primary); color: var(--accent-ink); border-color: transparent; }
+  .tray-tool.tray-quick { flex: none; background: var(--accent-primary); color: var(--accent-ink); border-color: transparent; }
   .tray-tool.tray-quick:hover { background: var(--accent-primary-hover); color: var(--accent-ink); }
   .tray-tool.tray-awake { justify-content: space-between; text-align: left; min-height: 40px; padding-block: 4px; }
   .tray-awake-label { display: flex; align-items: center; gap: 8px; }
@@ -1166,7 +1156,7 @@
   .tray-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 6px; min-height: 28px; padding: 4px 6px; background: transparent; color: var(--text-secondary); font-size: 10.5px; cursor: pointer; }
   button.tray-metric:hover, .tray-proc:hover, .tray-tool:hover, .tray-text-button:hover { background: var(--bg-card-hover); color: var(--text-primary); }
   div.tray-metric { cursor: default; }
-  .tray-metric:focus-visible, .tray-proc:focus-visible, .tray-tool:focus-visible, .tray-text-button:focus-visible, .tray-tabs .seg-tab:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+  .tray-metric:focus-visible, .tray-proc:focus-visible, .tray-tool:focus-visible, .tray-text-button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
   .tray-tool:disabled { opacity: 0.6; cursor: wait; }
   .tray-quit:hover { color: var(--accent-rose); }
   .runtime-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-surface); flex: none; }
@@ -1210,6 +1200,11 @@
   .clean-exclusions .permission-group-path b, .clean-exclusions .permission-group-path small { white-space: normal; overflow-wrap: anywhere; }
   .ai-tool-filter { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); }
   .ai-tool-filter select { min-width: 0; max-width: 220px; height: 28px; padding: 0 8px; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 6px; font: inherit; }
+  .ai-worktree-project > summary { list-style: none; }
+  .ai-worktree-project > summary::-webkit-details-marker { display: none; }
+  .ai-project-chevron { display: inline-block; color: var(--text-muted); font-size: 18px; }
+  .ai-worktree-project[open] .ai-project-chevron { transform: rotate(90deg); }
+  .ai-worktree-rows { margin-left: 18px; border-left: 1px solid var(--border-subtle); }
   .runtime-check-time { font-size: 10.5px; color: var(--text-secondary); }
   .runtime-panel-footer { display: flex; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--border-subtle); flex: none; }
   .memory-panel { width: 560px; }
@@ -1776,7 +1771,7 @@
     <div class="runtime-content"><p id="memoryMaintenanceStatus" class="runtime-status" role="status" aria-live="polite"></p></div>
     <div class="memory-panel-footer">
       <button class="btn" onclick="closeMemoryMaintenance();if(document.body.classList.contains('menubar-mode'))setTrayView('processes');else switchModule('status');sortProcessesBy('memory_mb');" data-i18n>查看内存进程</button>
-      <div><button class="btn" id="memoryCloseBtn" data-autofocus onclick="closeMemoryMaintenance()" data-i18n>取消</button><button class="btn btn-primary" id="memoryReleaseBtn" onclick="releaseFileCache()" data-i18n>授权并释放文件缓存</button></div>
+      <div><button class="btn" id="memoryCloseBtn" data-autofocus onclick="closeMemoryMaintenance()" data-i18n>取消</button><button class="btn btn-primary" id="memoryReleaseBtn" onclick="releaseFileCache()" data-i18n>释放文件缓存</button></div>
     </div>
   </div>
 </div>
@@ -2227,6 +2222,7 @@ const DEFAULT_STATE = {
   aiToolFilter: 'all',
   aiExcludedRoots: [],
   aiExcludedOpen: false,
+  aiProjectsOpen: [],
   appsList: [],
   orphanLeftoversList: [],
   largeFiles: [],
@@ -2321,6 +2317,7 @@ STATE.runtimeRelaunch = ''; STATE.runtimeSettingsOpened = false; STATE.runtimeRe
 STATE.scanReadWarnings = [];
 STATE.cleanExcludedRoots = []; STATE.cleanExcludedOpen = false;
 STATE.aiToolFilter = 'all'; STATE.aiExcludedRoots = []; STATE.aiExcludedOpen = false;
+STATE.aiProjectsOpen = [];
 STATE.historyTab = 'restore';
 STATE.trayView = 'overview'; STATE.traySearch = ''; STATE.trayProcess = null; STATE.processReceivedAt = 0;
 STATE.killArmed = null; STATE.killArmedIdentity = null;
@@ -3254,7 +3251,7 @@ function updateLivePill() {
 // Shared by the native menu-bar panel and the browser preview.
 function buildMenuBarTrayHTML() {
   const cpu = stateCpuPct();
-  const view = STATE.trayView || 'overview';
+  const view = STATE.trayView === 'processes' ? 'processes' : 'overview';
   const topProcesses = view === 'overview' ? [...STATE.processes].sort((left, right) => (Number(right.cpu) || 0) - (Number(left.cpu) || 0)).slice(0, 20) : [];
   const th = thermalInfo(), pr = pressureInfo(), bat = powerInfo().battery;
   const temperature = fmtTempC((STATE.hw || {}).cpuTempC);
@@ -3277,32 +3274,17 @@ function buildMenuBarTrayHTML() {
   const processes = view === 'processes' ? STATE.processes.filter(p => !query || `${p.name} ${p.pid} ${p.path}`.toLowerCase().includes(query)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (Number(b[STATE.procSortKey]) || 0) - (Number(a[STATE.procSortKey]) || 0) || a.pid - b.pid) : [];
   const processRow = (process, full = false) => `<button class="tray-proc" data-tray-key="process:${process.pid}:${escHtml(process.path)}" data-tray-pid="${process.pid}" onclick="selectTrayProcess(${process.pid})" ${full ? `aria-pressed="${STATE.trayProcess?.pid === process.pid && STATE.trayProcess?.path === process.path}"` : ''} title="${escHtml(process.name + '\n' + process.path)}">
     <span class="tray-proc-name">${process.pinned ? UI_ICON('pin') : ''}${escHtml(process.name)}${full ? `<small>PID ${process.pid}</small>` : ''}</span><span class="tray-proc-meta"><b title="CPU">${hasNum(process.cpu) ? fmtNum(process.cpu, 1) + '%' : t('未知')}</b><span title="${t('内存')}">${hasNum(process.memory_mb) ? fmtProcMem(process.memory_mb) : t('未知')}</span></span><span class="tray-proc-chev" aria-hidden="true">›</span></button>`;
-  const cleanTotals = { safe: { size: 0, known: false, partial: false }, review: { size: 0, known: false, partial: false } };
-  let cleanGroups = 0;
-  for (const group of STATE.cleanGroups) {
-    if (group.tier === 'protected') continue;
-    const paths = (group.subpaths?.length ? group.subpaths : [group]).filter(path => path.tier !== 'protected');
-    if (paths.length) cleanGroups++;
-    for (const path of paths) {
-      const total = cleanTotals[path.tier === 'safe' || !path.tier && group.tier === 'safe' ? 'safe' : 'review'];
-      if (hasNum(path.sizeGb) && path.sizeGb >= 0) { total.size += path.sizeGb; total.known = true; }
-      total.partial ||= !!path.partial || !!group.partial || !hasNum(path.sizeGb);
-    }
-  }
-  const cleanTotal = { size: cleanTotals.safe.size + cleanTotals.review.size, known: cleanTotals.safe.known || cleanTotals.review.known, partial: cleanTotals.safe.partial || cleanTotals.review.partial };
-  const cleanSize = total => !total.known && total.partial ? t('未读取') : total.partial ? t('至少 {size}', { size: fmtDiskSizeGb(total.size) }) : fmtDiskSizeGb(total.size);
   const memoryOperation = STATE.memoryMaintenance;
   return `
     <div class="tray-head">
       <div class="app-icon-box brand-plate tray-brand">${get_skeuo_svg('brand', 'tray')}</div>
       <div class="tray-heading"><strong>orbit</strong><time class="tray-updated" data-tray-key="updated">${updated}</time></div><button class="tray-text-button" data-tray-key="update" onclick="sendNativeBridge({action:'checkForUpdates'})">${t('检查更新')}</button>
     </div>
-    <div class="segmented-tabs tray-tabs" role="tablist" aria-label="${t('菜单栏工具')}">${[['overview', t('概览')], ['processes', STATE.processReceivedAt ? t('进程 {n}', { n: STATE.processes.length }) : t('进程')], ['clean', t('清理')]].map(([key, label]) => `<button class="seg-tab ${view === key ? 'active' : ''}" role="tab" aria-selected="${view === key}" data-tray-key="${key === 'processes' ? 'status' : key}" onclick="setTrayView('${key}')">${label}</button>`).join('')}</div>
     ${view === 'overview' ? `
     <div class="tray-metrics">
       ${metric('cpu', 'cpu', t('处理器'), hasNum(cpu) ? fmtNum(cpu, 1) + '%' : t('未知'), '', "STATE.procSortKey='cpu';setTrayView('processes')", 'var(--text-primary)', cpuTrend, temperature ? `<span class="tray-temperature" title="${escHtml(t(th[0]))}">${temperature}</span>` : '')}
       ${metric('memory', 'memory', t('内存压力'), pressureWord || t('未知'), memory, "STATE.procSortKey='memory_mb';setTrayView('processes')", pr[1], memoryCapacityGraph())}
-      ${metric('disk', 'disk', t('磁盘可用'), hasNum(STATE.freeDiskGb) ? fmtDiskSizeGb(STATE.freeDiskGb, 1) : t('未知'), t('启动磁盘'), "setTrayView('clean')", 'var(--text-primary)', diskGraph)}
+      ${metric('disk', 'disk', t('磁盘可用'), hasNum(STATE.freeDiskGb) ? fmtDiskSizeGb(STATE.freeDiskGb, 1) : t('未知'), t('启动磁盘'), "document.body.classList.contains('menubar-mode')?sendNativeBridge({action:'menubarOpenAnalyze'}):switchModule('analyze')", 'var(--text-primary)', diskGraph)}
       <div class="tray-metric" data-tray-metric="network" aria-label="${escHtml(t('网络速率，下载 {down}，上传 {up}', { down: download || t('未知'), up: upload || t('未知') }))}">
         <span class="tray-metric-head"><span>${UI_ICON('network')} ${t('网络')}</span></span>
         <span class="tray-network-rates"><span><em style="color:var(--accent-blue);">${netDownLabel()}</em>${escHtml(download || t('未知'))}</span><span><em style="color:var(--accent-emerald);">${t('上传')}</em>${escHtml(upload || t('未知'))}</span></span>
@@ -3314,37 +3296,30 @@ function buildMenuBarTrayHTML() {
       <div class="tray-proc-head"><span title="${t('CPU 按单核 100% 计，多核进程可超过 100%')}">${t('CPU 占用最高的进程')}</span><button class="tray-text-button" data-tray-key="all-processes" onclick="setTrayView('processes')">${t('查看全部 ›')}</button></div>
       <div class="tray-proc-list tray-scroll-list" role="group" aria-label="${t('CPU 占用最高的进程，CPU 按单核 100% 计')}">${topProcesses.length ? topProcesses.map(process => processRow(process)).join('') : `<div class="tray-empty">${STATE.processReceivedAt ? t('本次采样未列出进程') : t('尚未收到进程采样')}</div>`}</div>
     </div>
-    ` : view === 'processes' ? `
+    ` : `
     <div class="tray-proc-view">
+      <div class="tray-proc-toolbar"><button class="tray-text-button" data-tray-key="overview-back" onclick="setTrayView('overview')">‹ ${t('返回概览')}</button><span class="tray-list-note">${t('全部进程')}</span></div>
       <div class="search-box tray-search">${UI_ICON('search')}<input type="search" data-tray-key="process-search" value="${escHtml(STATE.traySearch || '')}" aria-label="${t('搜索进程或 PID')}" placeholder="${t('搜索进程或 PID')}" oninput="setTraySearch(this.value)" /></div>
       <div class="tray-list-note">${STATE.processReceivedAt ? t('显示 {shown} / {total} 个匹配进程', { shown: Math.min(PROC_DRAWER_MAX, processes.length), total: processes.length }) : t('等待采样')}</div>
       <div class="tray-proc-columns"><span>${t('进程名称')}</span><span class="tray-proc-meta">${[['cpu', 'CPU'], ['memory_mb', t('内存')]].map(([key, label]) => `<button class="tray-text-button" data-tray-key="sort:${key}" onclick="sortProcessesBy('${key}')" aria-pressed="${STATE.procSortKey === key}" aria-label="${escHtml(t('按 {field} 排序', { field: label }))}" ${key === 'cpu' ? `title="${t('CPU 按单核 100% 计，多核进程可超过 100%')}"` : ''}>${label}${STATE.procSortKey === key ? ' ↓' : ''}</button>`).join('')}</span><span class="tray-proc-chev"></span></div>
       <div class="tray-proc-list tray-scroll-list" role="group" aria-label="${t('全部进程')}">${processes.length ? processes.slice(0, PROC_DRAWER_MAX).map(process => processRow(process, true)).join('') : `<div class="tray-empty">${query ? t('没有匹配的进程') : STATE.processReceivedAt ? t('本次采样未列出进程') : t('尚未收到进程采样')}</div>`}</div>
       ${buildTrayProcessDetailHTML()}
     </div>
-    ` : `
-    <div class="tray-clean-view">
-      <div class="tray-proc-toolbar"><strong>${t('缓存与日志')}</strong><button class="tray-text-button" data-tray-key="scan" ${STATE.scanRunning || pendingTrashRequests.size || pendingRestoreRequests.size ? 'disabled' : ''} onclick="triggerNativeRescan(true);renderMenuBarTrayContent()">${UI_ICON('refresh')} ${STATE.scanRunning ? t('正在扫描') : t('重新扫描')}</button></div>
-      <div class="tray-clean-overview"><strong>${STATE.scanCompleted ? cleanSize(cleanTotal) : t('等待扫描')}</strong><span class="tray-list-note">${STATE.scanRunning ? t('正在扫描') : STATE.scanCompleted ? cleanGroups ? t('发现 {n} 类缓存与日志', { n: cleanGroups }) : t('未发现可清理项目') : t('还没有扫描结果')}</span></div>
-      ${STATE.scanCompleted ? ['safe', 'review'].map(tier => `<div class="tray-clean-row"><span>${tier === 'safe' ? t('推荐清理') : t('需确认')}</span><b>${cleanSize(cleanTotals[tier])}</b></div>`).join('') : ''}
-      <p class="tray-list-note">${t('在主窗口选择具体项目并清理。')}</p>
-      ${warningSummary(scanWarningsForModule('clean')).actionable ? `<p class="tray-list-note">${t('部分路径未完成读取，请核对具体目录。')} <button class="tray-text-button" data-tray-key="clean-permissions" onclick="openRuntimePanel()">${t('查看权限')}</button></p>` : ''}
-      <div class="tray-clean-summary"><button class="tray-tool tray-quick" data-tray-key="clean-open" onclick="openQuickClean()">${t('进入清理')}</button></div>
-    </div>
     `}
     <div class="tray-actions">
-      <button class="tray-tool" data-tray-key="memory-tools" onclick="releaseFileCache()" aria-busy="${memoryOperation.pending}" ${memoryOperation.pending || memoryOperation.unknown || !window.isNativeMacApp ? 'disabled' : ''} title="${t('释放系统文件缓存；需要管理员授权，重新读取文件可能暂时变慢。')}"><span class="tray-awake-label">${UI_ICON('memory')}<span>${memoryOperation.pending ? t('正在优化…') : memoryOperation.unknown ? t('执行状态未知') : t('优化内存')}<small>${t('文件缓存 · 需授权')}</small></span></span></button>
+      <button class="tray-tool" data-tray-key="memory-tools" onclick="releaseFileCache()" aria-busy="${memoryOperation.pending}" ${memoryOperation.pending || memoryOperation.unknown || !window.isNativeMacApp ? 'disabled' : ''} title="${t('释放系统文件缓存；首次或授权过期时需要管理员授权，重新读取文件可能暂时变慢。')}"><span class="tray-awake-label">${UI_ICON('memory')}<span>${memoryOperation.pending ? t('正在优化…') : memoryOperation.unknown ? t('执行状态未知') : t('优化内存')}<small>${t('文件缓存 · 按需授权')}</small></span></span></button>
       <button class="tray-tool tray-awake" data-tray-key="caffeinate" role="switch" aria-checked="${STATE.caffeinateActive}" aria-busy="${pending}" ${pending ? 'disabled' : ''} onclick="toggleCaffeinateState()">
         <span class="tray-awake-label">${UI_ICON('plug')}<span>${sleepLabel}<small>${STATE.caffeinateActive ? t('已开启 · 最长 2 小时') : t('最长保持 2 小时')}</small></span></span><span class="tray-switch" aria-hidden="true"><i></i></span>
       </button>
     </div>
     ${memoryOperation.status ? `<p class="tray-list-note tray-memory-status" data-tray-key="memory-status" role="status">${escHtml(t(memoryOperation.status))}</p>` : ''}
+    <button class="tray-tool tray-quick" data-tray-key="clean-open" onclick="openQuickClean()">${UI_ICON('disk')} ${t('清理缓存')}</button>
     <div class="tray-footer"><button class="tray-text-button" data-tray-key="main" onclick="sendNativeBridge({action:'menubarShowMain'})">${t('打开主窗口')}</button><button class="tray-text-button" data-tray-key="doctor" onclick="openDoctorModal(false)">${t('系统体检')}</button><button class="tray-text-button tray-quit" data-tray-key="quit" onclick="sendNativeBridge({action:'menubarQuit'})">${t('退出 orbit')}</button></div>
   `;
 }
 
 function setTrayView(view) {
-  if (!['overview', 'processes', 'clean'].includes(view)) return;
+  if (!['overview', 'processes'].includes(view)) return;
   STATE.trayView = view;
   STATE.killArmed = null; STATE.killArmedIdentity = null; clearTimeout(window._killTimer);
   renderMenuBarTrayContent();
@@ -3427,12 +3402,12 @@ function renderMemoryMaintenance() {
   const parts = memory ? t('应用 {app} · 固定 {wired} · 压缩 {compressed} GiB', { app: fmtNum(memory.appGb, 1), wired: fmtNum(memory.wiredGb, 1), compressed: fmtNum(memory.compressedGb, 1) }) : t('本机未提供内存分项');
   document.getElementById('memoryMaintenanceBody').innerHTML = `<div class="memory-overview"><b>${used}</b><span style="color:${pressure[1]};">${t(pressure[0])}</span></div>${memoryCapacityGraph()}
     <div class="runtime-section"><p>${parts}</p><p>${memory ? t('文件缓存 {cache} GiB；', { cache: fmtNum(memory.cacheGb, 1) }) : ''}${t('缓存可被 macOS 自动回收。占用高不代表内存压力高。')}</p></div>
-    <div class="runtime-section memory-warning"><strong>${t('释放系统文件缓存（可选）')}</strong><p>${t('执行 /usr/sbin/purge，只释放磁盘文件缓存，不会清空应用分配的内存，不会关闭进程，也不会删除个人文件。')}</p><p>${t('需要 macOS 管理员授权，弹窗可能显示 osascript；应用不读取密码。缓存随后会按需重建，应用重新读取文件时可能暂时变慢；压力正常时通常无需操作。')}</p></div>`;
+    <div class="runtime-section memory-warning"><strong>${t('释放系统文件缓存（可选）')}</strong><p>${t('执行 /usr/sbin/purge，只释放磁盘文件缓存，不会清空应用分配的内存，不会关闭进程，也不会删除个人文件。')}</p><p>${t('首次或授权过期时需要 macOS 管理员授权，弹窗可能显示 osascript；同一会话复用系统授权，应用不读取或保存密码。缓存随后会按需重建，应用重新读取文件时可能暂时变慢；压力正常时通常无需操作。')}</p></div>`;
   const status = document.getElementById('memoryMaintenanceStatus');
   const message = operation.status ? t(operation.status) : (window.isNativeMacApp ? t('确认前不会执行。授权弹窗由 macOS 提供，可直接取消。') : t('请在原生 macOS 应用内执行；网页预览不会运行系统命令。'));
   if (status.textContent !== message) status.textContent = message;
   document.getElementById('memoryReleaseBtn').disabled = operation.pending || operation.unknown || !window.isNativeMacApp;
-  document.getElementById('memoryReleaseBtn').textContent = operation.pending ? t('等待系统回执…') : operation.unknown ? t('执行状态未知') : t('授权并释放文件缓存');
+  document.getElementById('memoryReleaseBtn').textContent = operation.pending ? t('等待系统回执…') : operation.unknown ? t('执行状态未知') : t('释放文件缓存');
   document.getElementById('memoryCloseBtn').textContent = operation.pending || operation.status ? t('关闭') : t('取消');
   document.getElementById('memoryModal').setAttribute('aria-busy', operation.pending ? 'true' : 'false');
 }
@@ -3498,7 +3473,7 @@ function renderMenuBarTrayContent() {
     const list = host.querySelector('.tray-scroll-list');
     if (list) list.scrollTop = listScroll;
     if (focusedKey) {
-      const target = host.querySelector('[data-tray-key="' + CSS.escape(focusedKey) + '"]:not(:disabled)') || host.querySelector('[data-tray-key="status"]');
+      const target = host.querySelector('[data-tray-key="' + CSS.escape(focusedKey) + '"]:not(:disabled)') || host.querySelector('[data-tray-key="overview-back"], [data-tray-key="all-processes"]');
       target?.focus({ preventScroll: true });
       if (selection && target instanceof HTMLInputElement) target.setSelectionRange(...selection);
     }
@@ -4244,11 +4219,14 @@ function tierSummary(items) {
   const sum = { safe: { gb: 0, n: 0, partial: false }, review: { gb: 0, n: 0, partial: false }, protected: { gb: 0, n: 0, partial: false } };
   (items || []).forEach(it => {
     if (it.cleaned) return;
+    let overlap = it.wholeWorktree ? (items || []).filter(row => !row.cleaned && !row.wholeWorktree && row.worktreePath === it.worktreePath).reduce((total, row) => total + ((row.subpaths || []).length ? row.subpaths.filter(sp => !sp.cleaned).reduce((bytes, sp) => bytes + (Number(sp.sizeGb) || 0), 0) : Number(row.sizeGb) || 0), 0) : 0;
     const subs = (it.subpaths || []).filter(sp => !sp.cleaned);
-    (subs.length ? subs.map(sp => ({ tier: it.tier === 'protected' ? 'protected' : sp.tier || it.tier, gb: sp.sizeGb, partial: sp.partial })) : [{ tier: it.tier, gb: it.sizeGb, partial: it.partial }]).forEach(r => {
+    (subs.length ? subs.map(sp => ({ tier: it.tier === 'protected' ? 'protected' : sp.tier || it.tier, gb: sp.sizeGb, partial: sp.partial || it.wholeWorktree && it.partial })) : [{ tier: it.tier, gb: it.sizeGb, partial: it.partial }]).forEach(r => {
       if (!TIERS.includes(r.tier)) return;
       const bucket = sum[r.tier];
-      bucket.n++; bucket.gb += Number(r.gb) || 0; bucket.partial = bucket.partial || !!r.partial;
+      const bytes = Number(r.gb) || 0, duplicate = Math.min(bytes, overlap);
+      overlap -= duplicate;
+      bucket.n++; bucket.gb += bytes - duplicate; bucket.partial = bucket.partial || !!r.partial;
     });
   });
   return sum;
@@ -4410,6 +4388,15 @@ function clearAIFilters() {
 
 // Interactive Handlers for AI Care (Zero protected items in list)
 function selectMoonRow(idx) { STATE.selectedMoonIdx = idx; renderModule(); }
+function clearAIWorktreeOverlap(band) {
+  if (!band.worktreePath) return;
+  STATE.aiMoonBands.forEach(other => {
+    if (other !== band && other.worktreePath === band.worktreePath && (band.wholeWorktree || other.wholeWorktree)) {
+      other.checked = false;
+      (other.subpaths || []).forEach(path => { path.checked = false; });
+    }
+  });
+}
 function toggleMoonCheck(idx, ev) {
   if (ev) ev.stopPropagation();
   const b = STATE.aiMoonBands[idx];
@@ -4417,6 +4404,7 @@ function toggleMoonCheck(idx, ev) {
   b.checked = !b.checked;
   (b.subpaths || []).forEach(sp => { sp.checked = b.checked && sp.tier !== 'protected'; });
   b.checked = selectedSubpaths(b).length > 0;
+  if (b.checked) clearAIWorktreeOverlap(b);
   persistState();
   updateSidebarBadges();
   renderModule();
@@ -4426,7 +4414,68 @@ function toggleMoonSubpathCheck(idx, subIdx) {
   if (!sp || b.tier === 'protected' || sp.tier === 'protected') return;
   sp.checked = !sp.checked;
   b.checked = selectedSubpaths(b).length > 0;
+  if (b.checked) clearAIWorktreeOverlap(b);
   persistState(); updateSidebarBadges(); renderModule();
+}
+function setAIProjectOpen(project, open) {
+  STATE.aiProjectsOpen = (STATE.aiProjectsOpen || []).filter(path => path !== project);
+  if (open) STATE.aiProjectsOpen.push(project);
+}
+function aiMeasuredGb(rows) {
+  const worktrees = new Map();
+  let total = 0;
+  rows.filter(row => !row.cleaned).forEach(row => {
+    const bytes = Number(row.sizeGb) || 0;
+    if (!row.worktreePath) { total += bytes; return; }
+    if (!worktrees.has(row.worktreePath)) worktrees.set(row.worktreePath, { whole: 0, artifacts: 0 });
+    const tree = worktrees.get(row.worktreePath);
+    if (row.wholeWorktree) tree.whole = Math.max(tree.whole, bytes);
+    else tree.artifacts += bytes;
+  });
+  return total + [...worktrees.values()].reduce((sum, tree) => sum + Math.max(tree.whole, tree.artifacts), 0);
+}
+function aiRowsHTML(rows) {
+  return rows.map(b => {
+    const idx = STATE.aiMoonBands.indexOf(b);
+    const name = b.wholeWorktree ? b.name : t(b.name);
+    return `<div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}"${movingAttr(b)} onclick="selectMoonRow(${idx})">
+      <div class="row-left">
+        ${b.tier === 'protected'
+          ? `<span class="lock-glyph" title="${t('保持原状，不可勾选')}">${UI_ICON('lock')}</span>`
+          : `<input type="checkbox" ${b.checked ? 'checked' : ''} onclick="toggleMoonCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
+        }
+        <div style="min-width:0;">
+          <div class="row-title" title="${escHtml(name)}">${escHtml(name)}</div>
+          <div class="row-sub">${escHtml(t(b.band))}${b.branch ? ' · ' + escHtml(t(b.branch)) : ''}${b.uninstalled ? ' · ' + t('已卸载') : ''}${b.ageText ? ' · ' + escHtml(ageLabel(b.ageText)) : ''} · ${escHtml(b.path)}</div>
+          ${tierNoteHTML(b, null, true)}${b.gitState && !b.reason && !b.safetyReason ? `<div class="row-sub" style="white-space:normal;">${escHtml(t(b.gitState))}</div>` : ''}
+          ${b.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(b.failedReason))}</div>` : ''}
+        </div>
+      </div>
+      <div class="row-right">
+        <span class="badge ${b.failed ? 'badge-review' : b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
+          ${b.failed ? t('未处理') : b.cleaned ? t('已清理') : tierLabel(b.tier)}
+        </span>
+        <span class="size-cell">${fmtPartialGb(b.sizeGb, b.partial)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+function aiGroupedRowsHTML(rows) {
+  const projects = new Map();
+  rows.filter(row => row.sourceProject).forEach(row => {
+    if (!projects.has(row.sourceProject)) projects.set(row.sourceProject, []);
+    projects.get(row.sourceProject).push(row);
+  });
+  return aiRowsHTML(rows.filter(row => !row.sourceProject)) + [...projects].map(([project, bands]) => `
+    <details class="ai-worktree-project" data-ai-project="${escHtml(project)}" ${(STATE.aiProjectsOpen || []).includes(project) ? 'open' : ''} ontoggle="if(this.isConnected)setAIProjectOpen('${jsq(project)}',this.open)">
+      <summary class="list-row">
+        <div class="row-left"><span class="ai-project-chevron" aria-hidden="true">›</span>${UI_ICON('folder')}
+          <div><div class="row-title" title="${escHtml(project)}">${escHtml(project.split('/').pop())}</div><div class="row-sub">${escHtml(displayPath(project))}</div></div>
+        </div>
+        <div class="row-right"><span class="badge badge-review">${t('{n} 个工作树', {n: new Set(bands.map(b => b.worktreePath)).size})}</span><span class="size-cell">${fmtPartialGb(aiMeasuredGb(bands), bands.some(b => b.partial))}</span></div>
+      </summary>
+      <div class="ai-worktree-rows">${aiRowsHTML(bands)}</div>
+    </details>`).join('');
 }
 
 // Interactive Handlers for Software Uninstaller
@@ -5893,14 +5942,14 @@ function renderModule() {
     const uninstalledTools = new Set(STATE.aiMoonBands.filter(band => band.uninstalled).map(band => band.tool));
     const scopedBands = STATE.aiMoonBands.filter(band => matchesAITool(band) && matchesSearch(band));
     const scopedExclusions = STATE.aiExcludedRoots.filter(root => matchesAITool(root) && matchesSearch(root));
-    const measuredGb = scopedBands.reduce((sum, band) => sum + (hasNum(band.sizeGb) ? band.sizeGb : 0), 0);
-    const reviewableGb = scopedBands.filter(band => band.tier !== 'protected').reduce((sum, band) => sum + (band.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected').reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0), 0);
+    const measuredGb = aiMeasuredGb(scopedBands);
+    const reviewableGb = aiMeasuredGb(scopedBands.filter(band => band.tier !== 'protected').map(band => ({...band, sizeGb: (band.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected').reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0)})));
     topTitle.textContent = t('AI 专项清理 · 智核舱');
     primaryBtnText.textContent = selectedGb > 0 ? t('清理所选 AI 冗余 ({size} GB)', {size: selectedGb.toFixed(2)}) : !STATE.aiMoonBands.length ? t('开始扫描') : t('AI 冗余已清理完毕');
     heroHeadline.textContent = selectedGb > 0
       ? t('已选 {size}，只处理经过核验的路径', {size: fmtDiskSizeGb(selectedGb)})
       : !STATE.aiMoonBands.length ? t('还没有扫描结果') : t('按工具审查缓存与旧日志，重要资料保留');
-    heroDesc.textContent = t('AI／Agent 本地专项扫描，不是 CLI AI 子命令。可重建缓存、旧诊断日志与超过 90 天的过期会话按路径处理；近期会话、凭据、模型与工作成果只读保留。');
+    heroDesc.textContent = t('AI／Agent 本地专项扫描，不是 CLI AI 子命令。缓存、旧日志与过期会话按路径处理；工作树按源项目展开，确认任务结束后可移入废纸篓。未提交内容、活跃工作树、凭据与模型保留。');
     heroStatLabel.textContent = t('全部已选待移入废纸篓');
     heroStatValue.textContent = fmtDiskSizeGb(selectedGb);
     heroStatSub.textContent = selectedBands.length ? t('共 {n} 个已选路径 · 预览后确认', {n: selectedBands.reduce((sum, band) => sum + selectedSubpaths(band).length, 0)}) : t('{review} 项需确认 · {kept} 项保留', {review: scopedBands.filter(band => band.tier === 'review').length, kept: scopedBands.filter(band => band.tier === 'protected').length});
@@ -5928,29 +5977,7 @@ function renderModule() {
             </div>
           </div>
           <div class="list-body">
-            ${filtered.map(b => {
-              const idx = STATE.aiMoonBands.indexOf(b);
-              return `<div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}"${movingAttr(b)} onclick="selectMoonRow(${idx})">
-                <div class="row-left">
-                  ${b.tier === 'protected'
-                    ? `<span class="lock-glyph" title="${t('保持原状，不可勾选')}">${UI_ICON('lock')}</span>`
-                    : `<input type="checkbox" ${b.checked ? 'checked' : ''} onclick="toggleMoonCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
-                  }
-                  <div style="min-width:0;">
-                    <div class="row-title">${escHtml(t(b.name))}</div>
-                    <div class="row-sub">${escHtml(t(b.band))}${b.uninstalled ? ' · ' + t('已卸载') : ''}${b.ageText ? ' · ' + escHtml(ageLabel(b.ageText)) : ''} · ${escHtml(b.path)}</div>
-                    ${tierNoteHTML(b, null, true)}${b.gitState && !b.reason && !b.safetyReason ? `<div class="row-sub" style="white-space:normal;">${escHtml(t(b.gitState))}</div>` : ''}
-                    ${b.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(b.failedReason))}</div>` : ''}
-                  </div>
-                </div>
-                <div class="row-right">
-                  <span class="badge ${b.failed ? 'badge-review' : b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-                    ${b.failed ? t('未处理') : b.cleaned ? t('已清理') : tierLabel(b.tier)}
-                  </span>
-                  <span class="size-cell">${fmtPartialGb(b.sizeGb, b.partial)}</span>
-                </div>
-              </div>
-            `; }).join('')}
+            ${aiGroupedRowsHTML(filtered)}
           </div>
         </div>
 
@@ -5963,13 +5990,14 @@ function renderModule() {
           <div class="inspector-content">
             <div>
               <div style="font-size:10px;font-weight:700;color:var(--text-muted);">${escHtml(t(selBand.band))}${selBand.uninstalled ? ' · ' + t('已卸载') : ''}${selBand.ageText ? ' · ' + escHtml(ageLabel(selBand.ageText)) : ''}</div>
-              <div style="font-size:14px;font-weight:700;margin-top:2px;">${escHtml(t(selBand.name))}</div>
+              <div style="font-size:14px;font-weight:700;margin-top:2px;">${escHtml(selBand.wholeWorktree ? selBand.name : t(selBand.name))}</div>
             </div>
             <div class="bento-4">
               <div class="bento-cell"><div class="bento-label">${t('实际占用（已测量）')}</div><div class="bento-val">${fmtPartialGb(selBand.sizeGb, selBand.partial)}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('文件与路径')}</div><div class="bento-val">${escHtml(t(selBand.filesCount))}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('最近修改')}</div><div class="bento-val">${escHtml(t(selBand.lastMod))}</div></div>
               <div class="bento-cell"><div class="bento-label">${t('重建与影响')}</div><div class="bento-val">${escHtml(t(selBand.rebuildTime))}</div></div>
+              ${selBand.sourceProject ? `<div class="bento-cell"><div class="bento-label">${t('源项目')}</div><div class="bento-val" title="${escHtml(selBand.sourceProject)}">${escHtml(displayPath(selBand.sourceProject))}</div></div><div class="bento-cell"><div class="bento-label">${t('分支')}</div><div class="bento-val" title="${escHtml(t(selBand.branch || '未记录'))}">${escHtml(t(selBand.branch || '未记录'))}</div></div>` : ''}
             </div>
             <div class="inspector-box" style="border:1px solid var(--border-subtle);background:var(--bg-surface);border-radius:10px;">
               <div style="font-weight:700;margin-bottom:3px;font-size:11px;">${UI_ICON('shield')} ${t('AI 数据安全边界说明')}</div>
@@ -6838,7 +6866,7 @@ function purgeRootsHTML() {
 
 function matchesSearch(item) {
   const q = STATE.searchQuery.trim().toLowerCase();
-  return !q || [item.name, item.path, item.appPath, item.bundleId, item.project, item.artifact, item.category, item.pid, item.tool, item.band, item.gitState, item.safetyReason,
+  return !q || [item.name, item.path, item.appPath, item.bundleId, item.project, item.sourceProject, item.worktreePath, item.branch, item.artifact, item.category, item.pid, item.tool, item.band, item.gitState, item.safetyReason,
     ...(Array.isArray(item.subpaths) ? item.subpaths.flatMap(sp => [sp.path, sp.reason]) : [])]
     .some(value => String(value == null ? '' : value).toLowerCase().includes(q));
 }
@@ -7384,7 +7412,7 @@ document.addEventListener('keydown', (e) => {
     const t = e.target;
     // ⌘1-⌘8 jump to a module, in sidebar order.
     if ((e.metaKey || e.ctrlKey) && /^[1-8]$/.test(e.key) && !document.querySelector('.modal-backdrop.open')) {
-      if (document.body.classList.contains('menubar-mode')) { e.preventDefault(); const view = ['overview', 'processes', 'clean'][Number(e.key) - 1]; if (view) setTrayView(view); return; }
+      if (document.body.classList.contains('menubar-mode')) { e.preventDefault(); const view = ['overview', 'processes'][Number(e.key) - 1]; if (view) setTrayView(view); else if (e.key === '3') openQuickClean(); return; }
       const it = document.querySelectorAll('.nav-item[data-mod]')[Number(e.key) - 1];
       if (it) { e.preventDefault(); it.click(); }
       return;

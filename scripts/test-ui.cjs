@@ -554,7 +554,7 @@ const encodedPath = vm.runInContext('jsq(unusualPath)', context);
 const decodedPath = encodedPath.replace(/&(amp|lt|gt|quot|#39);/g, (_, entity) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }[entity]));
 assert.equal(vm.runInContext("'" + decodedPath + "'", context), unusualPath, 'HTML handler quoting preserves quotes, entities, newlines and backslashes');
 
-['toggleMoonCheck', 'toggleMoonSubpathCheck'].forEach(name => load(name));
+['clearAIWorktreeOverlap', 'toggleMoonCheck', 'toggleMoonSubpathCheck'].forEach(name => load(name));
 context.STATE.module = 'ai_moon';
 context.STATE.aiMoonBands = [{ id: 'mixed', name: 'Mixed', path: '/tmp/mixed', tier: 'review', checked: false, sizeGb: 3, subpaths: [
   { path: '/tmp/protected', sizeGb: 2, tier: 'protected', checked: false },
@@ -565,6 +565,52 @@ assert.equal(context.STATE.aiMoonBands[0].subpaths[0].checked, false, 'group sel
 assert.equal(vm.runInContext('buildCleanEntries().entries[0].paths.join(",")', context), '/tmp/allowed', 'execution uses the same protected-subpath filter as the preview');
 context.STATE.aiMoonBands[0].subpaths[0].checked = true;
 assert.equal(vm.runInContext('selectedSizeGb(STATE.aiMoonBands[0])', context), 1, 'a corrupted check flag cannot count protected bytes');
+
+{
+  const tree = "~/Projects/O'Reilly & Shared-fix";
+  const source = "~/Projects/O'Reilly & Shared";
+  const whole = { id: 'whole', name: 'Shared-fix', band: '关联工作树', path: tree, worktreePath: tree, sourceProject: source, branch: 'fix/routing', wholeWorktree: true, tier: 'review', checked: false, sizeGb: 4, subpaths: [{ path: tree, sizeGb: 4, tier: 'review', checked: false }] };
+  const artifacts = { id: 'artifacts', name: 'Shared-fix · 依赖与构建产物', band: '依赖与构建产物', path: tree + '/node_modules', worktreePath: tree, sourceProject: source, branch: 'fix/routing', tier: 'safe', checked: false, sizeGb: 3, subpaths: [{ path: tree + '/node_modules', sizeGb: 3, tier: 'safe', checked: false }] };
+  context.STATE.aiMoonBands = [whole, artifacts];
+  vm.runInContext('toggleMoonCheck(1); toggleMoonCheck(0)', context);
+  assert.equal(artifacts.checked, false, 'selecting a whole worktree clears its artifact selection');
+  assert.equal(artifacts.subpaths[0].checked, false);
+  const preview = vm.runInContext('buildCleanEntries().entries', context);
+  assert.equal(preview.length, 1);
+  assert.equal(preview[0].paths[0], tree, 'whole-worktree confirmation keeps the complete checkout path');
+  assert.equal(preview[0].sizeGb, 4, 'the confirmation includes dependencies in the full checkout size');
+  vm.runInContext('toggleMoonSubpathCheck(1,0)', context);
+  assert.equal(whole.checked, false, 'selecting only dependencies clears the whole-worktree selection');
+  assert.equal(whole.subpaths[0].checked, false);
+
+  const cache = { name: 'AI cache', band: '运行缓存', path: '~/Library/Caches/Fixture', tier: 'safe', sizeGb: 1 };
+  const view = vm.createContext({ STATE: { aiMoonBands: [whole, artifacts, cache], aiProjectsOpen: [], selectedMoonIdx: 0, searchQuery: '' }, UI_ICON: () => '', movingAttr: () => '', ageLabel: value => value });
+  ['hasNum', 'fmtDiskSizeGb', 'tierSummary', 'tierNoteHTML', 'escHtml', 'jsq', 'displayPath', 'aiMeasuredGb', 'aiRowsHTML', 'aiGroupedRowsHTML', 'setAIProjectOpen', 'matchesSearch'].forEach(name => load(name, view));
+  ['TIERS', 'tierLabel', 'tierFallback', 'fmtPartialGb'].forEach(name => loadConst(name, view));
+  assert.equal(vm.runInContext('aiMeasuredGb(STATE.aiMoonBands)', view), 5, 'measured totals count the checkout and its artifacts once');
+  const sum = vm.runInContext('tierSummary(STATE.aiMoonBands)', view);
+  assert.deepEqual([sum.safe.gb, sum.review.gb], [4, 1], 'tier subtotals allocate artifact bytes to the artifact tier without double counting');
+  assert.equal(whole.sizeGb, 4, 'display subtotal deductions cannot change confirmation sizes');
+  const markup = vm.runInContext('aiGroupedRowsHTML(STATE.aiMoonBands)', view);
+  assert.equal((markup.match(/data-ai-project=/g) || []).length, 1, 'one source repository has one expandable group');
+  assert.match(markup, /1 个工作树/);
+  assert.match(markup, /O&#39;Reilly &amp; Shared/);
+  view.source = source;
+  vm.runInContext('setAIProjectOpen(source,true); setAIProjectOpen(source,true)', view);
+  assert.equal(view.STATE.aiProjectsOpen.length, 1, 'expansion state never accumulates duplicate projects');
+  assert.match(vm.runInContext('aiGroupedRowsHTML(STATE.aiMoonBands)', view), /data-ai-project="[^"]+" open/);
+  vm.runInContext('setAIProjectOpen(source,false)', view);
+  assert.equal(view.STATE.aiProjectsOpen.length, 0);
+  for (const query of [source, 'fix/routing']) {
+    view.STATE.searchQuery = query;
+    assert.equal(vm.runInContext('STATE.aiMoonBands.filter(matchesSearch).length', view), 2, 'source and branch searches reach all related rows');
+  }
+  whole.sizeGb = whole.subpaths[0].sizeGb = 1;
+  whole.partial = true;
+  assert.equal(vm.runInContext('aiMeasuredGb(STATE.aiMoonBands)', view), 4, 'a partial checkout measurement cannot hide a larger artifact measurement');
+  const partial = vm.runInContext('tierSummary(STATE.aiMoonBands)', view);
+  assert.deepEqual([partial.safe.gb, partial.review.gb, partial.review.partial], [4, 0, true], 'partial tier totals stay nonnegative and disclose incomplete measurement');
+}
 
 const analysis = vm.createContext({
   STATE: { homePath: '/Users/me', analyzeRequestId: 'root-1', analyzeLoading: true, treemap2D: [], drillStack: [], analyzeLargeFiles: [],

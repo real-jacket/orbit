@@ -248,6 +248,8 @@ func (s *Scanner) trashPaths(rawPaths []string, identities map[string]FileIdenti
 		}
 		// Only an app the user owns says anything about App Management.
 		appEvidence := isAppBundle(path) && !bundleNeedsAdmin(path)
+		_, worktreeErr := gitWorktreeAt(path)
+		worktree := worktreeErr == nil
 		trashed, err := moveToTrash(path)
 		if appEvidence && err == nil {
 			recordAppManagement("effective", path, time.Now())
@@ -260,6 +262,17 @@ func (s *Scanner) trashPaths(rawPaths []string, identities map[string]FileIdenti
 			}
 			outcome.Failed = append(outcome.Failed, trashFailure(path, err))
 			continue
+		}
+		if worktree {
+			if err := repairGitWorktree(trashed); err != nil {
+				if rollback := moveBack(TrashEntry{Original: path, Trashed: trashed}); rollback == nil {
+					repairErr := repairGitWorktree(path)
+					outcome.Failed = append(outcome.Failed, TrashFailure{Path: path, Error: fmt.Sprintf("Git 工作树路径更新失败，文件已原路放回：%v；关联修复：%v", err, repairErr)})
+					continue
+				} else {
+					outcome.RestoreError = fmt.Sprintf("工作树已移入废纸篓，但 Git 关联更新与回退失败：%v；%v", err, rollback)
+				}
+			}
 		}
 		if hooks != nil {
 			hooks.moved(path, trashed)
@@ -374,9 +387,16 @@ func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string
 			outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "废纸篓文件身份已变化或旧版清单未保存身份，不能确认这份数据；请在访达中检查"})
 			continue
 		}
+		gitInfo, gitErr := os.Lstat(filepath.Join(entry.Trashed, ".git"))
+		worktree := gitErr == nil && gitInfo.Mode().IsRegular()
 		if err := moveBack(entry); err != nil {
 			outcome.Failed = append(outcome.Failed, trashFailure(original, err))
 			continue
+		}
+		if worktree {
+			if err := repairGitWorktree(original); err != nil {
+				outcome.Failed = append(outcome.Failed, TrashFailure{Path: original, Error: "文件已还原，但 Git 工作树关联修复失败：" + err.Error()})
+			}
 		}
 		outcome.Restored = append(outcome.Restored, original)
 		restored = append(restored, entry)

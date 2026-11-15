@@ -32,7 +32,7 @@ var artifactKinds = map[string]string{
 const cacheDirTagKind = "带 CACHEDIR.TAG 标记的缓存目录"
 
 // Ported from tw93/Mole V1.70.0 lib/clean/project.sh PURGE_WALK_PRUNE_DIRS
-var purgePruneDirs = map[string]bool{".git": true, "Library": true, ".Trash": true, "Applications": true}
+var purgePruneDirs = map[string]bool{".git": true, ".Trash": true}
 
 // Ported from tw93/Mole V1.70.0 lib/clean/purge_shared.sh MOLE_PURGE_MONOREPO_INDICATORS and MOLE_PURGE_PROJECT_INDICATORS
 var purgeProjectIndicators = []string{
@@ -42,8 +42,6 @@ var purgeProjectIndicators = []string{
 }
 
 const (
-	// purgeMaxDepth is how many levels below a root an artifact may sit.
-	purgeMaxDepth = 6
 	// artifactDiscoveryBudget is how long discovery may walk one project root.
 	artifactDiscoveryBudget = 30 * time.Second
 	// purgeProbeBudget is how long all content checks of one scan may take; a
@@ -65,6 +63,11 @@ type artifactCandidate struct {
 	partial    bool
 	protect    string // why it must stay, from a content check
 	unverified string // why a content check could not finish
+}
+
+type projectDiscovery struct {
+	artifacts    []artifactCandidate
+	repositories []string
 }
 
 func isPurgeProjectRoot(dir string) bool {
@@ -94,20 +97,25 @@ func hasCacheDirTag(dir string) bool {
 	return string(head[:n]) == cacheDirTagSig
 }
 
-// walkArtifacts lists the build artifact directories below root, at most six
-// levels deep. It never follows a link, never descends into an artifact, a
+// walkArtifacts lists build artifacts and Git repositories below root within
+// the time budget. It never follows a link, never descends into an artifact, a
 // bundle or a pruned folder, and lists a direct child of root only when root is
 // itself a project. Running past the deadline leaves one warning on the root.
 // Ported from tw93/Mole V1.72.0 lib/clean/project.sh scan_purge_targets
-func (s *Scanner) walkArtifacts(root string, deadline time.Time, out *[]artifactCandidate) {
-	if !s.walkArtifactsIn(root, root, 1, isPurgeProjectRoot(root), deadline, out) {
+func (s *Scanner) walkArtifacts(root string, deadline time.Time, out *[]artifactCandidate) []string {
+	var repositories []string
+	if !s.walkArtifactsIn(root, root, 1, isPurgeProjectRoot(root), deadline, out, &repositories) {
 		recordReadWarning(root, "构建目录遍历达到扫描上限；只统计已访问路径")
 	}
+	return repositories
 }
 
 // walkArtifactsIn reports false when it stopped at the deadline. depth is the
 // level of dir's children below the root.
-func (s *Scanner) walkArtifactsIn(root, dir string, depth int, rootIsProject bool, deadline time.Time, out *[]artifactCandidate) bool {
+func (s *Scanner) walkArtifactsIn(root, dir string, depth int, rootIsProject bool, deadline time.Time, out *[]artifactCandidate, repositories *[]string) bool {
+	if time.Now().After(deadline) {
+		return false
+	}
 	list := listDirItems
 	if dir == root {
 		list = listDirGuarded
@@ -115,6 +123,13 @@ func (s *Scanner) walkArtifactsIn(root, dir string, depth int, rootIsProject boo
 	items, err := list(dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		recordReadError(dir, err)
+	}
+	for _, item := range items {
+		if item.name == ".git" {
+			*repositories = append(*repositories, dir)
+			rootIsProject = true
+			break
+		}
 	}
 	for _, item := range items {
 		if item.kind != itemDir || purgePruneDirs[item.name] {
@@ -128,7 +143,8 @@ func (s *Scanner) walkArtifactsIn(root, dir string, depth int, rootIsProject boo
 		if !isArtifact && !isBundleDir(name) && hasCacheDirTag(path) {
 			kind, isArtifact = cacheDirTagKind, true
 		}
-		if isArtifact {
+		// A repository may itself be named build, dist or another artifact name.
+		if isArtifact && !exists(filepath.Join(path, ".git")) {
 			if _, protected := s.scanProtection(path); !protected && (depth > 1 || rootIsProject) && artifactShape(path, name) {
 				for _, output := range swiftPMArtifacts(path) {
 					if _, protected := s.scanProtection(output); !protected {
@@ -138,14 +154,28 @@ func (s *Scanner) walkArtifactsIn(root, dir string, depth int, rootIsProject boo
 			}
 			continue
 		}
-		if isBundleDir(name) || depth >= purgeMaxDepth {
+		if isBundleDir(name) {
 			continue
 		}
-		if !s.walkArtifactsIn(root, path, depth+1, rootIsProject, deadline, out) {
+		if !s.walkArtifactsIn(root, path, depth+1, rootIsProject, deadline, out, repositories) {
 			return false
 		}
 	}
 	return true
+}
+
+func (s *Scanner) discoverProjects(roots []string) projectDiscovery {
+	var found projectDiscovery
+	seen := map[string]bool{}
+	for _, root := range roots {
+		for _, repo := range s.walkArtifacts(root, time.Now().Add(artifactDiscoveryBudget), &found.artifacts) {
+			if key := strings.ToLower(repo); !seen[key] {
+				seen[key] = true
+				found.repositories = append(found.repositories, repo)
+			}
+		}
+	}
+	return found
 }
 
 // artifactShape drops the names that are only build output in a known layout:
@@ -212,13 +242,7 @@ func gitTracksFiles(path string) (tracked, known bool) {
 	if err != nil {
 		return false, false
 	}
-	repo := ""
-	for dir := real; dir != "/" && dir != "."; dir = filepath.Dir(dir) {
-		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
-			repo = dir
-			break
-		}
-	}
+	repo := gitProjectRoot(real)
 	if repo == "" {
 		return false, true
 	}
@@ -334,11 +358,8 @@ func guardArtifact(c *artifactCandidate, deadline time.Time) {
 	}
 }
 
-// discoverArtifacts finds the build artifacts under root, measures the ones that
-// are big enough to list and runs the content checks on them.
-func (s *Scanner) discoverArtifacts(root string, probeDeadline time.Time) []artifactCandidate {
-	var found []artifactCandidate
-	s.walkArtifacts(root, time.Now().Add(artifactDiscoveryBudget), &found)
+// measureArtifacts keeps sizable candidates and verifies their contents.
+func (s *Scanner) measureArtifacts(found []artifactCandidate, probeDeadline time.Time) []artifactCandidate {
 	var (
 		mu   sync.Mutex
 		wg   sync.WaitGroup
@@ -381,17 +402,22 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 // displayed settings cannot use different revisions of purge_paths.
 func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
 	items := []map[string]any{}
+	var found projectDiscovery
+	if s.projects != nil {
+		found = s.projects()
+	} else {
+		found = s.discoverProjects(roots)
+	}
 	probeDeadline := time.Now().Add(purgeProbeBudget)
 	var candidates []artifactCandidate
 	seen := map[string]bool{}
-	for _, root := range roots {
-		for _, c := range s.discoverArtifacts(root, probeDeadline) {
-			if key := strings.ToLower(c.path); !seen[key] {
-				seen[key] = true
-				candidates = append(candidates, c)
-			}
+	for _, c := range found.artifacts {
+		if key := strings.ToLower(c.path); !seen[key] {
+			seen[key] = true
+			candidates = append(candidates, c)
 		}
 	}
+	candidates = s.measureArtifacts(candidates, probeDeadline)
 	sort.SliceStable(candidates, func(i, j int) bool {
 		return candidates[i].bytes > candidates[j].bytes
 	})
@@ -403,9 +429,8 @@ func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
 		if scratch := swiftPMOutputRoot(c.path); scratch != "" {
 			project = filepath.Dir(scratch)
 		}
-		// The newest file inside says when the artifact was last used; the
-		// project says whether anyone still works in it.
-		active := max(c.modified, projectActivity(project))
+		// Project and Git metadata can change without using these artifacts.
+		active := c.modified
 		v := artifactVerdict(c.path, active)
 		switch {
 		case c.protect != "":

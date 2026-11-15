@@ -18,7 +18,7 @@ var worktreeArtifactNames = map[string]string{
 	".build": "Swift 构建产物",
 }
 
-var agentWorktreeRoots = []struct{ root, tool string }{{".codex/worktrees", "Codex"}, {".cursor/worktrees", "Cursor"}}
+var agentWorktreeRoots = []struct{ root, tool string }{{".codex/worktrees", "Codex"}, {".cursor/worktrees", "Cursor"}, {".claude/worktrees", "Claude Code"}}
 
 // ambiguousArtifactName names directories that can also be tracked source, so
 // they are only artifacts when git ignores them.
@@ -65,7 +65,7 @@ func isAgentWorktreeArtifact(path, home string) bool {
 }
 
 // isAgentWorktreeRoot is a path-only test: path is a worktree checkout, one or
-// two levels below the agent's worktrees folder, with a .git entry.
+// two levels below the agent's worktrees folder. Git is verified separately.
 func isAgentWorktreeRoot(path, home string) bool {
 	for _, wt := range agentWorktreeRoots {
 		tail, ok := strings.CutPrefix(path, filepath.Join(home, wt.root)+"/")
@@ -73,7 +73,7 @@ func isAgentWorktreeRoot(path, home string) bool {
 			continue
 		}
 		n := len(strings.Split(tail, "/"))
-		return (n == 1 || n == 2) && exists(filepath.Join(path, ".git"))
+		return n == 1 || n == 2
 	}
 	return false
 }
@@ -102,7 +102,7 @@ func gitBinary(ctx context.Context) (string, string) {
 	return binary, ""
 }
 
-// runGit runs a read-only git command in dir with a short timeout.
+// runGit uses a short timeout and avoids optional index writes during reads.
 func runGit(dir string, args ...string) ([]byte, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -128,7 +128,7 @@ func gitIgnored(path string) bool {
 // gitCleanState describes the tracked-file state of the repository around
 // project, for the build cleanup row.
 func gitCleanState(project string) string {
-	if !exists(filepath.Join(project, ".git")) {
+	if gitProjectRoot(project) == "" {
 		return "非 Git 项目"
 	}
 	out, _, err := runGit(project, "status", "--porcelain=v1", "-uno", "--ignore-submodules=all")
@@ -139,4 +139,13 @@ func gitCleanState(project string) string {
 		return "有未提交改动"
 	}
 	return "工作区干净"
+}
+
+func gitProjectRoot(path string) string {
+	for dir := path; dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+		if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
+			return dir
+		}
+	}
+	return ""
 }
