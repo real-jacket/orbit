@@ -17,6 +17,7 @@ func (s *Scanner) scanWarningScopes(config PurgeRoots) []scanWarningScope {
 		}
 	}
 	var aiRoots []string
+	aiRoots = append(aiRoots, config.AbsolutePaths()...)
 	for _, entry := range s.aiDataSpecs() {
 		aiRoots = append(aiRoots, s.specRoots([]CatalogSpec{entry.spec}, "")...)
 	}

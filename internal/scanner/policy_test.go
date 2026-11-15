@@ -88,7 +88,7 @@ func TestPayloadHonoursTierContract(t *testing.T) {
 	if len(payload.CleanGroups) == 0 || len(payload.PurgeItems) == 0 {
 		t.Fatalf("fixture produced no rows: clean=%d purge=%d", len(payload.CleanGroups), len(payload.PurgeItems))
 	}
-	want := map[string]string{"old": "safe", "mid": "review", "new": "protected"}
+	want := map[string]string{"old": "safe", "mid": "review", "new": "review"}
 	for _, row := range payload.PurgeItems {
 		project := filepath.Base(row["project"].(string))
 		if tier := want[project]; tier != row["tier"] {
@@ -182,14 +182,11 @@ func TestArtifactVerdictAgeTiers(t *testing.T) {
 	cases := []struct {
 		days int64
 		tier string
-	}{{45, "safe"}, {30, "safe"}, {15, "review"}, {7, "review"}, {2, "protected"}}
+	}{{45, "safe"}, {30, "safe"}, {15, "review"}, {7, "review"}, {2, "review"}, {0, "review"}}
 	for _, tc := range cases {
 		v := artifactVerdict(path, nowUnix()-tc.days*day)
 		if v.tier != tc.tier || v.reason == "" {
 			t.Errorf("%d days: %+v, want %s", tc.days, v, tc.tier)
-		}
-		if tc.tier == "protected" && v.unlock == "" {
-			t.Errorf("%d days: protected without unlock", tc.days)
 		}
 		if tc.tier == "safe" && !strings.Contains(v.reason, "pnpm install") {
 			t.Errorf("safe reason must name the rebuild command: %q", v.reason)
@@ -204,6 +201,7 @@ func TestWorktreeVerdicts(t *testing.T) {
 	home := fixtureHome(t)
 	s := policyScanner(home)
 	nm := fixtureDir(t, home, ".claude/worktrees/w/node_modules", 16)
+	nodeProject(t, home, ".claude/worktrees/w")
 	day := int64(86400)
 	if v := s.worktreeArtifactVerdict(nm, dirSize{modified: nowUnix() - 10*day}); v.tier != "safe" {
 		t.Errorf("idle worktree node_modules = %s, want safe", v.tier)
@@ -211,14 +209,14 @@ func TestWorktreeVerdicts(t *testing.T) {
 	if v := s.worktreeArtifactVerdict(nm, dirSize{modified: nowUnix() - day}); v.tier != "review" || v.reason == "" {
 		t.Errorf("fresh worktree node_modules = %+v, want review", v)
 	}
-	if v := worktreeVerdict("工作区干净", "kept", nowUnix()-60*day); v.tier != "review" {
+	if v := worktreeVerdict("工作区干净", "kept"); v.tier != "review" {
 		t.Errorf("clean and idle worktree = %s, want review", v.tier)
 	}
 	for _, tc := range []struct {
 		state string
 		age   int64
-	}{{"工作区干净", 3}, {"有未提交改动", 90}, {"Git 状态无法核验，保留全部内容", 90}} {
-		if v := worktreeVerdict(tc.state, "kept", nowUnix()-tc.age*day); v.tier != "protected" || v.reason != "kept" {
+	}{{"有未提交改动", 90}, {"Git 状态无法核验，保留全部内容", 90}} {
+		if v := worktreeVerdict(tc.state, "kept"); v.tier != "protected" || v.reason != "kept" {
 			t.Errorf("%s/%dd = %+v, want protected with the impact as reason", tc.state, tc.age, v)
 		}
 	}

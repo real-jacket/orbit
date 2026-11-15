@@ -11,9 +11,11 @@ package main
 // page needs no changes at all.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -277,14 +279,113 @@ func optimizeOutcome(requestID string, output []byte, err error) map[string]any 
 	return result
 }
 
-const fileCachePurgeScript = `with timeout of 80 seconds
-do shell script "/usr/sbin/purge" with administrator privileges
-end timeout`
+const fileCachePurgeScript = `use framework "Foundation"
+use scripting additions
+set input to current application's NSFileHandle's fileHandleWithStandardInput()
+set output to current application's NSFileHandle's fileHandleWithStandardOutput()
+set newlineString to current application's NSString's stringWithString:linefeed
+set newlineData to newlineString's dataUsingEncoding:4
+repeat
+    set request to input's readDataOfLength:1
+    if request's |length|() is 0 then exit repeat
+    if ((request's base64EncodedStringWithOptions:0) as text) is not "Cg==" then error "Invalid file cache request" number -50
+    set receipt to current application's NSMutableDictionary's dictionary()
+    try
+        with timeout of 80 seconds
+            do shell script "/usr/sbin/purge" with administrator privileges
+        end timeout
+        receipt's setObject:true forKey:"ok"
+    on error message number code
+        receipt's setObject:false forKey:"ok"
+        receipt's setObject:message forKey:"error"
+        receipt's setObject:code forKey:"code"
+    end try
+    set receiptData to current application's NSJSONSerialization's dataWithJSONObject:receipt options:0 |error|:(missing value)
+    output's writeData:receiptData
+    output's writeData:newlineData
+end repeat
+return`
+
+type fileCachePurgeSession struct {
+	command *exec.Cmd
+	input   io.WriteCloser
+	replies *json.Decoder
+	stderr  bytes.Buffer
+	closed  bool
+}
+
+func startFileCachePurgeSession(command *exec.Cmd) (*fileCachePurgeSession, error) {
+	input, err := command.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	output, err := command.StdoutPipe()
+	if err != nil {
+		_ = input.Close()
+		return nil, err
+	}
+	session := &fileCachePurgeSession{command: command, input: input, replies: json.NewDecoder(output)}
+	command.Stderr = &session.stderr
+	command.WaitDelay = time.Second // A child can keep stderr open after the script exits.
+	if err := command.Start(); err != nil {
+		_ = input.Close()
+		_ = output.Close()
+		return nil, err
+	}
+	return session, nil
+}
+
+func (session *fileCachePurgeSession) close() []byte {
+	if !session.closed {
+		session.closed = true
+		_ = session.input.Close()
+		_ = session.command.Process.Kill()
+		_ = session.command.Wait()
+	}
+	return session.stderr.Bytes()
+}
+
+func (session *fileCachePurgeSession) run(ctx context.Context) ([]byte, error, bool) {
+	if err := ctx.Err(); err != nil {
+		return nil, err, false
+	}
+	if _, err := session.input.Write([]byte{'\n'}); err != nil {
+		return session.close(), err, false
+	}
+	type reply struct {
+		OK      *bool  `json:"ok"`
+		Code    int    `json:"code"`
+		Message string `json:"error"`
+		err     error
+	}
+	done := make(chan reply, 1)
+	go func() {
+		var receipt reply
+		receipt.err = session.replies.Decode(&receipt)
+		done <- receipt
+	}()
+	select {
+	case receipt := <-done:
+		if receipt.err != nil || receipt.OK == nil || !*receipt.OK && receipt.Code == 0 {
+			if receipt.err == nil {
+				receipt.err = fmt.Errorf("missing command status or error code")
+			}
+			return session.close(), fmt.Errorf("未收到可靠的系统命令回执：%v", receipt.err), true
+		}
+		if !*receipt.OK {
+			return []byte(fmt.Sprintf("%s (%d)", receipt.Message, receipt.Code)), fmt.Errorf("文件缓存释放未完成"), false
+		}
+		return nil, nil, false
+	case <-ctx.Done():
+		return session.close(), ctx.Err(), true
+	}
+}
 
 var fileCachePurgeState struct {
 	sync.Mutex
 	requestID string
 	unknown   bool
+	session   *fileCachePurgeSession
 }
 
 func beginFileCachePurge(requestID string, confirmed bool) (bool, error) {
@@ -306,15 +407,15 @@ func beginFileCachePurge(requestID string, confirmed bool) (bool, error) {
 	return true, nil
 }
 
-func fileCachePurgeCommand(ctx context.Context) *exec.Cmd {
-	return exec.CommandContext(ctx, "/usr/bin/osascript", "-e", fileCachePurgeScript)
+func fileCachePurgeCommand() *exec.Cmd {
+	return exec.Command("/usr/bin/osascript", "-e", fileCachePurgeScript)
 }
 
-func fileCachePurgeOutcome(requestID string, output []byte, err, contextErr error) map[string]any {
+func fileCachePurgeOutcome(requestID string, output []byte, err error, unknown bool) map[string]any {
 	result := optimizeOutcome(requestID, output, err)
 	if err != nil {
 		result["cancelled"] = strings.Contains(string(output), "(-128)")
-		result["unknown"] = contextErr != nil || strings.Contains(string(output), "(-1712)")
+		result["unknown"] = unknown || strings.Contains(string(output), "(-1712)")
 	}
 	return result
 }
@@ -322,11 +423,30 @@ func fileCachePurgeOutcome(requestID string, output []byte, err, contextErr erro
 func executeFileCachePurge(requestID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	output, err := fileCachePurgeCommand(ctx).CombinedOutput()
-	result := fileCachePurgeOutcome(requestID, output, err, ctx.Err())
+	fileCachePurgeState.Lock()
+	session := fileCachePurgeState.session
+	fileCachePurgeState.Unlock()
+	var output []byte
+	var err error
+	var unknown bool
+	if session == nil {
+		// The same running script lets macOS reuse authorization; stdin carries only a fixed trigger, never a command or password.
+		session, err = startFileCachePurgeSession(fileCachePurgeCommand())
+	}
+	if err == nil {
+		output, err, unknown = session.run(ctx)
+	}
+	result := fileCachePurgeOutcome(requestID, output, err, unknown)
+	if result["unknown"] == true && session != nil {
+		session.close()
+	}
 	fileCachePurgeState.Lock()
 	fileCachePurgeState.requestID = ""
 	fileCachePurgeState.unknown = result["unknown"] == true
+	fileCachePurgeState.session = session
+	if session != nil && session.closed {
+		fileCachePurgeState.session = nil
+	}
 	fileCachePurgeState.Unlock()
 	evaluate("window.onNativeCachePurgeResult ? window.onNativeCachePurgeResult("+jsonOf(result)+") : undefined", true)
 	pushRealTelemetryNow()

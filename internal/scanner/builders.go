@@ -244,16 +244,22 @@ func systemBuilders() ([]builderProc, error) {
 }
 
 // builderUsing reports the first builder that can be working on the project at
-// root: its cwd is inside the project or the project is inside its cwd, or its
+// root: its cwd is inside the project, or its
 // command line names a path inside the project. A cwd of "/" is what launchd
 // children report and says nothing about any project.
 func builderUsing(procs []builderProc, root string) (string, bool) {
 	for _, p := range procs {
-		if p.cwd != "" && p.cwd != "/" && (withinPath(p.cwd, root) || withinPath(root, p.cwd)) {
+		if p.cwd != "" && p.cwd != "/" && withinPath(p.cwd, root) {
 			return p.name, true
 		}
 		if mentionsPath(p.args, root) {
 			return p.name, true
+		}
+		if p.cwd != "" && p.cwd != "/" {
+			rel, err := filepath.Rel(strings.ToLower(p.cwd), strings.ToLower(root))
+			if err == nil && (mentionsPath(p.args, rel) || mentionsPath(p.args, "./"+rel)) {
+				return p.name, true
+			}
 		}
 	}
 	return "", false
@@ -268,8 +274,9 @@ func mentionsPath(text, root string) bool {
 		if i < 0 {
 			return false
 		}
-		end := from + i + len(root)
-		if end == len(text) || text[end] == '/' || unicode.IsSpace(rune(text[end])) || strings.ContainsRune(`"'=:,;`, rune(text[end])) {
+		start, end := from+i, from+i+len(root)
+		before := start == 0 || unicode.IsSpace(rune(text[start-1])) || strings.ContainsRune(`"'=:,;`, rune(text[start-1]))
+		if before && (end == len(text) || text[end] == '/' || unicode.IsSpace(rune(text[end])) || strings.ContainsRune(`"'=:,;`, rune(text[end]))) {
 			return true
 		}
 		from = end

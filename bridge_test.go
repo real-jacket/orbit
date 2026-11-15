@@ -7,10 +7,12 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFileCachePurgeNeedsConfirmationAndCannotOverlap(t *testing.T) {
@@ -49,29 +51,33 @@ func TestFileCachePurgeNeedsConfirmationAndCannotOverlap(t *testing.T) {
 }
 
 func TestFileCachePurgeUsesOnlyTheFixedSystemCommand(t *testing.T) {
-	command := fileCachePurgeCommand(context.Background())
+	command := fileCachePurgeCommand()
 	if command.Path != "/usr/bin/osascript" || len(command.Args) != 3 || command.Args[1] != "-e" || command.Args[2] != fileCachePurgeScript {
 		t.Fatalf("authorization command = %+v", command.Args)
 	}
 	if strings.Count(fileCachePurgeScript, "/usr/sbin/purge") != 1 || !strings.Contains(fileCachePurgeScript, "with administrator privileges") || strings.Contains(fileCachePurgeScript, "sudo") {
 		t.Fatal("purge must use explicit native authorization, not a password pipe or variable shell command")
 	}
+	if !strings.Contains(fileCachePurgeScript, `readDataOfLength:1`) || !strings.Contains(fileCachePurgeScript, `is not "Cg==" then error`) {
+		t.Fatal("the authorization session must accept only the fixed newline trigger")
+	}
 }
 
 func TestFileCachePurgeReceiptSeparatesCancellationFailureAndUnknown(t *testing.T) {
 	for _, test := range []struct {
-		name, output        string
-		err, contextErr     error
-		ok, cancel, unknown bool
+		name, output                   string
+		err                            error
+		uncertain, ok, cancel, unknown bool
 	}{
-		{"success", "", nil, nil, true, false, false},
-		{"cancelled authorization", "User canceled. (-128)", errors.New("exit status 1"), nil, false, true, false},
-		{"authorization denied", "not authorized", errors.New("exit status 1"), nil, false, false, false},
-		{"native timeout", "", context.DeadlineExceeded, context.DeadlineExceeded, false, false, true},
-		{"Apple event timeout", "AppleEvent timed out. (-1712)", errors.New("exit status 1"), nil, false, false, true},
+		{"success", "", nil, false, true, false, false},
+		{"cancelled authorization", "User canceled. (-128)", errors.New("exit status 1"), false, false, true, false},
+		{"authorization denied", "not authorized", errors.New("exit status 1"), false, false, false, false},
+		{"native timeout", "", context.DeadlineExceeded, true, false, false, true},
+		{"lost session", "", errors.New("EOF"), true, false, false, true},
+		{"Apple event timeout", "AppleEvent timed out. (-1712)", errors.New("exit status 1"), false, false, false, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			result := fileCachePurgeOutcome("cache-receipt", []byte(test.output), test.err, test.contextErr)
+			result := fileCachePurgeOutcome("cache-receipt", []byte(test.output), test.err, test.uncertain)
 			if result["requestId"] != "cache-receipt" || (result["ok"] == true) != test.ok || (result["cancelled"] == true) != test.cancel || (result["unknown"] == true) != test.unknown {
 				t.Fatalf("receipt = %v", result)
 			}
@@ -79,6 +85,80 @@ func TestFileCachePurgeReceiptSeparatesCancellationFailureAndUnknown(t *testing.
 				t.Fatal("native command failure lost its diagnostic")
 			}
 		})
+	}
+}
+
+func TestFileCachePurgeSessionReusesScriptAfterCancellationAndFailure(t *testing.T) {
+	script := strings.Replace(fileCachePurgeScript, "use scripting additions", "use scripting additions\nproperty executions : 0", 1)
+	script = strings.Replace(script, `do shell script "/usr/sbin/purge" with administrator privileges`, `set executions to executions + 1
+            if executions is 2 then error "User canceled." number -128
+            if executions is 3 then error ("Permission denied:" & linefeed & quote & "目录" & quote) number -10004`, 1)
+	if strings.Contains(script, "/usr/sbin/purge") || strings.Contains(script, "administrator privileges") {
+		t.Fatal("the session fixture must never run purge or ask for authorization")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	session, err := startFileCachePurgeSession(exec.CommandContext(ctx, "/usr/bin/osascript", "-e", script))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { session.close() })
+	pid := session.command.Process.Pid
+	for index, want := range []struct{ ok, cancelled bool }{{true, false}, {false, true}, {false, false}, {true, false}} {
+		output, err, unknown := session.run(ctx)
+		result := fileCachePurgeOutcome("session", output, err, unknown)
+		if (result["ok"] == true) != want.ok || (result["cancelled"] == true) != want.cancelled || result["unknown"] == true || session.closed || session.command.Process.Pid != pid {
+			t.Fatalf("request %d did not retain a reliable script session: %v", index+1, result)
+		}
+		if index == 2 && !strings.Contains(string(output), "\n\"目录\"") {
+			t.Fatalf("the framed receipt lost newlines, quotes or unicode: %q", output)
+		}
+	}
+	_ = session.input.Close()
+	if err := session.command.Wait(); err != nil {
+		t.Fatalf("the session did not exit normally when its owner closed stdin: %v; %s", err, session.stderr.Bytes())
+	}
+}
+
+func TestFileCachePurgeSessionRefusesLostRepliesAndBoundsWaiting(t *testing.T) {
+	for _, test := range []struct{ name, script string }{
+		{"malformed reply", "IFS= read -r request\nprintf 'broken\\n'"},
+		{"missing status", "IFS= read -r request\nprintf '{}\\n'"},
+		{"missing error code", "IFS= read -r request\nprintf '{\"ok\":false}\\n'"},
+		{"lost process", "IFS= read -r request\nexit 0"},
+		{"timeout", "IFS= read -r request\nexec /bin/sleep 5"},
+		{"child keeps pipes open", "IFS= read -r request\n/bin/sleep 5 &\nwait"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			session, err := startFileCachePurgeSession(exec.Command("/bin/sh", "-c", test.script))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { session.close() })
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			started := time.Now()
+			_, err, unknown := session.run(ctx)
+			if err == nil || !unknown || !session.closed || session.command.ProcessState == nil {
+				t.Fatalf("unreliable execution was not stopped and marked unknown: %v, %v", err, unknown)
+			}
+			if time.Since(started) > 3*time.Second {
+				t.Fatal("the timeout still waited for an inherited child pipe")
+			}
+		})
+	}
+}
+
+func TestFileCachePurgeSessionDoesNotSubmitAfterCancellation(t *testing.T) {
+	session, err := startFileCachePurgeSession(exec.Command("/bin/sh", "-c", "IFS= read -r request\nprintf '{\"ok\":true}\\n'"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { session.close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err, unknown := session.run(ctx); !errors.Is(err, context.Canceled) || unknown {
+		t.Fatal("an already cancelled request was submitted")
 	}
 }
 

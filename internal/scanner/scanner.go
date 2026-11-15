@@ -25,8 +25,9 @@ type Scanner struct {
 	handleProbe  func(string) (bool, error)
 	installProbe func(aiInstall) bool
 	builderProbe func() ([]builderProc, error)
-	aiUnits      []aiSessionUnit // set only on a scan-scoped view, never on Shared
-	slimProbe    *slimTools      // tests replace the signing and Gatekeeper probes of app slimming
+	aiUnits      []aiSessionUnit         // set only on a scan-scoped view, never on Shared
+	projects     func() projectDiscovery // one discovery shared by build and worktree scans
+	slimProbe    *slimTools              // tests replace the signing and Gatekeeper probes of app slimming
 
 	// processTTL is how long display-time checks may reuse one `ps` table; zero
 	// means always ask. The move boundary (live) never reads the cached table.

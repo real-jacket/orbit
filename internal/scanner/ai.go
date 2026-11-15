@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -167,67 +166,63 @@ func (s *Scanner) scanAIVersions(claims *catalogClaims) []map[string]any {
 
 func (s *Scanner) scanAIWorktrees(claims *catalogClaims) []map[string]any {
 	var rows []map[string]any
-	for _, spec := range agentWorktreeRoots {
-		root := filepath.Join(s.home, spec.root)
-		for _, entry := range readDir(root) {
-			if !entry.isDir || isHidden(entry.name) {
-				continue
+	for _, tree := range s.aiWorktreeInventory() {
+		path := tree.path
+		// Offer artifacts separately; moving the whole checkout includes them too.
+		if artifacts := worktreeArtifacts(path); len(artifacts) > 0 {
+			row := s.catalog(CatalogSpec{
+				ID: "ai_worktree_artifacts:" + path, Category: tree.tool, Name: filepath.Base(path) + " · 依赖与构建产物",
+				Roots: artifacts, Tier: "review", Classify: (*Scanner).worktreeArtifactVerdict,
+				Impact:  "智能体工作树里的依赖目录与构建产物，可以按需重新生成；工作树里的源码和提交不在此列。",
+				Rebuild: "需要时重新安装依赖或重新编译",
+			}, claims, nil)
+			if row != nil {
+				row["band"], row["tool"] = "依赖与构建产物", tree.tool
+				row["sourceProject"], row["worktreePath"], row["branch"] = s.relativize(tree.source), s.relativize(path), tree.branch
+				rows = append(rows, row)
 			}
-			container := filepath.Join(root, entry.name)
-			paths := []string{container}
-			if !exists(filepath.Join(container, ".git")) {
-				var repos []string
-				for _, child := range readDir(container) {
-					path := filepath.Join(container, child.name)
-					if child.isDir && exists(filepath.Join(path, ".git")) {
-						repos = append(repos, path)
-					}
-				}
-				if len(repos) > 0 {
-					paths = repos
-				}
+		}
+		state := worktreeState(path)
+		impact := worktreeKept(state)
+		tier := "review"
+		if tree.reason != "" {
+			tier, impact = "protected", tree.reason
+		}
+		protection, protected := s.scanProtection(path)
+		if protected {
+			tier, impact = "protected", protection.Reason
+			if impact == "" {
+				impact = "白名单排除：" + s.relativize(protection.Pattern)
 			}
-			for _, path := range paths {
-				// Dependencies and build output first: they are regenerable and
-				// are measured out of the worktree row below.
-				if artifacts := worktreeArtifacts(path); len(artifacts) > 0 {
-					row := s.catalog(CatalogSpec{
-						ID: "ai_worktree_artifacts:" + path, Category: spec.tool, Name: spec.tool + " · " + filepath.Base(path) + " · 依赖与构建产物",
-						Roots: artifacts, Tier: "review", Classify: (*Scanner).worktreeArtifactVerdict,
-						Impact:  "智能体工作树里的依赖目录与构建产物，可以按需重新生成；工作树里的源码和提交不在此列。",
-						Rebuild: "需要时重新安装依赖或重新编译",
-					}, claims, nil)
-					if row != nil {
-						row["band"], row["tool"] = "依赖与构建产物", spec.tool
-						rows = append(rows, row)
-					}
+		}
+		row := s.catalog(CatalogSpec{
+			ID: "ai_worktree:" + path, Category: tree.tool, Name: filepath.Base(path),
+			Roots: []string{path}, Tier: tier, Reason: impact, Impact: "整个工作树移入废纸篓；源仓库、分支与提交保留，历史记录可原路还原。请先确认任务已结束。",
+			Rebuild: "从废纸篓还原，或从源仓库重新检出",
+			Classify: func(s *Scanner, p string, size dirSize) verdict {
+				if tier == "protected" {
+					return verdict{tier: tier, reason: impact}
 				}
-				state := worktreeState(path)
-				impact := worktreeKept(state)
-				row := s.catalog(CatalogSpec{
-					ID: "ai_worktree:" + path, Category: spec.tool, Name: spec.tool + " · " + filepath.Base(path),
-					Roots: []string{path}, Tier: "protected", Reason: impact, Impact: impact,
-					Rebuild: "工作成果不能按可重建缓存处理",
-					Classify: func(s *Scanner, p string, size dirSize) verdict {
-						return worktreeVerdict(state, impact, size.modified)
-					},
-				}, claims, nil)
-				if row != nil {
-					row["band"], row["gitState"], row["tool"] = "工作成果（仅检查）", state, spec.tool
-					rows = append(rows, row)
-				}
+				return worktreeVerdict(state, impact)
+			},
+		}, &catalogClaims{}, nil)
+		if row != nil {
+			row["band"], row["gitState"], row["tool"] = "关联工作树", state, tree.tool
+			row["sourceProject"], row["worktreePath"], row["branch"] = s.relativize(tree.source), s.relativize(path), tree.branch
+			row["wholeWorktree"] = true
+			if protected && protection.Descendant {
+				row["partial"] = true
 			}
+			rows = append(rows, row)
 		}
 	}
 	return rows
 }
 
-// worktreeVerdict keeps a worktree inspect-only unless git verified a clean
-// tree and nothing changed for a month; even then it is review, because a
-// clean tree does not prove the commits were pushed.
-func worktreeVerdict(state, impact string, modified int64) verdict {
-	if strings.HasPrefix(state, "工作区干净") && modified > 0 && idleDays(modified) >= 30 {
-		return verdict{tier: "review", reason: fmt.Sprintf("工作区干净且 %d 天未修改，但未核验提交是否已推送或分支是否已合并；确认不再需要后再清理", idleDays(modified))}
+// A clean worktree still needs the user's confirmation that its task has ended.
+func worktreeVerdict(state, impact string) verdict {
+	if strings.HasPrefix(state, "工作区干净") {
+		return verdict{tier: "review", reason: "工作区干净；确认任务已结束、不再需要此工作树后，可移入废纸篓。源仓库与提交保留"}
 	}
 	return verdict{tier: "protected", reason: impact}
 }
@@ -235,6 +230,10 @@ func worktreeVerdict(state, impact string, modified int64) verdict {
 func worktreeState(path string) string {
 	if !exists(filepath.Join(path, ".git")) {
 		return "Git 状态无法核验，保留全部内容"
+	}
+	// Git worktree repair does not relocate submodule Git pointers.
+	if exists(filepath.Join(path, ".gitmodules")) {
+		return "工作树含有子模块配置，需保留其 Git 关联，保持原状"
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -245,7 +244,7 @@ func worktreeState(path string) string {
 	if binary == "" {
 		return "Git 开发工具未就绪，保留全部内容"
 	}
-	cmd := exec.CommandContext(ctx, binary, "-c", "core.fsmonitor=false", "-C", path, "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--ignore-submodules=all")
+	cmd := exec.CommandContext(ctx, binary, "-c", "core.fsmonitor=false", "-C", path, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignore-submodules=none")
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	output, err := cmd.Output()
 	if err != nil {

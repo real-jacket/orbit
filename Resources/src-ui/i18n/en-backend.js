@@ -4,6 +4,27 @@
 // key and value. scripts/test-i18n-go.cjs checks every Go literal is covered here.
 (function () {
   const D = {
+    "未收到可靠的系统命令回执：{error}": "No reliable system command result was received: {error}",
+    "文件缓存释放未完成": "File cache release did not complete",
+    "Git 工作树": "Git worktrees",
+    "关联工作树": "Linked worktree",
+    "{name} · 依赖与构建产物": "{name} · Dependencies and build artifacts",
+    "分离 HEAD": "Detached HEAD",
+    "裸仓库保持原状，不作为工作树清理": "Bare repositories are kept and excluded from worktree cleanup",
+    "Git 工作树已锁定，保持原状": "This Git worktree is locked and will be kept",
+    "Git 工作树关联已失效，保持原状": "This Git worktree association is invalid and will be kept",
+    "Git 工作树列表无法核验": "The Git worktree list could not be verified",
+    "源仓库与未核验的 Git 目录（.git）保持原状，仅清理关联工作树": "Source repositories and unverified Git folders (.git) are kept; only linked worktrees can be cleaned",
+    "Git 工作树关联无法核验，保持原状": "This Git worktree association could not be verified and will be kept",
+    "整个工作树移入废纸篓；源仓库、分支与提交保留，历史记录可原路还原。请先确认任务已结束。": "The entire worktree moves to Trash. Its source repository, branch and commits are kept, and History can restore it. First confirm the task has ended.",
+    "从废纸篓还原，或从源仓库重新检出": "Restore from Trash or check out again from the source repository",
+    "工作区干净；确认任务已结束、不再需要此工作树后，可移入废纸篓。源仓库与提交保留": "The worktree is clean. Confirm its task has ended and it is no longer needed before moving it to Trash. The source repository and commits are kept",
+    "工作树仍被进程打开或占用状态无法核验，保持原状": "The worktree is open in a process or its usage could not be verified; it will be kept",
+    "工作树含有子模块配置，需保留其 Git 关联，保持原状": "The worktree has submodule configuration and will be kept to preserve its Git associations",
+    "{n} 天未修改；确认不再需要这些产物后，可清理并用 {how} 重建": "Not modified for {n} days. Confirm these artifacts are no longer needed before cleaning; rebuild with {how}",
+    "Git 工作树路径更新失败，文件已原路放回：{error}；关联修复：{repair}": "The Git worktree path update failed and the files were put back: {error}; association repair: {repair}",
+    "工作树已移入废纸篓，但 Git 关联更新与回退失败：{error}；{rollback}": "The worktree moved to Trash, but its Git association update and rollback failed: {error}; {rollback}",
+    "文件已还原，但 Git 工作树关联修复失败：{error}": "The files were restored, but the Git worktree association repair failed: {error}",
     // ---- safety.go: protection reasons ----
     "T3 Code · 预览缓存": "T3 Code · Preview caches",
     "只清理浏览器预览分区的程序缓存与代码缓存，不含登录、站点数据或任务历史": "Only app and code caches in browser preview partitions; no sign-ins, site data or task history",
