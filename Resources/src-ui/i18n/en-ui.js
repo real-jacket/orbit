@@ -2,6 +2,10 @@
 // {name} is a slot, {n|one|many} a plural (English side only). Missing keys fall back to Chinese.
 // scripts/test-i18n.cjs checks every t('…') literal in index.html has an entry here.
 I18N.add({
+  "安装包清理": "Installer cleanup",
+  "已识别 {n} 项 · {size}": "Found {n} {n|item|items} · {size}",
+  "扫描完成后，可查看常见目录中的安装包。": "After scanning, review installers in common folders.",
+  "查看安装包": "View installers",
   "{n} 个工作树": "{n} {n|worktree|worktrees}",
   "{n} 项内部产物": "{n} internal {n|artifact|artifacts}",
   "工作树内的依赖与构建产物": "Dependencies and build artifacts inside this worktree",

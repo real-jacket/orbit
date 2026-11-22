@@ -220,6 +220,117 @@ func TestReadBundleInfoFallsBackToIOSWrapper(t *testing.T) {
 	}
 }
 
+func TestReadBundleInfoAcceptsOnlyPhysicalFlatApps(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		executable string
+		mode       os.FileMode
+		link       string
+		contents   bool
+		playcover  bool
+		accepted   bool
+	}{
+		{name: "flat app", executable: "NetBird", mode: 0o755, accepted: true},
+		{name: "missing executable", executable: "NetBird"},
+		{name: "non executable", executable: "NetBird", mode: 0o644},
+		{name: "nested executable", executable: "bin/NetBird", mode: 0o755},
+		{name: "no executable name", mode: 0o755},
+		{name: "linked executable", executable: "NetBird", mode: 0o755, link: "executable"},
+		{name: "linked plist", executable: "NetBird", mode: 0o755, link: "plist"},
+		{name: "missing normal plist", executable: "NetBird", mode: 0o755, contents: true},
+		{name: "PlayCover alias", executable: "NetBird", mode: 0o755, playcover: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parent := t.TempDir()
+			if test.playcover {
+				parent = filepath.Join(parent, "PlayCover")
+			}
+			app := filepath.Join(parent, "NetBird.app")
+			plist := filepath.Join(app, "Info.plist")
+			writeFile(t, plist, `<plist><dict><key>CFBundleIdentifier</key><string>io.netbird.client</string><key>CFBundleExecutable</key><string>`+test.executable+`</string></dict></plist>`)
+			if test.mode != 0 && test.executable != "" {
+				executable := filepath.Join(app, test.executable)
+				writeFile(t, executable, "fixture executable")
+				if err := os.Chmod(executable, test.mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if test.link != "" {
+				path := plist
+				if test.link == "executable" {
+					path = filepath.Join(app, test.executable)
+				}
+				if err := os.Rename(path, path+".real"); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(path+".real", path); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if test.contents {
+				if err := os.Mkdir(filepath.Join(app, "Contents"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := readBundleInfo(app)
+			if test.accepted {
+				if got.err != nil || got.identifier != "io.netbird.client" {
+					t.Fatalf("valid flat app lost ownership: %+v", got)
+				}
+			} else if got.err == nil || got.identifier != "" {
+				t.Fatalf("a plist without a physical flat app must not establish ownership: %+v", got)
+			}
+		})
+	}
+}
+
+func TestPostmanPartitionCachesPreservePersonalDataAndRunningOwners(t *testing.T) {
+	s := moleTestScanner(t, "/usr/bin/idle\n")
+	var cachePaths []string
+	for _, partition := range []string{"postman", ".hidden", "..hidden"} {
+		base := "Library/Application Support/Postman/Partitions/" + partition + "/"
+		for _, leaf := range []string{"Cache", "Code Cache", "Cookies", "IndexedDB", "Local Storage", "Service Worker", "requests"} {
+			fixtureDir(t, s.home, base+leaf, 4096)
+			if leaf == "Cache" || leaf == "Code Cache" {
+				cachePaths = append(cachePaths, "~/"+base+leaf)
+			}
+		}
+	}
+	root := filepath.Join(s.home, "Library/Application Support/Postman/Partitions")
+	if err := os.Symlink(filepath.Join(root, "postman"), filepath.Join(root, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	items, _ := moleSubpaths(t, s)
+	for path, item := range items {
+		if !strings.Contains(path, "/Postman/") {
+			continue
+		}
+		if !strings.HasSuffix(path, "/Cache") && !strings.HasSuffix(path, "/Code Cache") {
+			t.Fatalf("Postman personal data entered cleanup: %s", path)
+		}
+		if strings.Contains(path, "/linked/") && item["tier"] != "protected" {
+			t.Fatalf("a partition symlink cannot authorize cleanup: %+v", item)
+		}
+	}
+	for _, path := range cachePaths {
+		if got := items[path]; got == nil || got["tier"] != "safe" || got["checked"] != true {
+			t.Fatalf("idle Postman cache was not offered once: %s: %+v", path, got)
+		}
+	}
+	s.processProbe = func() (string, error) {
+		return "/Applications/Postman.app/Contents/Frameworks/Postman Helper.app/Contents/MacOS/Postman Helper", nil
+	}
+	items, _ = moleSubpaths(t, s)
+	for _, path := range cachePaths {
+		if got := items[path]; got == nil || got["tier"] != "protected" || got["checked"] == true {
+			t.Fatalf("running Postman did not protect its cache: %s: %+v", path, got)
+		}
+		if reason := s.CleanupReason(s.expand(path)); !strings.Contains(reason, "Postman") {
+			t.Fatalf("the move must recheck Postman activity: %s: %q", path, reason)
+		}
+	}
+}
+
 func TestOrphansSkipCredentialStoresAndFindClaudeVM(t *testing.T) {
 	if exists("/Applications/Claude.app") {
 		t.Skip("Claude Desktop is installed on this machine")

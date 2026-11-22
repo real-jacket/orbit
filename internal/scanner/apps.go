@@ -535,6 +535,22 @@ type bundleInfo struct {
 // list shows. A bundle whose plist is missing or unreadable reports nothing.
 func readBundleInfo(path string) bundleInfo {
 	props, err := parsePlistFile(filepath.Join(path, "Contents", "Info.plist"))
+	// Ported from tw93/Mole V1.74.0 lib/core/bundle_resolver.sh mole_flat_bundle_info_plist
+	if os.IsNotExist(err) && !strings.EqualFold(filepath.Base(filepath.Dir(path)), "PlayCover") {
+		_, contentsErr := os.Lstat(filepath.Join(path, "Contents"))
+		flatPath := filepath.Join(path, "Info.plist")
+		info, statErr := os.Lstat(flatPath)
+		if os.IsNotExist(contentsErr) && statErr == nil && info.Mode().IsRegular() {
+			flat, flatErr := parsePlistFile(flatPath)
+			name := flat["CFBundleExecutable"]
+			if flatErr == nil && name != "" && name != "." && name != ".." && filepath.Base(name) == name {
+				executable, executableErr := os.Lstat(filepath.Join(path, name))
+				if executableErr == nil && executable.Mode().IsRegular() && executable.Mode().Perm()&0o111 != 0 {
+					props, err = flat, nil
+				}
+			}
+		}
+	}
 	if err != nil {
 		// Ported from tw93/Mole V1.72.0 lib/clean/apps.sh scan_installed_apps: an iOS app on
 		// Apple Silicon keeps its plist under Wrapper/<name>.app, not Contents/.

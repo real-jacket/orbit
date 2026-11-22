@@ -5851,6 +5851,7 @@ function renderModule() {
     const selectedItems = STATE.cleanGroups.filter(g => g.checked).reduce((s, g) => s + selectedSubpaths(g).length, 0);
     const measuredGb = STATE.cleanGroups.reduce((sum, group) => sum + (hasNum(group.sizeGb) ? group.sizeGb : 0), 0);
     const reviewableGb = STATE.cleanGroups.filter(group => group.tier !== 'protected').reduce((sum, group) => sum + (group.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected').reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0), 0);
+    const installerGb = STATE.installerFiles.reduce((sum, file) => sum + (hasNum(file.sizeGb) ? file.sizeGb : 0), 0);
     topTitle.textContent = t('智能深度清理 · 气闸舱');
     primaryBtnText.textContent = selectedGb > 0 ? t('一键清理所选 ({size} GB)', {size: selectedGb.toFixed(2)}) : !STATE.cleanGroups.length ? t('开始扫描') : !STATE.cleanGroups.some(g => g.cleaned) ? t('请先勾选要清理的项目') : t('全部所选项已清理完毕');
     heroHeadline.textContent = selectedGb > 0
@@ -5869,6 +5870,15 @@ function renderModule() {
 
     stage.innerHTML = `
       ${tierSummaryHTML(STATE.cleanGroups, 'clean')}
+      <div class="panel-card" data-clean-installer-entry style="flex:none;">
+        <div class="panel-header" style="border-bottom:0;">
+          <div style="min-width:0;">
+            <div>${t('安装包清理')}</div>
+            <div class="row-sub" data-clean-installer-summary>${STATE.scanCompleted ? t('已识别 {n} 项 · {size}', {n: STATE.installerFiles.length, size: fmtDiskSizeGb(installerGb)}) : t('扫描完成后，可查看常见目录中的安装包。')}</div>
+          </div>
+          <button class="btn" data-clean-installers onclick="switchModule('purge')">${t('查看安装包')}</button>
+        </div>
+      </div>
       ${STATE.scanCompleted ? `<div class="facts-bar clean-scan-coverage" aria-label="${t('本模块已识别缓存的测量与保留情况')}"><span data-clean-measured>${t('已测量 {size}', {size: fmtDiskSizeGb(measuredGb)})}${STATE.cleanGroups.some(group => group.partial) ? t('（含不完整下限）') : ''}</span><span data-clean-reviewable>${t('可审查 {size}', {size: fmtDiskSizeGb(reviewableGb)})}</span><span data-clean-retained>${t('保留（已测）{size}', {size: fmtDiskSizeGb(Math.max(0, measuredGb - reviewableGb))})}</span></div>` : ''}
       ${STATE.scanCompleted && STATE.cleanExcludedRoots.length ? `<details class="runtime-evidence clean-exclusions" ${STATE.cleanExcludedOpen ? 'open' : ''} ontoggle="if(this.isConnected)STATE.cleanExcludedOpen=this.open"><summary tabindex="0">${t('{n} 个已识别扫描目录被保护排除 · 体积未测量', {n: STATE.cleanExcludedRoots.length})}</summary><p>${t('这些是本模块已识别的扫描目录，不是全盘索引；白名单和核心保护仍生效。未测量不等于 0 B，也不是可直接释放的容量。')}</p><div class="permission-group-list">${STATE.cleanExcludedRoots.map(item => `<div class="permission-group-row"><button class="permission-group-path" onclick="revealInFinder('${jsq(item.path)}')" aria-label="${t('在访达中显示 {path}', {path: escHtml(item.path)})}">${UI_ICON('lock')}<span><b>${escHtml(displayPath(item.path))}</b><small>${escHtml(t(item.reason))}</small></span></button><span class="row-sub">${t('未测量')}</span></div>`).join('')}</div><div class="permission-recovery-actions"><button class="btn" data-clean-whitelist onclick="switchModule('history')">${t('查看白名单')}</button></div></details>` : ''}
       <div class="master-detail-grid">
@@ -7626,7 +7636,7 @@ document.addEventListener('keydown', (e) => {
       stage.appendChild(hint);
     }
     // 右侧检查栏没有内容时不要留一整块空白：给一行说明。
-    stage.querySelectorAll('.panel-card').forEach(card => {
+    stage.querySelectorAll('.master-detail-grid .panel-card').forEach(card => {
       const kids = Array.from(card.children).filter(k => !k.classList.contains('panel-blank'));
       const headerOnly = kids.length === 1 && kids[0].classList.contains('panel-header');
       if (!headerOnly) return;

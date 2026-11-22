@@ -205,6 +205,31 @@ add('apps-cache-only', `switchModule('software'); setUninstallMode('cache_only')
 add('clean-empty', `onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[]}); switchModule('clean'); qaAssert(document.querySelector('.empty-title').textContent.includes('未发现'),'empty scan has truthful state'); qaAssert(document.getElementById('primaryBtnText').closest('button').disabled,'empty scan cannot remove');`);
 add('clean-filter', `switchModule('clean'); setCleanFilter('review'); qaAssert(document.querySelectorAll('#moduleStage .list-row').length===1,'tier filter works');`);
 add('purge-installers-only', `onNativeRealScanComplete({...structuredClone(qaFixture),purgeItems:[]}); switchModule('purge'); qaAssert(document.getElementById('moduleStage').textContent.includes('Canvas Setup.dmg'),'installers remain selectable when no build artifacts exist');`);
+add('clean-installer-entry', `
+  const files=STATE.installerFiles;
+  const entry=document.querySelector('[data-clean-installer-entry]');
+  qaAssert(!entry.querySelector('.panel-blank')&&entry.clientHeight<=entry.firstElementChild.offsetHeight+2,'the installer entry stays compact without an empty inspector placeholder');
+  const summary=document.querySelector('[data-clean-installer-summary]');
+  qaAssert(summary.textContent.includes('1 项')&&summary.textContent.includes(fmtDiskSizeGb(1)),'deep cleanup discloses the shared installer scan');
+  __qa.actions=[];document.querySelector('[data-clean-installers]').click();
+  qaAssert(STATE.module==='purge'&&STATE.installerFiles===files&&document.getElementById('moduleStage').textContent.includes('Canvas Setup.dmg'),'the entry opens the existing installer results');
+  qaAssert(!__qa.actions.some(action=>['requestRealSystemScan','trashRealPaths'].includes(action.action)),'opening installers cannot rescan or move files');
+  qaAssert(!files[0].checked,'opening installers preserves their existing selection');
+  toggleInstallerCheck(0);openConfirmSheet();
+  qaAssert(document.getElementById('confirmModalItemsList').textContent.includes('Canvas Setup.dmg'),'installers retain exact-path preview');
+`);
+add('clean-installer-entry-empty-caches', `
+  onNativeRealScanComplete({...structuredClone(qaFixture),cleanGroups:[],purgeItems:[]});switchModule('clean');
+  qaAssert(document.querySelector('[data-clean-installer-summary]').textContent.includes('1 项'),'installers remain discoverable when no caches exist');
+  document.querySelector('[data-clean-installers]').click();
+  qaAssert(document.getElementById('moduleStage').textContent.includes('Canvas Setup.dmg'),'installer-only results remain selectable');
+`);
+add('clean-installer-entry-refresh', `
+  onNativeRealScanComplete({...structuredClone(qaFixture),installerFiles:[]});switchModule('clean');
+  qaAssert(document.querySelector('[data-clean-installer-summary]').textContent.includes('0 项'),'a later receipt clears the installer count');
+  await qaEn('installer entry',async()=>{});
+  qaAssert(document.querySelector('[data-clean-installer-summary]').textContent.includes('0 items'),'the installer summary follows the selected language');
+`);
 add('analyze-drill', `switchModule('analyze'); drillTile(0); qaAssert(STATE.drillStack.length===1,'directory drill works'); qaAssert(currentTiles()[0].name==='Canvas','drill shows children'); drillUp(); qaAssert(STATE.drillStack.length===0,'drill-up works');`);
 add('status-search', `switchModule('status'); handleSearch('8123'); qaAssert(document.querySelectorAll('#topProcList .tp-row').length===1,'PID search filters the compact list');openProcDrawer();qaAssert(document.querySelectorAll('#procTbody tr').length===1&&document.getElementById('procSearch').value==='8123','the drawer shares the query');`);
 add('doctor-wait', `openDoctorModal(true); qaAssert(document.getElementById('btnDoctorReRun').disabled,'diagnosis awaits receipt'); qaAssert(__qa.actions.some(a=>a.action==='runDoctorReCheck'&&a.requestId),'request is correlated');`);

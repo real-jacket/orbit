@@ -267,6 +267,9 @@ var moleGroups = append([]moleGroup{
 		// Ported from tw93/Mole V1.70.0 lib/clean/app_caches.sh (the clean_* functions: editors, communication, media, games, creative and utility apps)
 		rules: join(
 			electronRules("VS Code", []string{"Visual Studio Code", "Code"}, appSupport+"Code/", "Cache", "CachedData", "CachedExtensionVSIXs", "WebStorage/*/CacheStorage"),
+			// Ported from tw93/Mole V1.74.0 lib/clean/dev.sh clean_postman_partition_caches
+			electronRules("Postman", []string{"Postman", "Postman Helper"}, appSupport+"Postman/Partitions/",
+				"*/Cache", "*/Code Cache", ".*/Cache", ".*/Code Cache"),
 			[]moleRule{
 				sf("VS Code", "log", appSupport+"Code/logs").by("Visual Studio Code", "Code"),
 				sf("Zed", "cache", appSupport+"Zed/node/cache", appSupport+"Zed/node/node-v*/cache").by("Zed", "zed"),
