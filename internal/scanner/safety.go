@@ -360,7 +360,7 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 	if reason := s.cacheOwnerRunningReason(path, live); reason != "" {
 		return reason
 	}
-	worktree := exists(filepath.Join(path, ".git")) || isAgentWorktreeRoot(path, s.home) && !isAgentWorktreeArtifact(path, s.home)
+	worktree := isDir(path) && exists(filepath.Join(path, ".git")) || isAgentWorktreeRoot(path, s.home) && !isAgentWorktreeArtifact(path, s.home)
 	if worktree {
 		tree, err := gitWorktreeAt(path)
 		if err != nil {

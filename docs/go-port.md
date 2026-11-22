@@ -226,7 +226,7 @@ export GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
 export PATH="/tmp/gopath/bin:$PATH"   # go install 出来的 mygo CLI 落在这
 ```
 
-`mygo` CLI 不随仓库提供，版本对齐 `go.mod`：
+`mygo` CLI 不随仓库提供；Make 目标在未安装时通过 Go 运行固定的 `v0.6.4`。也可预先安装：
 
 ```bash
 go install github.com/egoist/mygo/cmd/mygo@v0.6.4
@@ -255,7 +255,7 @@ ok  github.com/mymoles/mole-studio/internal/trayicon
 ### 4.2 开发热重载
 
 ```bash
-make dev     # 需要 mygo CLI，见上文 go install
+make dev     # 未安装 mygo CLI 时自动通过 Go 运行固定版本
 ```
 
 它把前端和 Go 代码打进一个临时 bundle `.mygo/dev/darwin-arm64/MoleStudio Dev.app` 并启动，然后监听整棵树：保存 `Resources/src-ui/index.html`（或任意 `.go` 文件）会在约 5 秒内重建并重启应用，日志里是

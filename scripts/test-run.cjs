@@ -25,7 +25,24 @@ try {
   assert.match(commands, /codesign --verify --deep --strict .*build\/darwin-arm64\/orbit\.app/);
   assert.match(commands, /open -n .*build\/darwin-arm64\/orbit\.app/);
   assert.doesNotMatch(commands, /go run \.$|kill|tccutil/m);
-  console.log('Run entry checks passed: stable bundle, pinned builder fallback, protected existing raw process.');
+  const makeEnvironment = { ...environment };
+  delete makeEnvironment.MYGO;
+  const makeCommand = (...args) => spawnSync('/usr/bin/make', ['--no-print-directory', '-n', ...args], {
+    cwd: path.resolve(__dirname, '..'), env: makeEnvironment, encoding: 'utf8',
+  });
+  for (const [target, arguments_] of Object.entries({ app: 'build', 'app-nodmg': 'build --skip-dmg', dev: 'dev', generate: 'generate', doctor: 'doctor' })) {
+    const result = makeCommand(target);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), `${environment.GO} run github.com/egoist/mygo/cmd/mygo@v0.6.4 ${arguments_}`);
+  }
+  writeCommand('mygo', 'exit 0\n');
+  const installed = makeCommand('app-nodmg');
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.equal(installed.stdout.trim(), 'mygo build --skip-dmg');
+  const overridden = makeCommand('app-nodmg', `MYGO=${path.join(directory, 'mygo')}`);
+  assert.equal(overridden.status, 0, overridden.stderr);
+  assert.equal(overridden.stdout.trim(), `${path.join(directory, 'mygo')} build --skip-dmg`);
+  console.log('Run entry checks passed: stable bundle, pinned builder fallback, CLI overrides, protected existing raw process.');
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }

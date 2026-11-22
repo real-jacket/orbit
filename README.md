@@ -66,7 +66,7 @@ Beyond the module list:
 
 - macOS 13 (Ventura) or later
 - Go 1.27+ (the module declares `go 1.27.3`)
-- The [MyGo](https://github.com/egoist/mygo) CLI for packaging and development. `make run` uses a pinned Go-run fallback when the CLI is not installed:
+- The [MyGo](https://github.com/egoist/mygo) CLI is optional: Make targets run the pinned `v0.6.4` through Go when the CLI is not installed. To preinstall it:
 
   ```bash
   go install github.com/egoist/mygo/cmd/mygo@v0.6.4
@@ -86,7 +86,7 @@ make test-ui-webkit # isolated WebKit rendering + interaction checks
 make vet         # go vet
 make mole-sync   # list upstream Mole changes to the ported rules
 make check       # vet + test, the same gate CI runs
-make dev         # MyGo dev server with live reload (needs the `mygo` CLI)
+make dev         # MyGo dev server with live reload
 make app         # app bundle plus a .dmg, both under build/
 make app-nodmg   # app bundle only
 make doctor      # check the Go / MyGo / packaging toolchain
@@ -94,7 +94,7 @@ make help        # list every target
 ```
 
 **Which one should I run?** `make run` for day-to-day work: it builds and opens `build/darwin-arm64/orbit.app` (the architecture follows Go). It gives macOS a named bundle instead of a new `go-build` temporary executable on every launch. If an old `go run` instance is active, stop it with Ctrl-C in its original terminal first; the script will not kill it. `make run-raw` retains the old direct-executable path for narrow bridge debugging, but permissions may belong to its launching terminal. `make dev` additionally gives you a
-live-reload dev server, but needs the CLI installed. `make dev` builds a throwaway
+live-reload dev server. `make dev` builds a throwaway
 `orbit Dev` bundle under `.mygo/dev/`, runs it, and then watches the tree:
 saving `Resources/src-ui/index.html` (or any Go file) rebuilds and relaunches it in
 about five seconds. `make app-nodmg` then

@@ -11,13 +11,13 @@ make run     # build and launch
 make check   # vet + test
 ```
 
-You need Go 1.27 or newer (the module declares `go 1.27.3`). The packaging targets also need the MyGo
-CLI, which is not vendored:
+You need Go 1.27 or newer (the module declares `go 1.27.3`). MyGo targets use the CLI on `PATH`,
+or run the pinned `v0.6.4` through Go when it is absent. To preinstall the CLI:
 
 ```bash
 go install github.com/egoist/mygo/cmd/mygo@v0.6.4
 export PATH="$(go env GOPATH)/bin:$PATH"
-make doctor   # confirms the CLI and the rest of the toolchain are there
+make doctor   # checks MyGo and the rest of the toolchain
 ```
 
 ## Before you open a pull request

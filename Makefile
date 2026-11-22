@@ -5,7 +5,7 @@
 #   make run-raw    launch a temporary executable for bridge debugging
 #   make test       run the unit test suite
 #   make vet        run the Go static checker
-#   make dev        run the MyGo dev server (live reload, needs the `mygo` CLI)
+#   make dev        run the MyGo dev server (live reload)
 #   make app        package the .app bundle and a .dmg into build/
 #   make check      vet + test, the same gate CI runs
 #   make clean      remove build products
@@ -21,13 +21,13 @@
 #
 #   export GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
 #
-# The targets that shell out to MyGo need the CLI on PATH. It is not vendored
-# by this repo, so install it from the version go.mod pins:
+# MyGo targets use the CLI on PATH, or run the pinned v0.6.4 through Go when
+# it is absent. To preinstall the CLI:
 #
 #   go install github.com/egoist/mygo/cmd/mygo@v0.6.4
 #   export PATH="$(go env GOPATH)/bin:$PATH"   # or: /tmp/gopath/bin
 #
-# `make doctor` reports whether the CLI and the rest of the toolchain are there.
+# `make doctor` checks MyGo and the rest of the toolchain.
 #
 # `make app` writes into $(OUT_DIR)/<goos>-<goarch>/ — on Apple silicon that is
 # build/darwin-arm64/orbit.app plus a .dmg beside it. The per-platform
@@ -36,8 +36,8 @@
 APP_NAME := orbit
 BIN      := mole-studio
 OUT_DIR  := build
-MYGO     ?= mygo
 GO       ?= go
+MYGO     ?= $(if $(shell command -v mygo 2>/dev/null),mygo,$(GO) run github.com/egoist/mygo/cmd/mygo@v0.6.4)
 NODE     ?= node
 
 .PHONY: all build run run-raw test test-ui-webkit vet dev app app-nodmg generate set-version doctor check clean help mole-sync
@@ -80,7 +80,7 @@ mole-sync:
 vet:
 	$(GO) vet ./...
 
-## Run the MyGo dev server with live reload (requires the `mygo` CLI).
+## Run the MyGo dev server with live reload.
 dev:
 	$(MYGO) dev
 

@@ -122,6 +122,27 @@ func TestCacheVerdictClassification(t *testing.T) {
 	}
 }
 
+func TestCleanupFilesDoNotInventReadWarnings(t *testing.T) {
+	home := fixtureHome(t)
+	t.Cleanup(func() { clearReadWarnings(home) })
+	s := policyScanner(home)
+	for _, relative := range []string{"Library/Suggestions/entities.db-shm", "Library/Caches/INSTALLATION"} {
+		path := filepath.Join(home, relative)
+		writeFile(t, path, "fixture")
+		for _, live := range []bool{false, true} {
+			if reason := s.cleanupReason(path, live); reason != "" {
+				t.Fatalf("regular file was blocked (live=%v): %s: %s", live, path, reason)
+			}
+		}
+		if size := s.fastDirectorySize(path, 0); size.partial || size.files != 1 {
+			t.Fatalf("regular file must remain fully measurable: %s: %+v", path, size)
+		}
+	}
+	if warnings := scanReadWarnings(home); len(warnings) != 0 {
+		t.Fatalf("regular files must not generate failed directory probes: %v", warnings)
+	}
+}
+
 func TestCacheOfRunningAppIsProtectedWithUnlock(t *testing.T) {
 	home := fixtureHome(t)
 	app := filepath.Join(home, "Applications/Foo.app")
