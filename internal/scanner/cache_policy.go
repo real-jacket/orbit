@@ -137,20 +137,22 @@ func (s *Scanner) cacheOwnerRunningReason(path string, live bool) string {
 	if !ok {
 		return ""
 	}
-	processes, err := s.processSnapshot(live)
-	if err != nil || strings.TrimSpace(processes) == "" {
+	running, err := s.runningAppOwners(live)
+	if err != nil {
 		return "无法确认应用是否运行，保持原状"
 	}
-	if running, _ := appRunning(parseProcessLines(processes), owner.path); running {
-		return owner.name + " 正在运行，暂缓清理"
+	for _, app := range running {
+		if strings.EqualFold(app.path, owner.path) {
+			return owner.name + " 正在运行，暂缓清理"
+		}
 	}
 	return ""
 }
 
 // Application Support caches and sandbox data have the same running owner as
 // that owner's direct Library/Caches entries. Every enclosing .app counts: a
-// helper alone still uses the outer app's product data. The move boundary also
-// checks open files for unrecognized or shared data such as Group Containers.
+// helper alone still uses the outer app's product data. Standalone extensions
+// own their data independently; the move boundary checks shared open files.
 func (s *Scanner) appDataCleanupReason(path string, live bool) string {
 	appData := false
 	for _, family := range []string{"Library/Caches", "Library/Application Support", "Library/Containers", "Library/Group Containers", "Library/Preferences", "Library/Saved Application State"} {
@@ -198,24 +200,27 @@ func (s *Scanner) runningAppOwners(live bool) ([]appOwner, error) {
 	seen := map[string]bool{}
 	for _, process := range parseProcessLines(processes) {
 		for app := process.path; app != "/" && app != "."; app = filepath.Dir(app) {
-			if !strings.EqualFold(filepath.Ext(app), ".app") {
+			extension := strings.EqualFold(filepath.Ext(app), ".appex")
+			if !extension && !strings.EqualFold(filepath.Ext(app), ".app") {
 				continue
 			}
 			key := strings.ToLower(app)
-			if seen[key] {
-				continue
+			if !seen[key] {
+				seen[key] = true
+				owners := s.appOwnersFor(app, live)
+				if len(owners) == 0 {
+					return nil, errors.New("running app metadata unavailable")
+				}
+				owner := owners[0]
+				owner.roots = append([]string(nil), owner.roots...)
+				for i, root := range owner.roots {
+					owner.roots[i] = strings.ToLower(root)
+				}
+				running = append(running, owner)
 			}
-			seen[key] = true
-			owners := s.appOwnersFor(app, live)
-			if len(owners) == 0 {
-				return nil, errors.New("running app metadata unavailable")
+			if extension {
+				break // Widgets and link extensions run without launching their host app.
 			}
-			owner := owners[0]
-			owner.roots = append([]string(nil), owner.roots...)
-			for i, root := range owner.roots {
-				owner.roots[i] = strings.ToLower(root)
-			}
-			running = append(running, owner)
 		}
 	}
 	return running, nil

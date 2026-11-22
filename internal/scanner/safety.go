@@ -340,6 +340,9 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 			}
 			for _, command := range strings.Split(processes, "\n") {
 				command = strings.TrimSpace(command)
+				if strings.Contains(strings.ToLower(command), ".appex/") {
+					continue // Extension-owned data was checked separately above.
+				}
 				for _, owner := range rule.owners {
 					if filepath.Base(command) == owner || strings.HasPrefix(filepath.Base(command), owner+" ") || strings.HasPrefix(filepath.Base(command), owner+".") || strings.Contains(command, "/"+owner+".app/") {
 						return ownerLabel(owner) + " 正在运行，暂缓清理"
