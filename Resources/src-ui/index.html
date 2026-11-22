@@ -1200,11 +1200,13 @@
   .clean-exclusions .permission-group-path b, .clean-exclusions .permission-group-path small { white-space: normal; overflow-wrap: anywhere; }
   .ai-tool-filter { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); }
   .ai-tool-filter select { min-width: 0; max-width: 220px; height: 28px; padding: 0 8px; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 6px; font: inherit; }
-  .ai-worktree-project > summary { list-style: none; }
-  .ai-worktree-project > summary::-webkit-details-marker { display: none; }
+  .ai-worktree-project > summary, .ai-worktree-artifacts > summary { list-style: none; }
+  .ai-worktree-project > summary::-webkit-details-marker, .ai-worktree-artifacts > summary::-webkit-details-marker { display: none; }
   .ai-project-chevron { display: inline-block; color: var(--text-muted); font-size: 18px; }
-  .ai-worktree-project[open] .ai-project-chevron { transform: rotate(90deg); }
-  .ai-worktree-rows { margin-left: 18px; border-left: 1px solid var(--border-subtle); }
+  .ai-worktree-project[open] > summary .ai-project-chevron, .ai-worktree-artifacts[open] > summary .ai-project-chevron { transform: rotate(90deg); }
+  .ai-worktree-rows, .ai-worktree-artifact-rows { margin-left: 18px; border-left: 1px solid var(--border-subtle); }
+  .ai-worktree-artifacts { margin-left: 18px; }
+  .ai-inspector-artifacts .list-row { padding: 8px 0; }
   .runtime-check-time { font-size: 10.5px; color: var(--text-secondary); }
   .runtime-panel-footer { display: flex; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--border-subtle); flex: none; }
   .memory-panel { width: 560px; }
@@ -4376,7 +4378,14 @@ function toggleSubpathCheck(groupIdx, subIdx) {
   renderModule();
 }
 function setCleanFilter(f) { STATE.cleanFilter = f; renderModule(); }
-function setAIFilter(f) { STATE.aiFilter = f; renderModule(); }
+function setAIFilter(f) {
+  STATE.aiFilter = f;
+  STATE.aiMoonBands.filter(b => b.worktreePath && !b.wholeWorktree && b.tier === f).forEach(b => {
+    if (b.sourceProject) setAIProjectOpen(b.sourceProject, true);
+    setAIProjectOpen(b.worktreePath, true);
+  });
+  renderModule();
+}
 function setAIToolFilter(tool) { STATE.aiToolFilter = tool; renderModule(); }
 function matchesAITool(item) { return STATE.aiToolFilter === 'all' || (item.tool || '其他已识别资源') === STATE.aiToolFilter; }
 function clearAIFilters() {
@@ -4387,7 +4396,15 @@ function clearAIFilters() {
 }
 
 // Interactive Handlers for AI Care (Zero protected items in list)
-function selectMoonRow(idx) { STATE.selectedMoonIdx = idx; renderModule(); }
+function selectMoonRow(idx) {
+  STATE.selectedMoonIdx = idx;
+  const band = STATE.aiMoonBands[idx];
+  if (band && band.sourceProject) {
+    setAIProjectOpen(band.sourceProject, true);
+    if (!band.wholeWorktree) setAIProjectOpen(band.worktreePath, true);
+  }
+  renderModule();
+}
 function clearAIWorktreeOverlap(band) {
   if (!band.worktreePath) return;
   STATE.aiMoonBands.forEach(other => {
@@ -4434,30 +4451,45 @@ function aiMeasuredGb(rows) {
   });
   return total + [...worktrees.values()].reduce((sum, tree) => sum + Math.max(tree.whole, tree.artifacts), 0);
 }
+function aiRowHTML(b) {
+  const idx = STATE.aiMoonBands.indexOf(b);
+  const name = b.wholeWorktree ? b.name : t(b.name);
+  return `<div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}"${movingAttr(b)} onclick="selectMoonRow(${idx})">
+    <div class="row-left">
+      ${b.tier === 'protected'
+        ? `<span class="lock-glyph" title="${t('保持原状，不可勾选')}">${UI_ICON('lock')}</span>`
+        : `<input type="checkbox" aria-label="${escHtml(name)}" ${b.checked ? 'checked' : ''} onclick="toggleMoonCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
+      }
+      <div style="min-width:0;">
+        <div class="row-title" title="${escHtml(name)}">${escHtml(name)}</div>
+        <div class="row-sub">${escHtml(t(b.band))}${b.branch ? ' · ' + escHtml(t(b.branch)) : ''}${b.uninstalled ? ' · ' + t('已卸载') : ''}${b.ageText ? ' · ' + escHtml(ageLabel(b.ageText)) : ''} · ${escHtml(b.path)}</div>
+        ${tierNoteHTML(b, null, true)}${b.gitState && !b.reason && !b.safetyReason ? `<div class="row-sub" style="white-space:normal;">${escHtml(t(b.gitState))}</div>` : ''}
+        ${b.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(b.failedReason))}</div>` : ''}
+      </div>
+    </div>
+    <div class="row-right">
+      <span class="badge ${b.failed ? 'badge-review' : b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
+        ${b.failed ? t('未处理') : b.cleaned ? t('已清理') : tierLabel(b.tier)}
+      </span>
+      <span class="size-cell">${fmtPartialGb(b.sizeGb, b.partial)}</span>
+    </div>
+  </div>`;
+}
 function aiRowsHTML(rows) {
-  return rows.map(b => {
-    const idx = STATE.aiMoonBands.indexOf(b);
-    const name = b.wholeWorktree ? b.name : t(b.name);
-    return `<div class="list-row ${idx === STATE.selectedMoonIdx ? 'selected' : ''}"${movingAttr(b)} onclick="selectMoonRow(${idx})">
-      <div class="row-left">
-        ${b.tier === 'protected'
-          ? `<span class="lock-glyph" title="${t('保持原状，不可勾选')}">${UI_ICON('lock')}</span>`
-          : `<input type="checkbox" ${b.checked ? 'checked' : ''} onclick="toggleMoonCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />`
-        }
-        <div style="min-width:0;">
-          <div class="row-title" title="${escHtml(name)}">${escHtml(name)}</div>
-          <div class="row-sub">${escHtml(t(b.band))}${b.branch ? ' · ' + escHtml(t(b.branch)) : ''}${b.uninstalled ? ' · ' + t('已卸载') : ''}${b.ageText ? ' · ' + escHtml(ageLabel(b.ageText)) : ''} · ${escHtml(b.path)}</div>
-          ${tierNoteHTML(b, null, true)}${b.gitState && !b.reason && !b.safetyReason ? `<div class="row-sub" style="white-space:normal;">${escHtml(t(b.gitState))}</div>` : ''}
-          ${b.failedReason ? `<div class="row-sub" style="color:var(--accent-rose);white-space:normal;">${escHtml(t(b.failedReason))}</div>` : ''}
-        </div>
-      </div>
-      <div class="row-right">
-        <span class="badge ${b.failed ? 'badge-review' : b.cleaned ? 'badge-safe' : b.tier === 'safe' ? 'badge-safe' : b.tier === 'review' ? 'badge-review' : 'badge-protected'}">
-          ${b.failed ? t('未处理') : b.cleaned ? t('已清理') : tierLabel(b.tier)}
-        </span>
-        <span class="size-cell">${fmtPartialGb(b.sizeGb, b.partial)}</span>
-      </div>
-    </div>`;
+  return rows.filter(b => !b.worktreePath || b.wholeWorktree || !rows.some(parent => parent.wholeWorktree && parent.worktreePath === b.worktreePath)).map(b => {
+    if (!b.wholeWorktree) return aiRowHTML(b);
+    const artifacts = rows.filter(child => !child.wholeWorktree && child.worktreePath === b.worktreePath);
+    return `<div class="ai-worktree" data-ai-worktree="${escHtml(b.worktreePath)}">${aiRowHTML(b)}${artifacts.length ? `
+      <details class="ai-worktree-artifacts" ${(STATE.aiProjectsOpen || []).includes(b.worktreePath) || !!STATE.searchQuery ? 'open' : ''} ontoggle="if(this.isConnected)setAIProjectOpen('${jsq(b.worktreePath)}',this.open)">
+        <summary class="list-row">
+          <div class="row-left"><span class="ai-project-chevron" aria-hidden="true">›</span><div style="min-width:0;">
+            <div class="row-title">${t('工作树内的依赖与构建产物')}</div>
+            <div class="row-sub">${t('体积已包含在工作树中；可单独清理产物，保留工作树。')}</div>
+          </div></div>
+          <div class="row-right"><span class="badge badge-review">${t('{n} 项内部产物', {n: artifacts.length})}</span><span class="size-cell">${fmtPartialGb(aiMeasuredGb(artifacts), artifacts.some(child => child.partial))}</span></div>
+        </summary>
+        <div class="ai-worktree-artifact-rows">${artifacts.map(aiRowHTML).join('')}</div>
+      </details>` : ''}</div>`;
   }).join('');
 }
 function aiGroupedRowsHTML(rows) {
@@ -5955,8 +5987,10 @@ function renderModule() {
     heroStatSub.textContent = selectedBands.length ? t('共 {n} 个已选路径 · 预览后确认', {n: selectedBands.reduce((sum, band) => sum + selectedSubpaths(band).length, 0)}) : t('{review} 项需确认 · {kept} 项保留', {review: scopedBands.filter(band => band.tier === 'review').length, kept: scopedBands.filter(band => band.tier === 'protected').length});
 
     const filtered = scopedBands.filter(band => STATE.aiFilter === 'all' || band.tier === STATE.aiFilter);
-    const hiddenSelection = selectedBands.filter(band => !filtered.includes(band)).flatMap(band => selectedSubpaths(band));
-    const selBand = filtered.includes(STATE.aiMoonBands[STATE.selectedMoonIdx]) ? STATE.aiMoonBands[STATE.selectedMoonIdx] : filtered[0];
+    const visibleBands = filtered.concat(STATE.aiMoonBands.filter(band => band.wholeWorktree && !filtered.includes(band) && filtered.some(child => child.worktreePath === band.worktreePath)));
+    const hiddenSelection = selectedBands.filter(band => !visibleBands.includes(band)).flatMap(band => selectedSubpaths(band));
+    const selBand = visibleBands.includes(STATE.aiMoonBands[STATE.selectedMoonIdx]) ? STATE.aiMoonBands[STATE.selectedMoonIdx] : filtered[0];
+    const selArtifacts = selBand && selBand.wholeWorktree ? STATE.aiMoonBands.filter(band => !band.wholeWorktree && band.worktreePath === selBand.worktreePath && !band.cleaned) : [];
     const selNote = selBand ? selBand.reason || selBand.safetyReason || selBand.gitState || '' : '';
     if (selBand) STATE.selectedMoonIdx = STATE.aiMoonBands.indexOf(selBand);
     stage.innerHTML = `
@@ -5977,7 +6011,7 @@ function renderModule() {
             </div>
           </div>
           <div class="list-body">
-            ${aiGroupedRowsHTML(filtered)}
+            ${aiGroupedRowsHTML(visibleBands)}
           </div>
         </div>
 
@@ -6020,6 +6054,11 @@ function renderModule() {
                 </div>
               `).join('')}
             </div>
+            ${selArtifacts.length ? `<div class="ai-inspector-artifacts">
+              <div style="font-size:10.5px;font-weight:700;color:var(--text-secondary);">${t('工作树内的依赖与构建产物')}</div>
+              <div class="row-sub" style="white-space:normal;">${t('体积已包含在工作树中；可单独清理产物，保留工作树。')}</div>
+              ${selArtifacts.map(aiRowHTML).join('')}
+            </div>` : ''}
             <div style="margin-top:auto;display:flex;gap:8px;padding-top:4px;">
               <button class="btn" style="flex:1;justify-content:center;" onclick="revealInFinder('${jsq(selBand.path)}')">${t('在访达 (Finder) 中显示')}</button>
               <button class="btn" style="flex:1;justify-content:center;" onclick="addPathToWhitelist('${jsq(selBand.path)}')">${t('移入白名单保护')}</button>

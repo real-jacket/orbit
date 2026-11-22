@@ -100,7 +100,7 @@ func TestAIWorktreesUseSourceRepositoryAndProtectDirtyCheckouts(t *testing.T) {
 	second := filepath.Join(s.home, "Projects", "Source Project-fix")
 	worktreeGit(t, project, "worktree", "add", "-qb", "fix", second)
 	writeFile(t, filepath.Join(first, "untracked-note.txt"), "unfinished work")
-	rows := s.scanAIWorktrees(&catalogClaims{})
+	rows := s.scanAIWorktrees()
 	if len(rows) != 2 {
 		t.Fatalf("agent-owned and source-adjacent worktrees must both be inventoried once: %v", rows)
 	}
@@ -125,6 +125,53 @@ func TestAIWorktreesUseSourceRepositoryAndProtectDirtyCheckouts(t *testing.T) {
 	}
 }
 
+func TestAIWorktreeArtifactsMatchBuildCleanup(t *testing.T) {
+	s := newTestScanner(t)
+	_, tree := worktreeProject(t, s)
+	nodeProject(t, s.home, ".codex/worktrees/task/Source Project")
+	cache := fixtureDir(t, tree, "packages/one/two/three/four/five/.ruff_cache", 21_000_000)
+	writeFile(t, filepath.Join(tree, "packages/editor-sdk/dist/package.json"), "tracked project metadata")
+	worktreeGit(t, tree, "add", "packages/editor-sdk/dist/package.json")
+	worktreeGit(t, tree, "commit", "-qm", "project metadata")
+	for _, days := range []int{14, 30, 60} {
+		age(t, filepath.Join(tree, "node_modules"), days)
+		age(t, cache, days)
+		buildRows := s.scanBuildArtifactsWithRoots([]string{tree})
+		if len(buildRows) != 2 {
+			t.Fatalf("build discovery must reach deep caches and omit tiny tracked dist metadata: %v", buildRows)
+		}
+		aiPaths := map[string]map[string]any{}
+		for _, row := range s.scanAIWorktrees() {
+			if row["wholeWorktree"] == true {
+				continue
+			}
+			for _, subpath := range row["subpaths"].([]map[string]any) {
+				aiPaths[subpath["path"].(string)] = subpath
+			}
+		}
+		if len(aiPaths) != len(buildRows) {
+			t.Fatalf("AI and build cleanup must list the same artifact paths: AI=%v build=%v", aiPaths, buildRows)
+		}
+		for _, row := range buildRows {
+			path := row["path"].(string)
+			ai := aiPaths[path]
+			wantTier := "safe"
+			if days < artifactSafeDays {
+				wantTier = "review"
+			}
+			if row["tier"] != wantTier {
+				t.Fatalf("artifact at %d days must be %s: %v", days, wantTier, row)
+			}
+			for _, key := range []string{"tier", "reason", "checked", "sizeGb"} {
+				build := row["subpaths"].([]map[string]any)[0]
+				if ai[key] != build[key] {
+					t.Fatalf("%s at %d days disagrees on %s: AI=%v build=%v", path, days, key, ai, build)
+				}
+			}
+		}
+	}
+}
+
 func TestWorktreeTrashAndRestorePreserveGitLinksAndUnmergedCommit(t *testing.T) {
 	s := newTestScanner(t)
 	project, tree := worktreeProject(t, s)
@@ -141,7 +188,7 @@ func TestWorktreeTrashAndRestorePreserveGitLinksAndUnmergedCommit(t *testing.T) 
 	if err != nil || info.branch != "task" || worktreeGit(t, trashed, "rev-parse", "HEAD") != commit {
 		t.Fatalf("both Git pointers and the unmerged commit must survive the move: %+v, %v", info, err)
 	}
-	if rows := s.scanAIWorktrees(&catalogClaims{}); len(rows) != 0 {
+	if rows := s.scanAIWorktrees(); len(rows) != 0 {
 		t.Fatalf("a worktree already in Trash must not reappear as a candidate: %v", rows)
 	}
 	restored := s.RestoreTrash([]string{tree})
@@ -166,7 +213,7 @@ func TestWorktreeWithSubmoduleConfigurationStaysProtected(t *testing.T) {
 	if state := worktreeGit(t, tree, "status", "--porcelain"); state != "" {
 		t.Fatalf("fixture must be a clean checkout: %q", state)
 	}
-	rows := s.scanAIWorktrees(&catalogClaims{})
+	rows := s.scanAIWorktrees()
 	if len(rows) != 1 || rows[0]["tier"] != "protected" || rows[0]["checked"] != false || !strings.Contains(rows[0]["reason"].(string), "子模块配置") {
 		t.Fatalf("clean submodule checkouts must retain their Git pointers: %v", rows)
 	}
@@ -182,7 +229,7 @@ func TestWorktreeWithProtectedDescendantCannotOfferSourceChildren(t *testing.T) 
 	worktreeGit(t, tree, "add", "other-source.txt")
 	worktreeGit(t, tree, "commit", "-qm", "another source file")
 	writeFile(t, WhitelistPath(s.home), filepath.Join(tree, "source.txt")+"\n")
-	rows := s.scanAIWorktrees(&catalogClaims{})
+	rows := s.scanAIWorktrees()
 	if len(rows) != 1 || rows[0]["tier"] != "protected" || rows[0]["checked"] != false || rows[0]["partial"] != true {
 		t.Fatalf("a protected descendant blocks the whole checkout and marks its excluded measurement: %v", rows)
 	}
@@ -236,16 +283,22 @@ func TestWorktreeRepairFailureRollsBackTrashMove(t *testing.T) {
 func TestWorktreeArtifactGuardsTrackedAndAuthoredFiles(t *testing.T) {
 	s := newTestScanner(t)
 	_, tree := worktreeProject(t, s)
-	build := filepath.Join(tree, "build")
+	build := fixtureDir(t, tree, "build", 21_000_000)
 	writeFile(t, filepath.Join(build, "manual-source.txt"), "authored source")
 	worktreeGit(t, tree, "add", "-f", "build/manual-source.txt")
-	if v := s.worktreeArtifactVerdict(build, dirSize{modified: nowUnix() - 83*86400}); v.tier != "protected" {
-		t.Fatalf("old tracked output remains protected: %+v", v)
-	}
-	node := filepath.Join(tree, "node_modules")
+	node := fixtureDir(t, tree, "node_modules", 21_000_000)
 	writeFile(t, filepath.Join(node, "wallet-keypair.json"), "authored key")
-	if v := s.worktreeArtifactVerdict(node, dirSize{modified: nowUnix() - 83*86400}); v.tier != "protected" {
-		t.Fatalf("old dependency folders with authored data remain protected: %+v", v)
+	for _, path := range []string{build, node} {
+		age(t, path, 83)
+	}
+	protected := map[string]bool{}
+	for _, row := range s.scanAIWorktrees() {
+		if row["wholeWorktree"] != true && row["tier"] == "protected" && row["checked"] == false {
+			protected[row["path"].(string)] = true
+		}
+	}
+	if !protected[s.relativize(build)] || !protected[s.relativize(node)] {
+		t.Fatalf("old tracked output and dependencies with authored data remain protected: %v", protected)
 	}
 	if got := gitCleanState(filepath.Join(tree, "build")); got != "有未提交改动" {
 		t.Fatalf("nested project rows must report the owning repository state: %q", got)
@@ -266,5 +319,31 @@ func TestWorktreeArtifactNamesDistinguishCheckoutAndCacheRoots(t *testing.T) {
 	worktreeGit(t, project, "worktree", "add", "-qb", "build-task", build)
 	if result := s.TrashPaths([]string{build}); len(result.Moved) != 1 || len(result.Failed) != 0 || len(result.Skipped) != 0 {
 		t.Fatalf("a registered checkout named build must use worktree safety instead of artifact safety: %+v", result)
+	}
+}
+
+func TestWorktreeTaggedCacheGuardsContentAddedAfterScan(t *testing.T) {
+	s := newTestScanner(t)
+	_, tree := worktreeProject(t, s)
+	cache := fixtureDir(t, tree, "scratch-cache", 21_000_000)
+	writeFile(t, filepath.Join(cache, "CACHEDIR.TAG"), cacheDirTagSig)
+	age(t, cache, 83)
+	offered := false
+	for _, row := range s.scanAIWorktrees() {
+		if row["path"] == s.relativize(cache) && row["tier"] == "safe" {
+			offered = true
+		}
+	}
+	if !offered {
+		t.Fatal("worktree caches with a valid tag must use the build cleanup rules")
+	}
+	bundle := fixtureDir(t, tree, "browser.app", 4096)
+	writeFile(t, filepath.Join(bundle, "CACHEDIR.TAG"), cacheDirTagSig)
+	if isAgentWorktreeArtifact(bundle, s.home) {
+		t.Fatal("a cache tag must not turn an application bundle into a worktree artifact")
+	}
+	writeFile(t, filepath.Join(cache, "wallet-keypair.json"), "authored key added after preview")
+	if result := s.TrashPaths([]string{cache}); len(result.Moved) != 0 || len(result.Skipped) != 1 || !exists(cache) {
+		t.Fatalf("new authored content must protect tagged caches at execution: %+v", result)
 	}
 }

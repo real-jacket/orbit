@@ -2,16 +2,10 @@ package scanner
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
-	"time"
 )
 
-const (
-	artifactSafeDays = 30 // untouched this long: recommended, pre-checked
-	worktreeSafeDays = 7  // agent worktree artifacts go idle sooner
-)
+const artifactSafeDays = 30 // untouched this long: recommended, pre-checked
 
 // rebuildCommand names the real command that brings back artifact name in
 // project, read from the lockfiles and manifests beside it. "" when unknown.
@@ -109,70 +103,4 @@ func artifactVerdict(path string, modified int64) verdict {
 		return verdict{tier: "safe", reason: fmt.Sprintf("%d 天未修改，可用 %s 重建", days, how)}
 	}
 	return verdict{tier: "review", reason: fmt.Sprintf("%d 天未修改；确认不再需要这些产物后，可清理并用 %s 重建", days, how)}
-}
-
-// worktreeArtifactVerdict is the same decision for an artifact inside an agent
-// worktree: idle >= 7 days is safe, newer is review. Agents rebuild on demand.
-func (s *Scanner) worktreeArtifactVerdict(path string, size dirSize) verdict {
-	candidate := artifactCandidate{path: path, name: filepath.Base(path)}
-	guardArtifact(&candidate, time.Now().Add(2*time.Second))
-	if candidate.protect != "" {
-		return verdict{tier: "protected", reason: candidate.protect}
-	}
-	if candidate.unverified != "" {
-		return verdict{tier: "review", reason: candidate.unverified}
-	}
-	if size.partial {
-		return verdict{tier: "review", reason: "目录太大没有读完，无法确认里面最近是否改动过，请确认后再清理"}
-	}
-	name := filepath.Base(path)
-	project := filepath.Dir(path)
-	if scratch := swiftPMOutputRoot(path); scratch != "" {
-		name, project = ".build", filepath.Dir(scratch)
-	}
-	kind := worktreeArtifactNames[name]
-	how := rebuildCommand(project, name)
-	if how == "" {
-		how = "重新安装或重新编译"
-	}
-	if ambiguousArtifactName(name) && !gitIgnored(path) {
-		return verdict{tier: "review", reason: "没有被 .gitignore 忽略，可能是工作树自带的文件而不是构建产物，请确认后再清理"}
-	}
-	days := idleDays(size.modified)
-	if size.modified > 0 && days >= worktreeSafeDays {
-		return verdict{tier: "safe", reason: fmt.Sprintf("%s，%d 天未修改，需要时可用 %s 重建", kind, days, how)}
-	}
-	return verdict{tier: "review", reason: fmt.Sprintf("%s，最近有改动，工作树可能仍在使用；清理后需用 %s 重建", kind, how)}
-}
-
-// worktreeArtifacts lists the regenerable directories of one agent worktree:
-// at the root and one or two levels down (monorepo packages), never inside
-// .git or another artifact. shortcut: bounded breadth-first listing, a deeper
-// monorepo layout is missed, raise the depth when one shows up.
-func worktreeArtifacts(worktree string) []string {
-	var found []string
-	var walk func(dir string, depth int)
-	visited := 0
-	walk = func(dir string, depth int) {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			return
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() || entry.Name() == ".git" || strings.HasPrefix(entry.Name(), ".") && worktreeArtifactNames[entry.Name()] == "" {
-				continue
-			}
-			if visited++; visited > 400 {
-				return
-			}
-			path := filepath.Join(dir, entry.Name())
-			if worktreeArtifactNames[entry.Name()] != "" {
-				found = append(found, swiftPMArtifacts(path)...)
-			} else if depth < 2 {
-				walk(path, depth+1)
-			}
-		}
-	}
-	walk(worktree, 0)
-	return found
 }

@@ -38,9 +38,6 @@ func TestSwiftPMDiscoveryOffersOutputsWithoutDependencyOrWorkspaceState(t *testi
 	if want := []string{indexed, output}; !reflect.DeepEqual(paths, want) {
 		t.Fatalf("only real compilation and index outputs may be offered: %v", paths)
 	}
-	if got := worktreeArtifacts(project); !reflect.DeepEqual(got, []string{indexed, output}) {
-		t.Fatalf("agent worktrees must use the same decomposition: %v", got)
-	}
 	if swiftPMOutputRoot(indexed) != scratch || rebuildCommand(project, ".build") != "swift build" {
 		t.Fatal("nested index outputs lost their Swift project attribution")
 	}

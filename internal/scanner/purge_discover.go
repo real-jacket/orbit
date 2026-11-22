@@ -59,6 +59,7 @@ type artifactCandidate struct {
 	name       string
 	kind       string
 	bytes      int64
+	files      int
 	modified   int64 // newest file inside, or the folder's own time when that is newer
 	partial    bool
 	protect    string // why it must stay, from a content check
@@ -375,7 +376,7 @@ func (s *Scanner) measureArtifacts(found []artifactCandidate, probeDeadline time
 				if size.bytes < minArtifactBytes && !size.partial {
 					continue
 				}
-				c.bytes, c.partial, c.modified = size.bytes, size.partial, max(size.modified, modifiedTime(c.path))
+				c.bytes, c.files, c.partial, c.modified = size.bytes, size.files, size.partial, max(size.modified, modifiedTime(c.path))
 				guardArtifact(&c, probeDeadline)
 				mu.Lock()
 				out = append(out, c)
@@ -401,17 +402,22 @@ func (s *Scanner) scanBuildArtifacts() []map[string]any {
 // A full scan passes its already-read project scope here so discovery and the
 // displayed settings cannot use different revisions of purge_paths.
 func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
-	items := []map[string]any{}
 	var found projectDiscovery
 	if s.projects != nil {
 		found = s.projects()
 	} else {
 		found = s.discoverProjects(roots)
 	}
+	return s.buildArtifactRows(found.artifacts)
+}
+
+// Both build cleanup and AI worktree details use these measured, protected rows.
+func (s *Scanner) buildArtifactRows(found []artifactCandidate) []map[string]any {
+	items := []map[string]any{}
 	probeDeadline := time.Now().Add(purgeProbeBudget)
 	var candidates []artifactCandidate
 	seen := map[string]bool{}
-	for _, c := range found.artifacts {
+	for _, c := range found {
 		if key := strings.ToLower(c.path); !seen[key] {
 			seen[key] = true
 			candidates = append(candidates, c)
@@ -426,8 +432,9 @@ func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
 	}
 	for i, c := range candidates {
 		project := dirName(c.path)
+		name := c.name
 		if scratch := swiftPMOutputRoot(c.path); scratch != "" {
-			project = filepath.Dir(scratch)
+			project, name = filepath.Dir(scratch), ".build"
 		}
 		// Project and Git metadata can change without using these artifacts.
 		active := c.modified
@@ -447,6 +454,14 @@ func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
 		if v.unlock != "" {
 			sub["unlock"] = v.unlock
 		}
+		lastMod := "无法读取修改时间"
+		if active > 0 {
+			lastMod = time.Unix(active, 0).Local().Format("2006-01-02 15:04")
+		}
+		rebuild := rebuildCommand(project, name)
+		if rebuild == "" {
+			rebuild = "重新安装或重新编译"
+		}
 		row := map[string]any{
 			"id":          "artifact_" + itoa64(int64(i)),
 			"project":     project,
@@ -457,7 +472,12 @@ func (s *Scanner) scanBuildArtifactsWithRoots(roots []string) []map[string]any {
 			"sizeGb":      gb(c.bytes),
 			"origSizeGb":  gb(c.bytes),
 			"age":         ageText(active),
+			"lastMod":     lastMod,
+			"filesCount":  itoa64(int64(c.files)) + " 个文件 · 1 个路径",
+			"items":       1,
 			"rebuildNote": "删除后可重新安装或重新编译",
+			"rebuildTime": rebuild,
+			"impact":      "仅将选中的依赖与构建产物移入废纸篓；工作树、源码与提交保留。",
 			"gitClean":    gitCleanState(project),
 			"tier":        v.tier,
 			"baseTier":    v.tier,

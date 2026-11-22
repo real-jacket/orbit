@@ -3,6 +3,9 @@
 // scripts/test-i18n.cjs checks every t('…') literal in index.html has an entry here.
 I18N.add({
   "{n} 个工作树": "{n} {n|worktree|worktrees}",
+  "{n} 项内部产物": "{n} internal {n|artifact|artifacts}",
+  "工作树内的依赖与构建产物": "Dependencies and build artifacts inside this worktree",
+  "体积已包含在工作树中；可单独清理产物，保留工作树。": "Included in the worktree size. Clean artifacts separately to keep the worktree.",
   "源项目": "Source project",
   "分支": "Branch",
   "AI／Agent 本地专项扫描，不是 CLI AI 子命令。缓存、旧日志与过期会话按路径处理；工作树按源项目展开，确认任务结束后可移入废纸篓。未提交内容、活跃工作树、凭据与模型保留。": "A local scan for AI tools and agents, not a CLI AI subcommand. Caches, old logs and expired sessions are handled by path. Expand source projects to review worktrees, then confirm completed tasks before moving them to Trash. Uncommitted work, active worktrees, credentials and models are kept.",

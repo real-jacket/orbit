@@ -410,7 +410,7 @@ func (s *Scanner) scanAICaches() []map[string]any {
 		row["band"], row["tool"] = entry.band, entry.tool
 		items = append(items, row)
 	}
-	items = append(items, s.scanAIWorktrees(claims)...)
+	items = append(items, s.scanAIWorktrees()...)
 	for _, row := range items {
 		if tool, _ := row["tool"].(string); s.aiToolUninstalled(tool) {
 			row["uninstalled"] = true

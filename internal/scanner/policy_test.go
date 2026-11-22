@@ -219,17 +219,6 @@ func TestArtifactVerdictAgeTiers(t *testing.T) {
 }
 
 func TestWorktreeVerdicts(t *testing.T) {
-	home := fixtureHome(t)
-	s := policyScanner(home)
-	nm := fixtureDir(t, home, ".claude/worktrees/w/node_modules", 16)
-	nodeProject(t, home, ".claude/worktrees/w")
-	day := int64(86400)
-	if v := s.worktreeArtifactVerdict(nm, dirSize{modified: nowUnix() - 10*day}); v.tier != "safe" {
-		t.Errorf("idle worktree node_modules = %s, want safe", v.tier)
-	}
-	if v := s.worktreeArtifactVerdict(nm, dirSize{modified: nowUnix() - day}); v.tier != "review" || v.reason == "" {
-		t.Errorf("fresh worktree node_modules = %+v, want review", v)
-	}
 	if v := worktreeVerdict("工作区干净", "kept"); v.tier != "review" {
 		t.Errorf("clean and idle worktree = %s, want review", v.tier)
 	}

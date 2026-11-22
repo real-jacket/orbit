@@ -164,23 +164,17 @@ func (s *Scanner) scanAIVersions(claims *catalogClaims) []map[string]any {
 	return rows
 }
 
-func (s *Scanner) scanAIWorktrees(claims *catalogClaims) []map[string]any {
+func (s *Scanner) scanAIWorktrees() []map[string]any {
 	var rows []map[string]any
 	for _, tree := range s.aiWorktreeInventory() {
 		path := tree.path
-		// Offer artifacts separately; moving the whole checkout includes them too.
-		if artifacts := worktreeArtifacts(path); len(artifacts) > 0 {
-			row := s.catalog(CatalogSpec{
-				ID: "ai_worktree_artifacts:" + path, Category: tree.tool, Name: filepath.Base(path) + " · 依赖与构建产物",
-				Roots: artifacts, Tier: "review", Classify: (*Scanner).worktreeArtifactVerdict,
-				Impact:  "智能体工作树里的依赖目录与构建产物，可以按需重新生成；工作树里的源码和提交不在此列。",
-				Rebuild: "需要时重新安装依赖或重新编译",
-			}, claims, nil)
-			if row != nil {
-				row["band"], row["tool"] = "依赖与构建产物", tree.tool
-				row["sourceProject"], row["worktreePath"], row["branch"] = s.relativize(tree.source), s.relativize(path), tree.branch
-				rows = append(rows, row)
-			}
+		var artifacts []artifactCandidate
+		s.walkArtifacts(path, time.Now().Add(artifactDiscoveryBudget), &artifacts)
+		for _, row := range s.buildArtifactRows(artifacts) {
+			row["id"] = "ai_worktree_artifact:" + row["path"].(string)
+			row["band"], row["tool"] = "依赖与构建产物", tree.tool
+			row["sourceProject"], row["worktreePath"], row["branch"] = s.relativize(tree.source), s.relativize(path), tree.branch
+			rows = append(rows, row)
 		}
 		state := worktreeState(path)
 		impact := worktreeKept(state)

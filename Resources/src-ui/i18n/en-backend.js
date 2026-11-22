@@ -379,6 +379,8 @@
     // ---- scanner policy (fs.go, cache/git/purge policy) ----
     "{x} · {y} · 依赖与构建产物": "{x} · {y} · Dependencies and build output",
     "依赖与构建产物": "Dependencies and build output",
+    "仅将选中的依赖与构建产物移入废纸篓；工作树、源码与提交保留。": "Only selected dependencies and build artifacts move to Trash; the worktree, source and commits are kept.",
+    "{n} 个文件 · 1 个路径": "{n} {n|file|files} · 1 path",
     "智能体工作树里的依赖目录与构建产物，可以按需重新生成；工作树里的源码和提交不在此列。": "Dependency folders and build output inside agent worktrees can be regenerated on demand; the source and commits in the worktree are not included.",
     "需要时重新安装依赖或重新编译": "Reinstall dependencies or rebuild when needed",
     "工作区干净": "Working tree is clean",

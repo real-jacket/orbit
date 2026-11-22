@@ -584,8 +584,8 @@ assert.equal(vm.runInContext('selectedSizeGb(STATE.aiMoonBands[0])', context), 1
   assert.equal(whole.subpaths[0].checked, false);
 
   const cache = { name: 'AI cache', band: '运行缓存', path: '~/Library/Caches/Fixture', tier: 'safe', sizeGb: 1 };
-  const view = vm.createContext({ STATE: { aiMoonBands: [whole, artifacts, cache], aiProjectsOpen: [], selectedMoonIdx: 0, searchQuery: '' }, UI_ICON: () => '', movingAttr: () => '', ageLabel: value => value });
-  ['hasNum', 'fmtDiskSizeGb', 'tierSummary', 'tierNoteHTML', 'escHtml', 'jsq', 'displayPath', 'aiMeasuredGb', 'aiRowsHTML', 'aiGroupedRowsHTML', 'setAIProjectOpen', 'matchesSearch'].forEach(name => load(name, view));
+  const view = vm.createContext({ STATE: { aiMoonBands: [whole, artifacts, cache], aiProjectsOpen: [], selectedMoonIdx: 0, searchQuery: '', aiFilter: 'all' }, UI_ICON: () => '', movingAttr: () => '', ageLabel: value => value, renderModule() {} });
+  ['hasNum', 'fmtDiskSizeGb', 'tierSummary', 'tierNoteHTML', 'escHtml', 'jsq', 'displayPath', 'aiMeasuredGb', 'aiRowHTML', 'aiRowsHTML', 'aiGroupedRowsHTML', 'setAIProjectOpen', 'setAIFilter', 'selectMoonRow', 'matchesSearch'].forEach(name => load(name, view));
   ['TIERS', 'tierLabel', 'tierFallback', 'fmtPartialGb'].forEach(name => loadConst(name, view));
   assert.equal(vm.runInContext('aiMeasuredGb(STATE.aiMoonBands)', view), 5, 'measured totals count the checkout and its artifacts once');
   const sum = vm.runInContext('tierSummary(STATE.aiMoonBands)', view);
@@ -593,6 +593,11 @@ assert.equal(vm.runInContext('selectedSizeGb(STATE.aiMoonBands[0])', context), 1
   assert.equal(whole.sizeGb, 4, 'display subtotal deductions cannot change confirmation sizes');
   const markup = vm.runInContext('aiGroupedRowsHTML(STATE.aiMoonBands)', view);
   assert.equal((markup.match(/data-ai-project=/g) || []).length, 1, 'one source repository has one expandable group');
+  assert.equal((markup.match(/data-ai-worktree=/g) || []).length, 1, 'the checkout has one main record');
+  const detailsStart = markup.indexOf('<div class="ai-worktree-artifact-rows">');
+  assert.ok(detailsStart > 0 && markup.indexOf('onclick="selectMoonRow(1)"') > detailsStart, 'artifacts only render inside their checkout details');
+  assert.equal((markup.match(/onclick="selectMoonRow\(1\)"/g) || []).length, 1, 'artifact records never repeat at the main level');
+  assert.match(markup, /体积已包含在工作树中/);
   assert.match(markup, /1 个工作树/);
   assert.match(markup, /O&#39;Reilly &amp; Shared/);
   view.source = source;
@@ -601,6 +606,10 @@ assert.equal(vm.runInContext('selectedSizeGb(STATE.aiMoonBands[0])', context), 1
   assert.match(vm.runInContext('aiGroupedRowsHTML(STATE.aiMoonBands)', view), /data-ai-project="[^"]+" open/);
   vm.runInContext('setAIProjectOpen(source,false)', view);
   assert.equal(view.STATE.aiProjectsOpen.length, 0);
+  vm.runInContext('setAIFilter("safe")', view);
+  assert.ok(view.STATE.aiProjectsOpen.includes(source) && view.STATE.aiProjectsOpen.includes(tree), 'tier filters reveal matching artifacts inside their source and checkout');
+  vm.runInContext('selectMoonRow(1)', view);
+  assert.equal(view.STATE.selectedMoonIdx, 1, 'artifact inspection retains its original selection index');
   for (const query of [source, 'fix/routing']) {
     view.STATE.searchQuery = query;
     assert.equal(vm.runInContext('STATE.aiMoonBands.filter(matchesSearch).length', view), 2, 'source and branch searches reach all related rows');

@@ -9,15 +9,6 @@ import (
 	"time"
 )
 
-// worktreeArtifactNames are the regenerable directories inside an agent
-// worktree. Source files, .git and everything else stay inspect-only.
-var worktreeArtifactNames = map[string]string{
-	"node_modules": "依赖目录", ".next": "Next.js 构建缓存", ".nuxt": "Nuxt 构建缓存", ".turbo": "Turborepo 缓存",
-	".parcel-cache": "Parcel 缓存", "dist": "构建产物", "build": "构建产物", "target": "Rust / Java 构建产物",
-	".venv": "Python 虚拟环境", "venv": "Python 虚拟环境",
-	".build": "Swift 构建产物",
-}
-
 var agentWorktreeRoots = []struct{ root, tool string }{{".codex/worktrees", "Codex"}, {".cursor/worktrees", "Cursor"}, {".claude/worktrees", "Claude Code"}}
 
 // ambiguousArtifactName names directories that can also be tracked source, so
@@ -32,30 +23,30 @@ func ambiguousArtifactName(name string) bool {
 
 func isArtifactName(name string) bool {
 	_, ok := artifactKinds[name]
-	_, wt := worktreeArtifactNames[name]
-	return ok || wt
+	return ok
 }
 
-// isAgentWorktreeArtifact is a path-only test: path is exactly an artifact
-// directory inside an agent worktree, not nested in another artifact or .git.
+// isAgentWorktreeArtifact uses the build scanner's names and layout checks,
+// excluding paths nested in another artifact or .git.
 func isAgentWorktreeArtifact(path, home string) bool {
 	if scratch := swiftPMOutputRoot(path); scratch != "" {
 		path = scratch
-	}
-	if _, ok := worktreeArtifactNames[filepath.Base(path)]; !ok {
-		return false
 	}
 	for _, wt := range agentWorktreeRoots {
 		tail, ok := strings.CutPrefix(path, filepath.Join(home, wt.root)+"/")
 		if !ok {
 			continue
 		}
+		name := filepath.Base(path)
+		if (!isArtifactName(name) && (isBundleDir(name) || !hasCacheDirTag(path))) || !artifactShape(path, name) {
+			return false
+		}
 		parts := strings.Split(tail, "/")
-		if len(parts) < 2 || len(parts) > 6 {
+		if len(parts) < 2 {
 			return false
 		}
 		for _, part := range parts[:len(parts)-1] {
-			if _, nested := worktreeArtifactNames[part]; nested || part == ".git" {
+			if isArtifactName(part) || part == ".git" {
 				return false
 			}
 		}

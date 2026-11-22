@@ -400,7 +400,7 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 	}
 	scratch := swiftPMOutputRoot(path)
 	swiftPM := scratch != "" || isSwiftPMScratchRoot(path)
-	if live && !worktree && (swiftPM || isArtifactName(filepath.Base(path))) {
+	if live && !worktree && (swiftPM || isArtifactName(filepath.Base(path)) || hasCacheDirTag(path)) {
 		candidate := artifactCandidate{path: path, name: filepath.Base(path)}
 		guardArtifact(&candidate, time.Now().Add(2*time.Second))
 		if candidate.protect != "" {
@@ -410,7 +410,7 @@ func (s *Scanner) cleanupReasonAs(raw string, live bool, relax func(rule string)
 			return candidate.unverified
 		}
 	}
-	if derived := inDerivedData(path); derived || swiftPM || isArtifactName(filepath.Base(path)) {
+	if derived := inDerivedData(path); derived || swiftPM || isArtifactName(filepath.Base(path)) || hasCacheDirTag(path) {
 		builders, err := s.builderSnapshot(live)
 		if err != nil {
 			return "无法确认构建工具闲置，保持原状"

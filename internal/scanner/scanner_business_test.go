@@ -482,7 +482,7 @@ func TestAIWorktreesAreReadOnlyEvenWithUncommittedContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := (&Scanner{home: home}).scanAIWorktrees(&catalogClaims{})
+	rows := (&Scanner{home: home}).scanAIWorktrees()
 	if len(rows) != 1 || rows[0]["tier"] != "protected" || rows[0]["checked"] != false || !strings.Contains(rows[0]["gitState"].(string), "未提交") {
 		t.Fatalf("worktree state must not authorize its removal: %v", rows)
 	}

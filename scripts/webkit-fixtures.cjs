@@ -2675,11 +2675,13 @@ const worktreeRows = [
   impact: '整个工作树移入废纸篓；源仓库、分支与提交保留，历史记录可原路还原。请先确认任务已结束。',
   items: 1, filesCount: '12 个文件 · 1 个路径', checked: false, subpaths: [{ path, sizeGb: size, tier, checked: false, isDir: true }],
 }));
-worktreeRows.splice(1, 0, {
-  ...group('worktree-artifacts', 'zebra-fix-sdk-subscription-event-routing · 依赖与构建产物', worktreePath + '/node_modules', 1.45),
+worktreeRows.splice(1, 0, ...[['node_modules', 1.4], ['build', 0.05]].map(([name, size]) => ({
+  ...group('worktree-artifact-' + name, name, worktreePath + '/' + name, size),
   sourceProject: worktreeSource, worktreePath, branch: 'fix/sdk-subscription-event-routing', tool: 'Git 工作树', band: '依赖与构建产物',
-  subpaths: [{ path: worktreePath + '/node_modules', sizeGb: 1.4, tier: 'safe', checked: true, isDir: true }, { path: worktreePath + '/build', sizeGb: 0.05, tier: 'safe', checked: true, isDir: true }],
-});
+  filesCount: '12 个文件 · 1 个路径',
+  impact: '仅将选中的依赖与构建产物移入废纸篓；工作树、源码与提交保留。',
+  subpaths: [{ path: worktreePath + '/' + name, sizeGb: size, tier: 'safe', checked: true, isDir: true }],
+})));
 worktreeRows.push({ ...fixture.aiMoonBands[0], checked: false, subpaths: fixture.aiMoonBands[0].subpaths.map(path => ({ ...path, checked: false })) });
 const worktreeSetup = `onNativeRealScanComplete({...structuredClone(qaFixture),aiMoonBands:${JSON.stringify(worktreeRows)}});switchModule('ai_moon');`;
 const openWorktreeSource = `document.querySelector('[data-ai-project="${worktreeSource}"] summary').click();await new Promise(r=>setTimeout(r,20));`;
@@ -2691,20 +2693,31 @@ for (const [theme, lang, width] of [['dark', 'zh', 1380], ['light', 'zh', 1380],
     qaAssert(STATE.aiProjectsOpen.includes('${worktreeSource}'),'native details toggle saves expansion state');
     selectMoonRow(0);
     qaAssert(document.querySelector('[data-ai-project="${worktreeSource}"]').open,'inspecting a worktree preserves its open source group');
+    qaAssert(document.querySelectorAll('[data-ai-project="${worktreeSource}"] .ai-worktree-rows > .ai-worktree').length===3,'each worktree has one main record');
+    qaAssert(document.querySelectorAll('.ai-worktree-artifact-rows .list-row').length===2,'artifact rows are nested inside one worktree');
+    qaAssert(document.querySelectorAll('.ai-inspector-artifacts .list-row').length===2,'whole-worktree inspection includes its artifact details');
+    let details=document.querySelector('.ai-worktree-artifacts');
+    qaAssert(!details.open,'internal artifact details start collapsed');
+    details.querySelector('summary').click();await new Promise(r=>setTimeout(r,20));
+    qaAssert(STATE.aiProjectsOpen.includes('${worktreePath}'),'artifact expansion is saved');
+    details.querySelector('summary').click();await new Promise(r=>setTimeout(r,20));selectMoonRow(0);
+    qaAssert(!document.querySelector('.ai-worktree-artifacts').open,'artifact collapse survives selecting the main record');
+    document.querySelector('.ai-worktree-artifacts summary').click();await new Promise(r=>setTimeout(r,20));
     qaAssert(STATE.aiMoonBands.filter(row=>row.wholeWorktree).every(row=>!row.checked),'whole worktrees are never preselected');
     qaAssert(aiMeasuredGb(STATE.aiMoonBands).toFixed(2)==='3.40','the checkout and its artifacts are measured once');
     qaAssert(document.querySelector('[data-ai-measured]').textContent.includes('3.40 GB'),'coverage reports the deduplicated size');
     const tiers=tierSummary(STATE.aiMoonBands);
     qaAssert((tiers.safe.gb+tiers.review.gb+tiers.protected.gb).toFixed(2)==='3.40','tier subtotals match the deduplicated measurement');
-    toggleMoonCheck(3);qaAssert(!STATE.aiMoonBands[3].checked,'dirty worktree selection stays blocked');
+    toggleMoonCheck(4);qaAssert(!STATE.aiMoonBands[4].checked,'dirty worktree selection stays blocked');
     ${lang === 'en' ? "await qaEn('worktree source groups');" : ''}
+    ${width === 880 ? "document.querySelector('.ai-worktree-artifacts').scrollIntoView({block:'center'});" : ''}
   `);
   Object.assign(scenarios.at(-1), { width, height: width === 880 ? 620 : 860 });
 }
 add('ai-worktree-whole-confirmation', `${worktreeSetup}${openWorktreeSource}
   document.querySelector('.ai-worktree-rows [onclick="selectMoonRow(0)"] input').click();
-  qaAssert(STATE.aiMoonBands[0].checked&&!STATE.aiMoonBands[1].checked,'selecting the whole checkout clears dependency selection');
-  qaAssert(STATE.aiMoonBands[1].subpaths.every(path=>!path.checked),'overlapping child paths are cleared too');
+  qaAssert(STATE.aiMoonBands[0].checked&&STATE.aiMoonBands.slice(1,3).every(row=>!row.checked),'selecting the whole checkout clears all artifact selections');
+  qaAssert(STATE.aiMoonBands.slice(1,3).every(row=>row.subpaths.every(path=>!path.checked)),'overlapping child paths are cleared too');
   openConfirmSheet();
   qaAssert(document.getElementById('confirmModal').classList.contains('open'),'the real confirmation sheet opens');
   qaAssert(confirmedClean.entries.length===1&&confirmedClean.entries[0].sizeGb===1.5,'confirmation includes the complete checkout size');
@@ -2712,16 +2725,42 @@ add('ai-worktree-whole-confirmation', `${worktreeSetup}${openWorktreeSource}
   qaAssert(document.querySelectorAll('#confirmModalItemsList .confirm-path').length===1,'the modal renders the same path count');
   qaAssert(!__qa.actions.some(action=>action.action==='trashRealPaths'),'preview never moves files');
 `);
+add('ai-worktree-artifact-confirmation', `${worktreeSetup}${openWorktreeSource}
+  document.querySelector('.ai-worktree-rows [onclick="selectMoonRow(0)"] input').click();
+  document.querySelector('.ai-worktree-artifacts summary').click();await new Promise(r=>setTimeout(r,20));
+  document.querySelector('.ai-worktree-artifact-rows [onclick="selectMoonRow(1)"] input').click();
+  qaAssert(STATE.aiMoonBands[1].checked&&!STATE.aiMoonBands[0].checked&&!STATE.aiMoonBands[2].checked,'nested artifact selection clears the whole checkout without selecting other artifacts');
+  qaAssert(document.querySelector('.ai-worktree-artifacts').open,'selection preserves expanded artifact details');
+  selectMoonRow(1);
+  qaAssert(document.querySelector('.inspector-content').textContent.includes('node_modules'),'artifact inspection shows the concrete artifact');
+  openConfirmSheet();
+  qaAssert(confirmedClean.entries.length===1&&confirmedClean.entries[0].sizeGb===1.4,'artifact confirmation counts only the selected dependency');
+  qaAssert(confirmedClean.entries[0].paths.join()===absolutePath('${worktreePath}/node_modules'),'artifact confirmation preserves the checkout');
+  qaAssert(!__qa.actions.some(action=>action.action==='trashRealPaths'),'artifact preview never moves files');
+`);
 add('ai-worktree-source-branch-search', `${worktreeSetup}${openWorktreeSource}
   handleSearch('${worktreeSource}');
   qaAssert(document.querySelectorAll('[data-ai-project]').length===1,'source search excludes other repositories');
   handleSearch('sdk-subscription-event-routing');
   qaAssert(document.querySelector('[data-ai-project="${worktreeSource}"]').open,'search preserves source expansion');
-  qaAssert(document.querySelectorAll('.ai-worktree-rows .list-row').length===2,'branch search finds both the checkout and its artifacts');
+  qaAssert(document.querySelectorAll('.ai-worktree-rows > .ai-worktree').length===1,'branch search retains one checkout record');
+  qaAssert(document.querySelector('.ai-worktree-artifacts').open&&document.querySelectorAll('.ai-worktree-artifact-rows .list-row').length===2,'branch search reveals nested artifacts');
   selectMoonRow(1);toggleMoonSubpathCheck(1,0);
   qaAssert(!STATE.aiMoonBands[0].checked,'artifact-only selection cannot select the whole checkout');
 `);
 Object.assign(scenarios.at(-1), { width: 880, height: 620 });
+add('ai-worktree-tier-filters', `${worktreeSetup}
+  setAIFilter('safe');
+  qaAssert(document.querySelector('[data-ai-project="${worktreeSource}"]').open&&document.querySelector('.ai-worktree-artifacts').open,'safe filter reveals matching internal artifacts');
+  qaAssert(document.querySelectorAll('.ai-worktree-rows > .ai-worktree').length===1&&document.querySelectorAll('.ai-worktree-artifact-rows .list-row').length===2,'artifact filter retains its checkout as context');
+  qaAssert(STATE.aiMoonBands[0].tier==='review'&&!STATE.aiMoonBands[0].checked,'context parent keeps its own review tier');
+  selectMoonRow(1);qaAssert(STATE.selectedMoonIdx===1,'filtered artifact inspection retains its index');
+  setAIFilter('review');
+  qaAssert(document.querySelectorAll('.ai-worktree-rows > .ai-worktree').length===3&&!document.querySelector('.ai-worktree-artifacts'),'review filter only lists matching checkouts');
+  setAIFilter('protected');
+  qaAssert(document.querySelectorAll('.ai-worktree-rows > .ai-worktree').length===1&&!document.querySelector('.ai-worktree-rows input'),'protected filter retains locked unfinished worktrees');
+  setAIFilter('all');selectMoonRow(0);
+`);
 add('ai-worktree-partial-measurement', `${worktreeSetup}
   STATE.aiMoonBands[0].sizeGb=STATE.aiMoonBands[0].subpaths[0].sizeGb=1;STATE.aiMoonBands[0].partial=true;renderModule();
   qaAssert(document.querySelector('[data-ai-measured]').textContent.includes('3.35 GB'),'larger artifact measurements survive a partial checkout measurement');
