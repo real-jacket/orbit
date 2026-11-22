@@ -801,6 +801,7 @@
   .tp-row .proc-pin { opacity: 0; }
   .tp-row .proc-pin.on, .tp-row:hover .proc-pin, .tp-row:focus-within .proc-pin { opacity: 1; }
   .tp-row .proc-name { max-width: 100%; display: block; font-size: 12px; font-weight: 600; }
+  .tp-row .proc-owner { max-width: 100%; }
   .tp-row .btn { justify-self: end; height: 24px; }
   .tp-row:hover .btn-kill, .tp-row:focus-within .btn-kill { opacity: 1; }
   /* 受保护进程的按钮是禁用态，也只在悬停时出现，避免整列只剩几个灰按钮。 */
@@ -834,7 +835,8 @@
   .proc-pin, .proc-name { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; }
   .proc-pin { display: inline-flex; padding: var(--space-1); color: var(--text-muted); }
   .proc-pin.on { color: var(--accent-amber); }
-  .proc-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; font-weight: 650; text-align: left; }
+  .proc-name { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; font-weight: 650; line-height: 1.3; text-align: left; }
+  .proc-owner { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font: 500 10.5px/1.3 var(--font-sans); }
   .proc-error { color: var(--accent-rose); max-width: 200px; font: 10.5px/1.4 var(--font-sans); white-space: normal; }
   .history-paths { max-width: 100%; font: 10.5px/1.5 var(--font-mono); overflow-wrap: anywhere; color: var(--text-secondary); }
   body[data-module="history"] .summary-banner, body[data-module="history"] .search-box { display: none; }
@@ -1503,7 +1505,7 @@
     body[data-module="status"] .summary-banner { flex-wrap: nowrap; gap: var(--space-3); }
     body[data-module="status"] .summary-right { width: auto; max-width: 38%; flex-direction: column; align-items: flex-end; gap: var(--space-1); border-top: 0; padding-top: 0; }
     .proc-table th:nth-child(6), .proc-table td:nth-child(6) { display: none; }
-    .proc-name { max-width: 140px; }
+    .proc-name, .proc-owner { max-width: 140px; }
   }
   /* Analyze: map first + right inspector. The hero is replaced by .analysis-summary; the page itself does not scroll. */
   body[data-module="analyze"] .summary-banner { display: none; }
@@ -1780,7 +1782,7 @@
 <div class="modal-backdrop" id="procModal" onclick="if(event.target===this)closeProcDrawer()">
   <div class="modal-sheet proc-drawer" aria-labelledby="procModalTitle">
     <div class="panel-header"><strong id="procModalTitle" data-i18n>全部进程</strong><span class="badge badge-protected" id="processLiveNote" data-i18n>每 1.5 秒刷新显示</span><button class="btn" onclick="closeProcDrawer()" data-i18n>关闭</button></div>
-    <div class="proc-drawer-search"><input type="search" id="procSearch" data-autofocus oninput="syncProcSearch(this.value)" placeholder="搜索进程或 PID" aria-label="搜索进程或 PID" data-i18n-attr="aria-label placeholder"/></div>
+    <div class="proc-drawer-search"><input type="search" id="procSearch" data-autofocus oninput="syncProcSearch(this.value)" placeholder="搜索进程、所属应用或 PID" aria-label="搜索进程、所属应用或 PID" data-i18n-attr="aria-label placeholder"/></div>
     <div class="proc-scroll" id="procScroll"><table class="proc-table"><thead id="procHead"></thead><tbody id="procTbody"></tbody></table></div>
   </div>
 </div>
@@ -3198,6 +3200,8 @@ window.onNativeRealTelemetry = function(data) {
     STATE.processes = data.processes.map(p => ({
       pid: p.pid,
       name: p.name,
+      app_name: typeof p.app_name === 'string' ? p.app_name : '',
+      app_path: typeof p.app_path === 'string' && p.app_path.startsWith('/') ? p.app_path : '',
       cpu: +Number(p.cpu || 0).toFixed(1),
       memory_mb: numOrNull(p.memory_mb) !== null ? Math.max(0, Math.round(Number(p.memory_mb))) : null,
       // Go 侧 power 恒为 0（暂无功耗采集），这里保留原值以便诚实显示「不提供」。
@@ -3273,9 +3277,12 @@ function buildMenuBarTrayHTML() {
   const updated = STATE.telemetryReceivedAt ? t('更新 {time}', { time: new Date(STATE.telemetryReceivedAt).toLocaleTimeString(I18N.lang === 'en' ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: I18N.lang === 'en' }) }) : t('等待采样');
   const batteryTime = bat && hasNum(bat.minutes) && bat.minutes > 0 && !bat.plugged && !bat.charging ? t(' · 约可用 {time}', { time: formatMinutes(bat.minutes) }) : '';
   const query = (STATE.traySearch || '').trim().toLowerCase();
-  const processes = view === 'processes' ? STATE.processes.filter(p => !query || `${p.name} ${p.pid} ${p.path}`.toLowerCase().includes(query)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (Number(b[STATE.procSortKey]) || 0) - (Number(a[STATE.procSortKey]) || 0) || a.pid - b.pid) : [];
-  const processRow = (process, full = false) => `<button class="tray-proc" data-tray-key="process:${process.pid}:${escHtml(process.path)}" data-tray-pid="${process.pid}" onclick="selectTrayProcess(${process.pid})" ${full ? `aria-pressed="${STATE.trayProcess?.pid === process.pid && STATE.trayProcess?.path === process.path}"` : ''} title="${escHtml(process.name + '\n' + process.path)}">
-    <span class="tray-proc-name">${process.pinned ? UI_ICON('pin') : ''}${escHtml(process.name)}${full ? `<small>PID ${process.pid}</small>` : ''}</span><span class="tray-proc-meta"><b title="CPU">${hasNum(process.cpu) ? fmtNum(process.cpu, 1) + '%' : t('未知')}</b><span title="${t('内存')}">${hasNum(process.memory_mb) ? fmtProcMem(process.memory_mb) : t('未知')}</span></span><span class="tray-proc-chev" aria-hidden="true">›</span></button>`;
+  const processes = view === 'processes' ? STATE.processes.filter(p => !query || `${p.name} ${procAppName(p)} ${p.pid} ${p.path} ${p.app_path}`.toLowerCase().includes(query)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (Number(b[STATE.procSortKey]) || 0) - (Number(a[STATE.procSortKey]) || 0) || a.pid - b.pid) : [];
+  const processRow = (process, full = false) => {
+    const owner = procAppName(process);
+    return `<button class="tray-proc" data-tray-key="process:${process.pid}:${escHtml(process.path)}" data-tray-pid="${process.pid}" onclick="selectTrayProcess(${process.pid})" ${full ? `aria-pressed="${STATE.trayProcess?.pid === process.pid && STATE.trayProcess?.path === process.path}"` : ''} title="${escHtml(procIdentityTitle(process))}">
+    <span class="tray-proc-name">${process.pinned ? UI_ICON('pin') : ''}${escHtml(process.name)}${owner || full ? `<small>${owner ? escHtml(owner) + (full ? ' · ' : '') : ''}${full ? `PID ${process.pid}` : ''}</small>` : ''}</span><span class="tray-proc-meta"><b title="CPU">${hasNum(process.cpu) ? fmtNum(process.cpu, 1) + '%' : t('未知')}</b><span title="${t('内存')}">${hasNum(process.memory_mb) ? fmtProcMem(process.memory_mb) : t('未知')}</span></span><span class="tray-proc-chev" aria-hidden="true">›</span></button>`;
+  };
   const memoryOperation = STATE.memoryMaintenance;
   return `
     <div class="tray-head">
@@ -3301,7 +3308,7 @@ function buildMenuBarTrayHTML() {
     ` : `
     <div class="tray-proc-view">
       <div class="tray-proc-toolbar"><button class="tray-text-button" data-tray-key="overview-back" onclick="setTrayView('overview')">‹ ${t('返回概览')}</button><span class="tray-list-note">${t('全部进程')}</span></div>
-      <div class="search-box tray-search">${UI_ICON('search')}<input type="search" data-tray-key="process-search" value="${escHtml(STATE.traySearch || '')}" aria-label="${t('搜索进程或 PID')}" placeholder="${t('搜索进程或 PID')}" oninput="setTraySearch(this.value)" /></div>
+      <div class="search-box tray-search">${UI_ICON('search')}<input type="search" data-tray-key="process-search" value="${escHtml(STATE.traySearch || '')}" aria-label="${t('搜索进程、所属应用或 PID')}" placeholder="${t('搜索进程、所属应用或 PID')}" oninput="setTraySearch(this.value)" /></div>
       <div class="tray-list-note">${STATE.processReceivedAt ? t('显示 {shown} / {total} 个匹配进程', { shown: Math.min(PROC_DRAWER_MAX, processes.length), total: processes.length }) : t('等待采样')}</div>
       <div class="tray-proc-columns"><span>${t('进程名称')}</span><span class="tray-proc-meta">${[['cpu', 'CPU'], ['memory_mb', t('内存')]].map(([key, label]) => `<button class="tray-text-button" data-tray-key="sort:${key}" onclick="sortProcessesBy('${key}')" aria-pressed="${STATE.procSortKey === key}" aria-label="${escHtml(t('按 {field} 排序', { field: label }))}" ${key === 'cpu' ? `title="${t('CPU 按单核 100% 计，多核进程可超过 100%')}"` : ''}>${label}${STATE.procSortKey === key ? ' ↓' : ''}</button>`).join('')}</span><span class="tray-proc-chev"></span></div>
       <div class="tray-proc-list tray-scroll-list" role="group" aria-label="${t('全部进程')}">${processes.length ? processes.slice(0, PROC_DRAWER_MAX).map(process => processRow(process, true)).join('') : `<div class="tray-empty">${query ? t('没有匹配的进程') : STATE.processReceivedAt ? t('本次采样未列出进程') : t('尚未收到进程采样')}</div>`}</div>
@@ -3346,6 +3353,7 @@ function buildTrayProcessDetailHTML() {
   const process = STATE.processes.find(p => p.pid === selected.pid && p.name === selected.name && p.path === selected.path);
   const key = `${selected.pid}:${escHtml(selected.path)}`;
   return `<div class="tray-process-detail" aria-label="${t('进程详情')}"><div class="tray-proc-toolbar"><strong>${escHtml(selected.name)} · PID ${selected.pid}</strong><button class="tray-text-button" data-tray-key="process-close" onclick="STATE.trayProcess=null;STATE.killArmed=null;STATE.killArmedIdentity=null;clearTimeout(window._killTimer);renderMenuBarTrayContent()">${t('收起')}</button></div>
+    ${process ? `<div class="tray-list-note">${escHtml(procAppName(process) ? t('所属应用：{name}', { name: procAppName(process) }) : t('未识别所属应用'))}</div>` : ''}
     <div class="tray-process-path" title="${escHtml(selected.path)}">${String(selected.path || '').startsWith('/') ? escHtml(selected.path) : t('未提供完整可执行路径')}</div>
     ${process ? `<div class="tray-process-tools">${String(process.path || '').startsWith('/') ? `<button class="tray-text-button" data-tray-key="reveal:${key}" onclick="revealInFinder('${jsq(process.path)}')">${UI_ICON('folder')} ${t('在访达中显示')}</button><button class="tray-text-button" data-tray-key="copy:${key}" onclick="copyTextToClipboard('${jsq(process.path)}')">${UI_ICON('copy')} ${t('复制路径')}</button>` : ''}<button class="tray-text-button" data-tray-key="pin:${key}" aria-pressed="${!!process.pinned}" onclick="togglePinProcess(${process.pid})">${process.pinned ? t('取消置顶') : t('置顶')}</button></div>
     <p class="tray-list-note">${t('再次确认后发送 SIGTERM，可能丢失未保存的内容；不会自动强制结束')}</p>
@@ -3860,7 +3868,12 @@ function sortedProcessesList() {
   });
 }
 const PROC_TOP = 5, PROC_DRAWER_MAX = 200;
+function procAppName(p) { return STATE.appsList.find(a => p.app_path && a.appPath === p.app_path)?.name || p.app_name || ''; }
 function procAppIcon(p) { return STATE.appsList.find(a => a.icon && a.runningPid === p.pid && a.runningPath === p.path)?.icon || ''; }
+function procIdentityTitle(p) {
+  const owner = procAppName(p);
+  return [p.name, owner ? t('所属应用：{name}', { name: owner }) : '', p.path].filter(Boolean).join('\n');
+}
 // 紧凑列表的用量条：CPU 以 100% 为满，内存相对当前所列最大值。
 function topProcCpu(p) { return fmtNum(p.cpu, 1, t('未知')) + '%'; }
 function topProcMem(p) { return p.memory_mb == null ? t('未知') : fmtProcMem(p.memory_mb); }
@@ -3872,7 +3885,8 @@ function procPinBtn(p) {
   return `<button class="proc-pin ${p.pinned ? 'on' : ''}" data-pk="${p.pid}:pin" onclick="togglePinProcess(${p.pid})" aria-label="${p.pinned ? t('取消置顶') : t('置顶')} ${escHtml(p.name)}" aria-pressed="${p.pinned}">${UI_ICON('pin')}</button>`;
 }
 function procNameBtn(p) {
-  return `<button class="proc-name" data-pk="${p.pid}:name" onclick="revealInFinder('${jsq(p.path)}')" title="${escHtml(p.name + '\n' + p.path)}">${escHtml(p.name)}</button>${p.quitError ? `<div class="proc-error">${escHtml(p.quitError)}</div>` : ''}`;
+  const owner = procAppName(p), label = owner ? t('所属应用：{name}', { name: owner }) : '';
+  return `<button class="proc-name" data-pk="${p.pid}:name" onclick="revealInFinder('${jsq(p.path)}')" title="${escHtml(procIdentityTitle(p))}">${escHtml(p.name)}</button><div class="proc-owner" title="${escHtml(label)}">${escHtml(owner)}</div>${p.quitError ? `<div class="proc-error">${escHtml(p.quitError)}</div>` : ''}`;
 }
 function topProcRowsHTML(list) {
   const shown = list.slice(0, PROC_TOP);
@@ -3936,6 +3950,13 @@ function patchProcRows(host, list, limit, rowsHTML) {
     if (tpCpu) tpCpu.textContent = topProcCpu(p);
     if (tpMem) tpMem.textContent = topProcMem(p);
     if (bar) bar.style.width = topProcBar(p, shown).toFixed(1) + '%';
+    const nameButton = r.querySelector('.proc-name'), owner = r.querySelector('.proc-owner');
+    if (nameButton) nameButton.title = procIdentityTitle(p);
+    if (owner) {
+      const appName = procAppName(p);
+      owner.textContent = appName;
+      owner.title = appName ? t('所属应用：{name}', { name: appName }) : '';
+    }
   });
   return held;
 }
@@ -6915,7 +6936,7 @@ function purgeRootsHTML() {
 
 function matchesSearch(item) {
   const q = STATE.searchQuery.trim().toLowerCase();
-  return !q || [item.name, item.path, item.appPath, item.bundleId, item.project, item.sourceProject, item.worktreePath, item.branch, item.artifact, item.category, item.pid, item.tool, item.band, item.gitState, item.safetyReason,
+  return !q || [item.name, item.path, item.appPath, item.app_name, item.app_path, item.pid != null ? procAppName(item) : '', item.bundleId, item.project, item.sourceProject, item.worktreePath, item.branch, item.artifact, item.category, item.pid, item.tool, item.band, item.gitState, item.safetyReason,
     ...(Array.isArray(item.subpaths) ? item.subpaths.flatMap(sp => [sp.path, sp.reason]) : [])]
     .some(value => String(value == null ? '' : value).toLowerCase().includes(q));
 }
@@ -7574,7 +7595,7 @@ document.addEventListener('keydown', (e) => {
     const search = document.getElementById('searchInput');
     const searchable = ['clean', 'ai_moon', 'software', 'status', 'purge', 'analyze'].includes(STATE.module);
     search.disabled = !searchable;
-    search.placeholder = searchable ? (STATE.module === 'status' ? t('搜索进程或 PID') : STATE.module === 'analyze' ? t('搜索当前层') : t('搜索当前列表')) : t('此模块无需搜索');
+    search.placeholder = searchable ? (STATE.module === 'status' ? t('搜索进程、所属应用或 PID') : STATE.module === 'analyze' ? t('搜索当前层') : t('搜索当前列表')) : t('此模块无需搜索');
     search.setAttribute('aria-label', search.placeholder);
     const pbt = document.getElementById('primaryBtnText');
     const tempButton = document.getElementById('btnTemp');

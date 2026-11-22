@@ -240,6 +240,7 @@ for (const [theme, block] of [[dark, rootBlocks], [light, lightBlocks]]) {
     assert.ok((Math.max(background, text) + 0.05) / (Math.min(background, text) + 0.05) >= 4.5, `${signal} badge passes AA on its actual tinted background`);
   }
 }
+load('procAppName');
 load('matchesSearch');
 load('handleSearch');
 context.STATE.appsList = [
@@ -823,8 +824,20 @@ analysis.onNativeDiskAnalyze({requestId:'tiny-new-root',root:'~/tiny',scanStatus
 assert.equal(analysis.STATE.treemap2D.map(tile => tile.path).join('|'), rootPathsBefore, 'navigation changes cannot reclassify a late result as the root');
 assert.equal(analysis.STATE.totalAnalyzedGb, rootTotalBefore, 'a late child receipt cannot replace the root size');
 
+const processOwners = vm.createContext({ STATE: { appsList: [], searchQuery: 'canvas workbench' } });
+['procAppName', 'procIdentityTitle', 'escHtml', 'jsq', 'procNameBtn', 'matchesSearch'].forEach(name => load(name, processOwners));
+const childProcess = { pid: 8123, name: 'node', path: '/usr/local/bin/node', app_name: 'Canvas Workbench', app_path: '/Applications/Renamed.app' };
+assert.equal(processOwners.matchesSearch(childProcess), true, 'app-name search finds a child whose executable path does not name the app');
+assert.match(processOwners.procNameBtn(childProcess), /所属应用：Canvas Workbench/, 'the process row shows its owner without an installed-app scan');
+processOwners.STATE.appsList = [{ name: 'Canvas <Editor>', appPath: childProcess.app_path }];
+assert.equal(processOwners.procAppName(childProcess), 'Canvas <Editor>', 'a scanned display name belongs to the exact app path');
+assert.match(processOwners.procNameBtn(childProcess), /Canvas &lt;Editor&gt;/, 'app names remain text in process rows and tooltips');
+assert.equal(childProcess.name, 'node');
+assert.equal(childProcess.path, '/usr/local/bin/node');
+assert.equal(processOwners.procAppName({ pid: 42, name: 'daemon', path: '/usr/libexec/daemon' }), '', 'an unknown process never inherits another app name');
+
 const quits = vm.createContext({
-  STATE: { appsList: [], processes: [{ pid: 8123, name: 'Canvas', path: '/Applications/Canvas.app/Contents/MacOS/Canvas' }] },
+  STATE: { appsList: [], processes: [{ pid: 8123, name: 'Canvas', path: '/Applications/Canvas.app/Contents/MacOS/Canvas', app_name: 'Canvas Editor', app_path: '/Applications/Canvas.app' }] },
   PROTECTED_PROCS: new Set(['Finder']), pendingProcessQuits: new Map(),
   requestSeq: 0, sent: [], nextRequestId: () => 'quit-' + ++quits.requestSeq,
   sendNativeBridge: payload => quits.sent.push(payload), showToast() {}, renderModule() {}, renderMenuBarTrayContent() {},

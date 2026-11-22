@@ -9,27 +9,27 @@ import (
 	"testing"
 )
 
-// psOutput is the shape of `ps -Aeo pid,%cpu,rss,comm -r`, padding included.
-const psOutput = `  PID  %CPU    RSS COMM
-    1   0.0  21500 /sbin/launchd
-   71   0.0  12044 /usr/libexec/logd
-  320   0.3  48000 /Applications/Safari.app/Contents/MacOS/Safari
-  412   1.2  90000 /Applications/Visual Studio Code.app/Contents/MacOS/Electron
-  455   2.5  30000 kernel_task
-  480   0.0  10000 /bin/ps
-  501   0.0    512 /usr/bin/tiny
-  502   4.0  64000 /usr/libexec/one
-  503   1.0  64000 /usr/libexec/two
-  504   1.0  64000 /usr/libexec/three
-  505   1.0  64000 /usr/libexec/four
-  506   1.0  64000 /usr/libexec/five
-  507   1.0  64000 /usr/libexec/six
-  508   1.0  64000 /usr/libexec/seven
-  509   1.0  64000 /usr/libexec/eight
-  510   1.0  64000 /usr/libexec/nine
-  511   1.0  64000 /usr/libexec/ten
-  512   1.0  64000 /usr/libexec/eleven
-  513   1.0  64000 /usr/libexec/twelve
+// psOutput is the shape of `ps -Aeo pid,ppid,%cpu,rss,comm -r`, padding included.
+const psOutput = `  PID  PPID  %CPU    RSS COMM
+    1     0   0.0  21500 /sbin/launchd
+   71     1   0.0  12044 /usr/libexec/logd
+  320     1   0.3  48000 /Applications/Safari.app/Contents/MacOS/Safari
+  412     1   1.2  90000 /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+  455     1   2.5  30000 kernel_task
+  480     1   0.0  10000 /bin/ps
+  501     1   0.0    512 /usr/bin/tiny
+  502     1   4.0  64000 /usr/libexec/one
+  503     1   1.0  64000 /usr/libexec/two
+  504     1   1.0  64000 /usr/libexec/three
+  505     1   1.0  64000 /usr/libexec/four
+  506     1   1.0  64000 /usr/libexec/five
+  507     1   1.0  64000 /usr/libexec/six
+  508     1   1.0  64000 /usr/libexec/seven
+  509     1   1.0  64000 /usr/libexec/eight
+  510     1   1.0  64000 /usr/libexec/nine
+  511     1   1.0  64000 /usr/libexec/ten
+  512     1   1.0  64000 /usr/libexec/eleven
+  513     1   1.0  64000 /usr/libexec/twelve
 `
 
 func TestParseProcessesSkipsRowsItCannotUse(t *testing.T) {
@@ -92,6 +92,48 @@ func TestParseProcessesKeepsSpacesInCommandPaths(t *testing.T) {
 	if got := electron["pinned"].(bool); got {
 		t.Error("pinned = true, want false")
 	}
+	if electron["app_name"] != "Visual Studio Code" || electron["app_path"] != "/Applications/Visual Studio Code.app" {
+		t.Fatalf("owning app = %v / %v", electron["app_name"], electron["app_path"])
+	}
+}
+
+func TestParseProcessesAttributesHelpersAndChildProcesses(t *testing.T) {
+	output := `PID PPID %CPU RSS COMM
+802 801 4.0 8192 /usr/local/bin/node
+803 800 3.0 8192 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper.app/Contents/MacOS/Helper
+804 1 2.0 8192 /System/Applications/Safari.app/Contents/Extensions/SafariWidget.appex/Contents/MacOS/Widget
+805 1 1.0 8192 /usr/local/bin/node
+806 1 1.0 8192 /tmp/Folder.app-cache/bin/tool
+807 1 1.0 8192 Applications/Fake.app/Contents/MacOS/Tool
+808 1 1.0 8192 /Applications/Upper.APP/Contents/MacOS/Upper
+809 999 1.0 8192 /usr/bin/orphan
+810 811 1.0 8192 /usr/bin/cycle-one
+811 810 1.0 8192 /usr/bin/cycle-two
+801 800 0.0 8192 /bin/zsh
+800 1 0.0 8192 /Applications/Terminal Suite.app/Contents/MacOS/Terminal
+`
+	_, processes := parseProcesses(output, 8)
+	if len(processes) != 12 {
+		t.Fatalf("got %d processes, want all 12 rows", len(processes))
+	}
+	want := map[int]string{802: "/Applications/Terminal Suite.app", 803: "/Applications/Google Chrome.app", 804: "/System/Applications/Safari.app", 808: "/Applications/Upper.APP", 801: "/Applications/Terminal Suite.app", 800: "/Applications/Terminal Suite.app"}
+	for _, process := range processes {
+		pid := process["pid"].(int)
+		if appPath := want[pid]; appPath != "" {
+			if process["app_path"] != appPath || process["app_name"] != strings.TrimSuffix(filepath.Base(appPath), filepath.Ext(appPath)) {
+				t.Errorf("pid %d app = %v / %v, want %s", pid, process["app_name"], process["app_path"], appPath)
+			}
+		} else if process["app_path"] != nil || process["app_name"] != nil {
+			t.Errorf("pid %d gained an unverified owner: %v", pid, process)
+		}
+		if process["name"] != filepath.Base(process["path"].(string)) {
+			t.Errorf("pid %d lost its executable identity: %v", pid, process)
+		}
+	}
+	_, next := parseProcesses("PID PPID %CPU RSS COMM\n802 1 4.0 8192 /usr/local/bin/node\n", 8)
+	if len(next) != 1 || next[0]["app_path"] != nil {
+		t.Fatalf("a new sample inherited the previous owner: %v", next)
+	}
 }
 
 func TestRealProcessSampleIncludesExecutablePaths(t *testing.T) {
@@ -128,7 +170,7 @@ func TestParseProcessesReportsTheRealTotal(t *testing.T) {
 		t.Errorf("cpu = %v, want 2.0625", cpu)
 	}
 	// A busy one still stops short of 100%.
-	busy := "PID %CPU RSS COMM\n" + strings.Repeat("  99 100.0 1000 /usr/bin/busy\n", 20)
+	busy := "PID PPID %CPU RSS COMM\n" + strings.Repeat("  99 1 100.0 1000 /usr/bin/busy\n", 20)
 	if cpu, _ := parseProcesses(busy, 2); cpu != 99.9 {
 		t.Errorf("cpu = %v, want 99.9", cpu)
 	}

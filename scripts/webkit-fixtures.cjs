@@ -533,6 +533,36 @@ add('status-drawer-behavior', `switchModule('status');${statusProcsSetup}
   document.getElementById('procOpenBtn').click();await wait(80);qaAssert(modal.classList.contains('open'),'the drawer reopens');
   modal.querySelector('.panel-header .btn').click();await wait(200);qaAssert(!modal.classList.contains('open')&&document.activeElement.id==='procOpenBtn','the close button closes the drawer');
 `);
+const processOwnersSetup = `
+  const owners=structuredClone(qaTelemetry);
+  owners.processes=[
+    {pid:9123,name:'Electron',path:'/Applications/Renamed Bundle.app/Contents/MacOS/Electron',app_name:'Renamed Bundle',app_path:'/Applications/Renamed Bundle.app',cpu:12,memory_mb:384},
+    {pid:9124,name:'node',path:'/usr/local/bin/node',app_name:'Renamed Bundle',app_path:'/Applications/Renamed Bundle.app',cpu:4,memory_mb:128},
+    {pid:9125,name:'Chrome Helper (Renderer)',path:'/Applications/Google Chrome.app/Contents/Frameworks/Chrome Helper.app/Contents/MacOS/Chrome Helper (Renderer)',app_name:'Google Chrome',app_path:'/Applications/Google Chrome.app',cpu:3,memory_mb:96},
+    {pid:9126,name:'com.apple.WebKit.WebContent',path:'/System/Library/Frameworks/WebKit.framework/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent',cpu:1,memory_mb:64}
+  ];
+  STATE.appsList=[];
+  onNativeRealTelemetry(owners);
+`;
+for (const [width, height] of [[1380, 860], [880, 720]]) for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  scenarios.push({name:`status-process-owners-${width}-${theme}-${lang}`,width,height,script:`qaReset();window.isNativeMacApp=false;document.documentElement.dataset.theme='${theme}';switchModule('status');${processOwnersSetup}
+    ${lang === 'en' ? `await qaEn('process owners');` : 'await qaSettle();'}
+    const row=()=>document.querySelector('#topProcList [data-pid="9123"]');
+    qaAssert(row().querySelector('.proc-name').textContent==='Electron'&&row().querySelector('.proc-owner').textContent==='Renamed Bundle','an executable keeps its name and shows its owner before a disk scan');
+    qaAssert([...document.querySelectorAll('#topProcList .tp-row')].every(el=>el.getBoundingClientRect().height<=36&&el.scrollWidth<=el.clientWidth+1),'owner labels keep compact rows within the window');
+    qaAssert(!document.querySelector('#topProcList [data-pid="9126"] .proc-owner').textContent,'a shared service is not assigned an invented app');
+    const nameButton=row().querySelector('.proc-name');nameButton.focus();
+    STATE.appsList=[{name:'Canvas Workbench',appPath:'/Applications/Renamed Bundle.app'}];onNativeRealTelemetry(owners);
+    qaAssert(row().querySelector('.proc-name')===nameButton&&document.activeElement===nameButton&&row().querySelector('.proc-owner').textContent==='Canvas Workbench','a display-name update preserves process focus and refreshes the owner');
+    qaAssert(nameButton.title.includes('Canvas Workbench')&&nameButton.title.includes('/Contents/MacOS/Electron'),'the tooltip includes the owner and original executable');
+    openProcDrawer();await new Promise(resolve=>setTimeout(resolve,80));
+    const search=document.getElementById('procSearch');search.value='canvas workbench';search.dispatchEvent(new Event('input',{bubbles:true}));
+    qaAssert([...document.querySelectorAll('#procTbody tr')].map(el=>el.dataset.pid).join(',')==='9123,9124','app-name search finds both the executable and its external child');
+    qaAssert([...document.querySelectorAll('#procTbody .proc-owner')].every(el=>el.textContent.includes('Canvas Workbench')),'the drawer shows the same ownership as the compact list');
+    search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));
+    ${lang === 'en' ? `await qaEn('owner drawer');` : 'await qaSettle();'}
+  `});
+}
 // 记忆卡「查看内存进程」直接切到内存排序。
 add('status-memory-button-sorts', `switchModule('status');openMemoryMaintenance();await qaSettle();document.querySelector('#memoryModal .memory-panel-footer .btn').click();await qaSettle();qaAssert(STATE.module==='status'&&STATE.procSortKey==='memory_mb'&&STATE.procSortKey==='memory_mb','the memory process button switches the compact list to memory');`);
 add('restore-occupied-target', `
@@ -1150,6 +1180,22 @@ const compactTraySetup=`
   document.body.classList.add('menubar-mode');renderMenuBarTrayContent();
   const tray=document.getElementById('menubarTrayShell');
 `;
+for (const theme of ['dark', 'light']) for (const lang of ['zh', 'en']) {
+  scenarios.push({name:`tray-process-owners-${theme}-${lang}`,width:420,height:680,script:`qaReset();document.documentElement.dataset.theme='${theme}';${compactTraySetup}${processOwnersSetup}
+    ${lang === 'en' ? `await qaEn('tray process owners');` : 'await qaSettle();'}
+    qaAssert(tray.querySelector('[data-tray-pid="9124"] small').textContent==='Renamed Bundle','the overview shows the owning app for an external child');
+    STATE.appsList=[{name:'Canvas Workbench',appPath:'/Applications/Renamed Bundle.app'}];onNativeRealTelemetry(owners);
+    tray.querySelector('[data-tray-key="all-processes"]').click();
+    const search=tray.querySelector('[data-tray-key="process-search"]');search.value='canvas workbench';search.dispatchEvent(new Event('input',{bubbles:true}));
+    qaAssert([...tray.querySelectorAll('[data-tray-pid]')].map(el=>el.dataset.trayPid).join(',')==='9123,9124','tray app-name search finds the same children');
+    const child=tray.querySelector('[data-tray-pid="9124"]');qaAssert(child.querySelector('small').textContent.includes('PID 9124')&&child.querySelector('small').textContent.includes('Canvas Workbench'),'app labels retain the PID');child.click();
+    qaAssert(tray.querySelector('.tray-process-detail').textContent.includes(t('所属应用：{name}',{name:'Canvas Workbench'}))&&tray.querySelector('.tray-process-path').textContent==='/usr/local/bin/node','process details keep app ownership separate from executable identity');
+    const changed=structuredClone(owners);delete changed.processes[1].app_name;delete changed.processes[1].app_path;setTraySearch('');onNativeRealTelemetry(changed);selectTrayProcess(9124);
+    qaAssert(tray.querySelector('.tray-process-detail').textContent.includes(t('未识别所属应用')),'an orphaned child does not inherit stale app ownership');
+    onNativeRealTelemetry(owners);selectTrayProcess(9124);
+    ${lang === 'en' ? `await qaEn('owner process details');` : 'await qaSettle();'}
+  `});
+}
 const trayScenarioStart=scenarios.length;
 const trayGraphSetup=compactTraySetup+`
   STATE.cpuSeries=[4,24,65,20];

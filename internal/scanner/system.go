@@ -133,7 +133,7 @@ func (s *Scanner) queryCPUModel() string {
 // they use between them.
 func (s *Scanner) sampleRealProcesses() (cpuTotal float64, processes []map[string]any) {
 	// -c strips executable paths, breaking Finder and native identity checks.
-	out, err := exec.Command("/bin/ps", "-Aeo", "pid,%cpu,rss,comm", "-r").Output()
+	out, err := exec.Command("/bin/ps", "-Aeo", "pid,ppid,%cpu,rss,comm", "-r").Output()
 	if err != nil {
 		return 0, nil
 	}
@@ -144,17 +144,19 @@ func (s *Scanner) sampleRealProcesses() (cpuTotal float64, processes []map[strin
 	return parseProcesses(string(out), cores)
 }
 
-// parseProcesses reads what `ps -Aeo pid,%cpu,rss,comm -r` printed.
+// parseProcesses reads what `ps -Aeo pid,ppid,%cpu,rss,comm -r` printed.
 func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[string]any) {
 	var cpuSum float64
+	parents := map[int]int{}
+	appPaths := map[int]string{}
 	processes = []map[string]any{}
 	for i, line := range strings.Split(out, "\n") {
 		if i == 0 {
 			// The header line.
 			continue
 		}
-		parts := splitFields(line, 4)
-		if len(parts) < 4 {
+		parts := splitFields(line, 5)
+		if len(parts) < 5 {
 			continue
 		}
 		pid, err := strconv.Atoi(parts[0])
@@ -163,22 +165,21 @@ func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[st
 		}
 		// The Swift app read a number it could not parse as zero rather
 		// than dropping the row.
-		cpu, _ := strconv.ParseFloat(parts[1], 64)
-		rssKB, _ := strconv.ParseFloat(parts[2], 64)
-		comm := parts[3]
+		parentPID, _ := strconv.Atoi(parts[1])
+		cpu, _ := strconv.ParseFloat(parts[2], 64)
+		rssKB, _ := strconv.ParseFloat(parts[3], 64)
+		comm := parts[4]
 		name := filepath.Base(comm)
 		if name == "ps" || name == "kernel_task" {
 			continue
 		}
+		parents[pid] = parentPID
+		appPaths[pid] = processAppPath(comm)
 		cpuSum += cpu
 		memoryMB := int(rssKB / 1024)
 		if memoryMB < 1 {
 			memoryMB = 1
 		}
-		// The Swift app replaced the path with the app bundle's when the
-		// process belonged to one. That needs NSRunningApplication, which
-		// MyGo does not expose; the executable's own path reveals the same
-		// file in Finder.
 		processes = append(processes, map[string]any{
 			"pid":       pid,
 			"name":      name,
@@ -188,6 +189,17 @@ func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[st
 			"pinned":    false,
 			"path":      comm,
 		})
+	}
+	for _, process := range processes {
+		seen := map[int]bool{}
+		for ancestorPID := process["pid"].(int); ancestorPID > 1 && !seen[ancestorPID]; ancestorPID = parents[ancestorPID] {
+			seen[ancestorPID] = true
+			if appPath := appPaths[ancestorPID]; appPath != "" {
+				process["app_path"] = appPath
+				process["app_name"] = strings.TrimSuffix(filepath.Base(appPath), filepath.Ext(appPath))
+				break
+			}
+		}
 	}
 	cpuTotal = cpuSum / float64(cores)
 	// No artificial floor: an idle machine really does sit near zero, and a
@@ -199,6 +211,19 @@ func parseProcesses(out string, cores int) (cpuTotal float64, processes []map[st
 		cpuTotal = 99.9
 	}
 	return cpuTotal, processes
+}
+
+func processAppPath(path string) string {
+	if !filepath.IsAbs(path) {
+		return ""
+	}
+	var appPath string
+	for path = filepath.Dir(path); path != "/" && path != "."; path = filepath.Dir(path) {
+		if isAppBundle(path) {
+			appPath = path
+		}
+	}
+	return appPath
 }
 
 // splitFields breaks a line into at most n fields the way Swift's
