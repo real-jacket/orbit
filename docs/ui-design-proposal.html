@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>orbit — 完整 UI 视觉升级设计稿与改版对比</title>
+<style>
+  /* =========================================================================
+     orbit Design System v2 — Quiet Precision Instrument
+     ========================================================================= */
+  :root {
+    color-scheme: dark;
+    --bg-stage: #090908;
+    --bg-window: #111110;
+    --bg-sidebar: #161513;
+    --bg-surface: #1a1917;
+    --bg-card: #201f1c;
+    --bg-card-hover: #272522;
+    --bg-card-selected: rgba(217, 119, 87, 0.12);
+    --bg-elevated: #24231f;
+    --bg-input: #141311;
+
+    --border-hairline: rgba(255, 250, 240, 0.068);
+    --border-subtle: rgba(255, 250, 240, 0.088);
+    --border-strong: rgba(255, 250, 240, 0.16);
+    --border-selected: rgba(217, 119, 87, 0.48);
+    --highlight-top: inset 0 1px 0 rgba(255, 250, 240, 0.045);
+
+    --text-primary: #f5f2eb;
+    --text-secondary: #a8a399;
+    --text-muted: #7d7970;
+
+    --accent: #d97757;
+    --accent-hover: #e1886a;
+    --accent-ink: #1a1512;
+    --accent-soft: rgba(217, 119, 87, 0.14);
+    --accent-border: rgba(217, 119, 87, 0.30);
+
+    --emerald: #58b78f;
+    --emerald-soft: rgba(88, 183, 143, 0.13);
+    --emerald-border: rgba(88, 183, 143, 0.28);
+
+    --amber: #e7b35c;
+    --amber-soft: rgba(231, 179, 92, 0.13);
+    --amber-border: rgba(231, 179, 92, 0.28);
+
+    --rose: #ee8290;
+    --rose-soft: rgba(238, 130, 144, 0.13);
+    --rose-border: rgba(238, 130, 144, 0.30);
+
+    --blue: #5b8def;
+
+    --radius-xl: 16px;
+    --radius-lg: 12px;
+    --radius-md: 8px;
+    --radius-sm: 6px;
+
+    --shadow-window: 0 32px 80px rgba(0, 0, 0, 0.68), 0 0 0 1px rgba(255, 250, 240, 0.09);
+    --shadow-float: 0 24px 60px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 250, 240, 0.12);
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur-1: 130ms;
+    --dur-2: 200ms;
+
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+    --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+    --bg-stage: #e9e4dc;
+    --bg-window: #faf8f4;
+    --bg-sidebar: #f2eee7;
+    --bg-surface: #f5f1ea;
+    --bg-card: #fefcf9;
+    --bg-card-hover: #f9f6f0;
+    --bg-card-selected: rgba(167, 68, 38, 0.075);
+    --bg-elevated: #fefcf9;
+    --bg-input: #ece7de;
+
+    --border-hairline: rgba(28, 25, 23, 0.065);
+    --border-subtle: rgba(28, 25, 23, 0.09);
+    --border-strong: rgba(28, 25, 23, 0.17);
+    --border-selected: rgba(167, 68, 38, 0.42);
+    --highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+
+    --text-primary: #1c1917;
+    --text-secondary: #57534e;
+    --text-muted: #847e75;
+
+    --accent: #b34a2a;
+    --accent-hover: #9b3e22;
+    --accent-ink: #fcfaf7;
+    --accent-soft: rgba(179, 74, 42, 0.11);
+    --accent-border: rgba(179, 74, 42, 0.25);
+
+    --emerald: #176a43;
+    --emerald-soft: rgba(23, 106, 67, 0.10);
+    --emerald-border: rgba(23, 106, 67, 0.24);
+
+    --amber: #8d550e;
+    --amber-soft: rgba(184, 123, 20, 0.11);
+    --amber-border: rgba(184, 123, 20, 0.26);
+
+    --rose: #b83246;
+    --rose-soft: rgba(184, 50, 70, 0.10);
+    --rose-border: rgba(184, 50, 70, 0.25);
+
+    --blue: #2f61b8;
+
+    --shadow-window: 0 28px 72px rgba(28, 25, 23, 0.16), 0 0 0 1px rgba(28, 25, 23, 0.09);
+    --shadow-float: 0 20px 52px rgba(28, 25, 23, 0.18), 0 0 0 1px rgba(28, 25, 23, 0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-stage);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(900px 420px at 18% -8%, rgba(217, 119, 87, 0.08), transparent 65%),
+      radial-gradient(700px 360px at 86% 108%, rgba(91, 141, 239, 0.05), transparent 65%);
+  }
+
+  /* =========================================================================
+     Top Proposal Navigation Bar
+     ========================================================================= */
+  .proposal-bar {
+    position: relative; z-index: 20;
+    height: 48px; padding: 0 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--bg-window) 86%, transparent);
+    backdrop-filter: blur(14px);
+    flex-shrink: 0;
+  }
+  .proposal-brand { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 700; }
+  .proposal-tag {
+    font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-border);
+  }
+  .proposal-actions { display: flex; align-items: center; gap: 10px; }
+  .pill-switch {
+    display: inline-flex; background: var(--bg-input); padding: 2.5px;
+    border-radius: 8px; border: 1px solid var(--border-subtle); gap: 2px;
+  }
+  .pill-switch button {
+    border: 0; background: transparent; color: var(--text-secondary);
+    font: 600 11.5px/1 var(--font-sans); padding: 6px 11px; border-radius: 6px;
+    cursor: pointer; transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .pill-switch button:hover { color: var(--text-primary); }
+  .pill-switch button.active {
+    background: var(--bg-card); color: var(--text-primary);
+    box-shadow: inset 0 0 0 1px var(--border-subtle);
+  }
+
+  /* =========================================================================
+     Top-Level Modes: Prototype vs Comparison Spec
+     ========================================================================= */
+  .mode-pane { display: none; flex: 1; min-height: 0; position: relative; z-index: 1; }
+  .mode-pane.active { display: flex; }
+
+  /* Prototype Canvas */
+  .stage-wrap {
+    padding: 18px 24px 22px;
+    align-items: center; justify-content: center;
+  }
+  .app-window {
+    width: min(1360px, 100%);
+    height: min(830px, 100%);
+    background: var(--bg-window);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-window);
+    display: flex; overflow: hidden; position: relative;
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(168, 163, 153, 0.22); border-radius: 99px;
+    border: 2px solid transparent; background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(168, 163, 153, 0.36); background-clip: content-box; }
+
+  /* =========================================================================
+     Sidebar
+     ========================================================================= */
+  .sidebar {
+    width: 244px; background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-subtle);
+    display: flex; flex-direction: column; padding: 14px 12px 12px;
+    flex-shrink: 0; user-select: none;
+  }
+  .window-chrome { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 14px; }
+  .traffic-lights { display: flex; gap: 8px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; border: 0.5px solid rgba(0, 0, 0, 0.22); }
+  .dot.r { background: #ff5f57; } .dot.y { background: #febc2e; } .dot.g { background: #28c840; }
+  .os-tag { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+
+  .brand-card {
+    display: flex; align-items: center; gap: 10px; padding: 10px 11px; margin-bottom: 14px;
+    border-radius: 11px; background: var(--bg-card); border: 1px solid var(--border-subtle);
+    box-shadow: var(--highlight-top); cursor: pointer;
+    transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+  }
+  .brand-card:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
+  .orbit-mark {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(145deg, #2b2622, #171513);
+    border: 1px solid rgba(255, 250, 240, 0.10); color: #f5f2eb;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  html[data-theme="light"] .orbit-mark {
+    background: linear-gradient(145deg, #ffffff, #ebe4da);
+    border-color: rgba(28, 25, 23, 0.12); color: #2c2623;
+  }
+  .brand-info { min-width: 0; flex: 1; }
+  .brand-name { font-size: 13.5px; font-weight: 700; letter-spacing: -0.02em; }
+  .brand-sub { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+  .status-led { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
+  .score-pill {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+    padding: 3px 8px; border-radius: 999px;
+    background: var(--emerald-soft); color: var(--emerald); border: 1px solid var(--emerald-border); flex-shrink: 0;
+  }
+
+  .nav-group-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--text-muted); padding: 10px 10px 5px;
+  }
+  .nav-group-label:first-child { padding-top: 2px; }
+  .nav-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    position: relative; display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 8px 10px; border-radius: 9px;
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+    border: 1px solid transparent; cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  }
+  .nav-item:hover { color: var(--text-primary); background: color-mix(in srgb, var(--text-primary) 4.5%, transparent); }
+  .nav-item.active {
+    color: var(--accent); background: var(--accent-soft);
+    border-color: var(--accent-border); font-weight: 600;
+  }
+  .nav-item.active::before {
+    content: ""; position: absolute; left: 2px; top: 9px; bottom: 9px;
+    width: 2.5px; border-radius: 99px; background: var(--accent);
+  }
+  .nav-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .nav-svg-icon {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; padding: 1.5px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .glyph { display: block; width: 100%; height: 100%; line-height: 0; }
+  .glyph svg { width: 100%; height: 100%; display: block; }
+  .brand-plate {
+    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; padding: 2px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hero-tile .glyph { width: 26px; height: 26px; }
+  .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; }
+  .nav-item.active .nav-meta { color: var(--accent); font-weight: 600; }
+
+  .sidebar-footer { padding-top: 10px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px; }
+  .disk-widget {
+    background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px;
+    padding: 9px 11px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--highlight-top);
+  }
+  .disk-row { display: flex; align-items: baseline; justify-content: space-between; font-size: 11px; }
+  .disk-row strong { font-weight: 600; }
+  .disk-row span { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-secondary); }
+  .disk-track { height: 5px; border-radius: 99px; background: var(--bg-input); overflow: hidden; display: flex; gap: 1.5px; }
+  .disk-seg-used { background: var(--accent); width: 64%; border-radius: 99px 0 0 99px; }
+  .disk-seg-clean { background: var(--emerald); width: 9%; }
+  .pref-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pref-btn {
+    height: 28px; border-radius: 7px; background: var(--bg-card); border: 1px solid var(--border-subtle);
+    color: var(--text-secondary); font: 600 11px/1 var(--font-sans); cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .pref-btn:hover { background: var(--bg-card-hover); border-color: var(--border-strong); color: var(--text-primary); }
+
+  /* =========================================================================
+     Workspace & Shared Components
+     ========================================================================= */
+  .workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-window); overflow: hidden; }
+  .top-bar {
+    height: 62px; padding: 0 20px; border-bottom: 1px solid var(--border-subtle);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-shrink: 0;
+  }
+  .page-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .page-title { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+  .live-telemetry { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); }
+
+  .toolbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .search-wrap {
+    height: 32px; width: 204px; display: flex; align-items: center; gap: 7px; padding: 0 9px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+    transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+  }
+  .search-wrap:hover { border-color: var(--border-strong); }
+  .search-wrap:focus-within { border-color: var(--border-selected); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search-wrap svg { width: 13px; height: 13px; color: var(--text-muted); flex-shrink: 0; }
+  .search-wrap input { border: 0; outline: 0; background: transparent; color: var(--text-primary); font: 12px var(--font-sans); width: 100%; min-width: 0; }
+  .search-wrap input::placeholder { color: var(--text-muted); }
+  .kbd { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted); background: var(--bg-card); border: 1px solid var(--border-subtle); padding: 1.5px 5px; border-radius: 4px; flex-shrink: 0; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 32px; padding: 0 12px; border-radius: var(--radius-md);
+    font: 600 11.5px/1 var(--font-sans); cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--border-subtle); background: var(--bg-card); color: var(--text-primary);
+    box-shadow: var(--highlight-top);
+    transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .btn svg { width: 13.5px; height: 13.5px; flex-shrink: 0; }
+  .btn:hover { background: var(--bg-card-hover); border-color: var(--border-strong); }
+  .btn:active { transform: translateY(0.5px); }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+  .btn-primary:hover { background: var(--accent-hover); color: var(--accent-ink); border-color: transparent; }
+  .btn-danger { background: var(--rose); color: var(--accent-ink); border-color: transparent; }
+  .btn-quiet { background: transparent; border-color: transparent; box-shadow: none; color: var(--accent); height: 26px; padding: 0 8px; }
+  .btn-quiet:hover { background: var(--accent-soft); border-color: transparent; }
+  .btn-icon { width: 30px; height: 30px; padding: 0; }
+
+  .workspace-body { flex: 1; min-height: 0; padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+
+  .hero-banner {
+    display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 20px;
+    border-radius: var(--radius-lg); background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    box-shadow: var(--highlight-top); flex-shrink: 0;
+  }
+  .hero-left { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1; }
+  .hero-tile {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: var(--bg-card); border: 1px solid var(--border-strong);
+    display: flex; align-items: center; justify-content: center; color: var(--accent); box-shadow: var(--highlight-top);
+  }
+  .hero-tile svg { width: 21px; height: 21px; }
+  .hero-eyebrow { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+  .hero-headline { font-size: 19px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.25; }
+  .hero-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-top: 3px; max-width: 68ch; }
+  .hero-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; min-width: 190px; }
+  .hero-stat-label { font-size: 11px; color: var(--text-secondary); }
+  .hero-stat-val { font-family: var(--font-mono); font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  .hero-stat-bar { width: 164px; height: 4px; border-radius: 99px; background: var(--bg-input); overflow: hidden; display: flex; gap: 2px; margin-top: 4px; }
+  .hero-stat-sub { font-size: 11px; color: var(--text-muted); }
+
+  .tier-strip { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 0 2px; flex-shrink: 0; }
+  .tier-metrics { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 12px; }
+  .tier-item { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .tier-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .tier-safe { color: var(--emerald); } .tier-review { color: var(--amber); } .tier-protected { color: var(--text-muted); }
+
+  .split-grid { display: grid; grid-template-columns: minmax(0, 1.46fr) minmax(330px, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .panel {
+    background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+    display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; box-shadow: var(--highlight-top);
+  }
+  .panel-head {
+    padding: 11px 16px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0;
+  }
+  .panel-title { font-size: 12.5px; font-weight: 700; }
+
+  .seg-group { display: inline-flex; background: var(--bg-input); padding: 3px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); gap: 2px; }
+  .seg-btn {
+    border: 0; background: transparent; padding: 4px 10px; border-radius: 5px;
+    font: 600 11px/1.1 var(--font-sans); color: var(--text-secondary); cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  }
+  .seg-btn:hover:not(.active) { color: var(--text-primary); }
+  .seg-btn.active { background: var(--bg-card); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border-subtle), 0 1px 2px rgba(0, 0, 0, 0.14); }
+
+  .list-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .row-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px;
+    border-radius: 9px; border: 1px solid transparent; cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  }
+  .row-card:hover { background: var(--bg-card-hover); }
+  .row-card.selected { background: var(--bg-card-selected); border-color: var(--border-selected); }
+  .row-main { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1; }
+  .row-text { min-width: 0; flex: 1; }
+  .row-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+  .row-version { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); font-weight: 500; }
+  .row-path { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-note { font-size: 11px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .mini-bar { width: 56px; height: 4px; border-radius: 99px; background: var(--bg-input); overflow: hidden; }
+  .mini-bar > i { display: block; height: 100%; border-radius: 99px; }
+  .size-num { font-family: var(--font-mono); font-size: 12px; font-weight: 700; min-width: 64px; text-align: right; }
+
+  /* Custom Checkbox */
+  input[type="checkbox"].v2-check {
+    -webkit-appearance: none; appearance: none; position: relative; flex: none;
+    width: 16px; height: 16px; margin: 0; border-radius: 5px;
+    border: 1.5px solid var(--border-strong); background: var(--bg-input); cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  }
+  input[type="checkbox"].v2-check:hover:not(:disabled):not(:checked) { border-color: var(--text-muted); }
+  input[type="checkbox"].v2-check:checked { background: var(--accent); border-color: var(--accent); }
+  input[type="checkbox"].v2-check:checked::after {
+    content: ""; position: absolute; left: 50%; top: 44%; width: 30%; height: 54%;
+    border: solid var(--accent-ink); border-width: 0 1.8px 1.8px 0;
+    transform: translate(-50%, -50%) rotate(42deg);
+  }
+  input[type="checkbox"].v2-check:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .badge { font-size: 10px; font-weight: 600; padding: 2.5px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+  .badge-safe { background: var(--emerald-soft); color: var(--emerald); border-color: var(--emerald-border); }
+  .badge-review { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-border); }
+  .badge-protected { background: var(--bg-surface); color: var(--text-secondary); border-color: var(--border-subtle); }
+
+  .select-wrap { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-secondary); }
+  .ui-select {
+    -webkit-appearance: none; appearance: none; height: 30px; padding: 0 28px 0 10px;
+    border-radius: var(--radius-md); border: 1px solid var(--border-subtle);
+    background-color: var(--bg-input);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a8a399' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center;
+    color: var(--text-primary); font: 500 11.5px var(--font-sans); cursor: pointer;
+  }
+
+  .inspector-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  .insp-eyebrow { font-size: 10.5px; color: var(--text-muted); font-weight: 600; }
+  .insp-title { font-size: 16px; font-weight: 700; letter-spacing: -0.015em; margin-top: 2px; }
+  .bento-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 12px 0; border-block: 1px solid var(--border-subtle); }
+  .bento-label { font-size: 10.5px; color: var(--text-muted); }
+  .bento-val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; margin-top: 4px; }
+  .callout-box { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 11px 13px; font-size: 11.5px; line-height: 1.55; color: var(--text-secondary); }
+  .callout-box strong { display: block; font-size: 11.5px; color: var(--text-primary); margin-bottom: 4px; }
+  .subpath-list { display: flex; flex-direction: column; gap: 6px; }
+  .subpath-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px;
+    border-radius: var(--radius-md); background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  }
+  .subpath-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
+  .subpath-code { font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .subpath-sub { font-size: 10.5px; color: var(--emerald); margin-top: 2px; }
+  .panel-foot { padding: 12px 16px; border-top: 1px solid var(--border-subtle); background: var(--bg-surface); display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; flex-shrink: 0; }
+
+  /* Treemap */
+  .analyze-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); flex-shrink: 0; }
+  .crumb-row { display: flex; align-items: center; gap: 6px; }
+  .crumb-cur { font-size: 15px; font-weight: 700; margin-left: 4px; }
+  .analyze-facts { font-size: 11.5px; color: var(--text-secondary); margin-top: 4px; }
+  .vol-box { width: 220px; display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: var(--text-secondary); }
+  .vol-box b { color: var(--text-primary); font-family: var(--font-mono); }
+  .treemap-layout { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 14px; flex: 1; min-height: 0; }
+  .treemap-canvas {
+    position: relative; border-radius: var(--radius-lg); background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    overflow: hidden; padding: 6px; display: grid; grid-template-columns: 1.55fr 1fr; grid-template-rows: 1.15fr 1fr; gap: 5px;
+  }
+  .tm-tile {
+    position: relative; border-radius: 9px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between;
+    cursor: pointer; overflow: hidden; color: #faf7f2; border: 1.5px solid transparent;
+    transition: border-color var(--dur-1) var(--ease), filter var(--dur-1) var(--ease);
+  }
+  .tm-tile:hover { filter: brightness(1.06); }
+  .tm-tile.active { border-color: rgba(255, 250, 240, 0.9); }
+  html[data-theme="light"] .tm-tile { color: #2b1d15; }
+  html[data-theme="light"] .tm-tile.active { border-color: var(--accent); }
+  .tm-dir-0 { background: #96451e; } .tm-dir-1 { background: #743b20; } .tm-dir-2 { background: #563222; } .tm-file-0 { background: #4c4741; }
+  html[data-theme="light"] .tm-dir-0 { background: #df956e; } html[data-theme="light"] .tm-dir-1 { background: #e8b092; } html[data-theme="light"] .tm-dir-2 { background: #f0cab6; } html[data-theme="light"] .tm-file-0 { background: #d5cfc6; }
+  .tm-name { font-size: 13.5px; font-weight: 700; }
+  .tm-path { font-family: var(--font-mono); font-size: 10.5px; opacity: 0.74; margin-top: 2px; }
+  .tm-nested { flex: 1; margin: 10px 0; display: grid; gap: 4px; grid-template-columns: 1.45fr 1fr; grid-template-rows: 1fr 0.75fr; }
+  .tm-subcell { border-radius: 5px; padding: 7px 9px; background: rgba(255, 232, 210, 0.14); border: 1px solid rgba(18, 16, 14, 0.24); display: flex; flex-direction: column; gap: 2px; }
+  html[data-theme="light"] .tm-subcell { background: rgba(167, 68, 38, 0.11); border-color: rgba(43, 29, 21, 0.16); }
+  .tm-subcell b { font-size: 11px; font-weight: 600; }
+  .tm-subcell small { font-family: var(--font-mono); font-size: 10.5px; opacity: 0.78; }
+  .tm-foot { display: flex; align-items: baseline; justify-content: space-between; font-family: var(--font-mono); }
+  .tm-foot strong { font-size: 13.5px; } .tm-foot span { font-size: 11px; opacity: 0.78; margin-left: 6px; }
+
+  /* Status Telemetry */
+  .telemetry-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; flex-shrink: 0; }
+  .t-card {
+    background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--highlight-top);
+  }
+  .t-head { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--text-secondary); font-weight: 600; }
+  .t-main { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .t-big { font-family: var(--font-mono); font-size: 25px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+  .t-sub { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+  .spark-wrap { height: 42px; width: 100%; margin-top: auto; }
+  .spark-wrap svg { width: 100%; height: 100%; display: block; }
+  .mem-track { height: 9px; border-radius: 99px; background: var(--bg-input); overflow: hidden; display: flex; gap: 2px; margin-top: 4px; }
+  .mem-legend { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-secondary); font-family: var(--font-mono); }
+  .mem-legend i { display: inline-block; width: 6px; height: 6px; border-radius: 2px; margin-right: 4px; }
+
+  .proc-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 160px 64px 76px 74px; align-items: center; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--border-hairline); font-size: 12px; }
+  .proc-row:last-child { border-bottom: 0; }
+  .proc-row:hover { background: var(--bg-card-hover); }
+  .proc-bar { height: 4px; border-radius: 99px; background: var(--bg-input); overflow: hidden; }
+  .proc-bar > i { display: block; height: 100%; border-radius: 99px; background: var(--accent); opacity: 0.8; }
+  .proc-num { font-family: var(--font-mono); font-size: 11.5px; text-align: right; font-weight: 600; }
+  .proc-kill { justify-self: end; height: 24px; padding: 0 9px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--text-muted); font: 600 11px var(--font-sans); cursor: pointer; opacity: 0; transition: opacity var(--dur-1) var(--ease); }
+  .proc-row:hover .proc-kill { opacity: 1; }
+  .proc-kill:hover { color: var(--rose); background: var(--rose-soft); border-color: var(--rose-border); }
+
+  .app-tile { width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #faf7f2; }
+
+  /* Tray & Modal */
+  .tray-popover {
+    position: absolute; top: 56px; right: 18px; width: 372px; max-height: calc(100% - 74px);
+    background: var(--bg-sidebar); border-radius: 14px; box-shadow: var(--shadow-float);
+    padding: 13px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; z-index: 40;
+    opacity: 0; transform: translateY(-6px) scale(0.985); pointer-events: none;
+    transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
+  }
+  .tray-popover.open { opacity: 1; transform: none; pointer-events: auto; }
+  .tray-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .tray-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 11px; padding: 10px 11px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--highlight-top); }
+  .tray-switch { width: 30px; height: 17px; padding: 2px; border-radius: 99px; background: var(--border-strong); cursor: pointer; transition: background-color var(--dur-1) var(--ease); }
+  .tray-switch i { display: block; width: 13px; height: 13px; border-radius: 50%; background: var(--text-primary); transition: transform var(--dur-1) var(--ease); }
+  .tray-switch.on { background: var(--accent); }
+  .tray-switch.on i { transform: translateX(13px); background: var(--accent-ink); }
+
+  .modal-mask { position: absolute; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.56); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; }
+  html[data-theme="light"] .modal-mask { background: rgba(28, 25, 23, 0.28); }
+  .modal-mask.open { display: flex; }
+  .modal-card { width: 560px; max-width: 92%; background: var(--bg-elevated); border-radius: 14px; box-shadow: var(--shadow-float); overflow: hidden; }
+  .modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .modal-paths { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 10px; overflow: hidden; }
+  .modal-path-item { padding: 10px 13px; border-bottom: 1px solid var(--border-hairline); display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+  .modal-path-item:last-child { border-bottom: 0; }
+  .modal-path-code { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+  .modal-foot { padding: 12px 18px; border-top: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--bg-surface); }
+
+  .view-pane { display: none; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+  .view-pane.active { display: flex; }
+
+  /* =========================================================================
+     Comparison & Design Rationale View (Before vs After)
+     ========================================================================= */
+  .spec-scroll {
+    flex: 1; overflow-y: auto; padding: 28px 32px 60px;
+  }
+  .spec-container { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  .spec-hero {
+    background: var(--bg-window); border: 1px solid var(--border-subtle); border-radius: 16px;
+    padding: 24px 28px; box-shadow: var(--highlight-top);
+  }
+  .spec-hero h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.025em; margin-bottom: 8px; }
+  .spec-hero p { font-size: 13px; color: var(--text-secondary); line-height: 1.65; max-width: 82ch; }
+  .spec-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .spec-pill {
+    font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-secondary);
+  }
+
+  .diff-card {
+    background: var(--bg-window); border: 1px solid var(--border-subtle); border-radius: 16px;
+    overflow: hidden; box-shadow: var(--highlight-top);
+  }
+  .diff-head {
+    padding: 16px 22px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .diff-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .diff-num {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    width: 24px; height: 24px; border-radius: 7px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-border);
+  }
+  .diff-scope { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); }
+
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--border-subtle); }
+  .diff-col { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; }
+  .diff-col:first-child { border-right: 1px solid var(--border-subtle); background: color-mix(in srgb, var(--bg-input) 50%, var(--bg-window)); }
+  .diff-label {
+    font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;
+    width: fit-content; padding: 3px 9px; border-radius: 999px;
+  }
+  .diff-label.before { background: var(--rose-soft); color: var(--rose); border: 1px solid var(--rose-border); }
+  .diff-label.after { background: var(--emerald-soft); color: var(--emerald); border: 1px solid var(--emerald-border); }
+
+  .demo-stage {
+    padding: 16px; border-radius: 10px; background: var(--bg-card);
+    border: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 10px;
+  }
+  .diff-why {
+    padding: 16px 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    background: var(--bg-surface); font-size: 12px; line-height: 1.65; color: var(--text-secondary);
+  }
+  .diff-why strong { display: block; font-size: 11.5px; color: var(--text-primary); margin-bottom: 4px; }
+
+  /* Old (Before) faithful mock styles */
+  .old-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 16px; background: rgba(217, 119, 87, 0.13);
+    box-shadow: inset 0 0 0 1px #d97757; border-radius: 0;
+  }
+  .old-check {
+    width: 15px; height: 15px; border-radius: 3px; background: #ffffff;
+    border: 1px solid #999; display: inline-flex; align-items: center; justify-content: center;
+    color: #111; font-size: 11px; font-weight: 800; flex-shrink: 0;
+  }
+  .old-select {
+    height: 28px; padding: 0 8px; border-radius: 6px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    color: var(--text-primary); font-size: 11px; width: 150px;
+  }
+  .old-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+    background: rgba(46, 158, 107, 0.14); color: #58b78f; border: none;
+  }
+  .old-nav-icon {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    background: linear-gradient(180deg, #38bdf8, #0284c7);
+    box-shadow: inset 0 1px 0.5px rgba(255,255,255,0.45), 0 2px 5px rgba(0,0,0,0.3);
+    display: flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .old-doctor {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 10px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border-subtle);
+    width: 212px;
+  }
+
+  @media (max-width: 960px) {
+    .diff-grid, .diff-why, .split-grid, .treemap-layout { grid-template-columns: 1fr; }
+    .diff-col:first-child { border-right: 0; border-bottom: 1px solid var(--border-subtle); }
+  }
+</style>
+</head>
+<body>
+
+  <!-- 顶部控制条 -->
+  <header class="proposal-bar">
+    <div class="proposal-brand">
+      <span>orbit · UI 视觉升级完整设计稿</span>
+      <span class="proposal-tag">v2 Proposal</span>
+    </div>
+    <div class="proposal-actions">
+      <div class="pill-switch" role="tablist">
+        <button id="modeCompareBtn" class="active" onclick="setMode('compare')">改版对比与说明（Before / After）</button>
+        <button id="modeProtoBtn" onclick="setMode('proto')">完整交互式设计稿（8 模块）</button>
+      </div>
+      <div class="pill-switch" role="group">
+        <button id="themeDarkBtn" class="active" onclick="setTheme('dark')">深色</button>
+        <button id="themeLightBtn" onclick="setTheme('light')">浅色</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- =======================================================================
+       模式一：改版对比与设计说明（清晰展示改了什么 & 为什么）
+       ======================================================================= -->
+  <section class="mode-pane active" id="mode-compare">
+    <div class="spec-scroll">
+      <div class="spec-container">
+        <div class="spec-hero">
+          <h1>orbit UI 视觉升级方案：从“功能可用”到“精密仪器美学”</h1>
+          <p>
+            本设计稿严格延续项目核心基因（暖炭 Kiln Charcoal / 暖白 Alabaster 底色、单一陶土色主行动、无霓虹、无渐变文字、无卡片套卡片），
+            针对当前线上页面在 <strong>表单控件割裂、列表选中生硬、侧栏视觉噪音、圆角阶梯不统一、状态页密度失衡</strong> 五个维度的实际痛点，进行系统性精细化重构。
+            点击顶部 <strong>「完整交互式设计稿（8 模块）」</strong> 可沉浸体验优化后的全部页面与交互。
+          </p>
+          <div class="spec-pills">
+            <span class="spec-pill">7 项核心视觉升级</span>
+            <span class="spec-pill">深浅双主题 AA 对比度达标</span>
+            <span class="spec-pill">覆盖全部 8 个主模块 + 菜单栏 + 模态框</span>
+            <span class="spec-pill">零外部依赖 · 纯原生 macOS 质感</span>
+          </div>
+        </div>
+
+        <!-- 对比 1 -->
+        <article class="diff-card">
+          <div class="diff-head">
+            <div class="diff-title"><span class="diff-num">01</span>统一自定义复选框与下拉选择框</div>
+            <span class="diff-scope">深度清理 / AI 清理 / 应用卸载 / 构建清理</span>
+          </div>
+          <div class="diff-grid">
+            <div class="diff-col">
+              <span class="diff-label before">改造前（现状）</span>
+              <div class="demo-stage" style="flex-direction:row;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <span class="old-check">✓</span>
+                  <span class="old-check" style="color:transparent"></span>
+                  <span style="font-size:12px;color:var(--text-secondary)">暗色下出现刺眼纯白方块</span>
+                </div>
+                <select class="old-select"><option>全部已识别工具</option></select>
+              </div>
+            </div>
+            <div class="diff-col">
+              <span class="diff-label after">改造后（新设计）</span>
+              <div class="demo-stage" style="flex-direction:row;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <input type="checkbox" class="v2-check" checked />
+                  <input type="checkbox" class="v2-check" />
+                  <input type="checkbox" class="v2-check" disabled />
+                  <span style="font-size:12px;color:var(--text-secondary)">暖炭底 + 陶土填充 + 居中对勾</span>
+                </div>
+                <select class="ui-select"><option>全部已识别工具 (4)</option></select>
+              </div>
+            </div>
+          </div>
+          <div class="diff-why">
+            <div>
+              <strong>做了什么调整</strong>
+              用纯 CSS 自定义复选框替代 WebKit 原生白底 checkbox，统一 5px 圆角、陶土色选中态与居中矢量对勾（自动适配 13px/15px/16px 尺寸）；AI 工具筛选下拉框改为自定义单线 chevron 箭头与 8px 圆角。
+            </div>
+            <div>
+              <strong>为什么这样调整</strong>
+              当前暗色模式下原生纯白复选框是整个界面最强烈的视觉噪点，且与空间分析里的自定义 <code>.pick</code> 风格割裂；统一控件语言后，四张核心清理页的精致度会立刻跃升一个台阶。
+            </div>
+          </div>
+        </article>
+
+        <!-- 对比 2 -->
+        <article class="diff-card">
+          <div class="diff-head">
+            <div class="diff-title"><span class="diff-num">02</span>列表行改用“浮动圆角卡片”与柔和选中描边</div>
+            <span class="diff-scope">所有主从列表面板与命令面板</span>
+          </div>
+          <div class="diff-grid">
+            <div class="diff-col">
+              <span class="diff-label before">改造前（现状）</span>
+              <div class="demo-stage" style="padding:0;overflow:hidden">
+                <div class="old-row">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span class="old-check">✓</span>
+                    <div>
+                      <div style="font-size:13px;font-weight:600">应用运行缓存</div>
+                      <div class="row-path">~/Library/Caches/Xcode</div>
+                    </div>
+                  </div>
+                  <span class="size-num">3.12 GB</span>
+                </div>
+              </div>
+            </div>
+            <div class="diff-col">
+              <span class="diff-label after">改造后（新设计）</span>
+              <div class="demo-stage" style="padding:8px">
+                <div class="row-card selected">
+                  <div class="row-main">
+                    <input type="checkbox" class="v2-check" checked />
+                    <div class="row-text">
+                      <div class="row-title">应用运行缓存</div>
+                      <div class="row-path">~/Library/Caches/Xcode</div>
+                    </div>
+                  </div>
+                  <span class="size-num">3.12 GB</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="diff-why">
+            <div>
+              <strong>做了什么调整</strong>
+              列表容器增加 <code>8px</code> 内边距与 <code>4px</code> 行间距，每行升级为 <code>9px</code> 圆角浮动行；选中描边从 100% 实色橙框 <code>#d97757</code> 调整为 48% 柔和透明描边 <code>--border-selected</code>。
+            </div>
+            <div>
+              <strong>为什么这样调整</strong>
+              原来直角选中行紧贴面板内壁与标题底边线，视觉上生硬像线框图；改用浮动圆角行 + 柔和描边后，选中焦点依然清晰，但呼吸感更接近 macOS 原生 Finder / 设置列表。
+            </div>
+          </div>
+        </article>
+
+        <!-- 对比 3 -->
+        <article class="diff-card">
+          <div class="diff-head">
+            <div class="diff-title"><span class="diff-num">03</span>侧栏排版精修：健康铭牌防截断 &amp; 保留原版星际舱图标</div>
+            <span class="diff-scope">左侧导航栏</span>
+          </div>
+          <div class="diff-grid">
+            <div class="diff-col">
+              <span class="diff-label before">改造前（现状）</span>
+              <div class="demo-stage" style="gap:12px">
+                <div class="old-doctor">
+                  <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <div class="brand-plate" style="width:30px;height:30px"><span class="glyph" data-icon="brand"></span></div>
+                    <div style="min-width:0">
+                      <div style="font-size:13px;font-weight:700">orbit</div>
+                      <div style="font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">状态 100 / 100, 正常...</div>
+                    </div>
+                  </div>
+                  <span class="old-badge">体检</span>
+                </div>
+                <div style="font-size:11.5px;color:var(--text-muted)">副标题过长导致省略号截断，选中态缺少左侧焦点指示</div>
+              </div>
+            </div>
+            <div class="diff-col">
+              <span class="diff-label after">改造后（新设计）</span>
+              <div class="demo-stage" style="gap:12px">
+                <div class="brand-card" style="margin:0;width:224px">
+                  <div class="brand-plate" style="width:32px;height:32px"><span class="glyph" data-icon="brand"></span></div>
+                  <div class="brand-info">
+                    <div class="brand-name">orbit</div>
+                    <div class="brand-sub"><span class="status-led"></span>系统状态良好</div>
+                  </div>
+                  <span class="score-pill">100</span>
+                </div>
+                <div class="nav-item active" style="width:224px">
+                  <div class="nav-left">
+                    <span class="nav-svg-icon" style="background:linear-gradient(145deg, #22d3ee 0%, #0e9ab8 55%, #155e75 100%);"><span class="glyph" data-icon="clean"></span></span>
+                    <span>深度清理</span>
+                  </div>
+                  <span class="nav-meta">4.28 GB</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="diff-why">
+            <div>
+              <strong>做了什么调整</strong>
+              <strong>完整保留原版品牌图标与 8 个星际舱彩色模块图标</strong>；仅优化顶部健康卡结构（分数独立为右侧胶囊、副标题精简为绿点状态，彻底防截断），并为选中导航项增加左侧 <code>2.5px</code> 柔和指示条与分组间距。
+            </div>
+            <div>
+              <strong>为什么这样调整</strong>
+              原版星际舱彩色图标辨识度极高且极具产品个性，应当原样保留；而优化铭牌信息布局与选中态层次后，侧栏既不失辨识度，又更加整齐耐看。
+            </div>
+          </div>
+        </article>
+
+        <!-- 对比 4 -->
+        <article class="diff-card">
+          <div class="diff-head">
+            <div class="diff-title"><span class="diff-num">04</span>状态徽章细描边 & 原生感分段控制器</div>
+            <span class="diff-scope">全站状态标签与筛选栏</span>
+          </div>
+          <div class="diff-grid">
+            <div class="diff-col">
+              <span class="diff-label before">改造前（现状）</span>
+              <div class="demo-stage" style="flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap">
+                <div style="display:flex;gap:6px">
+                  <span class="old-badge">推荐清理</span>
+                  <span class="old-badge" style="background:rgba(217,155,38,0.14);color:#e7b35c">需确认</span>
+                </div>
+                <span style="font-size:11px;color:var(--text-muted)">无边框边缘偏糊，缺少层次</span>
+              </div>
+            </div>
+            <div class="diff-col">
+              <span class="diff-label after">改造后（新设计）</span>
+              <div class="demo-stage" style="flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap">
+                <div style="display:flex;gap:6px">
+                  <span class="badge badge-safe">推荐清理</span>
+                  <span class="badge badge-review">需确认</span>
+                  <span class="badge badge-protected">受保护</span>
+                </div>
+                <div class="seg-group">
+                  <button class="seg-btn active">全部 (4)</button>
+                  <button class="seg-btn">推荐 (2)</button>
+                  <button class="seg-btn">需确认 (1)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="diff-why">
+            <div>
+              <strong>做了什么调整</strong>
+              为所有语义徽章增加 <code>1px</code> 同色系半透明描边；分段控制器升级为 <code>8px</code> 外圆角、<code>3px</code> 内嵌槽与激活项微内描边。
+            </div>
+            <div>
+              <strong>为什么这样调整</strong>
+              无描边淡色胶囊在低对比暗底或浅纸底上边缘不够利落；加入细描边后，小字号状态标签在快速扫读时更清晰锐利。
+            </div>
+          </div>
+        </article>
+
+        <!-- 对比 5 -->
+        <article class="diff-card">
+          <div class="diff-head">
+            <div class="diff-title"><span class="diff-num">05</span>统一圆角阶梯、顶部 1px 微高光与状态监控升级</div>
+            <span class="diff-scope">全局容器、顶部工具栏、状态监控、空间分析</span>
+          </div>
+          <div class="diff-grid">
+            <div class="diff-col">
+              <span class="diff-label before">改造前（现状）</span>
+              <div class="demo-stage">
+                <div style="font-size:12px;color:var(--text-secondary);line-height:1.7">
+                  • 状态页指标卡圆角 <code>8px</code>，同页下方进程面板 <code>12px</code>，几何不统一<br>
+                  • 搜索框圆角 <code>6px</code>，紧挨着的按钮 <code>8px</code><br>
+                  • 空间分析暗色选中描边用纯白 <code>#fff</code> 偏刺眼，子格 <code>2px</code> 直角<br>
+                  • 模态框背景模糊 <code>5px</code>，层次偏薄
+                </div>
+              </div>
+            </div>
+            <div class="diff-col">
+              <span class="diff-label after">改造后（新设计）</span>
+              <div class="demo-stage">
+                <div style="font-size:12px;color:var(--text-primary);line-height:1.7">
+                  • 全站严格统一圆角阶梯：大面板/指标卡 <code>12px</code>、按钮/搜索框/下拉框 <code>8px</code>、小控件 <code>5px</code><br>
+                  • 卡片与按钮增加极克制顶部 <code>1px</code> 微高光（模拟实体金属面板受光边）<br>
+                  • 空间分析选中描边改为柔和暖白 <code>rgba(255,250,240,0.9)</code>，子预览格圆角 <code>5px</code><br>
+                  • 状态页补齐柔和面积微折线、四段式内存条、<code>38px</code> 进程行高；弹层模糊升级 <code>8px</code>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="diff-why">
+            <div>
+              <strong>做了什么调整</strong>
+              统一全站几何圆角与间距刻度，收紧大号等宽数字字距（<code>-0.03em</code>），并给状态监控与空间分析注入克制的数据视觉层次。
+            </div>
+            <div>
+              <strong>为什么这样调整</strong>
+              精致感来自“细节的一致性”：当相邻控件的圆角、高度、描边和光影逻辑完全统一时，整个应用会自然呈现出原生 macOS 专业工具的高级感。
+            </div>
+          </div>
+        </article>
+
+        <div style="display:flex;justify-content:center;padding-top:6px">
+          <button class="btn btn-primary" style="height:38px;padding:0 22px;font-size:13px" onclick="setMode('proto')">
+            进入完整交互式设计稿，逐页体验 8 个模块 →
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =======================================================================
+       模式二：完整交互式设计稿（全部 8 个模块 + 菜单栏 + 模态框）
+       ======================================================================= -->
+  <main class="mode-pane stage-wrap" id="mode-proto">
+    <div class="app-window">
+
+      <!-- 左侧导航栏 -->
+      <aside class="sidebar">
+        <div class="window-chrome">
+          <div class="traffic-lights">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          </div>
+          <span class="os-tag">macOS</span>
+        </div>
+
+        <div class="brand-card" onclick="switchView('status')">
+          <div class="brand-plate">
+            <span class="glyph" data-icon="brand"></span>
+          </div>
+          <div class="brand-info">
+            <div class="brand-name">orbit</div>
+            <div class="brand-sub"><span class="status-led"></span>系统状态良好</div>
+          </div>
+          <span class="score-pill">100</span>
+        </div>
+
+        <nav class="nav-list">
+          <div class="nav-group-label">核心功能</div>
+          <div class="nav-item active" data-view="clean" onclick="switchView('clean')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #22d3ee 0%, #0e9ab8 55%, #155e75 100%);"><span class="glyph" data-icon="clean"></span></span><span>深度清理</span></div>
+            <span class="nav-meta">4.28 GB</span>
+          </div>
+          <div class="nav-item" data-view="ai" onclick="switchView('ai')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb923c 0%, #f26a1b 55%, #7c2d12 100%);"><span class="glyph" data-icon="ai_moon"></span></span><span>AI 清理</span></div>
+            <span class="nav-meta">1.42 GB</span>
+          </div>
+          <div class="nav-item" data-view="apps" onclick="switchView('apps')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb7185 0%, #be123c 55%, #881337 100%);"><span class="glyph" data-icon="software"></span></span><span>应用卸载</span></div>
+            <span class="nav-meta">18 应用</span>
+          </div>
+          <div class="nav-item" data-view="optimize" onclick="switchView('optimize')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #60a5fa 0%, #2563eb 55%, #1e3a8a 100%);"><span class="glyph" data-icon="optimize"></span></span><span>系统加速</span></div>
+            <span class="nav-meta">3 可执行</span>
+          </div>
+          <div class="nav-item" data-view="analyze" onclick="switchView('analyze')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #fde047 0%, #e3b50f 55%, #713f12 100%);"><span class="glyph" data-icon="analyze"></span></span><span>空间分析</span></div>
+            <span class="nav-meta">多级钻取</span>
+          </div>
+          <div class="nav-item" data-view="status" onclick="switchView('status')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #4ade80 0%, #16a34a 55%, #14532d 100%);"><span class="glyph" data-icon="status"></span></span><span>状态监控</span></div>
+            <span class="nav-meta">实时遥测</span>
+          </div>
+
+          <div class="nav-group-label">工具与安全</div>
+          <div class="nav-item" data-view="purge" onclick="switchView('purge')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #4a6bb5 0%, #172554 55%, #0a1128 100%);"><span class="glyph" data-icon="purge"></span></span><span>构建清理</span></div>
+            <span class="nav-meta">2.40 GB</span>
+          </div>
+          <div class="nav-item" data-view="history" onclick="switchView('history')">
+            <div class="nav-left"><span class="nav-svg-icon" style="background:linear-gradient(145deg, #78716c 0%, #57534e 55%, #1c1917 100%);"><span class="glyph" data-icon="history"></span></span><span>历史与白名单</span></div>
+            <span class="nav-meta">3 快照</span>
+          </div>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="disk-widget">
+            <div class="disk-row"><strong>Macintosh HD</strong><span>剩余 128.0 GB</span></div>
+            <div class="disk-track"><span class="disk-seg-used"></span><span class="disk-seg-clean"></span></div>
+          </div>
+          <div class="pref-row">
+            <button class="pref-btn">中 / EN</button>
+            <button class="pref-btn" onclick="toggleTheme()" id="sidebarThemeBtn">浅色模式</button>
+            <button class="pref-btn">°C</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 主工作区 -->
+      <section class="workspace">
+        <div class="top-bar">
+          <div class="page-heading">
+            <div class="page-title" id="topTitle">深度清理</div>
+            <div class="live-telemetry"><span class="status-led"></span><span>实时采样 · CPU 24.0% · 52.0°C · 内存正常</span></div>
+          </div>
+          <div class="toolbar-right">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input type="text" placeholder="搜索当前列表..." />
+              <span class="kbd">⌘K</span>
+            </div>
+            <button class="btn">刷新扫描</button>
+            <button class="btn" onclick="toggleTray()">菜单栏</button>
+            <button class="btn btn-primary" id="primaryActionBtn" onclick="openModal()">预览所选</button>
+          </div>
+        </div>
+
+        <div class="workspace-body">
+
+          <!-- 1. 深度清理 -->
+          <div class="view-pane active" id="view-clean">
+            <div class="hero-banner">
+              <div class="hero-left">
+                <div class="hero-tile"><span class="glyph" data-icon="clean"></span></div>
+                <div>
+                  <div class="hero-eyebrow">本地只读扫描已完成 · 刚刚更新</div>
+                  <div class="hero-headline">已勾选 4.28 GB，预览后再移入废纸篓</div>
+                  <div class="hero-desc">推荐清理已默认勾选；需确认的路径由你决定，受保护路径只读保留。</div>
+                </div>
+              </div>
+              <div class="hero-right">
+                <span class="hero-stat-label">当前已勾选待清理</span>
+                <span class="hero-stat-val">4.28 GB</span>
+                <div class="hero-stat-bar"><span style="width:68%;background:var(--emerald);border-radius:99px"></span><span style="width:24%;background:var(--amber);border-radius:99px"></span></div>
+                <span class="hero-stat-sub">共 2 组 · 二次确认后移入废纸篓</span>
+              </div>
+            </div>
+            <div class="tier-strip">
+              <div class="tier-metrics">
+                <span class="tier-item tier-safe"><span class="tier-dot" style="background:var(--emerald)"></span>推荐清理 4.28 GB</span>
+                <span class="tier-item tier-review"><span class="tier-dot" style="background:var(--amber)"></span>需确认 1.85 GB</span>
+                <span class="tier-item tier-protected"><span class="tier-dot" style="background:var(--text-muted)"></span>受保护 420 MB</span>
+              </div>
+              <button class="btn btn-quiet">只选推荐项</button>
+            </div>
+            <div class="split-grid">
+              <div class="panel">
+                <div class="panel-head">
+                  <span class="panel-title">缓存与日志</span>
+                  <div class="seg-group"><button class="seg-btn active">全部 (4)</button><button class="seg-btn">推荐 (2)</button><button class="seg-btn">需确认 (1)</button><button class="seg-btn">受保护 (1)</button></div>
+                </div>
+                <div class="list-scroll" id="cleanList">
+                  <div class="row-card selected" onclick="selectCleanRow(this,'应用运行缓存','3.12 GB','50.9%','142 个文件 · 2 个路径','可重建缓存，清理后会按需重新生成，不影响已登录状态。')">
+                    <div class="row-main"><input type="checkbox" class="v2-check" checked onclick="event.stopPropagation()" /><div class="row-text"><div class="row-title">应用运行缓存</div><div class="row-path">~/Library/Caches/Xcode · 142 个文件</div><div class="row-note">可重建缓存，清理后会按需重新生成。</div></div></div>
+                    <div class="row-right"><div class="mini-bar"><i style="width:74%;background:var(--emerald)"></i></div><span class="badge badge-safe">推荐清理</span><span class="size-num">3.12 GB</span></div>
+                  </div>
+                  <div class="row-card" onclick="selectCleanRow(this,'系统与应用日志','1.16 GB','18.9%','38 个文件 · 3 个路径','历史诊断日志与崩溃报告，移入废纸篓不会影响系统运行。')">
+                    <div class="row-main"><input type="checkbox" class="v2-check" checked onclick="event.stopPropagation()" /><div class="row-text"><div class="row-title">系统与应用日志</div><div class="row-path">~/Library/Logs/DiagnosticReports · 38 个文件</div><div class="row-note">可重建日志文件，清理后会按需生成。</div></div></div>
+                    <div class="row-right"><div class="mini-bar"><i style="width:32%;background:var(--emerald)"></i></div><span class="badge badge-safe">推荐清理</span><span class="size-num">1.16 GB</span></div>
+                  </div>
+                  <div class="row-card" onclick="selectCleanRow(this,'需要检查的项目缓存','1.85 GB','30.2%','96 个文件 · 1 个路径','属于本地工程产物，清理后下次编译需重新构建。')">
+                    <div class="row-main"><input type="checkbox" class="v2-check" onclick="event.stopPropagation()" /><div class="row-text"><div class="row-title">需要检查的项目缓存</div><div class="row-path">~/Projects/Canvas/target · 96 个文件</div><div class="row-note">用途需要你确认，确认后才会处理。</div></div></div>
+                    <div class="row-right"><div class="mini-bar"><i style="width:48%;background:var(--amber)"></i></div><span class="badge badge-review">需确认</span><span class="size-num">1.85 GB</span></div>
+                  </div>
+                  <div class="row-card" onclick="selectCleanRow(this,'系统受保护容器','420 MB','—','只读保留','受系统策略保护，始终只读，不会进入清理清单。')">
+                    <div class="row-main"><input type="checkbox" class="v2-check" disabled onclick="event.stopPropagation()" /><div class="row-text"><div class="row-title">系统受保护容器</div><div class="row-path">~/Library/Group Containers/com.apple.*</div><div class="row-note">系统核心数据，只读保留。</div></div></div>
+                    <div class="row-right"><span class="badge badge-protected">受保护</span><span class="size-num" style="color:var(--text-muted)">420 MB</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">目录结构与安全评估</span><span class="size-num" style="color:var(--accent)" id="inspSize">3.12 GB</span></div>
+                <div class="inspector-body">
+                  <div><div class="insp-eyebrow">当前选中项</div><div class="insp-title" id="inspTitle">应用运行缓存</div></div>
+                  <div class="bento-meta">
+                    <div><div class="bento-label">占扫描总量比例</div><div class="bento-val" style="color:var(--accent)" id="inspPct">50.9%</div></div>
+                    <div><div class="bento-label">文件与路径（已测量）</div><div class="bento-val" id="inspCount">142 个文件 · 2 个路径</div></div>
+                    <div><div class="bento-label">最近修改时间</div><div class="bento-val">今天 18:42</div></div>
+                    <div><div class="bento-label">重建与使用影响</div><div class="bento-val" style="color:var(--emerald)">可重新生成</div></div>
+                  </div>
+                  <div class="callout-box"><strong>清理影响与安全评估说明</strong><span id="inspNote">可重建缓存，清理后会按需重新生成，不影响已登录状态。</span></div>
+                  <div class="subpath-list">
+                    <div class="subpath-row"><div class="subpath-left"><input type="checkbox" class="v2-check" checked /><div><div class="subpath-code">~/Library/Caches/Xcode/DerivedData</div><div class="subpath-sub">推荐清理</div></div></div><span class="size-num" style="min-width:auto">2.08 GB</span></div>
+                    <div class="subpath-row"><div class="subpath-left"><input type="checkbox" class="v2-check" checked /><div><div class="subpath-code">~/Library/Caches/com.apple.dt.Xcode</div><div class="subpath-sub">推荐清理</div></div></div><span class="size-num" style="min-width:auto">1.04 GB</span></div>
+                  </div>
+                </div>
+                <div class="panel-foot"><button class="btn">在访达中显示</button><button class="btn">移入白名单排除</button></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. AI 清理 -->
+          <div class="view-pane" id="view-ai">
+            <div class="hero-banner">
+              <div class="hero-left">
+                <div class="hero-tile"><span class="glyph" data-icon="ai_moon"></span></div>
+                <div><div class="hero-eyebrow">AI / Agent 本地专项扫描</div><div class="hero-headline">已选 1.42 GB，只处理经过核验的缓存路径</div><div class="hero-desc">凭据、配置、模型权重与未提交工作树始终只读保留。</div></div>
+              </div>
+              <div class="hero-right"><span class="hero-stat-label">已选待移入废纸篓</span><span class="hero-stat-val">1.42 GB</span><span class="hero-stat-sub">已保护 5.60 GB 凭据与模型</span></div>
+            </div>
+            <div class="tier-strip">
+              <div class="select-wrap"><span>工具筛选</span><select class="ui-select"><option>全部已识别工具 (4)</option><option>Claude Code</option><option>Codex</option></select></div>
+              <div class="tier-metrics"><span class="tier-item tier-safe">推荐清理 1.42 GB</span><span class="tier-item tier-review">需确认 320 MB</span><span class="tier-item tier-protected">受保护 5.60 GB</span></div>
+            </div>
+            <div class="split-grid">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">AI 工具与资料</span><div class="seg-group"><button class="seg-btn active">全部 (4)</button><button class="seg-btn">推荐 (1)</button><button class="seg-btn">受保护 (2)</button></div></div>
+                <div class="list-scroll">
+                  <div class="row-card selected"><div class="row-main"><input type="checkbox" class="v2-check" checked /><div class="row-text"><div class="row-title">AI 运行缓存与临时日志</div><div class="row-path">~/Library/Caches/Assistant</div></div></div><div class="row-right"><span class="badge badge-safe">推荐清理</span><span class="size-num">1.42 GB</span></div></div>
+                  <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" /><div class="row-text"><div class="row-title">Claude Code · 旧版本 2.0.0</div><div class="row-path">~/.local/share/claude/versions/2.0.0</div></div></div><div class="row-right"><span class="badge badge-review">需确认</span><span class="size-num">320 MB</span></div></div>
+                  <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" disabled /><div class="row-text"><div class="row-title">Codex · 未提交工作树（只读）</div><div class="row-path">~/.codex/worktrees/feature-ui</div></div></div><div class="row-right"><span class="badge badge-protected">受保护</span><span class="size-num" style="color:var(--text-muted)">2.10 GB</span></div></div>
+                  <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" disabled /><div class="row-text"><div class="row-title">共享本地模型权重（仅检查）</div><div class="row-path">~/.cache/huggingface/hub</div></div></div><div class="row-right"><span class="badge badge-protected">受保护</span><span class="size-num" style="color:var(--text-muted)">3.50 GB</span></div></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">AI 路径安全审查明细</span><span class="size-num" style="color:var(--accent)">1.42 GB</span></div>
+                <div class="inspector-body">
+                  <div><div class="insp-eyebrow">运行缓存</div><div class="insp-title">AI 运行缓存与临时日志</div></div>
+                  <div class="callout-box"><strong>AI 数据安全边界说明</strong>仅包含可按需重建的缓存与过期诊断日志；API 凭据、历史会话索引与本地模型已隔离保护。</div>
+                  <div class="subpath-list">
+                    <div class="subpath-row"><div class="subpath-left"><input type="checkbox" class="v2-check" checked /><div class="subpath-code">~/Library/Caches/Assistant/http-cache</div></div><span class="size-num" style="min-width:auto">920 MB</span></div>
+                    <div class="subpath-row"><div class="subpath-left"><input type="checkbox" class="v2-check" checked /><div class="subpath-code">~/Library/Caches/Assistant/old-logs</div></div><span class="size-num" style="min-width:auto">500 MB</span></div>
+                  </div>
+                </div>
+                <div class="panel-foot"><button class="btn">在访达中显示</button><button class="btn">移入白名单保护</button></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. 应用卸载 -->
+          <div class="view-pane" id="view-apps">
+            <div class="hero-banner">
+              <div class="hero-left">
+                <div class="hero-tile"><span class="glyph" data-icon="software"></span></div>
+                <div><div class="hero-eyebrow">应用与关联残留管理</div><div class="hero-headline">选择应用，先看空间构成再处理</div><div class="hero-desc">标准卸载保留个人配置；彻底卸载同时清理 Library 数据；仅清缓存完整保留应用。</div></div>
+              </div>
+              <div class="hero-right"><span class="hero-stat-label">当前所选体积</span><span class="hero-stat-val">1.80 GB</span><span class="hero-stat-sub">移除应用 · 保留个人配置</span></div>
+            </div>
+            <div class="split-grid">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">已安装应用 · 18 款</span><div class="seg-group"><button class="seg-btn active">标准卸载</button><button class="seg-btn">彻底卸载</button><button class="seg-btn">仅清缓存</button></div></div>
+                <div class="list-scroll">
+                  <div class="row-card selected"><div class="row-main"><input type="checkbox" class="v2-check" checked /><div class="app-tile" style="background:linear-gradient(145deg,#3e68b9,#253f75)">C</div><div class="row-text"><div class="row-title">Canvas Editor <span class="row-version">v2.4.1</span></div><div class="row-path">应用 1.50 GB · 缓存 300 MB · 3 天前使用</div></div></div><div class="row-right"><span class="badge badge-safe">标准卸载</span><span class="size-num">1.80 GB</span></div></div>
+                  <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" disabled /><div class="app-tile" style="background:linear-gradient(145deg,#c96444,#7e3822)">F</div><div class="row-text"><div class="row-title">Figma <span class="row-version">v124.5</span></div><div class="row-path">应用 480 MB · 缓存 1.12 GB · 今天使用</div></div></div><div class="row-right"><span class="badge badge-protected">运行中</span><span class="size-num">1.60 GB</span></div></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">Canvas Editor · 空间构成</span><span class="size-num" style="color:var(--accent)">1.80 GB</span></div>
+                <div class="inspector-body">
+                  <div class="bento-meta" style="border-top:0;padding-top:0">
+                    <div><div class="bento-label">应用本体</div><div class="bento-val">1.50 GB</div></div>
+                    <div><div class="bento-label">缓存（已测量）</div><div class="bento-val" style="color:var(--amber)">300.0 MB</div></div>
+                    <div><div class="bento-label">个人配置</div><div class="bento-val" style="color:var(--emerald)">200.0 MB（保留）</div></div>
+                    <div><div class="bento-label">处理预设</div><div class="bento-val" style="color:var(--accent)">标准卸载</div></div>
+                  </div>
+                  <div class="subpath-list">
+                    <div class="subpath-row"><div class="subpath-left"><input type="checkbox" class="v2-check" checked /><span class="badge badge-review">应用</span><div class="subpath-code">/Applications/Canvas Editor.app</div></div><span class="size-num" style="min-width:auto">1.50 GB</span></div>
+                    <div class="subpath-row"><div class="subpath-left"><input type="checkbox" class="v2-check" checked /><span class="badge badge-safe">缓存</span><div class="subpath-code">~/Library/Caches/Canvas</div></div><span class="size-num" style="min-width:auto">300 MB</span></div>
+                  </div>
+                </div>
+                <div class="panel-foot" style="grid-template-columns:1fr"><button class="btn">在访达中显示应用本体</button></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. 系统加速 -->
+          <div class="view-pane" id="view-optimize">
+            <div class="hero-banner">
+              <div class="hero-left">
+                <div class="hero-tile"><span class="glyph" data-icon="optimize"></span></div>
+                <div><div class="hero-eyebrow">系统维护与性能诊断</div><div class="hero-headline">3 项维护任务可执行，每项均有回执</div><div class="hero-desc">先检查再执行，只默认勾选安全项；需要管理员权限的系统级操作仅列出，不自动执行。</div></div>
+              </div>
+              <div class="hero-right"><span class="hero-stat-label">已勾选维护项</span><span class="hero-stat-val">2 / 3</span><span class="hero-stat-sub">支持回执核验与撤销</span></div>
+            </div>
+            <div class="panel" style="flex:1">
+              <div class="panel-head"><span class="panel-title">维护任务清单</span><button class="btn" style="height:26px;font-size:11px">重新检查</button></div>
+              <div class="list-scroll">
+                <div class="row-card selected"><div class="row-main"><input type="checkbox" class="v2-check" checked /><div class="row-text"><div class="row-title">重建 LaunchServices 打开方式数据库</div><div class="row-note">清理重复的右键“打开方式”菜单项，安全可逆。</div></div></div><div class="row-right"><span class="badge badge-safe">建议执行</span></div></div>
+                <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" checked /><div class="row-text"><div class="row-title">刷新字体缓存</div><div class="row-note">修复设计软件字体渲染异常，重启应用后生效。</div></div></div><div class="row-right"><span class="badge badge-safe">建议执行</span></div></div>
+                <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" /><div class="row-text"><div class="row-title">清理快速预览（QuickLook）缩略图缓存</div><div class="row-note">下次浏览大目录时将重新生成缩略图。</div></div></div><div class="row-right"><span class="badge badge-review">需确认</span></div></div>
+                <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" disabled /><div class="row-text"><div class="row-title">重置 Spotlight 全盘索引</div><div class="row-note">需要管理员权限，orbit 仅列出不代执行。</div></div></div><div class="row-right"><span class="badge badge-protected">仅列出</span></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. 空间分析 -->
+          <div class="view-pane" id="view-analyze">
+            <div class="analyze-summary">
+              <div><div class="crumb-row"><button class="btn btn-icon">‹</button><button class="btn btn-icon" disabled style="opacity:0.45">›</button><span class="crumb-cur">用户目录</span></div><div class="analyze-facts">文件 24,812 · 占用 20.00 GB（分配） / 22.00 GB（逻辑）</div></div>
+              <div class="vol-box"><div style="display:flex;justify-content:space-between"><span>所在卷可用</span><span><b>128.0 GB</b> / 512.0 GB</span></div><div class="disk-track"><span style="width:75%;background:var(--accent);border-radius:99px"></span></div></div>
+            </div>
+            <div class="treemap-layout">
+              <div class="treemap-canvas">
+                <div class="tm-tile tm-dir-0 active" style="grid-row:1/2;grid-column:1/2" onclick="selectTile(this,'Projects','~/Projects','8.00 GB','40%')"><div class="tm-head"><div class="tm-name">Projects</div><div class="tm-path">~/Projects</div></div><div class="tm-nested"><div class="tm-subcell" style="grid-row:1/3"><b>Canvas</b><small>5.0 GB</small></div><div class="tm-subcell"><b>Shared</b><small>2.0 GB</small></div><div class="tm-subcell"><b>notes.bin</b><small>1.0 GB</small></div></div><div class="tm-foot"><div><strong>8.00 GB</strong><span>40%</span></div><span>›</span></div></div>
+                <div class="tm-tile tm-dir-1" style="grid-row:2/3;grid-column:1/2" onclick="selectTile(this,'Library','~/Library','7.00 GB','35%')"><div class="tm-head"><div class="tm-name">Library</div><div class="tm-path">~/Library</div></div><div class="tm-nested"><div class="tm-subcell" style="grid-row:1/3"><b>Caches</b><small>4.0 GB</small></div><div class="tm-subcell" style="grid-row:1/3"><b>App Support</b><small>2.4 GB</small></div></div><div class="tm-foot"><div><strong>7.00 GB</strong><span>35%</span></div><span>›</span></div></div>
+                <div class="tm-tile tm-dir-2" style="grid-row:1/2;grid-column:2/3" onclick="selectTile(this,'Downloads','~/Downloads','3.00 GB','15%')"><div class="tm-head"><div class="tm-name">Downloads</div><div class="tm-path">~/Downloads</div></div><div class="tm-foot"><div><strong>3.00 GB</strong><span>15%</span></div><span>›</span></div></div>
+                <div class="tm-tile tm-file-0" style="grid-row:2/3;grid-column:2/3" onclick="selectTile(this,'Archive.tar.zst','~/Archive.tar.zst','2.00 GB','10%')"><div class="tm-head"><div class="tm-name">Archive.tar.zst</div><div class="tm-path">~/Archive.tar.zst</div></div><div class="tm-foot"><div><strong>2.00 GB</strong><span>10%</span></div></div></div>
+              </div>
+              <div class="panel">
+                <div class="inspector-body" style="padding-bottom:10px;flex:none;border-bottom:1px solid var(--border-subtle)">
+                  <div><div class="insp-eyebrow">当前选中项</div><div class="insp-title" id="tmTitle">Projects</div><div class="row-path" id="tmPath">~/Projects</div></div>
+                  <div style="display:flex;align-items:baseline;gap:8px"><span class="t-big" style="font-size:22px" id="tmSize">8.00 GB</span><span class="t-sub" id="tmPct">分配 · 40%</span></div>
+                  <div style="display:flex;gap:6px"><button class="btn btn-primary" style="height:30px">进入</button><button class="btn" style="height:30px;margin-left:auto">+ 加入待清理</button></div>
+                </div>
+                <div style="padding:10px 12px 6px"><div class="seg-group" style="display:grid;grid-template-columns:repeat(3,1fr);width:100%"><button class="seg-btn active">子项 4</button><button class="seg-btn">大文件 2</button><button class="seg-btn" style="opacity:0.45">折叠项</button></div></div>
+                <div class="list-scroll" style="padding-top:2px">
+                  <div class="row-card selected"><div class="row-main"><input type="checkbox" class="v2-check" /><div class="row-text"><div class="row-title">Projects</div><div class="row-note">40% · 12 个文件</div></div></div><span class="size-num" style="min-width:auto">8.00 GB</span></div>
+                  <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" disabled /><div class="row-text"><div class="row-title">Library</div><div class="row-note">35% · 5 个文件</div></div></div><span class="size-num" style="min-width:auto">7.00 GB</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. 状态监控 -->
+          <div class="view-pane" id="view-status">
+            <div class="hero-banner" style="padding:15px 20px">
+              <div class="hero-left">
+                <div class="hero-tile"><span class="glyph" data-icon="status"></span></div>
+                <div><div class="hero-eyebrow">Apple M3 Pro · 12 核 · 实时硬件遥测</div><div class="hero-headline">系统运行平稳，温度与内存压力正常</div><div class="hero-desc">图表保留最近 40 次采样；参考分仅作综合观察。</div></div>
+              </div>
+              <div class="hero-right"><span class="hero-stat-label">遥测参考分</span><span class="hero-stat-val">100 <span style="font-size:15px;color:var(--text-muted);font-weight:500">/ 100</span></span><span class="hero-stat-sub">温度正常 · 内存压力正常</span></div>
+            </div>
+            <div class="telemetry-grid">
+              <div class="t-card"><div class="t-head"><span>处理器</span><span class="badge badge-safe">温度正常</span></div><div class="t-main"><span class="t-big">24.0%</span><span class="t-sub">52.0°C · 1200 RPM</span></div><div class="spark-wrap"><svg viewBox="0 0 240 42" preserveAspectRatio="none"><defs><linearGradient id="gCpu" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d97757" stop-opacity="0.28"/><stop offset="100%" stop-color="#d97757" stop-opacity="0"/></linearGradient></defs><path d="M0 32 L24 28 L48 30 L72 22 L96 25 L120 18 L144 21 L168 16 L192 23 L216 20 L240 24 L240 42 L0 42 Z" fill="url(#gCpu)"/><path d="M0 32 L24 28 L48 30 L72 22 L96 25 L120 18 L144 21 L168 16 L192 23 L216 20 L240 24" fill="none" stroke="#d97757" stroke-width="1.8" stroke-linecap="round"/></svg></div></div>
+              <div class="t-card"><div class="t-head"><span>统一内存 · 32 GiB</span><span class="badge badge-safe">压力正常</span></div><div class="t-main"><span class="t-big">50.0%</span><span class="t-sub">已用 16.0 GiB</span></div><div style="margin-top:auto;display:flex;flex-direction:column;gap:7px"><div class="mem-track"><span style="width:36%;background:var(--blue)"></span><span style="width:10%;background:var(--amber)"></span><span style="width:6%;background:var(--accent)"></span></div><div class="mem-legend"><span><i style="background:var(--blue)"></i>应用 11.4G</span><span><i style="background:var(--amber)"></i>联动 3.2G</span><span><i style="background:var(--accent)"></i>压缩 1.4G</span></div></div></div>
+              <div class="t-card"><div class="t-head"><span>电池健康</span><span>使用电池</span></div><div class="t-main"><span class="t-big" style="color:var(--emerald)">84%</span><span class="t-sub">循环 439 次</span></div><div style="margin-top:auto;display:flex;flex-direction:column;gap:7px"><div class="mem-track"><span style="width:84%;background:var(--emerald);border-radius:99px"></span></div><div class="mem-legend"><span>最大容量 88%</span><span>预计 6h 20m</span></div></div></div>
+              <div class="t-card"><div class="t-head"><span>磁盘 · Macintosh HD</span><span>512 GB</span></div><div class="t-main"><span class="t-big">75.0%</span><span class="t-sub">可用 128.0 GB</span></div><div style="margin-top:auto;display:flex;flex-direction:column;gap:7px"><div class="mem-track"><span style="width:75%;background:var(--amber);border-radius:99px"></span></div><div class="mem-legend"><span>已用 384.0 GB</span><span>APFS</span></div></div></div>
+              <div class="t-card"><div class="t-head"><span>网络 · 接口合计</span><span class="t-sub">↑ 128 KB/s</span></div><div class="t-main"><span class="t-big">↓ 1.8 MB/s</span><span class="t-sub">en0 Wi-Fi</span></div><div class="spark-wrap"><svg viewBox="0 0 240 42" preserveAspectRatio="none"><path d="M0 36 L30 34 L60 22 L90 28 L120 14 L150 24 L180 18 L210 26 L240 20" fill="none" stroke="#5b8def" stroke-width="1.8" stroke-linecap="round"/></svg></div></div>
+              <div class="t-card"><div class="t-head"><span>电源与防休眠</span><span>最长 2 小时</span></div><div class="t-main"><span class="t-big" style="font-size:21px;font-family:var(--font-sans)" id="awakeLabel">防休眠 · 关</span><div class="tray-switch" id="statusAwakeSwitch" onclick="toggleAwake()"><i></i></div></div><div style="margin-top:auto;font-size:11px;color:var(--text-secondary)">开启后保持系统唤醒，适合长时间构建任务。</div></div>
+            </div>
+            <div class="panel" style="flex:1;min-height:130px"><div class="panel-head"><span class="panel-title">占用最高的进程</span><button class="btn btn-quiet">查看全部进程 ›</button></div><div><div class="proc-row"><div><strong>Xcode</strong> <span class="row-version">PID 4821</span></div><div class="proc-bar"><i style="width:68%"></i></div><span class="proc-num">14.2%</span><span class="proc-num">1.42 GiB</span><button class="proc-kill">结束</button></div><div class="proc-row"><div><strong>Chrome Helper</strong> <span class="row-version">PID 2190</span></div><div class="proc-bar"><i style="width:42%"></i></div><span class="proc-num">8.6%</span><span class="proc-num">846 MiB</span><button class="proc-kill">结束</button></div></div></div>
+          </div>
+
+          <!-- 7. 构建清理 -->
+          <div class="view-pane" id="view-purge">
+            <div class="hero-banner">
+              <div class="hero-left">
+                <div class="hero-tile"><span class="glyph" data-icon="purge"></span></div>
+                <div><div class="hero-eyebrow">开发工程构建产物与安装包</div><div class="hero-headline">发现 2.40 GB 可重建工程依赖</div><div class="hero-desc">自动检查 Git 状态，避免误删未提交源码；清理后可通过包管理器重新安装。</div></div>
+              </div>
+              <div class="hero-right"><span class="hero-stat-label">已勾选构建产物</span><span class="hero-stat-val">2.40 GB</span><span class="hero-stat-sub">共 2 个工程目录</span></div>
+            </div>
+            <div class="split-grid">
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">构建产物</span><span class="badge badge-review">按名称匹配</span></div>
+                <div class="list-scroll">
+                  <div class="row-card selected"><div class="row-main"><input type="checkbox" class="v2-check" checked /><div class="row-text"><div class="row-title">Canvas/node_modules</div><div class="row-path">Node.js 依赖 · 32 天未修改 · Git 干净</div></div></div><div class="row-right"><span class="badge badge-safe">推荐清理</span><span class="size-num">1.62 GB</span></div></div>
+                  <div class="row-card"><div class="row-main"><input type="checkbox" class="v2-check" checked /><div class="row-text"><div class="row-title">RustCore/target</div><div class="row-path">Cargo 构建目录 · 18 天未修改</div></div></div><div class="row-right"><span class="badge badge-review">需确认</span><span class="size-num">780 MB</span></div></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><span class="panel-title">工程与安装包明细</span><span class="size-num" style="color:var(--accent)">1.62 GB</span></div>
+                <div class="inspector-body">
+                  <div><div class="insp-eyebrow">Node.js 依赖</div><div class="insp-title">Canvas/node_modules</div></div>
+                  <div class="bento-meta">
+                    <div><div class="bento-label">产物目录体积</div><div class="bento-val" style="color:var(--accent)">1.62 GB</div></div>
+                    <div><div class="bento-label">未修改时长</div><div class="bento-val">32 天</div></div>
+                    <div><div class="bento-label">版本库状态</div><div class="bento-val" style="color:var(--emerald)">工作区干净</div></div>
+                    <div><div class="bento-label">重建方式</div><div class="bento-val">pnpm install</div></div>
+                  </div>
+                  <div class="subpath-list">
+                    <div class="subpath-row"><div class="subpath-left"><input type="checkbox" class="v2-check" /><div class="subpath-code">~/Downloads/Canvas-Setup.dmg</div></div><span class="size-num" style="min-width:auto">412 MB</span></div>
+                  </div>
+                </div>
+                <div class="panel-foot" style="grid-template-columns:1fr"><button class="btn">在访达中定位工程</button></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 8. 历史与白名单 -->
+          <div class="view-pane" id="view-history">
+            <div class="panel" style="flex:1">
+              <div class="panel-head">
+                <div class="seg-group"><button class="seg-btn active">恢复记录 (3)</button><button class="seg-btn">保护路径白名单 (2)</button></div>
+                <button class="btn btn-quiet">复制记录</button>
+              </div>
+              <div class="list-scroll" style="padding:12px">
+                <div class="row-card selected"><div class="row-main"><div class="row-text"><div class="row-title">深度清理 · 应用运行缓存与日志</div><div class="row-path">2026-11-23 21:40 · 4 个路径已移入 ~/.Trash</div></div></div><div class="row-right"><span class="badge badge-safe">清单可用</span><span class="size-num">3.42 GB</span></div></div>
+                <div class="row-card"><div class="row-main"><div class="row-text"><div class="row-title">AI 清理 · Assistant HTTP 缓存</div><div class="row-path">2026-11-20 15:12 · 2 个路径已移入 ~/.Trash</div></div></div><div class="row-right"><span class="badge badge-safe">清单可用</span><span class="size-num">920 MB</span></div></div>
+                <div class="row-card"><div class="row-main"><div class="row-text"><div class="row-title">构建清理 · LegacyApp/node_modules</div><div class="row-path">2026-11-14 09:30 · 已从废纸篓清空</div></div></div><div class="row-right"><span class="badge badge-protected">已归档</span><span class="size-num">1.18 GB</span></div></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 菜单栏弹窗预览 -->
+      <div class="tray-popover" id="trayPopover">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--border-subtle)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="brand-plate" style="width:28px;height:28px;border-radius:7px"><span class="glyph" data-icon="brand"></span></div>
+            <div><div style="font-size:12.5px;font-weight:700">orbit</div><div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono)">更新 22:18:14</div></div>
+          </div>
+          <button class="btn btn-quiet" onclick="toggleTray()">关闭</button>
+        </div>
+        <div class="tray-grid">
+          <div class="tray-card"><div class="t-head"><span>处理器</span><span class="t-sub">52°C</span></div><div class="t-big" style="font-size:20px">24.0%</div><div class="mem-track"><span style="width:24%;background:var(--accent);border-radius:99px"></span></div></div>
+          <div class="tray-card"><div class="t-head"><span>内存压力</span><span class="t-sub">32 GiB</span></div><div class="t-big" style="font-size:18px;font-family:var(--font-sans);color:var(--emerald)">正常</div><div class="mem-track"><span style="width:50%;background:var(--blue);border-radius:99px"></span></div></div>
+          <div class="tray-card"><div class="t-head"><span>磁盘可用</span><span class="t-sub">75%</span></div><div class="t-big" style="font-size:19px">128 GB</div><div class="mem-track"><span style="width:75%;background:var(--amber);border-radius:99px"></span></div></div>
+          <div class="tray-card"><div class="t-head"><span>实时网络</span><span class="t-sub">Wi-Fi</span></div><div style="font-family:var(--font-mono);font-size:12px;font-weight:700;display:grid;gap:2px"><span style="color:var(--blue)">↓ 1.8 MB/s</span><span style="color:var(--emerald)">↑ 128 KB/s</span></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn btn-primary" onclick="toggleTray();openModal()">快捷清理</button>
+          <button class="btn" onclick="toggleTray();switchView('status')">打开主窗口</button>
+        </div>
+      </div>
+
+      <!-- 二次确认弹层 -->
+      <div class="modal-mask" id="confirmModal" onclick="if(event.target===this)closeModal()">
+        <div class="modal-card">
+          <div class="panel-head"><span class="panel-title">确认移入废纸篓（2 项 · 4.28 GB）</span><span class="badge badge-safe">可从 ~/.Trash 还原</span></div>
+          <div class="modal-body">
+            <div style="font-size:12px;color:var(--text-secondary);line-height:1.55">仅处理以下精确列出的路径，确认前不会改动任何文件；受保护路径会再次由原生层核验。</div>
+            <div class="modal-paths">
+              <div class="modal-path-item"><div><strong>应用运行缓存</strong><div class="modal-path-code">~/Library/Caches/Xcode/DerivedData</div></div><span class="size-num">3.12 GB</span></div>
+              <div class="modal-path-item"><div><strong>系统与应用日志</strong><div class="modal-path-code">~/Library/Logs/DiagnosticReports</div></div><span class="size-num">1.16 GB</span></div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <span style="font-size:11px;color:var(--text-muted)">通过 macOS 原生文件接口移入废纸篓</span>
+            <div style="display:flex;gap:8px"><button class="btn" onclick="closeModal()">取消</button><button class="btn btn-danger" onclick="closeModal()">确认移入废纸篓</button></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+<script>
+  const VIEW_TITLES = {
+    clean: '深度清理', ai: 'AI 清理', apps: '应用卸载', optimize: '系统加速',
+    analyze: '空间分析', status: '状态监控', purge: '构建清理', history: '历史与白名单',
+  };
+
+  function setMode(mode) {
+    document.getElementById('mode-compare').classList.toggle('active', mode === 'compare');
+    document.getElementById('mode-proto').classList.toggle('active', mode === 'proto');
+    document.getElementById('modeCompareBtn').classList.toggle('active', mode === 'compare');
+    document.getElementById('modeProtoBtn').classList.toggle('active', mode === 'proto');
+  }
+
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('themeDarkBtn').classList.toggle('active', theme === 'dark');
+    document.getElementById('themeLightBtn').classList.toggle('active', theme === 'light');
+    document.getElementById('sidebarThemeBtn').textContent = theme === 'dark' ? '浅色模式' : '深色模式';
+    document.body.style.display = 'none';
+    void document.body.offsetHeight;
+    document.body.style.display = '';
+  }
+
+  function toggleTheme() {
+    setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  }
+
+  function switchView(view) {
+    document.querySelectorAll('.view-pane').forEach(p => p.classList.toggle('active', p.id === 'view-' + view));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === view));
+    document.getElementById('topTitle').textContent = VIEW_TITLES[view] || 'orbit';
+    const primary = document.getElementById('primaryActionBtn');
+    if (view === 'analyze') primary.textContent = '重新扫描';
+    else if (view === 'status') primary.textContent = '刷新状态';
+    else if (view === 'optimize') primary.textContent = '执行所选';
+    else primary.textContent = '预览所选';
+  }
+
+  function selectCleanRow(el, title, size, pct, count, note) {
+    document.querySelectorAll('#cleanList .row-card').forEach(r => r.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('inspTitle').textContent = title;
+    document.getElementById('inspSize').textContent = size;
+    document.getElementById('inspPct').textContent = pct;
+    document.getElementById('inspCount').textContent = count;
+    document.getElementById('inspNote').textContent = note;
+  }
+
+  function selectTile(el, name, path, size, pct) {
+    document.querySelectorAll('.tm-tile').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tmTitle').textContent = name;
+    document.getElementById('tmPath').textContent = path;
+    document.getElementById('tmSize').textContent = size;
+    document.getElementById('tmPct').textContent = '分配 · ' + pct;
+  }
+
+  function toggleTray() { document.getElementById('trayPopover').classList.toggle('open'); }
+  function openModal() { document.getElementById('confirmModal').classList.add('open'); }
+  function closeModal() { document.getElementById('confirmModal').classList.remove('open'); }
+  function toggleAwake() {
+    const sw = document.getElementById('statusAwakeSwitch');
+    const on = sw.classList.toggle('on');
+    document.getElementById('awakeLabel').textContent = on ? '防休眠 · 开' : '防休眠 · 关';
+  }
+
+  // 原版星际舱图标体系（直接复用自 Resources/src-ui/index.html，不做改动）
+  const GLYPH_INK = {
+    ice: '#38bdf8', iceDeep: '#0284c7', gold: '#f7c24a', goldDeep: '#9c6b12',
+    clay: '#f97316', clayDeep: '#c2410c', cream: '#fde68a', white: '#f8fafc',
+    fog: '#c3cedd', night: '#1e293b', mint: '#4ade80',
+    sphereLight: '#ffc58a', sphereDeep: '#b93a0b'
+  };
+  const glyph_ramp = (p, id, a = GLYPH_INK.white, b = GLYPH_INK.fog) =>
+    `<linearGradient id="${p}-${id}" x1="0.15" y1="0.05" x2="0.85" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient>`;
+  const glyph_gap = (p, id, cx, cy, r) =>
+    `<mask id="${p}-${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="#000"/></mask>`;
+  const glyph_badge = (inner) => `<circle cx="46" cy="46" r="11.5" fill="${GLYPH_INK.night}"/>${inner}`;
+  const glyph_star = (cx, cy, R, fill) => { const k = R * 0.2; return `<path d="M${cx} ${cy - R} Q${cx + k} ${cy - k} ${cx + R} ${cy} Q${cx + k} ${cy + k} ${cx} ${cy + R} Q${cx - k} ${cy + k} ${cx - R} ${cy} Q${cx - k} ${cy - k} ${cx} ${cy - R}Z" fill="${fill}"/>`; };
+  const glyph_trail = (x, y, r, deg, len, fill, op) => { const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), f = (v) => v.toFixed(2); return `<path d="M${f(x - s * r)} ${f(y + c * r)} L${f(x + c * len)} ${f(y + s * len)} L${f(x + s * r)} ${f(y - c * r)}Z" fill="${fill}" fill-opacity="${op}"/>`; };
+
+  const GLYPHS = {
+    brand: (p) => `
+      <defs><radialGradient id="${p}-s" cx="0.34" cy="0.28" r="0.95"><stop stop-color="${GLYPH_INK.sphereLight}"/><stop offset="0.5" stop-color="${GLYPH_INK.clay}"/><stop offset="1" stop-color="${GLYPH_INK.sphereDeep}"/></radialGradient>
+      <linearGradient id="${p}-ro" gradientUnits="userSpaceOnUse" x1="8" y1="43" x2="56" y2="21"><stop stop-color="#e9b43c"/><stop offset="1" stop-color="#ffe08a"/></linearGradient>
+      <linearGradient id="${p}-rf" gradientUnits="userSpaceOnUse" x1="8" y1="43" x2="56" y2="21"><stop stop-color="#7a5410"/><stop offset="1" stop-color="#b98a22"/></linearGradient>
+      <clipPath id="${p}-cc"><path transform="matrix(1 0.021 -0.021 1 48.27 17.48)" clip-rule="evenodd" d="M-6.67 0H6.67V4H-6.67ZM-5.8 0A5.8 2.23 0 0 0 5.8 0Z"/></clipPath>
+      <clipPath id="${p}-bc"><circle cx="48.27" cy="17.48" r="5.8"/></clipPath>
+      <radialGradient id="${p}-cf"><stop stop-color="#000"/><stop offset="0.86" stop-color="#000"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+      <radialGradient id="${p}-ao"><stop stop-color="#03233a" stop-opacity="0.12"/><stop offset="1" stop-color="#03233a" stop-opacity="0"/></radialGradient>
+      <mask id="${p}-cm" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><circle cx="48.27" cy="17.48" r="5.4" fill="url(#${p}-cf)"/></mask></defs>
+      <path id="${p}-fa" d="M56.02 20.8 A26.5 10.2 -25 0 0 7.98 43.2" stroke="url(#${p}-rf)" stroke-width="2.8" stroke-linecap="round"/>
+      <circle cx="48.27" cy="17.48" r="5.8" fill="${GLYPH_INK.ice}"/>
+      <circle cx="46.53" cy="14.58" r="1.05" fill="#fff" fill-opacity="0.85"/>
+      <g clip-path="url(#${p}-bc)" stroke="none"><circle cx="53.66" cy="18.15" r="2.32" fill="url(#${p}-ao)"/><circle cx="42.88" cy="16.81" r="2.32" fill="url(#${p}-ao)"/></g>
+      <use href="#${p}-fa" clip-path="url(#${p}-cc)" mask="url(#${p}-cm)"/>
+      <circle cx="32" cy="32" r="14" fill="url(#${p}-s)"/>
+      <path d="M7.98 43.2 A26.5 10.2 -25 0 0 56.02 20.8" stroke="url(#${p}-ro)" stroke-width="3.8" stroke-linecap="round"/>`,
+    clean: (p) => `
+      <defs>${glyph_ramp(p, 'f', '#ffffff', '#9fb3cc')}</defs>
+      <path d="M49.2 47.2L36.2 60.2L17.8 60.2L4.8 47.2L4.8 28.8L17.8 15.8L36.2 15.8L49.2 28.8Z" fill="url(#${p}-f)" stroke="url(#${p}-f)" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M43.5 37.8L36.8 44.5L27.2 44.5L20.5 37.8L20.5 28.2L27.2 21.5L36.8 21.5L43.5 28.2Z" fill="${GLYPH_INK.night}" stroke="${GLYPH_INK.night}" stroke-width="5" stroke-linejoin="round"/>
+      ${glyph_trail(45, 24, 4.4, 148, 15, GLYPH_INK.gold, 1)}
+      <rect x="-5.5" y="-5.5" width="11" height="11" rx="3.3" transform="translate(49.5 21.5) rotate(14)" fill="${GLYPH_INK.gold}"/>
+      <rect x="-3.4" y="-3.4" width="6.8" height="6.8" rx="2" transform="translate(57.5 8.5) rotate(-22)" fill="${GLYPH_INK.gold}"/>`,
+    ai_moon: (p) => `
+      <defs>${glyph_ramp(p, 'm')}<mask id="${p}-c" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#000"/><circle cx="28" cy="36" r="22" fill="#fff"/><circle cx="38" cy="28" r="18" fill="#000"/></mask></defs>
+      <g mask="url(#${p}-c)"><rect width="64" height="64" fill="url(#${p}-m)"/></g>
+      ${glyph_star(44, 23, 10.5, GLYPH_INK.ice)}`,
+    software: (p) => `
+      <defs>${glyph_ramp(p, 't')}</defs>
+      <path d="M5 52 L17 40 M17 58 L29 46" stroke="${GLYPH_INK.white}" stroke-opacity="0.85" stroke-width="4" stroke-linecap="round"/>
+      <g transform="rotate(20 40 26)"><rect x="22" y="8" width="36" height="36" rx="11" fill="url(#${p}-t)"/><path d="M40 17 L47.4 26.6 H32.6 Z" fill="${GLYPH_INK.iceDeep}" stroke="${GLYPH_INK.iceDeep}" stroke-width="1.8" stroke-linejoin="round"/><rect x="31.8" y="30.6" width="16.4" height="4.4" rx="2.2" fill="${GLYPH_INK.iceDeep}"/></g>`,
+    optimize: (p) => `
+      <defs>${glyph_ramp(p, 'n')}</defs>
+      <g transform="rotate(45 32 32)"><path d="M25.5 45 C23 55 28 62 32 68 C36 62 41 55 38.5 45 Z" fill="${GLYPH_INK.gold}"/><path d="M32 3 C41 10 42.5 22 41.5 38 L50 48 V53 L41.5 49 H22.5 L14 53 V48 L22.5 38 C21.5 22 23 10 32 3 Z" fill="url(#${p}-n)" stroke="url(#${p}-n)" stroke-width="1.5" stroke-linejoin="round"/><circle cx="32" cy="22" r="5.4" fill="${GLYPH_INK.iceDeep}"/></g>`,
+    analyze: () => `
+      <circle cx="29" cy="35" r="22.5" fill="${GLYPH_INK.night}"/>
+      <path d="M29 35 L51.5 35 A22.5 22.5 0 0 1 29 57.5 Z" fill="${GLYPH_INK.ice}"/>
+      <path d="M29 35 L50 14" stroke="${GLYPH_INK.white}" stroke-width="3.8" stroke-linecap="round"/>
+      <circle cx="54" cy="10" r="4.4" fill="${GLYPH_INK.white}"/>`,
+    status: (p) => `
+      <defs>${glyph_ramp(p, 'b')}</defs>
+      <path d="M29 46 h6 v4 h6 a2.75 2.75 0 0 1 0 5.5 H23 a2.75 2.75 0 0 1 0 -5.5 h6 z" fill="${GLYPH_INK.fog}"/>
+      <rect x="5" y="7" width="54" height="40" rx="9" fill="url(#${p}-b)"/>
+      <rect x="9.5" y="11.5" width="45" height="31" rx="5.5" fill="${GLYPH_INK.night}"/>
+      <path d="M13.5 28.5 h8 l4.5 -9.5 l6 18 l5 -12 l3 3.5 h8.5" stroke="${GLYPH_INK.mint}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+    purge: (p) => `
+      <defs>${glyph_gap(p, 'g', 46, 46, 14.5)}</defs>
+      <g mask="url(#${p}-g)" stroke-linejoin="round" stroke-width="2.4">
+        <path d="M30 6 L53 19 L30 32 L7 19 Z" fill="${GLYPH_INK.cream}" stroke="${GLYPH_INK.cream}"/>
+        <path d="M7 19 L30 32 v24 L7 43 Z" fill="${GLYPH_INK.gold}" stroke="${GLYPH_INK.gold}"/>
+        <path d="M53 19 L30 32 v24 L53 43 Z" fill="${GLYPH_INK.goldDeep}" stroke="${GLYPH_INK.goldDeep}"/>
+      </g>
+      ${glyph_badge(`<path d="M43 41.6 l-4 4.6 l4 4.6 M49 41.6 l4 4.6 l-4 4.6 M47.4 40.8 l-2.8 10.8" stroke="${GLYPH_INK.white}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)}`,
+    history: (p) => `
+      <defs>${glyph_gap(p, 'g', 46, 46, 14.5)}<linearGradient id="${p}-o" x1="0.15" y1="0.05" x2="0.85" y2="1"><stop stop-color="#fb923c"/><stop offset="1" stop-color="${GLYPH_INK.clayDeep}"/></linearGradient></defs>
+      <g mask="url(#${p}-g)"><rect x="4" y="14" width="48" height="36" rx="10" fill="url(#${p}-o)"/><path d="M17 14 V50 M30 14 V50" stroke="${GLYPH_INK.white}" stroke-width="6"/></g>
+      ${glyph_badge(`<path d="M51.36 50.52 A7 7 0 1 0 41.48 51.36" stroke="${GLYPH_INK.gold}" stroke-width="3.2" stroke-linecap="round"/><path d="M44.4 53.9 L38.1 53.5 L42.85 47.9 Z" fill="${GLYPH_INK.gold}" stroke="${GLYPH_INK.gold}" stroke-width="1.2" stroke-linejoin="round"/>`)}`
+  };
+
+  document.querySelectorAll('[data-icon]').forEach((el, i) => {
+    const k = el.dataset.icon;
+    if (GLYPHS[k]) {
+      el.innerHTML = `<svg viewBox="0 0 64 64" width="100%" height="100%" fill="none" aria-hidden="true">${GLYPHS[k]('p' + i)}</svg>`;
+    }
+  });
+</script>
+</body>
+</html>
