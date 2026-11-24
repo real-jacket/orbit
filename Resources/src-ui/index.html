@@ -803,17 +803,28 @@
   .telemetry-card .tc-sub { padding-top: 6px; min-width: 0; }
   .status-trend { margin-top: auto; padding-top: var(--space-2); }
   .status-trend-plot { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
-  .status-trend-lines { position: relative; height: 48px; border-bottom: 1px solid var(--border-subtle); }
-  .status-trend-lines > svg { position: absolute; inset: 0; }
+  .status-trend-lines {
+    position: relative; height: 48px;
+    border-bottom: 1px solid var(--border-subtle);
+    background-image:
+      linear-gradient(to bottom, color-mix(in srgb, var(--border-subtle) 55%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in srgb, var(--border-subtle) 45%, transparent) 1px, transparent 1px);
+    background-size: 100% 1px, 100% 1px;
+    background-position: 0 0, 0 50%;
+    background-repeat: no-repeat;
+  }
+  .status-trend-lines > svg { position: absolute; inset: 0; width: 100%; height: 100% !important; }
+  #statusCardMem:has(.status-mem-seg) .status-trend { padding-top: 4px; }
+  #statusCardMem:has(.status-mem-seg) .status-trend-lines { height: 34px; }
   .status-trend-scale { display: flex; flex-direction: column; justify-content: space-between; color: var(--text-muted); font: 10px/1.2 var(--font-mono); }
   .status-trend-caption { display: flex; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-1); color: var(--text-muted); font-size: 10.5px; }
   .status-trend-caption > span { min-width: 0; }
   .status-trend-empty { min-height: 66px; display: flex; align-items: center; color: var(--text-secondary); font-size: 10.5px; }
   .tc-badge { padding: 2px 8px; font-size: 10px; font-weight: 600; border-radius: 999px; border: 1px solid transparent; }
-  .status-mem-seg { display: flex; flex-direction: column; gap: 5px; margin-top: 2px; }
-  .status-mem-track { display: flex; gap: 2px; width: 100%; height: 7px; border-radius: 99px; background: var(--bg-input); overflow: hidden; }
+  .status-mem-seg { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+  .status-mem-track { display: flex; gap: 2px; width: 100%; height: 6px; border-radius: 99px; background: var(--bg-input); overflow: hidden; }
   .status-mem-track > span { height: 100%; flex: none; border-radius: 2px; }
-  .status-mem-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font: 10px/1.2 var(--font-mono); color: var(--text-secondary); }
+  .status-mem-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; font: 10px/1.2 var(--font-mono); color: var(--text-secondary); }
   .status-mem-legend i { display: inline-block; width: 6px; height: 6px; border-radius: 2px; margin-right: 4px; vertical-align: 0.5px; }
   .power-card-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; }
   .power-switch-btn { display: inline-flex; align-items: center; padding: 4px; border: 0; border-radius: 99px; background: transparent; cursor: pointer; }
@@ -822,7 +833,12 @@
   .power-switch-btn .tray-switch i { width: 14px; height: 14px; border-radius: 50%; }
   .power-switch-btn[aria-checked="true"] .tray-switch { background: var(--accent-primary); }
   .power-switch-btn[aria-checked="true"] .tray-switch i { transform: translateX(14px); background: var(--accent-ink); }
-  .power-card-sub { margin-top: auto; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
+  .power-stats {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+    padding-top: 9px; margin-top: auto; border-top: 1px solid var(--border-subtle);
+  }
+  .power-card-sub { font-size: 10.5px; line-height: 1.45; color: var(--text-secondary); }
+  .stat-denom { font-size: 15px; font-weight: 500; color: var(--text-muted); letter-spacing: 0; }
   .sidebar-status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-emerald); margin-right: 5px; vertical-align: 0.5px; }
   /* 状态监控：指标卡是页面主体，窗口矮时整页滚动；进程只列占用最高的 5 项，完整表格在右侧抽屉里。 */
   body[data-module="status"] #moduleStage { flex: none !important; }
@@ -844,9 +860,15 @@
   .btn.btn-kill:disabled { opacity: 0; }
   tr:hover .btn.btn-kill:disabled, .tp-row:hover .btn.btn-kill:disabled { opacity: 0.45; }
   .tp-name { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-  .tp-icon { flex: none; width: 18px; height: 18px; border-radius: 4px; object-fit: cover; }
-  .tp-bar { height: 4px; border-radius: 2px; background: var(--bg-input); overflow: hidden; }
-  .tp-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--accent-primary); opacity: 0.7; }
+  .tp-icon { flex: none; width: 18px; height: 18px; border-radius: 5px; object-fit: cover; }
+  .tp-icon-fallback {
+    flex: none; width: 18px; height: 18px; border-radius: 5px;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center;
+  }
+  .tp-icon-fallback .ui-ico { width: 11px; height: 11px; }
+  .tp-bar { height: 5px; border-radius: 99px; background: var(--bg-input); overflow: hidden; }
+  .tp-bar > i { display: block; height: 100%; border-radius: 99px; background: var(--accent-primary); opacity: 0.85; }
   .tp-val { text-align: right; font: 11.5px var(--font-mono); font-weight: 650; }
   .tp-empty { padding: var(--space-4); color: var(--text-secondary); font-size: 11.5px; }
   #procModal { justify-content: flex-end; align-items: stretch; }
@@ -857,8 +879,8 @@
   .proc-drawer-search input:focus-visible { outline: none; box-shadow: var(--ring); }
   .proc-scroll { flex: 1; min-height: 0; overflow: auto; }
   .proc-scroll .proc-table th { position: sticky; top: 0; z-index: 1; border-bottom: 0; box-shadow: inset 0 -1px 0 var(--border-subtle); }
-  .status-capacity { margin-top: auto; padding-top: var(--space-3); }
-  .status-capacity-track { height: 8px; overflow: hidden; border-radius: 99px; background: var(--bg-input); }
+  .status-capacity { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .status-capacity-track { height: 8px; overflow: hidden; border-radius: 99px; background: var(--bg-input); margin-top: 6px; }
   .status-capacity-track > i { display: block; height: 100%; border-radius: 99px; background: var(--accent-amber); }
   .status-capacity-legend { display: flex; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-2); font-size: 10.5px; color: var(--text-secondary); }
   .status-capacity-legend b { color: var(--text-primary); font-family: var(--font-mono); }
@@ -1494,9 +1516,9 @@
   .pulse-dot { animation: none; background: var(--accent-emerald); width: 5px; height: 5px; }
   .header-controls { gap: 8px; }
   .header-title { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .search-box { height: 32px; width: clamp(140px, 16vw, 210px); }
+  .search-box { height: 32px; width: clamp(160px, 19vw, 248px); }
   .search-box:has(input:disabled) { opacity: 0.55; }
-  .search-box input { min-width: 0; font-size: 12px; }
+  .search-box input { min-width: 0; font-size: 12px; text-overflow: ellipsis; }
   .pref-btn { white-space: nowrap; }
   .brand-plate, .nav-svg-icon { box-shadow: none; }
   .doctor-card, .telemetry-card, .panel-card, .summary-banner, .disk-mini-bar, .tray-metric { box-shadow: var(--highlight-top); }
@@ -3758,6 +3780,7 @@ function svgSparkline(points, strokeColor, fillColor, heightPx, scaleMax = 100) 
   });
   const linePath = `M ${coords.join(' L ')}`;
   const areaPath = `${linePath} L ${w},${h} L 0,${h} Z`;
+  const last = coords[coords.length - 1].split(',');
   const hasFill = fillColor && fillColor !== 'none';
   const gid = hasFill ? `sg-${svgSparkline._seq = (svgSparkline._seq || 0) + 1}` : '';
   const defs = hasFill ? `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${strokeColor}" stop-opacity="0.24"/><stop offset="100%" stop-color="${strokeColor}" stop-opacity="0"/></linearGradient></defs>` : '';
@@ -3765,6 +3788,7 @@ function svgSparkline(points, strokeColor, fillColor, heightPx, scaleMax = 100) 
     ${defs}
     ${hasFill ? `<path d="${areaPath}" fill="url(#${gid})" />` : ''}
     <path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    ${hasFill ? `<circle cx="${last[0]}" cy="${last[1]}" r="2.6" fill="${strokeColor}" />` : ''}
   </svg>`;
 }
 function statusTrend(points, color, label, unit = '%', secondary) {
@@ -3828,6 +3852,12 @@ function healthScoreNow() {
 }
 function healthScoreText() {
   return hasNum(STATE.healthScore) ? `${Math.round(STATE.healthScore)} / 100` : t('未知');
+}
+function healthScoreHTML() {
+  if (!hasNum(STATE.healthScore)) return escHtml(t('未知'));
+  const score = Math.round(STATE.healthScore);
+  const color = score >= 85 ? 'var(--text-primary)' : score >= 70 ? 'var(--accent-amber)' : 'var(--accent-rose)';
+  return `<span style="color:${color}">${score}</span> <span class="stat-denom">/ 100</span>`;
 }
 function hasNum(v) { return typeof v === 'number' && isFinite(v); }
 function fmtCount(v) { return hasNum(v) ? Number(v).toLocaleString('en-US') : '-'; }
@@ -3937,11 +3967,14 @@ function powerCard(pw) {
   const source = bat ? (bat.plugged ? (bat.adapterWatts ? t('{w} W 电源适配器', { w: bat.adapterWatts }) : t('已接通电源')) : t('电池供电')) : t('市电供电');
   const label = on ? t('防休眠 开') : t('防休眠 关');
   const actionLabel = pending ? t('等待原生确认') : on ? t('关闭防休眠') : t('开启防休眠');
+  const duration = pending ? t('等待原生确认') : t('最长保持 2 小时');
+  const note = on ? t('防休眠已开启：系统与屏幕保持唤醒') : t('保持屏幕和系统唤醒 · 2 小时');
   return `<div class="telemetry-card" id="statusCardPower">` +
     `<div class="tc-head"><span class="tc-title">${UI_ICON('plug')} ${t('电源与休眠')}</span><span class="tc-aside">${source}</span></div>` +
     `<div class="power-card-main"><span class="tc-big" style="color:${on ? 'var(--accent-primary)' : 'var(--text-primary)'};font-size:21px;font-family:var(--font-sans);">${label}</span>` +
     `<button type="button" class="power-switch-btn" role="switch" aria-checked="${on}" aria-label="${escHtml(actionLabel)}" title="${escHtml(actionLabel)}" ${pending ? 'disabled' : ''} onclick="toggleCaffeinateState()"><span class="tray-switch" aria-hidden="true"><i></i></span></button></div>` +
-    `<div class="power-card-sub">${pending ? t('等待原生确认') : on ? t('已开启 · 最长 2 小时') : t('最长保持 2 小时')}</div></div>`;
+    `<div class="power-stats"><div class="batt-stat"><span>${t('供电来源')}</span><b data-power-source>${source}</b></div><div class="batt-stat"><span>${t('保持时长')}</span><b>${duration}</b></div></div>` +
+    `<div class="power-card-sub">${note}</div></div>`;
 }
 function stateCpuPct() {
   const arr = Array.isArray(STATE.cpuSeries) ? STATE.cpuSeries : [];
@@ -3973,26 +4006,32 @@ function buildStatusCards() {
   const cpu = stateCpuPct(), memPct = memPercent(), diskUsed = diskUsedPercent();
   const th = thermalInfo(), pr = pressureInfo(), pw = powerInfo();
   const tag = info => `<span class="tc-badge" style="color:${info[1]};background:color-mix(in srgb, ${info[1]} 13%, transparent);border-color:color-mix(in srgb, ${info[1]} 28%, transparent);">${info[0]}</span>`;
+  const hw = STATE.hw || {};
+  const tempTxt = fmtTempC(hw.cpuTempC);
+  const fanTxt = fmtFansRpm(hw.fans);
   const cards = [
-    telemetryCard('cpu', t('处理器'), tag(th), cpu != null ? fmtNum(cpu, 1) + '%' : t('未知'), 'var(--text-primary)', t('CPU 占用'), statusTrend(STATE.cpuSeries, 'var(--accent-primary)', t('CPU 占用')), 'statusCardCpu'),
+    telemetryCard('cpu', t('处理器'), tag(th), cpu != null ? fmtNum(cpu, 1) + '%' : t('未知'), 'var(--text-primary)', tempTxt || t('CPU 占用'), statusTrend(STATE.cpuSeries, 'var(--accent-primary)', t('CPU 占用')), 'statusCardCpu'),
     telemetryCard('memory', t('统一内存 · {size}', { size: STATE.memTotalGb > 0 ? fmtNum(STATE.memTotalGb, 0) + ' GiB' : t('容量未知') }), tag(pr), memPct != null ? fmtPct(memPct) : t('未知'), 'var(--text-primary)', t('已用 {used} GiB', { used: fmtNum(STATE.memUsedGb, 1, t('未知')) }), statusMemoryBreakdown() + (memPct == null ? '' : statusTrend(STATE.memSeries, 'var(--accent-blue)', t('内存占用'))), 'statusCardMem')
   ];
   if (pw.battery) cards.push(batteryCard(pw.battery));
+  const diskBarColor = diskUsed != null && diskUsed >= 90 ? 'var(--accent-primary)' : diskUsed != null && diskUsed >= 75 ? 'var(--accent-amber)' : 'var(--accent-emerald)';
   const capacity = diskUsed == null ? '' : `<div class="status-capacity" role="img" aria-label="${t('磁盘已用 {used}，可用 {free} GB', { used: fmtPct(diskUsed), free: fmtNum(STATE.freeDiskGb, 1) })}">
-    <div class="status-capacity-track"><i style="width:${diskUsed}%"></i></div>
-    <div class="status-capacity-legend"><span>${t('已用')} <b>${fmtDiskSizeGb(STATE.totalDiskGb - STATE.freeDiskGb, 1)}</b></span><span>${t('可用')} <b>${fmtDiskSizeGb(STATE.freeDiskGb, 1)}</b></span></div>
+    <div class="status-capacity-track"><i style="width:${diskUsed}%;background:${diskBarColor}"></i></div>
+    <div class="batt-stats">
+      <div class="batt-stat"><span>${t('已用')}</span><b>${fmtDiskSizeGb(STATE.totalDiskGb - STATE.freeDiskGb, 1)}</b></div>
+      <div class="batt-stat"><span>${t('可用')}</span><b style="color:${diskUsed >= 90 ? 'var(--accent-amber)' : 'var(--text-primary)'}">${fmtDiskSizeGb(STATE.freeDiskGb, 1)}</b></div>
+      <div class="batt-stat"><span>${t('总容量')}</span><b>${fmtNum(STATE.totalDiskGb, 0, t('未知'))} GB</b></div>
+    </div>
+    <div class="batt-tip">${diskUsed >= 85 ? t('磁盘空间偏紧，可前往空间分析查看大文件。') : t('磁盘空间充足。')}</div>
   </div>`;
   cards.push(telemetryCard('disk', t('磁盘 · Macintosh HD'), t('共 {total} GB', { total: fmtNum(STATE.totalDiskGb, 0, t('未知')) }), diskUsed != null ? fmtPct(diskUsed) : t('未知'), diskUsed != null && diskUsed >= 85 ? 'var(--accent-amber)' : 'var(--text-primary)', t('已用空间'), capacity, 'statusCardDisk'));
   // 网络 / 磁盘 I/O / GPU / CPU 温度 + 风扇：来自 Go internal/telemetry + internal/smc（omitempty）。
   // 字段缺失说明本机没有对应传感器，显示「本机不提供」，不显示 0。
-  const hw = STATE.hw || {};
   const rx = hw.net ? fmtBytesPerSec(hw.net.rx) : null;
   const tx = hw.net ? fmtBytesPerSec(hw.net.tx) : null;
   const dioR = hw.diskIo ? fmtBytesPerSec(hw.diskIo.read) : null;
   const dioW = hw.diskIo ? fmtBytesPerSec(hw.diskIo.write) : null;
   const gpuTxt = hasNum(hw.gpuPct) ? fmtNum(hw.gpuPct, 1) + '%' : null;
-  const tempTxt = fmtTempC(hw.cpuTempC);
-  const fanTxt = fmtFansRpm(hw.fans);
   cards.push(telemetryCard('network', t('网络 · 接口合计'), '',
     (rx || tx) ? `↓ ${rx || unsupported()}` : unsupported(), (rx || tx) ? 'var(--text-primary)' : 'var(--text-muted)',
     (rx || tx) ? `↑ ${tx || unsupported()}` : t('本机不提供网络速率采样'), rx ? statusTrend(hw.netRxSeries, 'var(--accent-blue)', netDownLabel(), 'B/s', { points: hw.netTxSeries, color: 'var(--accent-emerald)', label: t('上传') }) : '', 'statusCardNet'));
@@ -4041,7 +4080,7 @@ function topProcRowsHTML(list) {
   if (!shown.length) return `<div class="tp-empty">${STATE.processes.length ? t('没有匹配的进程') : t('尚未收到进程采样')}</div>`;
   return shown.map(p => {
     const icon = procAppIcon(p);
-    return `<div class="tp-row" data-pid="${p.pid}" data-path="${escHtml(p.path)}"><div class="tp-name">${icon ? `<img class="tp-icon" src="${escHtml(icon)}" alt="" />` : ''}<div style="min-width:0;">${procNameBtn(p)}</div></div><span class="tp-bar"><i style="width:${topProcBar(p, shown).toFixed(1)}%"></i></span><span class="tp-val tp-cpu" title="CPU">${topProcCpu(p)}</span><span class="tp-val tp-mem" title="${t('内存')}">${topProcMem(p)}</span>${procPinBtn(p)}${killButton(p, false)}</div>`;
+    return `<div class="tp-row" data-pid="${p.pid}" data-path="${escHtml(p.path)}"><div class="tp-name">${icon ? `<img class="tp-icon" src="${escHtml(icon)}" alt="" />` : `<span class="tp-icon-fallback" aria-hidden="true">${UI_ICON('cpu')}</span>`}<div style="min-width:0;">${procNameBtn(p)}</div></div><span class="tp-bar"><i style="width:${topProcBar(p, shown).toFixed(1)}%"></i></span><span class="tp-val tp-cpu" title="CPU">${topProcCpu(p)}</span><span class="tp-val tp-mem" title="${t('内存')}">${topProcMem(p)}</span>${procPinBtn(p)}${killButton(p, false)}</div>`;
   }).join('');
 }
 function statusProcRowsHTML(list) {
@@ -4120,6 +4159,8 @@ function patchStatusLive() {
     });
     const nextPower = tmp.querySelector('#statusCardPower .tc-aside'), currentPower = document.querySelector('#statusCardPower .tc-aside');
     if (nextPower && currentPower) currentPower.textContent = nextPower.textContent;
+    const nextPowerSrc = tmp.querySelector('#statusCardPower [data-power-source]'), curPowerSrc = document.querySelector('#statusCardPower [data-power-source]');
+    if (nextPowerSrc && curPowerSrc) curPowerSrc.textContent = nextPowerSrc.textContent;
     const list = sortedProcessesList();
     const top = document.getElementById('topProcList');
     if (top) patchProcRows(top, list, PROC_TOP, topProcRowsHTML(list));
@@ -4130,7 +4171,7 @@ function patchStatusLive() {
       if (note) note.textContent = held ? t('操作时保持行序') : t('每 1.5 秒刷新显示');
     }
     const hv = document.getElementById('heroStatValue'), hs = document.getElementById('heroStatSub');
-    if (hv) hv.textContent = healthScoreText();
+    if (hv) hv.innerHTML = healthScoreHTML();
     if (hs) hs.textContent = thermalInfo()[0] + ' · ' + pressureInfo()[0];
   } catch (e) { renderModule(); }
 }
@@ -6856,7 +6897,7 @@ function renderModule() {
     heroHeadline.textContent = t(STATE.cpuModelName);
     heroDesc.textContent = t('图表保留最近 40 次显示采样，硬件采集频率不同；参考分不是硬件诊断。SIGTERM 仍可能丢失未保存内容，需二次确认。');
     heroStatLabel.textContent = t('遥测参考分');
-    heroStatValue.textContent = t(healthScoreText());
+    heroStatValue.innerHTML = healthScoreHTML();
     heroStatSub.textContent = t(thermalInfo()[0]) + ' · ' + t(pressureInfo()[0]);
 
     const sortedProcs = sortedProcessesList();
