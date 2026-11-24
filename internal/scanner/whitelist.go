@@ -163,6 +163,9 @@ func normalizeWhitelistEntry(line, home string) (pattern, warning string, ok boo
 	if strings.Contains(line, "//") {
 		return "", "路径包含连续斜杠：" + line, false
 	}
+	if len(line) > 1 {
+		line = strings.TrimRight(line, "/")
+	}
 	if isProtectedWhitelistRoot(line) {
 		return "", "受保护的系统路径：" + line, false
 	}

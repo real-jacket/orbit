@@ -916,14 +916,31 @@
   .history-panel button.seg-tab:not(.active) { background: transparent; }
   .history-tab-warning { display: inline-flex; margin-left: var(--space-1); color: var(--accent-rose); vertical-align: middle; }
   .history-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  .history-note { flex: none; margin: 0; padding: var(--space-3) var(--space-4); font-size: 11.5px; line-height: 1.5; color: var(--text-secondary); }
-  .history-pane > .history-note:last-child { border-top: 1px solid var(--border-subtle); }
-  .history-pane .list-body { padding: 4px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .history-note { flex: none; margin: 0; padding: 10px var(--space-4); font-size: 11.5px; line-height: 1.5; color: var(--text-secondary); }
+  .history-pane > .history-note:last-child { border-top: 1px solid var(--border-subtle); background: transparent; }
+  .history-subbar {
+    flex: none; display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-3); padding: 9px var(--space-4); border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap;
+  }
+  .history-subbar .history-note { padding: 0; }
+  .history-subbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .history-filter-pills { display: inline-flex; align-items: center; gap: 4px; }
+  .history-filter-pill {
+    appearance: none; -webkit-appearance: none; border: 1px solid var(--border-subtle);
+    background: var(--bg-surface); color: var(--text-secondary); border-radius: 999px;
+    padding: 3px 10px; font: 500 11px/1.3 var(--font-sans); cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  }
+  .history-filter-pill:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--bg-card-hover); }
+  .history-filter-pill.active { background: var(--accent-soft); color: var(--accent-primary); border-color: var(--border-selected); font-weight: 600; }
+  .history-pane .list-body { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 7px; min-height: 0; }
   .history-record {
+    flex: none;
     border: 1px solid var(--border-subtle); border-radius: 9px;
     background: var(--bg-surface); overflow: hidden;
     transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
   }
+  .history-record:hover { border-color: var(--border-strong); }
   .history-record[open] { border-color: var(--border-selected); background: var(--bg-card-selected); }
   .history-record > summary { display: flex; align-items: center; gap: var(--space-3); padding: 11px 14px; cursor: pointer; list-style: none; }
   .history-record > summary::-webkit-details-marker { display: none; }
@@ -931,18 +948,46 @@
   .history-record[open] > summary:hover { background: transparent; }
   .history-record > summary:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent-primary); }
   .history-record > summary > .ui-ico { flex: none; color: var(--text-secondary); transform: rotate(180deg); transition: transform var(--dur-1) var(--ease); }
-  .history-record[open] > summary > .ui-ico { transform: rotate(270deg); }
+  .history-record[open] > summary > .ui-ico { transform: rotate(270deg); color: var(--accent-primary); }
   .history-record-main { flex: 1; min-width: 0; }
   .history-record-main .row-sub { font-family: var(--font-sans); color: var(--text-secondary); }
   .history-record > summary .badge { flex: none; }
-  .history-detail { padding: 0 var(--space-4) var(--space-4) 42px; display: flex; flex-direction: column; gap: var(--space-2); }
+  .history-detail {
+    margin: 0 14px 12px; padding: 11px 0 0 28px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex; flex-direction: column; gap: 8px;
+  }
   .history-detail-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+  .history-detail-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .btn.btn-quiet.history-muted-action { color: var(--text-secondary); }
+  .btn.btn-quiet.history-muted-action:hover { color: var(--accent-rose); background: var(--accent-rose-soft); }
   .history-detail .row-sub { font-family: var(--font-sans); white-space: normal; overflow-wrap: anywhere; color: var(--text-secondary); }
-  .history-detail .history-issue { color: var(--accent-amber); }
-  .history-detail .history-failure { color: var(--accent-rose); }
-  .history-whitelist-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); flex-wrap: wrap; flex: none; }
+  .history-detail .history-issue {
+    color: var(--accent-amber); background: var(--accent-amber-soft);
+    border: 1px solid color-mix(in srgb, var(--accent-amber) 24%, transparent);
+    border-radius: 7px; padding: 7px 10px; font-size: 11.5px; line-height: 1.45;
+  }
+  .history-detail .history-failure {
+    color: var(--accent-rose); background: var(--accent-rose-soft);
+    border: 1px solid color-mix(in srgb, var(--accent-rose) 22%, transparent);
+    border-radius: 7px; padding: 6px 10px; font-size: 11px; line-height: 1.45;
+  }
+  .history-paths {
+    border: 1px solid var(--border-subtle); border-radius: 7px;
+    background: color-mix(in srgb, var(--bg-input) 72%, transparent);
+    padding: 6px 10px;
+  }
+  .history-paths > summary { cursor: pointer; font: 500 11px/1.4 var(--font-sans); color: var(--text-secondary); }
+  .history-paths[open] > summary { margin-bottom: 6px; color: var(--text-primary); }
+  .history-path-list { display: flex; flex-direction: column; gap: 3px; max-height: 160px; overflow-y: auto; }
+  .history-path-item { font: 11px/1.45 var(--font-mono); color: var(--text-secondary); overflow-wrap: anywhere; padding: 2px 0; border-top: 1px solid color-mix(in srgb, var(--border-subtle) 65%, transparent); }
+  .history-path-item:first-child { border-top: 0; }
+  .history-whitelist-toolbar {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+    padding: 10px var(--space-4); border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap; flex: none;
+  }
   .history-whitelist-toolbar .history-note { padding: 0; }
-  .history-whitelist-toolbar form { display: flex; gap: var(--space-2); flex: 1; max-width: 440px; min-width: 240px; }
+  .history-whitelist-toolbar form { display: flex; gap: 6px; flex: 1; max-width: 540px; min-width: 260px; }
   .history-whitelist-toolbar input {
     flex: 1; min-width: 0; height: 32px; background: var(--bg-input);
     border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
@@ -953,18 +998,39 @@
   .history-whitelist-toolbar input:focus { outline: none; border-color: var(--border-selected); box-shadow: 0 0 0 3px var(--accent-soft); }
   .history-whitelist-toolbar input::placeholder { color: var(--text-secondary); opacity: 1; }
   .history-whitelist-row {
-    display: flex; align-items: center; gap: var(--space-3); padding: 10px 14px;
+    flex: none;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 9px 14px;
     border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--bg-surface);
     transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
   }
   .history-whitelist-row > span { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; }
-  .history-whitelist-row .ui-ico { flex: none; color: var(--text-secondary); }
-  .history-whitelist-row code { font: 12px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .history-whitelist-row .row-remove { flex: none; }
+  .history-whitelist-row .ui-ico { flex: none; color: var(--accent-emerald); }
+  .history-whitelist-row code { font: 12px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+  .whitelist-tag {
+    flex: none; font: 500 10px/1.2 var(--font-sans); color: var(--text-secondary);
+    background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 999px; padding: 2px 7px;
+  }
+  .history-row-actions { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+  .history-icon-btn {
+    appearance: none; -webkit-appearance: none; border: 1px solid transparent; background: transparent;
+    color: var(--text-secondary); width: 26px; height: 26px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  }
+  .history-icon-btn:hover { color: var(--text-primary); background: var(--bg-card); border-color: var(--border-subtle); }
+  .history-whitelist-row .row-remove { flex: none; opacity: 0.78; }
   .history-whitelist-row:hover, .history-whitelist-row:focus-within { background: var(--bg-card-hover); border-color: var(--border-strong); }
   .history-whitelist-row:hover .row-remove, .history-whitelist-row:focus-within .row-remove { opacity: 1; }
-  .history-warning { flex: none; margin: 0 var(--space-4) var(--space-3); font-size: 11.5px; line-height: 1.5; color: var(--accent-rose); overflow-wrap: anywhere; }
-  .history-warning > summary { cursor: pointer; }
+  .history-warning {
+    flex: none; margin: 0 0 4px; padding: 9px 13px;
+    border: 1px solid color-mix(in srgb, var(--accent-rose) 30%, transparent);
+    border-radius: 9px; background: transparent;
+    font-size: 11.5px; line-height: 1.5; color: var(--accent-rose); overflow-wrap: anywhere;
+  }
+  .history-warning > summary { cursor: pointer; font-weight: 600; }
+  .history-warning-body { margin-top: 8px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--accent-rose) 20%, transparent); display: flex; flex-direction: column; gap: 8px; }
+  .history-warning-lines { font: 11px/1.5 var(--font-mono); color: var(--text-secondary); }
+  .history-warning-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .proc-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
   .proc-table th {
     text-align: left; padding: 7px 14px; font-size: 10.5px; color: var(--text-secondary);
@@ -1033,6 +1099,7 @@
   .search-box:focus-within { border-color: var(--border-selected); box-shadow: 0 0 0 3px var(--accent-soft); }
   #cmdPaletteList { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 3px; }
   #cmdPaletteList .list-row {
+    flex: none;
     border: 1px solid transparent; border-radius: 9px; padding: 9px 12px; border-bottom-color: transparent;
     transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
   }
@@ -1040,6 +1107,7 @@
   #cmdPaletteList .list-row.selected { background: var(--bg-card-selected); border-color: var(--border-selected); box-shadow: none; }
   #doctorListContainer { padding: 8px 12px !important; display: flex; flex-direction: column; gap: 6px; }
   #doctorListContainer .list-row {
+    flex: none;
     border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--bg-surface);
     padding: 9px 14px !important; cursor: default;
   }
@@ -1603,6 +1671,7 @@
     padding: 8px; display: flex; flex-direction: column; gap: 4px;
   }
   .list-body > .list-row {
+    flex: none;
     border: 1px solid transparent; border-radius: 9px; padding: 11px 12px;
     transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
   }
@@ -2485,6 +2554,8 @@ const DEFAULT_STATE = {
   analyzeRestrictedOpen: false,
   historyLogs: [],
   historyTab: 'restore',
+  historyFilter: 'all',
+  liveTrashedSet: null,
   whitelist: [],
   whitelistWarnings: [],
   // 由 onNativeRealScanComplete 的 payload.homePath 注入；页面不再自己猜家目录。
@@ -2543,6 +2614,8 @@ STATE.cleanExcludedRoots = []; STATE.cleanExcludedOpen = false;
 STATE.aiToolFilter = 'all'; STATE.aiExcludedRoots = []; STATE.aiExcludedOpen = false;
 STATE.aiProjectsOpen = [];
 STATE.historyTab = 'restore';
+STATE.historyFilter = 'all';
+STATE.liveTrashedSet = null;
 STATE.trayView = 'overview'; STATE.traySearch = ''; STATE.trayProcess = null; STATE.processReceivedAt = 0;
 STATE.killArmed = null; STATE.killArmedIdentity = null;
 STATE.cpuSeries = []; STATE.memSeries = []; STATE.diskSeries = []; STATE.hw = null;
@@ -2954,13 +3027,18 @@ function resolveRestore(res) {
     else showToast(t('已从废纸篓还原 {n} 个路径（{action}）', { n: restored.length, action }));
   } else if (restored.length) {
     if (snap.restoreData) snap.restoreData.paths = stillGone;
+    snap.failedPaths = stillGone.map(p => ({ path: p, error: failedByPath.get(p) || '还原失败' }));
     snap.status = '部分还原 ' + restored.length + '/' + pending.paths.length;
     snap.partialRestoreAt = Date.now();
     showToast(t('部分还原：成功 {ok} 个，失败 {failed} 个（{error}），记录已保留', { ok: restored.length, failed: stillGone.length, error: firstFailureText(failedByPath, stillGone) }));
   } else {
+    snap.failedPaths = stillGone.map(p => ({ path: p, error: failedByPath.get(p) || '还原失败' }));
     showToast(t('还原失败：{error}，记录已保留', { error: firstFailureText(failedByPath, stillGone) }));
   }
   if (restored.length) { restored.forEach(p => recentMoves.delete(normalizeComparePath(p))); scheduleRefresh(); }
+  if (typeof window !== 'undefined' && window.isNativeMacApp && typeof sendNativeBridge === 'function') {
+    sendNativeBridge({ action: 'checkHistoryManifest' });
+  }
   persistState();
   updateSidebarBadges(); renderModule(); renderMenuBarTrayContent();
 }
@@ -3255,18 +3333,37 @@ window.onNativeWhitelistChanged = function(res) {
   if (!res) return;
   if (Array.isArray(res.whitelist)) STATE.whitelist = res.whitelist.filter(w => typeof w === 'string' && w.length > 0);
   STATE.whitelistWarnings = Array.isArray(res.warnings) ? res.warnings.filter(w => typeof w === 'string') : [];
+  if (res.ok !== false && res.action === 'addWhitelist') {
+    const inp = document.getElementById('customWhitelistInput');
+    if (inp) inp.value = '';
+  }
   persistState();
   updateSidebarBadges(); renderModule(); renderMenuBarTrayContent();
   if (res.ok === false) {
-    showToast(res.action === 'removeWhitelist' ? t('白名单移除失败：{error}', { error: res.error || t('未知原因') }) : t('白名单添加失败：{error}', { error: res.error || t('未知原因') }));
+    showToast(res.action === 'removeWhitelist'
+      ? t('白名单移除失败：{error}', { error: t(res.error || '未知原因') })
+      : res.action === 'cleanWhitelistWarnings'
+        ? t('清理无效白名单条目失败：{error}', { error: t(res.error || '未知原因') })
+        : t('白名单添加失败：{error}', { error: t(res.error || '未知原因') }));
   } else if (res.action === 'removeWhitelist') {
     showToast(t('已从白名单移除 {path}', { path: displayPath(res.path || '') }));
+  } else if (res.action === 'cleanWhitelistWarnings') {
+    const n = Number(res.removedCount) || 0;
+    showToast(n > 0 ? t('已清理 {n} 条无效白名单条目', { n }) : t('没有需要清理的无效条目'));
   } else if (res.action === 'addWhitelist') {
-    showToast(t('已加入白名单 {path}（{n} 条）', { path: displayPath(res.path || ''), n: STATE.whitelist.length }));
+    showToast(res.alreadyExists
+      ? t('该路径已在保护列表中：{path}', { path: displayPath(res.path || '') })
+      : t('已加入白名单 {path}（{n} 条）', { path: displayPath(res.path || ''), n: STATE.whitelist.length }));
   } else {
     showToast(t('白名单已更新（{n} 条）', { n: STATE.whitelist.length }));
   }
   if (STATE.whitelistWarnings.length) console.warn('[whitelist]', STATE.whitelistWarnings.join('; '));
+};
+
+window.onNativeHistoryManifest = function(res) {
+  if (!res || !Array.isArray(res.liveTrashedPaths)) return;
+  STATE.liveTrashedSet = new Set(res.liveTrashedPaths.filter(p => typeof p === 'string' && p).map(normalizeComparePath));
+  if (STATE.module === 'history') renderModule();
 };
 
 // 构建清理的扫描目录以 Go 侧文件（~/.config/mole/purge_paths）为准，页面只渲染它推来的结果。
@@ -3823,11 +3920,23 @@ function removeWhitelistIdx(idx) {
 function addCustomWhitelistInput() {
   const inp = document.getElementById('customWhitelistInput');
   if (!inp || !inp.value.trim()) return;
-  const val = inp.value.trim();
+  let val = inp.value.trim();
+  if ((val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'))) {
+    val = val.slice(1, -1).trim();
+  }
+  if (val.length > 1) val = val.replace(/\/+$/, '');
   if (!val.startsWith('/') && !val.startsWith('~')) { showToast(t('请输入绝对路径或以 ~ 开头的路径')); return; }
   sendNativeBridge({ action: 'addWhitelist', path: absolutePath(val) || val });
-  inp.value = '';
   showToast(t('正在把 {path} 加入白名单，等待系统回执…', { path: val }));
+}
+
+function pickWhitelistFolder() {
+  sendNativeBridge({ action: 'pickWhitelistFolder' });
+}
+
+function cleanWhitelistWarnings() {
+  sendNativeBridge({ action: 'cleanWhitelistWarnings' });
+  showToast(t('正在清理无效白名单条目，等待系统回执…'));
 }
 
 function renderHeroIcon() {
@@ -4622,6 +4731,10 @@ window.switchModule = function(mod) {
   // 第一次进入空间分析才开始扫描；之后重进复用 Go 侧内存树（下钻是查表）。
   if (mod === 'analyze' && !STATE.analyzeLoading && (!STATE.analyzeStatus || STATE.analyzeStale)) {
     requestDiskAnalyze(STATE.analyzeRoot || '', STATE.analyzeStale);
+  }
+  // 进入历史与白名单时，原生端只读核验哪些废纸篓文件仍在位，避免把已清空的旧记录标成「清单可用」。
+  if (mod === 'history' && window.isNativeMacApp && STATE.historyLogs.length) {
+    sendNativeBridge({ action: 'checkHistoryManifest' });
   }
 };
 
@@ -5471,9 +5584,11 @@ function executeTrash() {
       if (!moved.length) return;
       const movedGb = moved.reduce((n, e) => n + (Number(e.sizeGb) || 0), 0);
       if (!window.isNativeMacApp) STATE.freeDiskGb = +(STATE.freeDiskGb + movedGb).toFixed(2);
-      STATE.historyLogs.unshift({
-        id: '#' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(Math.floor(1000 + Math.random() * 8999)),
-        time: '刚刚',
+      const now = Date.now();
+      const entry = {
+        id: '#' + new Date(now).toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(Math.floor(1000 + Math.random() * 8999)),
+        createdAt: now,
+        time: typeof formatHistoryTime === 'function' ? formatHistoryTime(now) : '刚刚',
         action: `空间分析清理 (${moved.length} 项)`,
         sizeGb: +movedGb.toFixed(2),
         items: moved.length,
@@ -5485,7 +5600,8 @@ function executeTrash() {
           paths: moved.map(e => (e.paths && e.paths[0]) || '').filter(Boolean),
           items: moved.map(e => ({ path: e.entity.path, name: e.label, sizeGb: e.sizeGb }))
         }
-      });
+      };
+      if (typeof pushHistoryLog === 'function') pushHistoryLog(entry); else STATE.historyLogs.unshift(entry);
     }
   });
 }
@@ -5875,15 +5991,18 @@ function removeLargeFile(idx) {
     onDone: (moved, failed, res) => {
       if (!moved.length) return;
       if (!window.isNativeMacApp) STATE.freeDiskGb = +(STATE.freeDiskGb + (Number(lf.sizeGb) || 0)).toFixed(2);
-      STATE.historyLogs.unshift({
-        id: '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
-        time: '刚刚',
+      const now = Date.now();
+      const entry = {
+        id: '#' + new Date(now).toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
+        createdAt: now,
+        time: typeof formatHistoryTime === 'function' ? formatHistoryTime(now) : '刚刚',
         action: `大文件清理 (${lf.name})`,
         sizeGb: Number(lf.sizeGb) || 0,
         items: 1,
         status: res.restoreError ? '已移入废纸篓 · 未能保存还原清单' : '已移入废纸篓 · 可尝试按清单还原',
         restoreData: { type: 'largeFile', item: lf, regPath: lf.path, paths: abs ? [abs] : [], unavailableReason: res.restoreError || '', requestId: res.requestId }
-      });
+      };
+      if (typeof pushHistoryLog === 'function') pushHistoryLog(entry); else STATE.historyLogs.unshift(entry);
     }
   });
 }
@@ -6098,6 +6217,24 @@ function restoreSnapshotEntities(snap) {
   recomputeDiskAnalyzeTotals();
 }
 
+function formatHistoryTime(ts) {
+  const d = new Date(ts || Date.now());
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function historyDisplayTime(h) {
+  if (!h) return '';
+  if (typeof h.createdAt === 'number' && Number.isFinite(h.createdAt)) return formatHistoryTime(h.createdAt);
+  if (h.time === '刚刚' && typeof h.id === 'string') {
+    const m = /^#(\d{4})(\d{2})(\d{2})-/.exec(h.id);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  return t(h.time || '');
+}
+function pushHistoryLog(entry) {
+  STATE.historyLogs.unshift(entry);
+  if (STATE.historyLogs.length > 100) STATE.historyLogs.length = 100;
+}
 function setHistoryTab(tab) {
   STATE.historyTab = tab === 'whitelist' ? 'whitelist' : 'restore';
   document.querySelectorAll('.history-panel [data-tab]').forEach(button => {
@@ -6108,6 +6245,10 @@ function setHistoryTab(tab) {
   document.querySelectorAll('.history-panel [data-pane]').forEach(pane => { pane.hidden = pane.dataset.pane !== STATE.historyTab; });
   const copy = document.querySelector('[data-history-copy]');
   if (copy) copy.hidden = STATE.historyTab !== 'restore';
+}
+function setHistoryFilter(filter) {
+  STATE.historyFilter = ['all', 'restorable', 'check'].includes(filter) ? filter : 'all';
+  renderModule();
 }
 function historyRestorePaths(snap) {
   const rd = snap.restoreData || {};
@@ -6120,7 +6261,33 @@ function historyRestoreIssue(snap) {
   const paths = historyRestorePaths(snap);
   if (!paths.length) return t('这条记录没有保存原始路径');
   if (!paths.every(path => typeof data.trashedPaths?.[normalizeComparePath(path)] === 'string' && data.trashedPaths[normalizeComparePath(path)])) return t('旧版记录未保存具体废纸篓路径，不能区分数据版本；请在访达中检查');
+  if (STATE.liveTrashedSet instanceof Set) {
+    const anyLive = paths.some(path => {
+      const trashed = data.trashedPaths[normalizeComparePath(path)];
+      return trashed && STATE.liveTrashedSet.has(normalizeComparePath(trashed));
+    });
+    if (!anyLive) return t('废纸篓中已找不到对应文件，可能已被清空或手动移出');
+  }
   return '';
+}
+function dismissHistoryRecord(idx) {
+  const snap = STATE.historyLogs[idx];
+  if (!snap) return;
+  STATE.historyLogs.splice(idx, 1);
+  persistState();
+  updateSidebarBadges();
+  renderModule();
+  showToast(t('已从列表移除该记录（不改动废纸篓文件）'));
+}
+function clearUnavailableHistory() {
+  const before = STATE.historyLogs.length;
+  STATE.historyLogs = (STATE.historyLogs || []).filter(h => !historyRestoreIssue(h));
+  const removed = before - STATE.historyLogs.length;
+  if (!removed) { showToast(t('没有需要清理的失效记录')); return; }
+  persistState();
+  updateSidebarBadges();
+  renderModule();
+  showToast(t('已清除 {n} 条失效记录（不改动废纸篓文件）', { n: removed }));
 }
 function restoreHistorySnapshot(idx) {
   const snap = STATE.historyLogs[idx];
@@ -7087,6 +7254,19 @@ function renderModule() {
       </div>
     `;
   } else if (mod === 'history') {
+    const allLogs = STATE.historyLogs.map((h, origIdx) => {
+      const issue = historyRestoreIssue(h);
+      const paths = historyRestorePaths(h);
+      return { h, origIdx, issue, paths };
+    });
+    const restorableCount = allLogs.filter(x => !x.issue).length;
+    const issueCount = allLogs.length - restorableCount;
+    const hFilter = STATE.historyFilter || 'all';
+    const filteredLogs = hFilter === 'restorable'
+      ? allLogs.filter(x => !x.issue)
+      : hFilter === 'check'
+        ? allLogs.filter(x => !!x.issue)
+        : allLogs;
     stage.innerHTML = `
       <div class="panel-card history-panel">
         <div class="panel-header">
@@ -7097,30 +7277,45 @@ function renderModule() {
           <button class="btn btn-quiet" data-history-copy ${STATE.historyTab === 'restore' ? '' : 'hidden'} ${STATE.historyLogs.length ? '' : 'disabled'} onclick="handlePrimaryAction()">${UI_ICON('copy')}${t('复制记录')}</button>
         </div>
         <div class="history-pane" id="historyRestorePane" role="tabpanel" aria-labelledby="historyRestoreTab" data-pane="restore" ${STATE.historyTab === 'restore' ? '' : 'hidden'}>
-          <p class="history-note">${t('展开记录，查看原始路径与还原情况。')}</p>
+          <div class="history-subbar">
+            <p class="history-note">${t('展开记录，查看原始路径与还原情况。')}</p>
+            ${allLogs.length ? `<div class="history-subbar-right">
+              <div class="history-filter-pills" role="group" aria-label="${t('筛选记录状态')}">
+                <button type="button" class="history-filter-pill ${hFilter === 'all' ? 'active' : ''}" onclick="setHistoryFilter('all')">${t('全部')} (${allLogs.length})</button>
+                <button type="button" class="history-filter-pill ${hFilter === 'restorable' ? 'active' : ''}" onclick="setHistoryFilter('restorable')">${t('可还原')} (${restorableCount})</button>
+                <button type="button" class="history-filter-pill ${hFilter === 'check' ? 'active' : ''}" onclick="setHistoryFilter('check')">${t('需检查')} (${issueCount})</button>
+              </div>
+              ${issueCount ? `<button type="button" class="btn btn-quiet history-muted-action" onclick="clearUnavailableHistory()">${t('清除失效记录')}</button>` : ''}
+            </div>` : ''}
+          </div>
           <div class="list-body">
-            ${STATE.historyLogs.length ? STATE.historyLogs.map((h, idx) => {
-              const issue = historyRestoreIssue(h), paths = historyRestorePaths(h);
+            ${allLogs.length ? (filteredLogs.length ? filteredLogs.map(({ h, origIdx, issue, paths }) => {
+              const badgeCls = issue || (h.failedPaths || []).length || h.partialRestoreAt ? 'badge-review' : 'badge-safe';
+              const badgeText = h.restoreData?.unavailableReason ? t('清单未保存') : issue ? t('需访达检查') : (h.failedPaths || []).length || h.partialRestoreAt ? t('部分完成') : t('清单可用');
               return `<details class="history-record" name="history-records" data-history-id="${escHtml(h.id)}">
                 <summary>
                   ${UI_ICON('back')}
-                  <div class="history-record-main"><div class="row-title" title="${escHtml(t(h.action))}">${escHtml(t(h.action))}</div><div class="row-sub">${escHtml(t(h.time))}</div></div>
+                  <div class="history-record-main"><div class="row-title" title="${escHtml(t(h.action))}">${escHtml(t(h.action))}</div><div class="row-sub">${escHtml(historyDisplayTime(h))}${paths.length ? ' · ' + t('{n} 个路径', {n: paths.length}) : ''}</div></div>
                   <span class="size-cell">${fmtDiskSizeGb(h.sizeGb)}</span>
-                  <span class="badge ${issue || (h.failedPaths || []).length || h.partialRestoreAt ? 'badge-review' : 'badge-safe'}">${h.restoreData?.unavailableReason ? t('清单未保存') : issue ? t('需访达检查') : (h.failedPaths || []).length || h.partialRestoreAt ? t('部分完成') : t('清单可用')}</span>
+                  <span class="badge ${badgeCls}">${badgeText}</span>
                 </summary>
                 <div class="history-detail">
                   <div class="history-detail-head">
                     <div class="row-sub">${escHtml(h.id)} · ${escHtml(t(h.status || ''))}</div>
-                    <button class="btn" ${issue || pendingRestoreRequests.size || pendingTrashRequests.size ? 'disabled title="' + escHtml(issue || t('正在等待文件操作回执')) + '"' : ''} onclick="restoreHistorySnapshot(${idx})">${t('按清单还原')}</button>
+                    <div class="history-detail-actions">
+                      <button type="button" class="btn ${issue ? '' : 'btn-primary'}" ${issue || pendingRestoreRequests.size || pendingTrashRequests.size ? 'disabled title="' + escHtml(issue || t('正在等待文件操作回执')) + '"' : ''} onclick="restoreHistorySnapshot(${origIdx})">${t('按清单还原')}</button>
+                      <button type="button" class="btn" onclick="revealInFinder('~/.Trash')">${t('打开废纸篓')}</button>
+                      <button type="button" class="btn btn-quiet history-muted-action" onclick="dismissHistoryRecord(${origIdx})">${t('移除记录')}</button>
+                    </div>
                   </div>
                   ${issue ? `<div class="row-sub history-issue">${t('{reason}；请在访达检查废纸篓。', {reason: escHtml(issue)})}</div>` : ''}
                   ${(h.failedPaths || []).map(f => `<div class="row-sub history-failure">${escHtml(displayPath(f.path))}${t('：')}${escHtml(t(f.error))}</div>`).join('')}
                   ${servicesHasContent(h.services) ? `<details class="history-paths"><summary>${t('卸载回执 · 后台服务')}</summary>${servicesLinesHTML(h.services)}</details>` : ''}
                   ${(h.configRefs || []).length ? `<details class="history-paths"><summary>${t('配置文件里仍有引用 · {n} 处', {n: h.configRefs.length})}</summary>${configRefsHTML(h.configRefs)}</details>` : ''}
-                  ${paths.length ? `<details class="history-paths"><summary>${t('原始路径 · {n} 项', {n: paths.length})}</summary>${paths.map(path => escHtml(displayPath(path))).join('<br>')}</details>` : ''}
+                  ${paths.length ? `<details class="history-paths"><summary>${t('原始路径 · {n} 项', {n: paths.length})}</summary><div class="history-path-list">${paths.map(path => `<div class="history-path-item">${escHtml(displayPath(path))}</div>`).join('')}</div></details>` : ''}
                 </div>
               </details>`;
-            }).join('') : `<div class="empty-state">${UI_ICON('trash')}<div class="empty-title">${t('还没有清理记录')}</div><div class="empty-desc">${t('移入废纸篓后，可在这里查看记录并尝试还原。')}</div></div>`}
+            }).join('') : `<div class="empty-state">${UI_ICON('trash')}<div class="empty-title">${t('当前筛选下没有记录')}</div><div class="empty-desc">${t('切换到“全部”可查看全部清理记录。')}</div><button type="button" class="btn" style="margin-top:8px;" onclick="setHistoryFilter('all')">${t('查看全部')}</button></div>`) : `<div class="empty-state">${UI_ICON('trash')}<div class="empty-title">${t('还没有清理记录')}</div><div class="empty-desc">${t('移入废纸篓后，可在这里查看记录并尝试还原。')}</div></div>`}
           </div>
           <p class="history-note">${t('仅按本机清单还原，不按同名文件猜测。')}</p>
         </div>
@@ -7129,15 +7324,19 @@ function renderModule() {
             <p class="history-note">${t('保留这些路径及其子项。')}</p>
             <form onsubmit="event.preventDefault();addCustomWhitelistInput()">
               <input type="text" id="customWhitelistInput" aria-label="${t('受保护的路径')}" placeholder="${t('输入绝对路径或 ~/ 路径')}" />
-              <button type="submit" class="btn">${UI_ICON('plus')}${t('添加')}</button>
+              <button type="button" class="btn" onclick="pickWhitelistFolder()" title="${t('从访达选择目录')}">${UI_ICON('folder')}${t('选择目录')}</button>
+              <button type="submit" class="btn btn-primary">${UI_ICON('plus')}${t('添加')}</button>
             </form>
           </div>
           <div class="list-body">
-            ${STATE.whitelistWarnings.length ? `<details class="history-warning" data-history-id="whitelist-warnings"><summary>${t('有 {n} 条白名单条目未生效', {n: STATE.whitelistWarnings.length})}</summary>${STATE.whitelistWarnings.map(w => escHtml(t(String(w)))).join('<br>')}</details>` : ''}
+            ${STATE.whitelistWarnings.length ? `<details class="history-warning" data-history-id="whitelist-warnings"><summary>${t('有 {n} 条白名单条目未生效', {n: STATE.whitelistWarnings.length})}</summary><div class="history-warning-body"><div class="history-warning-lines">${STATE.whitelistWarnings.map(w => escHtml(t(String(w)))).join('<br>')}</div><div class="history-warning-actions"><button type="button" class="btn" onclick="cleanWhitelistWarnings()">${t('清理无效条目')}</button><button type="button" class="btn btn-quiet" onclick="revealInFinder('~/.config/mole/whitelist')">${t('打开配置文件')}</button></div></div></details>` : ''}
             ${STATE.whitelist.length ? STATE.whitelist.map((w, idx) => `
               <div class="history-whitelist-row">
-                <span>${UI_ICON('shield')}<code title="${escHtml(String(w))}">${escHtml(displayPath(String(w)))}</code></span>
-                <button class="row-remove" onclick="removeWhitelistIdx(${idx})" title="${t('从白名单移除')}" aria-label="${t('从白名单移除')} ${escHtml(String(w))}">${t('移除')}</button>
+                <span>${UI_ICON('shield')}<code title="${escHtml(String(w))}">${escHtml(displayPath(String(w)))}</code>${/[*?[]/.test(String(w)) ? `<span class="whitelist-tag">${t('通配规则')}</span>` : ''}</span>
+                <div class="history-row-actions">
+                  <button type="button" class="history-icon-btn" onclick="revealInFinder('${jsq(String(w))}')" title="${t('在访达中显示')}" aria-label="${t('在访达中显示 {path}', {path: escHtml(String(w))})}">${UI_ICON('folder')}</button>
+                  <button type="button" class="row-remove" onclick="removeWhitelistIdx(${idx})" title="${t('从白名单移除')}" aria-label="${t('从白名单移除')} ${escHtml(String(w))}">${t('移除')}</button>
+                </div>
               </div>`).join('') : `<div class="empty-state">${UI_ICON('shield')}<div class="empty-title">${t('还没有自定义保护路径')}</div><div class="empty-desc">${t('可添加需要保留的目录，系统核心保护始终生效。')}</div></div>`}
           </div>
           <p class="history-note" data-history-core-note>${t('保护 macOS 自身的规则（字体、聚焦搜索等系统缓存）始终生效，不在此列出。')}</p>
@@ -7539,9 +7738,11 @@ window.executeConfirmedClean = function() {
       rd.unavailableReason = res.restoreError || '';
       const configRefs = Array.isArray(res.configRefs) ? res.configRefs : [];
       if (module === 'software') configRefsReceipt = configRefs.length ? { refs: configRefs } : null;
-      STATE.historyLogs.unshift({
-        id: '#' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
-        time: '刚刚',
+      const now = Date.now();
+      const entry = {
+        id: '#' + new Date(now).toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(1000 + Math.random()*8999)),
+        createdAt: now,
+        time: typeof formatHistoryTime === 'function' ? formatHistoryTime(now) : '刚刚',
         action: actionLabel,
         sizeGb: +movedGb.toFixed(2),
         items: moved.length,
@@ -7550,7 +7751,8 @@ window.executeConfirmedClean = function() {
         ...(configRefs.length ? { configRefs } : {}),
         ...(services ? { services } : {}),
         restoreData: rd
-      });
+      };
+      if (typeof pushHistoryLog === 'function') pushHistoryLog(entry); else STATE.historyLogs.unshift(entry);
     }
   });
 };

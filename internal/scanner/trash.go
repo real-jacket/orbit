@@ -411,6 +411,44 @@ func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string
 	return outcome
 }
 
+// LiveTrashedPaths inspects the on-disk trash manifest read-only and returns
+// the Trashed paths that still exist inside the current Trash with matching
+// device and inode identity. The history UI uses this to tell restorable
+// snapshots apart from records whose files were already emptied from Trash.
+func (s *Scanner) LiveTrashedPaths() []string {
+	manifest, err := readTrashManifest()
+	if err != nil || len(manifest.Entries) == 0 {
+		return []string{}
+	}
+	trash, err := trashDir()
+	if err != nil {
+		return []string{}
+	}
+	cleanTrash := filepath.Clean(trash)
+	seen := make(map[string]struct{}, len(manifest.Entries))
+	live := make([]string, 0, len(manifest.Entries))
+	for _, entry := range manifest.Entries {
+		trashed := filepath.Clean(entry.Trashed)
+		if !filepath.IsAbs(trashed) || filepath.Dir(trashed) != cleanTrash {
+			continue
+		}
+		if _, dup := seen[trashed]; dup {
+			continue
+		}
+		info, err := os.Lstat(trashed)
+		if err != nil {
+			continue
+		}
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || entry.Inode == 0 || uint64(stat.Dev) != entry.Device || uint64(stat.Ino) != entry.Inode {
+			continue
+		}
+		seen[trashed] = struct{}{}
+		live = append(live, trashed)
+	}
+	return live
+}
+
 // logTrashOutcome appends one JSON line to <state>/trash.log so a refusal can be
 // diagnosed later without reproducing it in a debugger. It is best effort and
 // caps the file so it cannot grow without bound.

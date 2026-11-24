@@ -79,6 +79,7 @@
     "无法确定用户家目录，停止清理": "Can't determine the home folder; cleanup stopped",
     "不是绝对路径": "Not an absolute path",
     "白名单保护": "Protected by whitelist",
+    "这是保护 macOS 自身的条目，始终生效，无需重复添加": "This entry protects macOS itself and is always active; no need to add it again",
     "路径状态无法核验，保持原状：{error}": "Path state couldn't be verified; left untouched: {error}",
     "路径经过符号链接，不能证明清理边界；请在访达中检查原始路径": "The path goes through a symbolic link, so the cleanup boundary can't be verified; check the original path in Finder",
     "无法确认应用是否运行，保持原状": "Can't tell whether the app is running; left untouched",

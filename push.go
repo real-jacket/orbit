@@ -298,13 +298,19 @@ func pushCaffeinateState(active bool) {
 
 // pushWhitelistChanged tells the page the protection list changed, so it can
 // redraw the whitelist view and rescan without guessing.
-func pushWhitelistChanged(action, path string, policy scanner.Whitelist, err error) {
+func pushWhitelistChanged(action, path string, policy scanner.Whitelist, err error, alreadyExists bool, removedCount int) {
 	payload := map[string]any{
 		"action":    action,
 		"path":      path,
 		"whitelist": scanner.Shared.UserWhitelistPaths(),
 		"warnings":  policy.Warnings,
 		"ok":        err == nil,
+	}
+	if alreadyExists {
+		payload["alreadyExists"] = true
+	}
+	if removedCount > 0 {
+		payload["removedCount"] = removedCount
 	}
 	if err != nil {
 		payload["error"] = err.Error()

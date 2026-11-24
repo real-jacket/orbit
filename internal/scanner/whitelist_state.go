@@ -88,28 +88,44 @@ func (s *Scanner) readWhitelistFile() (string, error) {
 // both the app and `mo` stop offering it as cleanable. The file keeps mole's
 // one-path-per-line format.
 func (s *Scanner) AddWhitelistEntry(raw string) (Whitelist, error) {
+	policy, _, err := s.AddWhitelistEntryWithStatus(raw)
+	return policy, err
+}
+
+// AddWhitelistEntryWithStatus behaves like AddWhitelistEntry and also reports
+// whether the normalized entry was already present in the whitelist file.
+func (s *Scanner) AddWhitelistEntryWithStatus(raw string) (Whitelist, bool, error) {
 	entry, err := ValidateWhitelistEntry(raw, s.home)
 	if err != nil {
-		return s.whitelist(), err
+		return s.whitelist(), false, err
 	}
 	if entry == finderMetadataSentinel {
 		if err := s.ensureSafetyWhitelist(); err != nil {
-			return s.whitelist(), err
+			return s.whitelist(), false, err
 		}
-		return s.refreshWhitelist(), nil
+		return s.refreshWhitelist(), false, nil
+	}
+	if s.isSafetyWhitelistPattern(entry) {
+		return s.whitelist(), false, fmt.Errorf("这是保护 macOS 自身的条目，始终生效，无需重复添加")
 	}
 	path := WhitelistPath(s.home)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return s.whitelist(), err
+		return s.whitelist(), false, err
 	}
 	content, readErr := s.readWhitelistFile()
 	if readErr != nil {
-		return s.whitelist(), readErr
+		return s.whitelist(), false, readErr
 	}
 	for _, line := range strings.Split(content, "\n") {
-		candidate, _, ok := normalizeWhitelistEntry(line, s.home)
-		if ok && candidate == entry {
-			return s.refreshWhitelist(), nil
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		for _, part := range strings.Split(trimmed, " & ") {
+			candidate, _, ok := normalizeWhitelistEntry(part, s.home)
+			if ok && candidate == entry {
+				return s.refreshWhitelist(), true, nil
+			}
 		}
 	}
 	if content != "" && !strings.HasSuffix(content, "\n") {
@@ -117,9 +133,44 @@ func (s *Scanner) AddWhitelistEntry(raw string) (Whitelist, error) {
 	}
 	content += entry + "\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return s.whitelist(), err
+		return s.whitelist(), false, err
 	}
-	return s.refreshWhitelist(), nil
+	return s.refreshWhitelist(), false, nil
+}
+
+// CleanWhitelistWarnings removes lines that fail mole's validation rules while
+// preserving all valid entries, comments, blank lines and FINDER_METADATA.
+func (s *Scanner) CleanWhitelistWarnings() (Whitelist, int, error) {
+	path := WhitelistPath(s.home)
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return s.refreshWhitelist(), 0, nil
+	}
+	if err != nil {
+		return s.whitelist(), 0, err
+	}
+	lines := strings.Split(string(data), "\n")
+	kept := make([]string, 0, len(lines))
+	removed := 0
+	for _, line := range lines {
+		_, warning, ok := normalizeWhitelistEntry(line, s.home)
+		if !ok && warning != "" {
+			removed++
+			continue
+		}
+		kept = append(kept, line)
+	}
+	if removed == 0 {
+		return s.refreshWhitelist(), 0, nil
+	}
+	content := strings.Join(kept, "\n")
+	if content != "" && !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return s.whitelist(), 0, err
+	}
+	return s.refreshWhitelist(), removed, nil
 }
 
 // RemoveWhitelistEntry deletes path from the whitelist file, including when it

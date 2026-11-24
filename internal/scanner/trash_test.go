@@ -577,6 +577,56 @@ func TestValidateWhitelistEntryRejectsTheDangerousOnes(t *testing.T) {
 	}
 }
 
+func TestWhitelistTrailingSlashDuplicateSafetyAndCleanWarnings(t *testing.T) {
+	s := newTestScanner(t)
+	dir := filepath.Join(s.home, "Documents", "KeepMe")
+	if _, existed, err := s.AddWhitelistEntryWithStatus(dir + "/"); err != nil || existed {
+		t.Fatalf("AddWhitelistEntryWithStatus(%q) = existed:%v err:%v", dir+"/", existed, err)
+	}
+	if _, existed, err := s.AddWhitelistEntryWithStatus(dir); err != nil || !existed {
+		t.Fatalf("duplicate without trailing slash should report alreadyExists=true, got existed:%v err:%v", existed, err)
+	}
+	spotlight := filepath.Join(s.home, "Library", "Caches", "com.apple.spotlight*")
+	if _, _, err := s.AddWhitelistEntryWithStatus(spotlight); err == nil {
+		t.Error("adding an always-on safety pattern should return a clear error")
+	}
+
+	writeFile(t, WhitelistPath(s.home), "# comment\n"+dir+"\ncom.apple.Safari\nrelative/bad\nFINDER_METADATA\n")
+	policy, removed, err := s.CleanWhitelistWarnings()
+	if err != nil {
+		t.Fatalf("CleanWhitelistWarnings: %v", err)
+	}
+	if removed != 2 {
+		t.Fatalf("removed = %d, want 2", removed)
+	}
+	if len(policy.Warnings) != 0 {
+		t.Fatalf("warnings after clean = %v, want empty", policy.Warnings)
+	}
+	if !s.Whitelisted(dir) || !policy.ProtectsFinderMetadata() {
+		t.Fatal("valid entries and FINDER_METADATA must be preserved")
+	}
+}
+
+func TestLiveTrashedPathsTracksCurrentTrashEntries(t *testing.T) {
+	s := newTestScanner(t)
+	target := filepath.Join(s.home, "Library", "Caches", "live-check.bin")
+	writeFile(t, target, "hello")
+	out := s.TrashPaths([]string{target})
+	if len(out.Moved) != 1 {
+		t.Fatalf("moved = %+v, want 1", out.Moved)
+	}
+	trashed := out.Moved[0].Trashed
+	if got := s.LiveTrashedPaths(); !containsString(got, trashed) {
+		t.Fatalf("LiveTrashedPaths = %v, want %s", got, trashed)
+	}
+	if err := os.Remove(trashed); err != nil {
+		t.Fatalf("remove trashed: %v", err)
+	}
+	if got := s.LiveTrashedPaths(); containsString(got, trashed) {
+		t.Fatalf("LiveTrashedPaths = %v, should not list emptied item %s", got, trashed)
+	}
+}
+
 func TestTrashPathsExpandsTheTildeSoTheReceiptMatchesThePage(t *testing.T) {
 	s := newTestScanner(t)
 	writeFile(t, filepath.Join(s.home, "Library", "Caches", "some.app", "blob.bin"), "x")

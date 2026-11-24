@@ -127,16 +127,50 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 		}
 		go func() {
 			var policy scanner.Whitelist
+			var alreadyExists bool
 			var err error
 			if action == "addWhitelist" {
-				policy, err = scanner.Shared.AddWhitelistEntry(path)
+				policy, alreadyExists, err = scanner.Shared.AddWhitelistEntryWithStatus(path)
 			} else {
 				policy, err = scanner.Shared.RemoveWhitelistEntry(path)
 			}
-			pushWhitelistChanged(action, path, policy, err)
-			if err == nil {
+			pushWhitelistChanged(action, path, policy, err, alreadyExists, 0)
+			if err == nil && !alreadyExists {
 				pushRealSystemScanNow()
 			}
+		}()
+	case "pickWhitelistFolder":
+		go func() {
+			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+				Parent:          activeMainWindow(),
+				Title:           L("选择要加入白名单的目录", "Choose a folder to protect"),
+				ButtonLabel:     L("加入白名单", "Protect Folder"),
+				DefaultPath:     homeDir(),
+				Directory:       true,
+				ShowHiddenFiles: true,
+			})
+			if err != nil || len(paths) == 0 || strings.TrimSpace(paths[0]) == "" {
+				return
+			}
+			chosen := paths[0]
+			policy, alreadyExists, addErr := scanner.Shared.AddWhitelistEntryWithStatus(chosen)
+			pushWhitelistChanged("addWhitelist", chosen, policy, addErr, alreadyExists, 0)
+			if addErr == nil && !alreadyExists {
+				pushRealSystemScanNow()
+			}
+		}()
+	case "cleanWhitelistWarnings":
+		go func() {
+			policy, removed, err := scanner.Shared.CleanWhitelistWarnings()
+			pushWhitelistChanged("cleanWhitelistWarnings", "", policy, err, false, removed)
+			if err == nil && removed > 0 {
+				pushRealSystemScanNow()
+			}
+		}()
+	case "checkHistoryManifest":
+		go func() {
+			live := scanner.Shared.LiveTrashedPaths()
+			evaluate("window.onNativeHistoryManifest ? window.onNativeHistoryManifest(" + jsonOf(map[string]any{"liveTrashedPaths": live}) + ") : undefined")
 		}()
 	case "addPurgeRoot", "removePurgeRoot":
 		action := stringOf(payload["action"])
