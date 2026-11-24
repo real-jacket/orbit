@@ -915,6 +915,7 @@ I18N.add({
   "没有匹配的项目": "No matches",
   "换个关键词试试，或清除搜索。": "Try another keyword, or clear the search.",
   "清除搜索": "Clear search",
+  "打开快捷命令面板 (⌘K)": "Open command palette (⌘K)",
   "这个分类下没有项目": "No items in this filter",
   "当前筛选条件下没有可清理的目录。": "No cleanable folders match the current filter.",
   "已识别扫描目录被保护排除": "Scanned folders are protected and excluded",
