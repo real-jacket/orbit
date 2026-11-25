@@ -34,8 +34,27 @@ jobs:
           go version
           sw_vers
 
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
       - name: Vet
         run: go vet ./...
+
+      - name: Install the MyGo CLI
+        run: |
+          go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: The generated TypeScript client is current
+        run: |
+          "$(go env GOPATH)/bin/mygo" generate
+          git diff --exit-code -- mygo.ts
 
       - name: Test
         run: go test ./... -count=1
@@ -61,11 +80,6 @@ jobs:
 
       - name: Build
         run: go build -v ./...
-
-      - name: Install the MyGo CLI
-        run: |
-          go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Package the .app bundle
         run: mygo build --skip-dmg
@@ -103,32 +117,3 @@ jobs:
                      icon_256x256@2x.png icon_512x512.png icon_512x512@2x.png; do
             test -f "/tmp/verify.iconset/$rep"
           done
-
-  lint:
-    name: Lint
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: gofmt
-        run: |
-          unformatted="$(gofmt -l .)"
-          if [ -n "$unformatted" ]; then
-            echo "These files are not gofmt'd:"
-            echo "$unformatted"
-            exit 1
-          fi
-
-      - name: vet
-        run: go vet ./...
-
-      - name: The generated TypeScript client is current
-        run: |
-          go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
-          "$(go env GOPATH)/bin/mygo" generate
-          git diff --exit-code -- mygo.ts
