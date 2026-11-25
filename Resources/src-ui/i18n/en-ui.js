@@ -1067,6 +1067,7 @@ I18N.add({
   "{n} 项系统维护待处理": "{n} system {n|task needs|tasks need} attention",
   "没有需要处理的系统维护": "No system maintenance is needed",
   "正在检查系统维护项目": "Checking system maintenance tasks",
+  "等待本机检查": "Waiting for local check",
   "已勾选维护": "Tasks selected",
   "只统计需要处理的项目": "Counts only tasks that need work",
   "每一项都先检查再决定，只默认勾选确实需要且安全的。改动都有回执，能撤销的可以一键撤销；需要管理员权限的只列出，orbit 不执行。": "Each task is checked before anything is decided, and only tasks that are needed and safe are selected by default. Every change has a receipt, and what can be undone takes one click. Tasks that need administrator rights are only listed; orbit does not run them.",

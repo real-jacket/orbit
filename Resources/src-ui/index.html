@@ -218,11 +218,14 @@
 .btn-glyph svg { width: 100%; height: 100%; display: block; }
 .lock-glyph {
   display: inline-flex;
-  width: 14px;
-  height: 14px;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   flex: none;
-  vertical-align: -2px;
+  color: var(--text-muted);
 }
+.lock-glyph > .ui-ico { width: 14px; height: 14px; }
 .palette-glyph {
   display: inline-flex;
   align-items: center;
@@ -1709,7 +1712,51 @@
     transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
   }
   .subpath-item input[type="checkbox"] { width: 15px !important; height: 15px !important; border-radius: 4.5px; }
-  .list-row[data-optimize-task] input[type="checkbox"] { margin-top: 2px; }
+  .subpath-item .lock-glyph { width: 15px; height: 15px; }
+  .list-body:has(> .list-row[data-optimize-task]) { padding: 10px 12px; gap: 6px; }
+  .list-row[data-optimize-task] {
+    cursor: default;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 14px;
+    border-color: color-mix(in srgb, var(--border-subtle) 85%, transparent);
+    background: var(--bg-surface);
+  }
+  .list-row[data-optimize-task] .row-left { align-items: flex-start; gap: 12px; }
+  .list-row[data-optimize-task] .opt-lead {
+    width: 16px;
+    height: 20px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .list-row[data-optimize-task] .opt-lead .opt-dot { width: 7px; height: 7px; }
+  .list-row[data-optimize-task] input[type="checkbox"] { margin-top: 0; }
+  .list-row[data-optimize-task] .row-title { line-height: 20px; }
+  .list-row[data-optimize-task] .row-sub { margin-top: 3px; line-height: 1.5; }
+  .list-row[data-optimize-task] .history-paths { margin-top: 7px; }
+  .list-row[data-optimize-task] [data-optimize-receipt] {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    white-space: normal;
+  }
+  .list-row[data-optimize-task] .opt-receipt-undo {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .list-row[data-optimize-task] > .badge {
+    flex: none;
+    min-width: 60px;
+    text-align: center;
+    line-height: 16px;
+  }
   input[type="checkbox"]:hover:not(:disabled):not(:checked) { border-color: var(--text-muted); }
   input[type="checkbox"]:checked {
     background: var(--accent-primary); border-color: var(--accent-primary);
@@ -7486,15 +7533,13 @@ const OPTIMIZE_OUTCOME = {
 };
 function optimizeReceiptHTML(it, r) {
   const o = STATE.optimize;
-  const badge = r.isUndo ? (r.ok ? OPTIMIZE_OUTCOME.applied : OPTIMIZE_OUTCOME.failed) : OPTIMIZE_OUTCOME[r.outcome] || OPTIMIZE_OUTCOME.failed;
   const details = (r.details || []).map(d => escHtml(t(displayPath(d)))).join('<br>');
-  return `<div class="row-sub tier-note" data-optimize-receipt="${escHtml(it.id)}" style="white-space:normal;display:block;">
-    <b>${r.isUndo ? t('撤销结果') : t('回执')}${t('：')}</b>${escHtml(t(r.summary || ''))}
+  return `<div class="row-sub tier-note" data-optimize-receipt="${escHtml(it.id)}">
+    <div><b>${r.isUndo ? t('撤销结果') : t('回执')}${t('：')}</b>${escHtml(t(r.summary || ''))}</div>
     ${r.error ? `<div style="color:var(--accent-rose);">${escHtml(t(r.error))}</div>` : ''}
     ${(r.failed || []).map(f => `<div style="color:var(--accent-rose);">${escHtml(displayPath(f.path))}${t('：')}${escHtml(t(f.error))}</div>`).join('')}
     ${details ? `<details class="history-paths"><summary>${t('涉及 {n} 项', { n: (r.details || []).length })}</summary>${details}</details>` : ''}
-    <div>${r.isUndo ? '' : `${t('如何撤销')}${t('：')}${escHtml(t(r.undo || ''))}`}
-      ${r.canUndo ? `<button class="btn" style="padding:2px 8px;font-size:10.5px;margin-left:6px;" ${optimizeBusy() ? 'disabled' : ''} onclick="undoOptimizeTask('${jsq(it.id)}')">${o.undoing[it.id] ? t('撤销中') : t('撤销')}</button>` : ''}</div>
+    ${(!r.isUndo || r.canUndo) ? `<div class="opt-receipt-undo">${r.isUndo ? '' : `<span>${t('如何撤销')}${t('：')}${escHtml(t(r.undo || ''))}</span>`}${r.canUndo ? `<button class="btn" style="padding:2px 8px;font-size:10.5px;" ${optimizeBusy() ? 'disabled' : ''} onclick="undoOptimizeTask('${jsq(it.id)}')">${o.undoing[it.id] ? t('撤销中') : t('撤销')}</button>` : ''}</div>` : ''}
   </div>`;
 }
 function optimizeListHTML() {
@@ -7506,15 +7551,15 @@ function optimizeListHTML() {
     const st = OPTIMIZE_STATUS[it.status] || OPTIMIZE_STATUS.unavailable;
     const r = o.receipts[it.id];
     const lead = it.runnable
-      ? `<input type="checkbox" aria-label="${escHtml(t(it.name))}" ${o.sel[it.id] ? 'checked' : ''} ${o.running ? 'disabled' : ''} onchange="toggleOptimizeSel('${jsq(it.id)}')" style="width:13px;height:13px;cursor:pointer;" />`
+      ? `<input type="checkbox" aria-label="${escHtml(t(it.name))}" ${o.sel[it.id] ? 'checked' : ''} ${o.running ? 'disabled' : ''} onchange="toggleOptimizeSel('${jsq(it.id)}')" />`
       : it.status === 'clear' ? '<span class="opt-dot done"></span>' : `<span class="lock-glyph" title="${t('受保护，不可勾选')}">${UI_ICON('lock')}</span>`;
     const note = it.status === 'clear'
       ? `<div class="row-sub" style="font-family:var(--font-sans);white-space:normal;">${escHtml(t(it.reason))}</div>`
       : tierNoteHTML(it, null, false, t('推荐执行'));
     return `
-      <div class="list-row" data-optimize-task="${escHtml(it.id)}" data-status="${escHtml(it.status)}" style="cursor:default;align-items:flex-start;">
-        <div class="row-left" style="align-items:flex-start;">
-          ${lead}
+      <div class="list-row" data-optimize-task="${escHtml(it.id)}" data-status="${escHtml(it.status)}">
+        <div class="row-left">
+          <span class="opt-lead">${lead}</span>
           <div style="min-width:0;">
             <div class="row-title">${escHtml(t(it.name))}</div>
             <div class="row-sub" style="font-family:var(--font-sans);white-space:normal;">${escHtml(t(it.detail))}</div>
@@ -8334,6 +8379,9 @@ document.addEventListener('keydown', (e) => {
     document.getElementById('scanSourceBadge').parentElement.hidden = STATE.module === 'history';
     if (STATE.module === 'analyze') {
       document.getElementById('scanSourceBadge').textContent = STATE.analyzeLoading ? t('正在读取本地目录') : STATE.analyzeError ? t('扫描未完成，旧结果保留') : STATE.analyzeStatus ? t('orbit 本地扫描 · 仅此范围') : t('等待目录扫描');
+    } else if (STATE.module === 'optimize') {
+      const o = STATE.optimize;
+      document.getElementById('scanSourceBadge').textContent = o.running ? t('正在维护') : o.status === 'loading' ? t('检查中') : o.status === 'error' ? t('检查没有完成') : o.status === 'ready' ? t('先检查再执行，改动有回执') : t('等待本机检查');
     }
     if (moduleWarnings.length && ['clean', 'ai_moon', 'software', 'purge'].includes(STATE.module)) {
       const sum = warningSummary(moduleWarnings);
