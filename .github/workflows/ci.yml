@@ -21,6 +21,7 @@ jobs:
   build:
     name: Build & package
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -67,7 +68,11 @@ jobs:
           node-version: '24'
 
       - name: Frontend regression checks
-        run: node scripts/test-ui.cjs
+        run: |
+          node scripts/test-ui.cjs
+          node scripts/test-run.cjs
+          node scripts/test-i18n.cjs
+          node scripts/test-i18n-go.cjs
 
       # The runner image turns Reduce Motion on (actions/runner-images
       # configure-system.sh); the page then correctly skips its transitions and

@@ -14,12 +14,12 @@ name: Release
 # Only macOS is built; the app is a macOS-only MyGo/WKWebView bundle.
 
 on:
-  push:
+  # Run after CI finishes on main so Release never competes with CI for a
+  # macOS runner and never ships a commit that failed CI.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
-    # A release is a version bump: a push to main that changes mygo.json.
-    # Other merges leave the release alone instead of re-checking it on every
-    # commit.
-    paths: ['mygo.json']
   workflow_dispatch:
     inputs:
       publish:
@@ -41,29 +41,54 @@ env:
   PLATFORM_DIR: build/darwin-universal
 
 jobs:
-  release:
-    name: Build & release
-    runs-on: macos-latest
-    timeout-minutes: 45
+  # Decide on Ubuntu first (seconds, no macOS runner consumed). Only an
+  # unreleased version on main — or a manual dispatch — requests a macOS runner.
+  decide:
+    name: Decide release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
+      tag: ${{ steps.decide.outputs.tag }}
+      tag_exists: ${{ steps.decide.outputs.tag_exists }}
+      release_exists: ${{ steps.decide.outputs.release_exists }}
+      publish: ${{ steps.decide.outputs.publish }}
+      skip: ${{ steps.decide.outputs.skip }}
+      build_ref: ${{ steps.decide.outputs.build_ref }}
     steps:
       - uses: actions/checkout@v7
+        if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
         with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           # Tags are the release ledger, so the whole history has to come along.
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Decide what this push releases
+      - name: Decide what this run releases
         id: decide
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           INPUT_PUBLISH: ${{ github.event.inputs.publish }}
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          CI_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
 
-          # The push trigger only fires for main; a hand-started run can be
-          # pointed at any branch, so it is checked here and fails loudly.
-          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+          if [[ "$EVENT" == "workflow_run" ]]; then
+            if [[ "$CI_CONCLUSION" != "success" ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "### Skipped: CI finished with \`$CI_CONCLUSION\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [[ "$CI_HEAD_BRANCH" != "main" ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "### Skipped: CI ran for \`$CI_HEAD_BRANCH\`, not \`main\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          elif [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            # A hand-started run can be pointed at any branch, so fail loudly.
             echo "::error::releases are cut from main; this run is for $GITHUB_REF"
             exit 1
           fi
@@ -104,12 +129,11 @@ jobs:
             publish=false
           fi
 
-          # A push that changes nothing about the released version (mygo.json
-          # touched, version unchanged) is a no-op. A hand-started run always
-          # rebuilds, which is how a failed build or a release whose assets went
-          # missing gets repaired.
+          # An automatic run whose version is already released is a no-op.
+          # A hand-started run always rebuilds, which is how a failed build
+          # or a release whose assets went missing gets repaired.
           skip=false
-          if [[ "$EVENT" == "push" && "$tag_exists" == true && "$release_exists" == true ]]; then
+          if [[ "$EVENT" != "workflow_dispatch" && "$tag_exists" == true && "$release_exists" == true ]]; then
             skip=true
           fi
 
@@ -118,12 +142,12 @@ jobs:
             build_ref="$(git rev-parse "refs/tags/$tag")"
             # A hand-pushed tag could point anywhere; only commits that are
             # already on main may be released.
-            if ! git merge-base --is-ancestor "$build_ref" "$GITHUB_SHA"; then
+            if ! git merge-base --is-ancestor "$build_ref" "$TARGET_SHA"; then
               echo "::error::$tag points at $build_ref, which is not on main"
               exit 1
             fi
           else
-            build_ref="$GITHUB_SHA"
+            build_ref="$TARGET_SHA"
           fi
 
           {
@@ -140,9 +164,15 @@ jobs:
             {
               echo "### Skipped: $tag is already released"
               echo
-              echo "main is at \`$version\` and \`$tag\` already has a GitHub Release, so this push had nothing to publish."
+              echo "main is at \`$version\` and \`$tag\` already has a GitHub Release, so this run had nothing to publish."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
+          fi
+
+          # Fail fast on Ubuntu if CHANGELOG.md is missing this version's section.
+          if ! awk -v v="## $version" '$0 == v { on = 1; next } on && /^## / { exit } on' CHANGELOG.md | grep -q '[^[:space:]]'; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
           fi
 
           {
@@ -157,24 +187,30 @@ jobs:
             echo "| Publish | \`$publish\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Export the release facts
-        if: steps.decide.outputs.skip != 'true'
-        run: |
-          {
-            echo "VERSION=${{ steps.decide.outputs.version }}"
-            echo "TAG=${{ steps.decide.outputs.tag }}"
-            echo "BUILD_REF=${{ steps.decide.outputs.build_ref }}"
-          } >> "$GITHUB_ENV"
+  release:
+    name: Build & release
+    needs: decide
+    if: needs.decide.outputs.skip != 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.decide.outputs.version }}
+      TAG: ${{ needs.decide.outputs.tag }}
+      BUILD_REF: ${{ needs.decide.outputs.build_ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Tags are the release ledger, so the whole history has to come along.
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: actions/setup-go@v7
-        if: steps.decide.outputs.skip != 'true'
         with:
           go-version-file: go.mod
           cache: true
 
       # MyGo is not vendored; install the version the build uses, as CI does.
       - name: Install the MyGo CLI
-        if: steps.decide.outputs.skip != 'true'
         run: |
           go install "github.com/egoist/mygo/cmd/mygo@${MYGO_VERSION}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -183,7 +219,6 @@ jobs:
       # The tagged commit is rebuilt for repairs, so the version is checked
       # against what that commit claims, not against what main has now.
       - name: Check out the commit being released
-        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           git checkout -q "$BUILD_REF"
@@ -191,12 +226,10 @@ jobs:
           [[ "$got" == "$VERSION" ]] || { echo "::error::the commit being built says $got, not $VERSION"; exit 1; }
 
       - name: Vet and test
-        if: steps.decide.outputs.skip != 'true'
         run: make check
 
       # The 体检 panel shows the commit, so a bug report names the code.
       - name: Stamp the commit into the build
-        if: steps.decide.outputs.skip != 'true'
         run: |
           echo "MYGO_LDFLAGS=-X github.com/mymoles/mole-studio/internal/scanner.BuildCommit=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_ENV"
 
@@ -207,7 +240,6 @@ jobs:
       # the certificate, so it is the same in every version. Not notarized, so
       # Gatekeeper still asks once before the first launch.
       - name: Import the signing certificate
-        if: steps.decide.outputs.skip != 'true'
         env:
           P12_BASE64: ${{ secrets.MACOS_SIGNING_P12 }}
           P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
@@ -240,7 +272,6 @@ jobs:
       # published (it reads them through GH_TOKEN) and update-darwin-universal.json,
       # next to the app and the disk image in $PLATFORM_DIR.
       - name: Build the app, the disk image and the update files
-        if: steps.decide.outputs.skip != 'true'
         env:
           MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
           GH_TOKEN: ${{ github.token }}
@@ -250,7 +281,6 @@ jobs:
           mygo build --platform darwin/universal -sign "orbit Self-Signed"
 
       - name: Verify the artifacts
-        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           app="$PLATFORM_DIR/$BUNDLE"
@@ -327,7 +357,6 @@ jobs:
           [[ ${#archives[@]} -eq 1 ]] || { echo "::error::expected one update archive, found ${#archives[@]}"; exit 1; }
 
       - name: Collect the release assets
-        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           dmg=("$PLATFORM_DIR"/*.dmg)
@@ -350,7 +379,6 @@ jobs:
           done
 
       - name: Write the run summary
-        if: steps.decide.outputs.skip != 'true'
         run: |
           set -euo pipefail
           {
@@ -366,10 +394,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Keep the artifacts on the run
-        if: steps.decide.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: orbit-${{ env.VERSION }}
+          name: orbit-${{ needs.decide.outputs.version }}
           path: ${{ runner.temp }}/release/*
           if-no-files-found: error
           retention-days: 14
@@ -380,7 +407,7 @@ jobs:
       # The tag is the receipt for a build that passed, not an input: it is
       # created here, after verification, and only then does the release exist.
       - name: Tag the verified commit
-        if: steps.decide.outputs.skip != 'true' && steps.decide.outputs.publish == 'true' && steps.decide.outputs.tag_exists == 'false'
+        if: needs.decide.outputs.publish == 'true' && needs.decide.outputs.tag_exists == 'false'
         run: |
           set -euo pipefail
           git tag "$TAG" "$BUILD_REF"
@@ -389,7 +416,7 @@ jobs:
       # gh is on every runner and authenticates with GITHUB_TOKEN, so no
       # third-party action gets to see the token.
       - name: Publish the release
-        if: steps.decide.outputs.skip != 'true' && steps.decide.outputs.publish == 'true'
+        if: needs.decide.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
