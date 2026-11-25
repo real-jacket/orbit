@@ -1,367 +1,235 @@
 <div align="center">
 
-<img src="assets/AppIcon-256.png" width="140" alt="orbit app icon">
+<img src="assets/AppIcon-256.png" width="128" alt="orbit app icon">
 
 # orbit
 
-**A macOS disk cleaner and system monitor.**
+**A fast, safety-first macOS disk cleaner, uninstaller, and system monitor.**
 
-Go · MyGo · WKWebView — no Electron, no bundled runtime.
+Native Go · MyGo · WKWebView — no Electron, no bundled runtime.
 
+**English** · [简体中文](README.zh-CN.md)
+
+[![Release](https://img.shields.io/github/v/release/real-jacket/orbit?display_name=tag&color=d97757)](https://github.com/real-jacket/orbit/releases/latest)
 [![CI](https://github.com/real-jacket/orbit/actions/workflows/ci.yml/badge.svg)](https://github.com/real-jacket/orbit/actions/workflows/ci.yml)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black.svg)](#requirements)
 [![Go 1.27+](https://img.shields.io/badge/Go-1.27%2B-00ADD8.svg)](go.mod)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/orbit)
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/clean-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/clean-light.png">
+  <img src="assets/screenshots/clean-dark.png" width="960" alt="orbit Deep Clean view">
+</picture>
 
 </div>
 
-> The bundle is `orbit.app`; the bundle identifier stays `com.mymoles.mole-studio`, so permissions and data from earlier `MoleStudio` builds carry over.
+---
+
+## Install
+
+Download the latest universal disk image (Apple silicon & Intel) from [GitHub Releases](https://github.com/real-jacket/orbit/releases/latest):
+
+1. Open `orbit-<version>-universal.dmg` and drag **`orbit.app`** into **`/Applications`**.
+2. Releases are signed with a fixed self-signed certificate (`orbit Self-Signed`) so Full Disk Access persists across updates, but are not Apple-notarized. On first launch, right-click `orbit.app` → **Open**, or run:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/orbit.app
+   ```
+3. Future updates are delivered in-app automatically (Ed25519-verified from GitHub Releases).
+
+> **Note:** The app bundle is `orbit.app`, while the bundle identifier remains `com.mymoles.mole-studio` so permissions and settings carry over seamlessly from earlier `MoleStudio` builds.
 
 ---
 
-## What it is
+## What orbit Does
 
-orbit finds what is taking up space on your Mac and helps you clear it safely: caches and logs,
-developer tool leftovers, old versions of AI coding tools, apps and their leftovers, build artifacts,
-installer packages and large files. It also maps disk usage and shows live CPU, memory, network and
-sensor data, in the window and in the menu bar.
+orbit inspects what is taking up disk space on your Mac and helps you reclaim it without guesswork: system and developer caches, old AI coding tool versions, apps and their leftovers, rebuildable build artifacts, installer packages, and large files. It also includes an interactive disk treemap and real-time hardware telemetry in both the main window and a background menu bar popover.
 
-Every item is sorted into **Recommended** (selected by default), **Needs review** or **Protected**, each
-with a stated reason. You preview the exact paths before anything runs, removals go to the Trash with a
-restore manifest instead of being deleted, and settings changes can be undone.
+| Module | What it does |
+| --- | --- |
+| **Deep Clean** | Scans user caches, logs, browser profiles, package managers, Xcode, Gradle/CocoaPods, and macOS user state. Running apps' caches are automatically protected until quit; installer packages appear inline when found. |
+| **AI Cleanup** | Checks Claude Code, Cursor Agent, Copilot CLI, and Claude Desktop releases against launchers, running processes, and open file handles. Keeps the current + spare version; models, sessions, and worktrees stay protected. |
+| **Uninstaller** | Three modes (**Standard**, **Complete**, **Cache only**) with per-path checkboxes, user-level LaunchAgent stop/restore, config reference audit, leftover discovery (with shared-CLI protection such as `~/.docker` when `docker`/OrbStack is installed), and Apple silicon app slimming. |
+| **Optimize** | Checks 19 macOS maintenance tasks before touching anything: 10 runnable tasks with execution receipts and one-click undo where reversible; tasks requiring `sudo` or irreversible deletion are listed transparently and never run. |
+| **Disk Analyzer** | In-process treemap and directory drill-down showing both allocated and logical sizes, hard-link deduplication, current-level search, folded small-item inspection, and a batch Trash queue. |
+| **Live Status** | Real-time CPU, unified memory breakdown, GPU, AppleSMC temperatures and fan speeds, network throughput, disk I/O, battery health, 2-hour keep-awake toggle, and a searchable/pinnable process drawer. |
+| **Build Cleanup** | Finds rebuildable build artifacts (`node_modules`, `target`, `.venv`, etc.) across default or custom project folders (`~/.config/mole/purge_paths`) plus leftover `.dmg`/`.pkg` installers. |
+| **History & Whitelist** | Snapshot-backed Trash restore with live Trash verification, status filters (`All / Restorable / Needs check`), native Finder folder picker for `~/.config/mole/whitelist`, wildcard badges, and one-click cleanup for invalid rules. |
 
-The interface is in Chinese and English (switch in the sidebar), and the app updates itself from
-GitHub Releases.
+---
 
-## Features
+## Interface Gallery
 
-| Module | Backed by | What it does |
-| --- | --- | --- |
-| **Deep Clean** | `internal/scanner` + native Trash | User caches and logs, browser profiles, developer tools, Xcode, Gradle/CocoaPods, app caches and macOS user state; data of a running app is protected until you quit it |
-| **AI Care** | AI catalog + native Trash | Rechecks Claude Code, Cursor Agent, Copilot CLI and Claude Desktop releases against launcher, process and open handles; models/worktrees are inspect-only; personal data stays protected while its tool is installed or running, and becomes Needs review once the tool is gone |
-| **Uninstaller** | App scanner + native Trash | Removes only selected app/cache/configuration paths; supports keeping personal data, stops the app's user-level background services (started again on restore), lists config files that still reference the app, finds leftovers of apps already gone, and slims universal apps to Apple silicon only. Apps installed by the App Store or an installer as root are marked as needing an administrator, with the reason and a Finder reveal, since only Finder can move them |
-| **Optimize** | 19 maintenance tasks | Checks each task first; 10 can run (with receipts, and undo where something changed), the rest say why orbit does not run them (administrator rights, or data that cannot be restored) |
-| **Astrolabe** | `internal/analyze` | Allocated/logical size map with current-layer search, inspectable folded items, file counts, mtimes and memory drill-down |
-| **Live Status** | Kernel + `ps` + hardware sensors | CPU, memory, network and supported sensor data first; the top five processes with CPU and memory side by side, and every process in a drawer with search, pinning, sorting and quit requests |
-| **Purge** | Build/installer scanner + native Trash | Rebuildable build artifacts in the folders you choose (kept in `~/.config/mole/purge_paths`) and leftover installer packages |
-| **History & Whitelist** | Native manifests + whitelist file | Cleanup receipts, path restoration and protected-path management |
+<table>
+  <tr>
+    <td width="64%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/status-dark.png">
+        <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/status-light.png">
+        <img src="assets/screenshots/status-dark.png" alt="Live Status telemetry dashboard">
+      </picture>
+      <p align="center"><sub><b>Live Status</b> — CPU, memory, GPU, SMC temps/fans, disk I/O, network & processes</sub></p>
+    </td>
+    <td width="36%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/menubar-dark.png">
+        <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/menubar-light.png">
+        <img src="assets/screenshots/menubar-dark.png" alt="Menu bar popover">
+      </picture>
+      <p align="center"><sub><b>Menu Bar Mode</b> — Stays resident in the menu bar when closed or quit from the Dock</sub></p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/analyze-dark.png">
+        <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/analyze-light.png">
+        <img src="assets/screenshots/analyze-dark.png" alt="Disk Analyzer treemap">
+      </picture>
+      <p align="center"><sub><b>Disk Analyzer</b> — Interactive treemap with allocated/logical sizes and multi-level drill-down</sub></p>
+    </td>
+  </tr>
+</table>
 
-Beyond the module list:
+### Key Highlights
 
-- **Path & Safety Inspector** — selecting any category reveals the exact subdirectories, their sizes,
-  a rebuild-cost assessment, one-click Finder reveal, and direct whitelist protection.
-- **Proportional volume bars** — every row carries an inline bar relative to total scan size.
-- **Pre-execution diff** — deletions are previewed as a structured sheet (paths, safety tier, Trash
-  recovery checkpoint) before anything runs.
-- **Preview before removal** — the confirmation shows the exact paths and freezes the submitted selection.
-- **Menu bar presence** — scaled CPU/network trends, native memory pressure and memory/storage capacity bars; conditional battery, local process search and CPU/memory column sorting without switching toasts. Update checks sit at the top right and the footer keeps three actions. Clean shows measured safe/review totals with rescan beside its heading, and opens the main cleanup module directly. Memory optimization directly requests macOS administrator authorization for `/usr/sbin/purge`, with progress and receipts inline; it releases file caches and never claims to clear application RAM. The two-hour awake switch remains receipt-backed. The main window also opens this panel directly.
-- **Runtime & permissions** — nothing about permissions is shown while Full Disk Access works. When it is missing, one line explains it and opens a step by step guide (open System Settings, reveal orbit in Finder, live status, relaunch). Full Disk Access is read from the TCC database itself, and App Management from real moves. The app menu's runtime panel identifies the current bundle or temporary executable.
-- **Live local scan** — installed apps, leftover Library paths, and large files are sampled on the Mac and pushed into the UI over the JS bridge.
-- **Three uninstall modes** — Standard, Complete, and Cache-only, with per-path selection before anything moves to the Trash.
-- **Treemap drill-down** — disk tiles open into their child directories.
-- **Live telemetry** — `statfs`, memory, and `/bin/ps` sampled on a 1.5 s timer.
+- **Menu bar background mode** — Closing the main window (`⌘W`) or quitting from the Dock (`⌘Q`) hides the window and Dock icon while keeping orbit running quietly in the menu bar. Click the tray icon to reopen anytime, or choose **Quit** in the popover / `⌘⌥Q` to exit completely.
+- **Actionable System Check** — Summarizes Full Disk Access, thermal state, memory pressure, disk headroom, battery health, and SIP in a top verdict card with abnormal items surfaced first and direct one-click actions (jump to Deep Clean / Disk Analyzer, open macOS Privacy settings, release file cache, or inspect top processes).
+- **Path & Safety Inspector** — Every category expands to individual subpaths with sizes, rebuild-cost notes, one-click Finder reveal, and direct whitelist exclusion.
+- **Bilingual & Dual Theme** — Instant Chinese / English switching and Dark / Light themes in the sidebar; respects reduced motion.
 
-## Requirements
+---
 
-- macOS 13 (Ventura) or later
-- Go 1.27+ (the module declares `go 1.27.3`)
-- The [MyGo](https://github.com/egoist/mygo) CLI is optional: Make targets run the pinned `v0.6.4` through Go when the CLI is not installed. To preinstall it:
+## Safety Model
 
-  ```bash
-  go install github.com/egoist/mygo/cmd/mygo@v0.6.4
-  ```
+orbit moves files on your Mac, so every guardrail is explicit and verified:
 
-## Build and run
+1. **Three-tier classification** — Every discovered item is marked **Recommended** (rebuildable & idle, selected by default), **Needs review** (opt-in with plain reason), or **Protected** (read-only; running apps explain what to quit, active CLI dotdirs stay untouched).
+2. **Frozen preview before execution** — Clicking the primary action opens a confirmation sheet listing exact paths and freezes the submitted selection until execution completes.
+3. **Trash with receipts, never `rm -rf`** — Cleanups move items to macOS Trash and wait for native receipts before updating the UI. History records real paths for restore and verifies live Trash presence; orbit never empties the Trash.
+4. **No silent privilege escalation** — Admin-owned apps open in Finder so macOS handles authorization; `sudo` maintenance tasks are listed transparently and not run. The only admin prompt is the optional **Optimize Memory** (`/usr/sbin/purge`) file-cache release triggered explicitly by you.
+5. **Reversible settings & user whitelist** — Reversible optimize tasks save prior values for one-click undo. Protected paths are stored in `~/.config/mole/whitelist` (compatible with Mole).
+
+---
+
+## Requirements & Building from Source
+
+- **macOS 13 (Ventura)** or later
+- **Go 1.27+** (`go.mod` declares `go 1.27.3`; `GOTOOLCHAIN=auto` downloads it automatically on first build)
+- **Node.js 24+** (development/tests only; zero runtime dependency in the shipped app)
+- **[MyGo](https://github.com/egoist/mygo) CLI** (optional; Make targets run the pinned `v0.6.4` via `go run` if not preinstalled)
 
 ```bash
 git clone https://github.com/real-jacket/orbit.git
 cd orbit
 
-make             # go build -v -o mole-studio .
-make run         # build and launch a stable .app bundle for macOS permission identity
-make run-raw     # temporary go run executable, for bridge debugging only
-make test        # unit test suite
-make test-ui-webkit # isolated WebKit rendering + interaction checks
-make vet         # go vet
-make mole-sync   # list upstream Mole changes to the ported rules
-make check       # vet + test, the same gate CI runs
-make dev         # MyGo dev server with live reload
-make app         # app bundle plus a .dmg, both under build/
-make app-nodmg   # app bundle only
-make doctor      # check the Go / MyGo / packaging toolchain
-make help        # list every target
+make run            # Build and launch a stable orbit.app bundle (recommended for daily dev)
+make dev            # Live-reload dev server (rebuilds on index.html or Go edits)
+make app            # Package orbit.app + .dmg under build/<goos>-<goarch>/
+make app-nodmg      # Package orbit.app only
+make check          # Run go vet, Go unit tests, and Node UI/i18n regression checks
+make test-ui-webkit # Run 587 isolated macOS WebKit layout, theme & interaction checks
+make mole-sync      # Diff ported cleanup rules against upstream tw93/mole
+make doctor         # Verify local Go / MyGo / packaging toolchain
 ```
 
-**Which one should I run?** `make run` for day-to-day work: it builds and opens `build/darwin-arm64/orbit.app` (the architecture follows Go). It gives macOS a named bundle instead of a new `go-build` temporary executable on every launch. If an old `go run` instance is active, stop it with Ctrl-C in its original terminal first; the script will not kill it. `make run-raw` retains the old direct-executable path for narrow bridge debugging, but permissions may belong to its launching terminal. `make dev` additionally gives you a
-live-reload dev server. `make dev` builds a throwaway
-`orbit Dev` bundle under `.mygo/dev/`, runs it, and then watches the tree:
-saving `Resources/src-ui/index.html` (or any Go file) rebuilds and relaunches it in
-about five seconds. `make app-nodmg` then
-`open build/darwin-arm64/orbit.app` is what users get: the same frontend,
-embedded into the binary. See [runtime and permissions](docs/runtime-permissions.md) for authorization and current feature boundaries.
+<details>
+<summary><b>Build notes & sandboxed shells</b></summary>
 
-**The first build downloads a toolchain.** `go.mod` declares `go 1.27.3`. If the
-`go` on your `PATH` is older, `GOTOOLCHAIN=auto` (the default) fetches the Go
-1.27.3 toolchain into the module cache — about 240 MB, one time — and prints
-`go: downloading go1.27.3 (darwin/arm64)` before the module downloads (`mygo`,
-`purego`, `x/text`). That is a download, not a hang; every run after it starts in
-about a second. To keep the toolchain in your version manager instead, install it
-there (`gvm install go1.27.3`).
+- `make run` builds `build/darwin-arm64/orbit.app` so macOS tracks Full Disk Access against a stable bundle instead of ephemeral `go-build` binaries. `make run-raw` is reserved for narrow bridge debugging.
+- The first build may download the `go1.27.3` toolchain (~240 MB once) unless already installed via `gvm` or your Go toolchain cache.
+- In read-only/sandboxed shells, redirect Go caches before building:
+  ```bash
+  export GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
+  export PATH="/tmp/gopath/bin:$PATH"
+  ```
 
-`make app` produces an ad-hoc-signed bundle whose UI is MyGo's embedded copy of
-`Resources/src-ui/`, plus a versioned `.dmg` beside it. Both land in a per-platform
-subdirectory — on Apple silicon `build/darwin-arm64/orbit.app` — because `mygo build`
-always nests its output under `<goos>-<goarch>/`. Drag the bundle to `/Applications` to keep
-it around.
+</details>
 
-**Sandboxed shells.** If the module cache or build cache is not writable, `go build` fails with a
-permission error. Point all three at a scratch directory first:
+---
 
-```bash
-export GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
-export PATH="/tmp/gopath/bin:$PATH"   # where `go install` put the mygo CLI
-```
+## CI & Releases
 
-## Releases
+- **CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))** runs on a single `macos-latest` runner per push/PR: `gofmt`, `go vet`, `mygo generate` freshness check (`mygo.ts`), `go test`, `-race` tests, all Node regression & i18n checks (`test-ui.cjs`, `test-run.cjs`, `test-i18n.cjs`, `test-i18n-go.cjs`), the full 587-scenario `make test-ui-webkit` suite, and `.app` bundle layout/icon verification.
+- **Releases ([`.github/workflows/release.yml`](.github/workflows/release.yml))** are driven automatically from `main` via `workflow_run` **after CI succeeds**:
+  1. Bump the version with `make set-version VERSION=x.y.z` and add a matching `## x.y.z` section in [`CHANGELOG.md`](CHANGELOG.md).
+  2. Once CI passes on `main`, a fast `ubuntu-latest` gate checks whether `v<version>` is already published and validates `CHANGELOG.md`.
+  3. Only unreleased versions acquire a `macos-latest` runner to build the signed universal `.app`, `.dmg`, SHA-256 checksum, Ed25519 update archive/deltas, and `update-darwin-universal.json`, verify everything (`lipo`, `codesign --verify`, mounted `.dmg`, manifest URLs), push the tag, and publish the GitHub Release.
+  4. Manual repairs or dry runs (`publish: false`) are supported via **Actions → Release → Run workflow** from `main`.
 
-Releases are cut from **main**, by [`.github/workflows/release.yml`](.github/workflows/release.yml).
-Merging a version bump is the release gesture — nothing is tagged, built or published by hand:
-
-```bash
-make set-version VERSION=0.2.0   # in the pull request that ships the change
-```
-
-A push to main that changes `mygo.json` asks one question: has that version been released yet? If
-not, the workflow builds that commit, verifies it, creates the tag `v<version>`, and publishes the
-GitHub Release; if it has, the push is a no-op. The tag is therefore a *receipt* for a build that
-passed, never an input: pushing a tag by hand does nothing, which is what keeps a release from
-coming out of an unmerged branch. A failed build leaves no tag behind — fix the code, merge it, then
-run the workflow from main to retry. Versions only move forward — reverting `mygo.json` on main
-fails the run instead of downgrading a published release.
-
-The version in `mygo.json` is what `CFBundleShortVersionString`, the `.dmg` name, the app's own build
-stamp and the release page carry. It is `MAJOR.MINOR.PATCH` and nothing else: macOS stores that
-string verbatim, so a `-rc.1` suffix would ship a bundle that misreports itself, and the workflow
-refuses it. Each release is one universal `.dmg` — Apple silicon and Intel in a single download —
-with the bundle inside:
-
-- `orbit-<version>-universal.dmg` — drag `orbit.app` to `/Applications`
-- `orbit-<version>-universal.dmg.sha256` — `shasum -a 256 -c` it
-- `orbit-<version>-darwin-universal.tar.gz`, `orbit-<old>-to-<version>-darwin-universal.delta` and
-  `update-darwin-universal.json` — the in-app update feed (below); leave them on the release
-
-`CHANGELOG.md` needs a `## <version>` section for every release: the update window and the GitHub
-Release page both show it, and `mygo build` refuses to build a version the changelog does not mention.
-
-Before publishing, the workflow runs `make check` (the same gate CI enforces) and then checks what
-was actually built: both architectures via `lipo`, the bundle identifier, icon, embedded-page marker
-the `codesign --verify` signature and its certificate-pinned designated requirement, every URL in
-the update manifest against the files being uploaded, and it mounts the `.dmg` to confirm the app and the `/Applications`
-symlink are there. The run page carries the SHA-256 in its summary, and the staged assets stay
-attached to the run as an artifact for 14 days.
-
-To rebuild the current main version by hand — a dry run, a retry after a failed build, or a repair
-for a release whose assets are missing — run the workflow (Actions → Release → Run workflow)
-**from main** (a hand-started run from any other branch fails on purpose). It rebuilds the tagged
-commit when a tag exists, so a repair never picks up code merged later, and the current main head
-when it does not, so a failed build can be retried. Turn `publish` off to build and keep the
-artifacts without touching the release. Re-running replaces the existing release's assets instead
-of failing.
-
-**Version bumps.** `mygo.json` is the only place the version is written down: `app.go` reads it back
-from the bundle at runtime (`mygo.App.Version()`) rather than hard-coding it, and the scanner's build
-version falls back to `"dev"` only for plain `go run`. For a local `make app` build, stamp one:
-
-```bash
-make set-version VERSION=0.2.0
-```
-
-**Updates.** `mygo.json`'s `updates` block (Ed25519 `publicKey`, `github: real-jacket/orbit`) turns on
-MyGo's updater plugin: ten seconds after launch and then daily, the app reads
-`releases/latest/download/update-darwin-universal.json`, verifies the signature, and shows a
-Sparkle-style window with the changelog (install, remind later, skip). **orbit → 检查更新…** and the
-menu-bar popover check by hand. The release job signs the feed with the `MYGO_UPDATER_PRIVATE_KEY`
-secret and fails without it. The matching private key also lives outside the repo; losing it means
-installed copies can never update again, so never regenerate it once a release has shipped. Local
-builds carry no key and say that updates are unavailable.
-
-**Signing.** Local builds are ad-hoc signed (`macos.signingIdentity` is `-` in `mygo.json`). Releases
-are signed with one fixed self-signed certificate, `orbit Self-Signed` (made once by
-`scripts/make-signing-cert.sh`, imported in CI from the `MACOS_SIGNING_P12` and
-`MACOS_SIGNING_P12_PASSWORD` secrets). An ad-hoc signature's designated requirement is the build's
-cdhash, so macOS would treat every update as a new app and drop Full Disk Access; the certificate's
-requirement is the same in every version. It is not notarized, so Gatekeeper still asks once before
-the first launch — right-click the app → **Open**, or
-`xattr -dr com.apple.quarantine /Applications/orbit.app`. To ship notarized builds, use a Developer
-ID identity instead, add `macos.notarize.keychainProfile` to `mygo.json`, and import the profile in
-`release.yml`; MyGo then signs, submits the `.dmg` with `notarytool` and staples the ticket.
+---
 
 ## Architecture
 
-The app is a Go program that embeds MyGo, which in turn hosts the same single-file
-`Resources/src-ui/index.html` UI in a `WKWebView`. The Swift implementation this port started from is
-gone from the tree — it was removed in the porting commit and lives on in git history
-(`git show adea952:Sources/MoleStudio/MoleStudioApp.swift`). The right-hand column of the tables below
-says which Swift file each Go file was written from, so the mapping stays useful.
+orbit is a native Go application embedding [MyGo](https://github.com/egoist/mygo), hosting a dependency-free single-file UI (`Resources/src-ui/index.html`) inside macOS `WKWebView`.
 
-| Go package | Responsibility | Ported from |
-| --- | --- | --- |
-| `internal/power` | Thermal (`NSProcessInfo` over purego/objc), memory-pressure and battery snapshot via `sysctl` and `ioreg` (health from the nested `BatteryData` dictionary, temperature from SMC) | `Sources/MoleStudio/PowerStatus.swift` |
-| `internal/smc` | Reads AppleSMC over IOKit: CPU temperature and fan speeds, with the byte-order handling both Intel and Apple silicon need | — (new; the Swift build had no SMC reader) |
-| `internal/telemetry` | Network throughput from the routing `sysctl`, disk I/O and GPU utilisation from the IORegistry, sampled on independent cache intervals | — (new; the Swift build showed fixed placeholder numbers) |
-| `internal/scanner` | The local scan: installed apps, orphaned leftovers, large files, installer packages, clean catalogs, AI Care bands, the home treemap, the process table | `Engine/RealMacSystemScanner.swift`, `Engine/CatalogScanning.swift`, `Engine/OrphanScanning.swift`, `Engine/OrphanSignatures.swift` |
-| `internal/analyze` | Walks a directory tree in-process (allocated + logical sizes, hard-link dedupe, progress, cancellation) and shapes it into treemap tiles; errors and cancellation return directly | `Engine/MoleAnalyzeBridge.swift`, `Engine/MoleCLIRunner.swift` |
-| `internal/trayicon` | Draws the 18pt menu-bar template image from an analytic description instead of AppKit | `MoleStudioApp.swift` (`configureStatusItem`) |
+<details>
+<summary><b>Package & file layout, bridge actions, and deep-dive docs</b></summary>
 
-The app shell itself is a handful of files in `package main` at the repository root, because that is
-where MyGo wants the entry point:
+### Root shell (`package main`)
 
-| File | Responsibility | Ported from |
-| --- | --- | --- |
-| `main.go` | `func main() { run() }` — nothing else | `@main enum MoleStudioMain` |
-| `app.go` | `run`/`buildUI`: `mygo.NewWindow`, the tray, the popover flyout, the application menu, the 1.5 s telemetry ticker, and `OnActivate`/`OnClose` handling | `MoleStudioApp.swift` (`AppDelegate`, `UILocator`) |
-| `bridge.go` | `NativeBridge.Dispatch`: one switch over `payload["action"]` that reproduces the Swift `WKScriptMessageHandler` branch for branch | `MoleStudioApp.swift` (`NativeBridgeController`) |
-| `preload.go` | The `PreloadScript` injected before the page's own scripts: the `isNativeMacApp`/`isMenuBarPopover` flags, and the drag-region CSS | `MoleStudioApp.swift` (WKWebView configuration) |
-| `push.go` | Go → page: serialises payloads and calls the page's `window.onNative*` globals in every open window | `MoleStudioApp.swift` (`evaluateJavaScript` call sites) |
-| `theme.go` | `mygo.Theme` plus a `preferences.json` in the user data directory, replacing `UserDefaults` | `MoleStudioApp.swift` (`applyTheme`) |
+| File | Responsibility |
+| --- | --- |
+| `main.go` | Entry point (`func main() { run() }`) |
+| `app.go` | Main window, menu bar tray & popover, application menu, 1.5 s telemetry loop, Dock/background lifecycle |
+| `bridge.go` | `NativeBridge.Dispatch` switch handling every frontend → Go action |
+| `push.go` | Go → frontend event pushes (`window.onNative*`) across active windows |
+| `preload.go` | Preload script (`isNativeMacApp`, `isMenuBarPopover`, window drag CSS) |
+| `runtime.go` | Runtime identity, TCC Full Disk Access checks, and relaunch helpers |
+| `theme.go` | Theme application & persistence (`preferences.json`) |
+| `lang.go` | Language detection & persistence (`zh` / `en`) |
 
-Five documents go deeper: [`docs/go-port.md`](docs/go-port.md) is the porting record — file-by-file
-mapping, the decisions behind it, and the known gaps against the Swift build — while
-[`docs/mygo-migration.md`](docs/mygo-migration.md) is the framework analysis that justified the move,
-[`docs/business-logic-review.md`](docs/business-logic-review.md) is the review that followed the port:
-what was fabricated, what only pretended to work (清理回执、还原、白名单、体检、退出), and how each was
-replaced with a real implementation, and
-[`docs/disk-analyzer.md`](docs/disk-analyzer.md) explains why the disk analyzer stopped shelling out to
-`mo analyze` and how the in-process scanner counts bytes, reports progress and cancels, and
-[`docs/ui-refinement.md`](docs/ui-refinement.md) records the interface pass: which decorative layers
-were removed, what replaced them, and what was deliberately left alone. The design rules themselves live
-in [`DESIGN.md`](DESIGN.md), the product rules in [`PRODUCT.md`](PRODUCT.md).
+### Internal packages
 
-The port itself did not touch the frontend's visual design; the layout is still the original page. What
-did change in `Resources/src-ui/index.html` is the part that talked to the native side: the page
-posts straight to `NativeBridge.Dispatch` through `window.mygo.call` (`nativePost` in `index.html`), and the page now waits for a receipt
-before it claims anything was deleted or restored. Actions the page sends: `revealInFinder`, `copyText`,
-`killProcess`, `trashRealPaths`, `restoreTrashSnapshot`, `addWhitelist`/
-`removeWhitelist`, `addPurgeRoot`/`removePurgeRoot`, `runDoctorReCheck`, `requestRealSystemScan`,
-`measurePathFully`, `requestDiskAnalyze`, `requestRealTelemetry`, `cancelDiskAnalyze`,
-`requestOptimizePlan`, `executeOptimize`, `undoOptimize`, `scanSlim`, `slimApps`, `toggleCaffeinate`,
-`startWindowDrag`, `toggleWindowZoom`, `setTheme`, `setLanguage`, `checkForUpdates`, the `menubar*` family.
-Callbacks: `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`,
-`onNativeTrashResult`, `onNativeRestoreResult`, `onNativeWhitelistChanged`, `onNativePurgeRootsChanged`,
-`onNativeOptimizePlan`, `onNativeOptimizeResult`, `onNativeOptimizeUndo`, `onNativeSlimScan`,
-`onNativeSlimResult`, `onNativeCaffeinate`, `onNativeDoctorReport`, `onNativeAnalyzeProgress`,
-`switchModule`, `openConfirmSheet`. Only `setFanMode` still falls through to
-`default`: it needs SMC access, which the port deliberately does not do (see
-[`docs/business-logic-review.md`](docs/business-logic-review.md) §4).
+| Package | Responsibility |
+| --- | --- |
+| `internal/scanner` | Local scans: clean catalogs, AI Care, installed apps, orphan leftovers, build artifacts, installers, optimize tasks, app slimming, Trash/restore manifests, whitelist, doctor checks |
+| `internal/analyze` | In-process directory walker (allocated & logical sizes, hard-link dedupe, streaming progress, cancellation) |
+| `internal/power` | Thermal state (`NSProcessInfo` over purego), memory pressure, battery health/cycles/power source via `sysctl` & `ioreg` |
+| `internal/smc` | Direct AppleSMC reads over IOKit for CPU temperature and fan RPM (Apple silicon & Intel) |
+| `internal/telemetry` | Kernel network throughput, disk I/O, and GPU utilization |
+| `internal/trayicon` | Procedural 18pt template icon for the macOS menu bar |
 
-## App icon
+### Bridge surface
 
-The icon is **rendered from code**, not checked in as an opaque bitmap. `scripts/generate-app-icon.swift`
-draws the v10 brand mark with CoreGraphics and emits every size `iconutil` needs. The Go build never runs
-it — the rendered outputs are committed under `assets/` — so it is only needed when you change the mark.
-Call it directly; there is no Makefile target for it:
+- **Actions (`bridge.go`)**: `startWindowDrag`, `toggleWindowZoom`, `revealInFinder`, `copyText`, `trashRealPaths`, `scanSlim`, `slimApps`, `restoreTrashSnapshot`, `addWhitelist`, `removeWhitelist`, `pickWhitelistFolder`, `cleanWhitelistWarnings`, `checkHistoryManifest`, `addPurgeRoot`, `removePurgeRoot`, `killProcess`, `measurePathFully`, `requestRealSystemScan`, `requestDiskAnalyze`, `cancelDiskAnalyze`, `requestRealTelemetry`, `requestRuntimeStatus`, `relaunchApp`, `requestOptimizePlan`, `executeOptimize`, `undoOptimize`, `releaseFileCache`, `toggleCaffeinate`, `checkForUpdates`, `setTheme`, `setLanguage`, `openPrivacySettings`, `revealAppBundle`, `runDoctorReCheck`, and the `menubar*` actions (`menubarShowTools`, `menubarOpenClean`, `menubarOpenMemory`, `menubarOpenStatus`, `menubarOpenAnalyze`, `menubarOpenDoctor`, `menubarShowMain`, `menubarQuit`).
+- **Callbacks (`push.go`)**: `onNativeRealScanStarted`, `onNativeRealScanComplete`, `onNativeRealTelemetry`, `onNativeDiskAnalyze`, `onNativeAnalyzeProgress`, `onNativeTrashResult`, `onNativeRestoreResult`, `onNativeMeasureResult`, `onNativeWhitelistChanged`, `onNativePurgeRootsChanged`, `onNativeOptimizePlan`, `onNativeOptimizeResult`, `onNativeOptimizeUndo`, `onNativeSlimScan`, `onNativeSlimResult`, `onNativeCaffeinate`, `onNativeDoctorReport`, `onNativeTheme`, `onNativeLanguage`.
+
+### Deep-dive documentation
+
+- [`DESIGN.md`](DESIGN.md) & [`PRODUCT.md`](PRODUCT.md) — Visual design system and product principles
+- [`CHANGELOG.md`](CHANGELOG.md) — Release history
+- [`docs/go-port.md`](docs/go-port.md) & [`docs/mygo-migration.md`](docs/mygo-migration.md) — Native Go / MyGo port architecture
+- [`docs/business-logic-review.md`](docs/business-logic-review.md) — End-to-end receipt & safety audit
+- [`docs/disk-analyzer.md`](docs/disk-analyzer.md) — In-process disk analyzer design
+- [`docs/runtime-permissions.md`](docs/runtime-permissions.md) — macOS Full Disk Access & permission boundaries
+- [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) — Rule-by-rule comparison with upstream Mole
+- [`docs/optimization-validation.md`](docs/optimization-validation.md) — Automated WebKit validation harness
+
+### App icon generation
+
+The icon is rendered procedurally via CoreGraphics (`scripts/generate-app-icon.swift`) with committed outputs under `assets/`:
 
 ```bash
 swift scripts/generate-app-icon.swift icns   assets/AppIcon.icns
 swift scripts/generate-app-icon.swift single assets/AppIcon-256.png 256
-swift scripts/generate-app-icon.swift sheet  /tmp/icon-preview.png
 ```
 
-MyGo reads a PNG, not an `.icns`: `mygo.json` points at `assets/icon.png` (a copy of the 256 px mark) and
-MyGo renders `Contents/Resources/AppIcon.icns` from it while packaging. That PNG is the **bundle** icon
-only — the menu bar mark is drawn at runtime by `internal/trayicon`, so the two are independent. Do not
-list an icon or an `.icns` again under `resources`: MyGo reserves those bundle names and rejects the
-build.
+</details>
 
-The mark matches the sidebar brand SVG: a `#27272a → #09090b → #7c2d12` squircle plate, a terracotta
-planet lit from the upper left (`#fff7ed → #fdba74 → #ea580c → #7c2d12`), a ring split so the far half
-passes behind the planet and the near half crosses in front, and an ice-blue companion (`#38bdf8`).
+---
 
-Three details worth knowing if you edit the renderer:
+## Relationship to Upstream
 
-- **Small sizes keep the same mark, with thicker strokes.** At 16–32px the planet, ring, and companion
-  are enlarged so the silhouette still reads in the Dock.
-- **The output is dithered.** An 8-bit gradient across a large dark surface bands visibly; a ±2 noise
-  layer removes the steps and is invisible at 100%.
-- **The background is a superellipse, not a rounded rectangle.** Apple's icon grid uses a continuous
-  corner curve, so the body is drawn as an n=5 squircle inset 100px in a 1024px canvas (the standard
-  824×824 body).
+orbit is an independent project and is **not** affiliated with or endorsed by [tw93/mole](https://github.com/tw93/mole).
 
-## Project status
+Portions of its cleanup catalogs were originally ported from Mole `V1.70.0` (shell → Go) and synced through `V1.72.0` where applicable. Each ported rule carries an upstream marker comment so `make mole-sync` can track upstream changes. In keeping with upstream's license, orbit is licensed under **GPL-3.0**.
 
-orbit is young (0.3.x); the Go port is complete. Being explicit about what is and is not wired up:
+## Contributing & License
 
-- **The UI in `Resources/src-ui/index.html` is the shipping UI**, maintained as one dependency-free HTML file. In a
-  `mygo build` and `make run` bundle it; `make run-raw` and `mygo dev` use a development source path.
-- **The samplers are real and tested.** `internal/scanner` walks the disk for apps, leftovers, large
-  files, installers and clean catalogs; `internal/power` reads thermal state, memory pressure and
-  the battery from `sysctl`/`ioreg`; `internal/telemetry` reads network, disk I/O and GPU rates from
-  the kernel and `internal/smc` reads temperatures and fan speeds; `internal/analyze` walks the disk
-  itself; failures and cancellation do not start a second CLI scan.
-  `go test ./...` covers the numeric and payload-shape behaviour of all three.
-- **The bridge is implemented, not stubbed.** `NativeBridge.Dispatch` handles Finder reveal, clipboard,
-  process termination, native Trash/restore, whitelist and purge folder updates, diagnostics,
-  caffeinate, theme and language persistence, optimize tasks, app slimming and window/menu-bar actions.
-  Trash, restore, diagnosis, optimize and slimming use native receipts. Fan control remains unsupported.
-- **CI builds the Go app.** `.github/workflows/ci.yml` runs `go vet` / `go test` / `go build`, installs the
-  pinned `mygo` CLI, packages with `mygo build --skip-dmg`, and then asserts the bundle is real — the
-  Mach-O executable, a valid `Info.plist`, `Contents/Resources/AppIcon.icns` that unpacks with
-  `iconutil`, and the embedded frontend marker in the binary. A second job gates `gofmt`, `go vet`, and a
-  clean `mygo generate` (so `mygo.ts` can never be stale in a PR).
-- **AI cleanup is bounded.** orbit scans a local catalog and submits only verified old version paths
-  through native Trash. It keeps the current and one spare version and anything a process still has open; extensions, models, sessions and worktrees are retained.
-- **Ported rules can follow upstream.** `make mole-sync` diffs every marked Mole function between the
-  version it was ported from and the latest Mole release. See
-  [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md) for the command by command comparison.
-- **Space analysis follows mature explorer patterns without a second rendering stack.** DaisyDisk's
-  inspectable "smaller objects", SpaceSniffer's current-scope filtering and GrandPerspective's
-  treemap navigation informed the bounded folded-item sample and small-window map-first layout.
-- **Missing sensors remain missing.** CPU temperature comes from SMC when available, not from CPU load.
-- **Frontend regressions run in CI.** `node scripts/test-ui.cjs` checks selected paths, immutable confirmation,
-  mode boundaries, request receipts and primary-button contrast in both themes. Node is development-only;
-  the shipped UI still has no third-party runtime.
-- **Rendered UI checks are repeatable.** `make test-ui-webkit` verifies the actual page in an isolated
-  macOS WebKit view across both themes and minimum-window layouts; screenshots and source-hashed reports
-  stay under `.review/webkit/`. See [`docs/optimization-validation.md`](docs/optimization-validation.md).
-- **Restricted reads are visible.** Directory reads waiting for macOS authorization are bounded and
-  coalesced, with their paths reported as not counted, rather than as zero-byte empty directories.
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Safety model
-
-The app deletes files, so the guardrails are the point:
-
-- Every item has a tier. **Recommended** items are rebuildable and not in use, and are selected by
-  default. **Needs review** and **Protected** items carry a plain reason; protected ones cannot be
-  selected, and when the reason is a running app they say what to quit.
-- Every destructive action is previewed before execution, with the exact paths frozen at confirmation.
-- Cleanup moves items to the Trash, and the page waits for a native receipt before it reports success.
-  History can put them back. orbit never empties the Trash.
-- orbit never asks for administrator rights to remove or change anything. Optimize tasks that need `sudo` are
-  listed with that reason and not run; tasks that would destroy data the Trash cannot hold are not run
-  either. Apps owned by root are left to Finder, which asks for the password itself. The only
-  administrator prompt is the optional file-cache release, requested when you click Optimize Memory in
-  the menu bar; macOS provides the authorization dialog.
-- Settings changes (optimize) record the previous value, so they can be undone.
-- Protected paths you add are kept in `~/.config/mole/whitelist`.
-
-## Relationship to upstream
-
-orbit is an independent project. It is **not** affiliated with or endorsed by
-[tw93/mole](https://github.com/tw93/mole).
-
-Parts of its cleanup rules were originally ported from Mole V1.70.0 (shell → Go), with applicable
-rules and cache targets synced through V1.72.0. Upstream `mo` is licensed
-GPL-3.0, and orbit is licensed GPL-3.0 to match. Each ported rule carries a comment such as
-`// Ported from tw93/Mole V1.70.0 lib/clean/user.sh clean_browsers`; `make mole-sync` reads those
-markers and prints what changed upstream in exactly those functions since, so the rules can follow new
-Mole releases. See [`docs/mole-cli-parity.md`](docs/mole-cli-parity.md).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports and feature requests have templates under
-`.github/ISSUE_TEMPLATE/`.
-
-## License
-
-[GPL-3.0](LICENSE). Copyright (C) 2026 real-jacket.
+Licensed under [GPL-3.0](LICENSE). Copyright (C) 2026 real-jacket.
