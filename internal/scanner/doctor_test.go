@@ -286,4 +286,22 @@ func TestBuildCheckReportsTheRunningBuild(t *testing.T) {
 	if got := DescribeExecutable(); got == "" {
 		t.Fatal("executable timestamp is empty on this platform")
 	}
+	if row["id"] != "build" || row["kind"] != "info" {
+		t.Fatalf("build row should mark id=build, kind=info; got %v", row)
+	}
+}
+
+func TestDiskFreeCheckNeverContradictsThresholdByRounding(t *testing.T) {
+	// 79.4 / 994.7 = 7.982% -> rounds to 8.0%, which must not be printed as "8.0%，低于 8%".
+	row := diskFreeCheck(79.4, 994.7)
+	detail, _ := row["detail"].(string)
+	if row["passed"] != false || row["id"] != "disk" {
+		t.Fatalf("diskFreeCheck(79.4, 994.7) = %+v", row)
+	}
+	if strings.Contains(detail, "8.0%") {
+		t.Fatalf("detail %q must not round 7.98%% up to 8.0%% next to 低于 8%%", detail)
+	}
+	if !strings.Contains(detail, "7.9%") {
+		t.Fatalf("detail %q should floor boundary ratio to 7.9%%", detail)
+	}
 }

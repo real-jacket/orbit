@@ -1250,4 +1250,18 @@ I18N.add({
   "尝试清空搜索关键词查看全部候选目录。": "Clear the search query to view all candidate folders.",
   "未找到匹配的应用": "No matching applications",
   "尝试清空搜索关键词查看全部已安装应用。": "Clear the search query to view all installed apps.",
+  // ---- Doctor modal & background tray ----
+  "彻底退出 orbit；关闭主窗口或从 Dock 退出会继续在菜单栏运行": "Quit orbit completely; closing the window or quitting from the Dock keeps it running in the menu bar",
+  "去深度清理": "Open Deep Clean",
+  "去系统设置授权": "Open System Settings",
+  "查看进程": "View Processes",
+  "查看高耗进程": "View Heavy Processes",
+  "发现 {n} 项需要关注": "{n} {n|item needs|items need} attention",
+  "全部 {n} 项体检通过": "All {n} checks passed",
+  "{ok} 项通过 · {u} 项无法判断": "{ok} passed · {u} unavailable",
+  "{ok} 项正常，点击下方异常项可直接处理。": "{ok} normal; use the actions below to address flagged items.",
+  "仅展示本机可核验的真实指标，不编造结论。": "Only verified local readings are shown; nothing is fabricated.",
+  "磁盘、权限与系统负载状态均正常。": "Disk space, permissions and system load are all healthy.",
+  "需处理": "Action needed",
+  "版本信息": "Build info",
 });

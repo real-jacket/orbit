@@ -48,10 +48,41 @@ func buildVersion() string {
 	return "dev"
 }
 
-// quitting is set while a quit is in progress. The window's close handler
-// normally hides the window instead of closing it, and without this flag that
-// hid the window out from under App.Quit, so 退出 never quit.
-var quitting atomic.Bool
+// quitting is set while a real quit is in progress.
+// allowQuit is set only for explicit full-quit actions (menu-bar "退出 orbit",
+// app-menu "完全退出", or relaunchApp). Closing the window or choosing Quit
+// from the Dock hides the window and Dock icon so orbit keeps running in the
+// macOS menu bar instead of terminating.
+var (
+	quitting    atomic.Bool
+	allowQuit   atomic.Bool
+	dockVisible atomic.Bool
+)
+
+// enterMenuBarBackground hides the main window and removes the Dock icon so
+// orbit stays alive as a lightweight menu-bar utility.
+func enterMenuBarBackground() {
+	if w := activeMainWindow(); w != nil {
+		w.Hide()
+	}
+	dockVisible.Store(false)
+	mygo.App.Dock.Hide()
+}
+
+// restoreFromBackground brings the Dock icon back before showing the main window.
+func restoreFromBackground() {
+	if !dockVisible.Swap(true) {
+		mygo.App.Dock.Show()
+	}
+}
+
+// quitAppCompletely performs a real process exit (used by the menu-bar Quit
+// button, full-quit menu item, and relaunchApp).
+func quitAppCompletely() {
+	allowQuit.Store(true)
+	quitting.Store(true)
+	mygo.App.Quit()
+}
 
 // run wires the app up and starts its event loop.
 func run() {
@@ -99,12 +130,21 @@ func run() {
 		if hasVisibleWindows {
 			return
 		}
-		if w := activeMainWindow(); w != nil {
-			w.Show()
-		}
+		showMainWindow("")
 	})
 
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { quitting.Store(true) })
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		// When the user quits from the Dock (or presses ⌘Q while the Dock icon
+		// is shown), keep orbit running in the top menu bar instead of exiting.
+		// Explicit menu-bar Quit, relaunch, or OS shutdown while already hidden
+		// in the menu bar proceeds with a real exit.
+		if !allowQuit.Load() && dockVisible.Load() {
+			e.PreventDefault()
+			enterMenuBarBackground()
+			return
+		}
+		quitting.Store(true)
+	})
 
 	mygo.App.WhenReady(buildUI)
 	if err := mygo.App.Run(); err != nil {
@@ -137,15 +177,14 @@ func buildUI() {
 		},
 	})
 
-	// Closing the window leaves it alive so the menu-bar item can bring it
-	// back; destroying it would take the page's state with it, and the Swift
-	// app kept it alive for exactly that reason.
+	// Closing the window hides it and the Dock icon so orbit keeps running
+	// silently in the menu bar; the menu-bar item can bring it back anytime.
 	mainWindow.OnClose(func(e *mygo.CloseEvent) {
 		if quitting.Load() {
 			return
 		}
 		e.PreventDefault()
-		mainWindow.Hide()
+		enterMenuBarBackground()
 	})
 
 	// The page asks for a scan and for telemetry as soon as it loads, and the
@@ -162,6 +201,7 @@ func buildUI() {
 
 	mygo.App.SetMenu(buildApplicationMenu())
 
+	dockVisible.Store(true)
 	mainWindow.Show()
 	mygo.App.Focus()
 
@@ -308,7 +348,8 @@ func buildApplicationMenu() *mygo.Menu {
 				{Role: mygo.RoleHideOthers, Label: L("隐藏其他", "Hide others")},
 				{Role: mygo.RoleUnhide, Label: L("全部显示", "Show all")},
 				mygo.Separator(),
-				{Role: mygo.RoleQuit, Label: L("退出 ", "Quit ") + appName},
+				{Role: mygo.RoleQuit, Label: L("隐藏到菜单栏", "Keep in Menu Bar")},
+				{Label: L("完全退出 ", "Quit Completely ") + appName, Accelerator: "Command+Option+Q", Click: func(*mygo.MenuItem, *mygo.Window) { quitAppCompletely() }},
 			},
 		},
 		{

@@ -549,6 +549,8 @@
   }
   .badge-safe { background: var(--accent-emerald-soft); color: var(--accent-emerald); }
   .badge-review { background: var(--accent-amber-soft); color: var(--accent-amber); }
+  .badge-danger { background: var(--accent-rose-soft); color: var(--accent-rose); }
+  .badge-info { background: var(--bg-card); color: var(--text-secondary); }
   .badge-protected { background: rgba(155, 110, 243, 0.14); color: var(--accent-purple); }
 
   .size-cell { font-family: var(--font-mono); font-size: 12px; font-weight: 700; min-width: 62px; text-align: right; white-space: nowrap; }
@@ -1105,12 +1107,55 @@
   }
   #cmdPaletteList .list-row:hover:not(.selected) { background: var(--bg-card-hover); border-color: var(--border-subtle); }
   #cmdPaletteList .list-row.selected { background: var(--bg-card-selected); border-color: var(--border-selected); box-shadow: none; }
-  #doctorListContainer { padding: 8px 12px !important; display: flex; flex-direction: column; gap: 6px; }
-  #doctorListContainer .list-row {
-    flex: none;
-    border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--bg-surface);
-    padding: 9px 14px !important; cursor: default;
+  #doctorListContainer { padding: 10px 14px 12px !important; display: flex; flex-direction: column; gap: 7px; }
+  .doctor-summary {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border-subtle);
+    background: var(--bg-card); box-shadow: var(--highlight-top);
   }
+  .doctor-summary[data-state="warn"] {
+    border-color: color-mix(in srgb, var(--accent-rose) 32%, transparent);
+    background: color-mix(in srgb, var(--accent-rose) 6%, var(--bg-card));
+  }
+  .doctor-summary[data-state="ok"] {
+    border-color: color-mix(in srgb, var(--accent-emerald) 28%, transparent);
+    background: color-mix(in srgb, var(--accent-emerald) 5%, var(--bg-card));
+  }
+  .doctor-summary-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .doctor-summary-title { font-size: 13px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+  .doctor-summary-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+  .doctor-summary-score {
+    flex: none; font: 700 13px/1 var(--font-mono); padding: 6px 10px; border-radius: 999px;
+    border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .doctor-summary-score small { font-size: 10px; font-weight: 500; color: var(--text-muted); margin-left: 2px; }
+  #doctorListContainer .list-row {
+    flex: none; align-items: flex-start; gap: 10px;
+    border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--bg-surface);
+    padding: 10px 14px !important; cursor: default;
+  }
+  #doctorListContainer .list-row[data-state="fail"] {
+    border-color: color-mix(in srgb, var(--accent-rose) 34%, transparent);
+    background: color-mix(in srgb, var(--accent-rose) 5%, var(--bg-surface));
+  }
+  #doctorListContainer .doctor-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  #doctorListContainer .doctor-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #doctorListContainer .doctor-row-title { font-size: 12.5px; font-weight: 700; color: var(--text-primary); }
+  #doctorListContainer .doctor-row-detail {
+    font: 11.5px/1.45 var(--font-sans); color: var(--text-secondary);
+    white-space: normal; overflow-wrap: anywhere;
+  }
+  #doctorListContainer .doctor-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+  .doctor-act-btn { height: 26px !important; padding: 0 10px !important; font-size: 11px !important; border-radius: 6px !important; }
+  .doctor-build-meta {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 12px; border-radius: 8px; border: 1px dashed var(--border-subtle);
+    font: 10.5px/1.4 var(--font-mono); color: var(--text-muted); overflow-wrap: anywhere;
+  }
+  body.menubar-mode #doctorListContainer { padding: 8px 10px 10px !important; gap: 6px; }
+  body.menubar-mode #doctorListContainer .list-row { padding: 9px 11px !important; }
+  body.menubar-mode .doctor-summary { padding: 9px 11px; }
   .pref-btn:active, .seg-tab:active, .tray-tool:active { transform: translateY(0.5px); }
   [role="button"], [role="tab"], th[tabindex] { cursor: pointer; }
 
@@ -1734,7 +1779,8 @@
   body.menubar-mode #confirmModalItemsList { flex: 1; min-height: 0; }
   body.menubar-mode #confirmModal .modal-foot { flex: none; flex-direction: column; align-items: stretch; padding: 12px; gap: 10px; }
   body.menubar-mode #confirmModal .modal-foot-actions { width: 100%; justify-content: flex-end; }
-  body.menubar-mode #doctorModal .modal-sheet > div:last-child { flex: none; gap: 8px; flex-wrap: wrap; padding: 12px !important; }
+  body.menubar-mode #doctorModal .modal-sheet > div:last-child { flex: none; gap: 10px; flex-wrap: nowrap; padding: 10px 12px !important; }
+  body.menubar-mode #doctorFooterSummary { flex: 1; line-height: 1.35; }
   .confirm-entry { padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
   .confirm-entry:last-child { border-bottom: 0; }
   .confirm-entry-head { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
@@ -3641,7 +3687,7 @@ function buildMenuBarTrayHTML() {
     </div>
     ${memoryOperation.status ? `<p class="tray-list-note tray-memory-status" data-tray-key="memory-status" role="status">${escHtml(t(memoryOperation.status))}</p>` : ''}
     <button class="tray-tool tray-quick" data-tray-key="clean-open" onclick="openQuickClean()">${UI_ICON('disk')} ${t('清理缓存')}</button>
-    <div class="tray-footer"><button class="tray-text-button" data-tray-key="main" onclick="sendNativeBridge({action:'menubarShowMain'})">${t('打开主窗口')}</button><button class="tray-text-button" data-tray-key="doctor" onclick="openDoctorModal(false)">${t('系统体检')}</button><button class="tray-text-button tray-quit" data-tray-key="quit" onclick="sendNativeBridge({action:'menubarQuit'})">${t('退出 orbit')}</button></div>
+    <div class="tray-footer"><button class="tray-text-button" data-tray-key="main" onclick="sendNativeBridge({action:'menubarShowMain'})">${t('打开主窗口')}</button><button class="tray-text-button" data-tray-key="doctor" onclick="openDoctorModal(false)">${t('系统体检')}</button><button class="tray-text-button tray-quit" data-tray-key="quit" title="${t('彻底退出 orbit；关闭主窗口或从 Dock 退出会继续在菜单栏运行')}" onclick="sendNativeBridge({action:'menubarQuit'})">${t('退出 orbit')}</button></div>
   `;
 }
 
@@ -7779,37 +7825,114 @@ window.executeConfirmedClean = function() {
   });
 };
 
-// Mole Doctor Modal with Step-by-Step Live Re-Diagnosis (重新体检 / 复诊)
+// Mole Doctor Modal with Actionable Health Summary & Quick Fixes
+function doctorQuickAction(kind) {
+  closeDoctorModal();
+  const inTray = document.body.classList.contains('menubar-mode');
+  if (kind === 'privacy_fda') {
+    sendNativeBridge({ action: 'openPrivacySettings', pane: 'fullDiskAccess' });
+  } else if (kind === 'memory') {
+    releaseFileCache();
+  } else if (kind === 'clean') {
+    if (inTray) sendNativeBridge({ action: 'menubarOpenClean' });
+    else switchModule('clean');
+  } else if (kind === 'analyze') {
+    if (inTray) sendNativeBridge({ action: 'menubarOpenAnalyze' });
+    else switchModule('analyze');
+  } else if (kind === 'status') {
+    if (inTray) sendNativeBridge({ action: 'menubarOpenStatus' });
+    else switchModule('status');
+  }
+}
+
+function doctorRowActionHTML(c) {
+  if (!c || c.passed !== false) return '';
+  const id = String(c.id || '');
+  const title = String(c.title || '');
+  if (id === 'disk' || title.includes('磁盘')) {
+    return `<div class="doctor-row-actions"><button type="button" class="btn btn-primary doctor-act-btn" onclick="doctorQuickAction('clean')">${t('去深度清理')}</button><button type="button" class="btn doctor-act-btn" onclick="doctorQuickAction('analyze')">${t('空间分析')}</button></div>`;
+  }
+  if (id === 'fda' || id === 'permission' || title.includes('完全磁盘访问') || title.includes('权限')) {
+    return `<div class="doctor-row-actions"><button type="button" class="btn btn-primary doctor-act-btn" onclick="doctorQuickAction('privacy_fda')">${t('去系统设置授权')}</button></div>`;
+  }
+  if (id === 'memory' || title.includes('内存压力')) {
+    return `<div class="doctor-row-actions"><button type="button" class="btn btn-primary doctor-act-btn" onclick="doctorQuickAction('memory')">${t('优化内存')}</button><button type="button" class="btn doctor-act-btn" onclick="doctorQuickAction('status')">${t('查看进程')}</button></div>`;
+  }
+  if (id === 'thermal' || title.includes('热压力')) {
+    return `<div class="doctor-row-actions"><button type="button" class="btn btn-primary doctor-act-btn" onclick="doctorQuickAction('status')">${t('查看高耗进程')}</button></div>`;
+  }
+  return '';
+}
+
 function renderDoctorChecksList(activeIdx) {
   const box = document.getElementById('doctorListContainer');
   const list = Array.isArray(STATE.doctorChecks) ? STATE.doctorChecks : [];
   if (!list.length) {
-    box.innerHTML = `<div class="list-row" style="padding:10px 18px;"><span class="row-sub" style="font-family:var(--font-sans);">${t('Go 侧当前未提供体检项数据（本机不提供）。没有数据就不显示任何“全部通过/正常”结论。')}</span></div>`;
+    box.innerHTML = `<div class="list-row"><span class="doctor-row-detail">${t('Go 侧当前未提供体检项数据（本机不提供）。没有数据就不显示任何“全部通过/正常”结论。')}</span></div>`;
     return;
   }
-  box.innerHTML = list.map((c, idx) => {
+  const isBuildRow = c => c && (c.kind === 'info' || c.id === 'build' || c.title === '应用构建');
+  const buildItem = list.find(isBuildRow) || null;
+  const checks = list.filter(c => !isBuildRow(c));
+  const failCount = checks.filter(c => c.passed === false).length;
+  const passCount = checks.filter(c => c.passed === true).length;
+  const unknownCount = checks.length - failCount - passCount;
+  const summaryState = failCount > 0 ? 'warn' : (passCount > 0 && unknownCount === 0 ? 'ok' : 'neutral');
+  const summaryDot = failCount > 0 ? 'bad' : (passCount > 0 && unknownCount === 0 ? 'done' : '');
+  const summaryTitle = failCount > 0
+    ? t('发现 {n} 项需要关注', { n: failCount })
+    : (passCount > 0 && unknownCount === 0 ? t('全部 {n} 项体检通过', { n: passCount }) : t('{ok} 项通过 · {u} 项无法判断', { ok: passCount, u: unknownCount }));
+  const summarySub = failCount > 0
+    ? t('{ok} 项正常，点击下方异常项可直接处理。', { ok: passCount })
+    : (unknownCount > 0 ? t('仅展示本机可核验的真实指标，不编造结论。') : t('磁盘、权限与系统负载状态均正常。'));
+  const scoreHtml = hasNum(STATE.healthScore)
+    ? `<span class="doctor-summary-score">${Math.round(STATE.healthScore)}<small>/ 100</small></span>`
+    : '';
+  const summaryCard = checks.length ? `
+    <div class="doctor-summary" data-state="${summaryState}">
+      <div class="doctor-summary-left">
+        <span class="opt-dot ${summaryDot}"></span>
+        <div style="min-width:0;">
+          <div class="doctor-summary-title">${summaryTitle}</div>
+          <div class="doctor-summary-sub">${summarySub}</div>
+        </div>
+      </div>
+      ${scoreHtml}
+    </div>` : '';
+
+  const rank = c => c.passed === false ? 0 : c.passed === null || c.passed === undefined ? 1 : 2;
+  const ordered = checks.map((c, idx) => ({ c, idx })).sort((a, b) => rank(a.c) - rank(b.c) || a.idx - b.idx);
+
+  const rowsHtml = ordered.map(({ c, idx }) => {
     const isScanning = typeof activeIdx === 'number' && idx === activeIdx;
     const isPending = typeof activeIdx === 'number' && idx > activeIdx;
     const passed = c.passed === true ? true : c.passed === false ? false : null;
     const dotCls = isScanning || isPending ? 'pending' : passed === true ? 'done' : passed === false ? 'bad' : '';
-    const badge = isScanning ? t('检测中...') : isPending ? t('待检测') : passed === true ? t('通过') : passed === false ? t('异常') : t('未知');
+    const stateAttr = passed === false ? 'fail' : passed === true ? 'pass' : 'unknown';
+    const badge = isScanning ? t('检测中...') : isPending ? t('待检测') : passed === true ? t('通过') : passed === false ? t('需处理') : t('无法判断');
     const badgeCls = isScanning ? 'badge-review' : passed === false ? 'badge-danger' : passed === true ? 'badge-safe' : 'badge-review';
     return `
-      <div class="list-row" style="padding:8.5px 18px;opacity:${isPending ? '0.45' : '1'};">
-        <div class="row-left">
-          <span class="opt-dot ${dotCls}"></span>
-          <div>
-            <div style="font-size:12px;font-weight:700;">${escHtml(c.title ? t(c.title) : t('体检项'))}</div>
-            <div class="row-sub" style="font-family:var(--font-sans);">${isScanning ? t('正在检测...') : escHtml(c.detail ? t(c.detail) : t('本机不提供详情'))}</div>
+      <div class="list-row" data-state="${stateAttr}" style="opacity:${isPending ? '0.45' : '1'};">
+        <span class="opt-dot ${dotCls}" style="margin-top:5px;"></span>
+        <div class="doctor-row-main">
+          <div class="doctor-row-top">
+            <span class="doctor-row-title">${escHtml(c.title ? t(c.title) : t('体检项'))}</span>
+            <span class="badge ${badgeCls}">${badge}</span>
           </div>
-        </div>
-        <div class="row-right">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">${isPending ? '--' : (c.latency != null ? c.latency : '-')}</span>
-          <span class="badge ${badgeCls}">${badge}</span>
+          <div class="doctor-row-detail">${isScanning ? t('正在检测...') : escHtml(c.detail ? t(c.detail) : t('本机不提供详情'))}</div>
+          ${isScanning || isPending ? '' : doctorRowActionHTML(c)}
         </div>
       </div>
     `;
   }).join('');
+
+  const buildHtml = buildItem ? `
+    <div class="doctor-build-meta">
+      <span>${escHtml(buildItem.detail ? t(buildItem.detail) : '')}</span>
+      <span class="badge badge-info">${t('版本信息')}</span>
+    </div>` : '';
+
+  box.innerHTML = summaryCard + rowsHtml + buildHtml;
 }
 
 window.openDoctorModal = function(autoReRun) {

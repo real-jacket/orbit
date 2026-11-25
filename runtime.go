@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/egoist/mygo"
-
 	"github.com/mymoles/mole-studio/internal/scanner"
 )
 
@@ -84,7 +82,7 @@ func relaunchApp() {
 		return
 	}
 	_ = command.Process.Release()
-	mygo.App.Quit()
+	quitAppCompletely()
 }
 
 func pushRuntimeStatus(requestID string, checkFolders bool) {

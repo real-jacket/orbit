@@ -266,7 +266,7 @@ func (b *NativeBridge) Dispatch(payload map[string]any) error {
 	case "menubarShowMain":
 		showMainWindow("")
 	case "menubarQuit":
-		mygo.App.Quit()
+		quitAppCompletely()
 	case "checkForUpdates":
 		// Returns at once; the updater opens its own window, and says so when
 		// this build cannot update (a dev build, or one without the key).
@@ -688,6 +688,7 @@ func showMainWindow(script string) {
 	if w == nil {
 		return
 	}
+	restoreFromBackground()
 	w.Show()
 	w.Focus()
 	mygo.App.Focus()

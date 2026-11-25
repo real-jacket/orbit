@@ -29,7 +29,10 @@ func buildCheck() map[string]any {
 	if BuildTime != "" {
 		detail += " · 构建于 " + BuildTime
 	}
-	return doctorRow("应用构建", nil, detail)
+	row := doctorRow("应用构建", nil, detail)
+	row["id"] = "build"
+	row["kind"] = "info"
+	return row
 }
 
 // DescribeExecutable reads the running binary's modification time, which is the

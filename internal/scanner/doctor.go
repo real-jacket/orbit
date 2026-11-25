@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,6 +55,7 @@ func (s *Scanner) fdaCheck() map[string]any {
 		s.directoryReadCheck("Safari", "Library/Safari"),
 	}
 	result := doctorRow("完全磁盘访问权限", nil, "无法判断：没有找到可用于核对的受保护文件")
+	result["id"] = "fda"
 	result["status"] = "missing"
 	switch s.probeFullDisk() {
 	case "granted":
@@ -119,47 +121,65 @@ func (s *Scanner) FolderReadChecks() []map[string]any {
 }
 
 func thermalCheck(state string) map[string]any {
+	var row map[string]any
 	switch state {
 	case "nominal":
-		return doctorRow("热压力", pass(), "本机热压力正常（nominal）")
+		row = doctorRow("热压力", pass(), "本机热压力正常（nominal）")
 	case "fair":
-		return doctorRow("热压力", fail(), "热压力偏高（fair），可能有进程在持续占满 CPU")
+		row = doctorRow("热压力", fail(), "热压力偏高（fair），可能有进程在持续占满 CPU")
 	case "serious", "critical":
-		return doctorRow("热压力", fail(), "热压力告警（"+state+"），建议先关闭高占用进程")
+		row = doctorRow("热压力", fail(), "热压力告警（"+state+"），建议先关闭高占用进程")
 	default:
-		return doctorRow("热压力", nil, "本机未提供热压力读数")
+		row = doctorRow("热压力", nil, "本机未提供热压力读数")
 	}
+	row["id"] = "thermal"
+	return row
 }
 
 func memoryPressureCheck(state string) map[string]any {
+	var row map[string]any
 	switch state {
 	case "normal":
-		return doctorRow("内存压力", pass(), "内存压力正常")
+		row = doctorRow("内存压力", pass(), "内存压力正常")
 	case "warn":
-		return doctorRow("内存压力", fail(), "内存压力偏高，系统可能开始换页")
+		row = doctorRow("内存压力", fail(), "内存压力偏高，系统可能开始换页")
 	case "critical":
-		return doctorRow("内存压力", fail(), "内存压力临界，系统正在大量换页")
+		row = doctorRow("内存压力", fail(), "内存压力临界，系统正在大量换页")
 	default:
-		return doctorRow("内存压力", nil, "本机未提供内存压力读数")
+		row = doctorRow("内存压力", nil, "本机未提供内存压力读数")
 	}
+	row["id"] = "memory"
+	return row
 }
 
 // diskFreeCheck fails below 8% free and warns (fails) below 15%: APFS needs
 // room to write snapshots, and below ~10 GB the machine starts to thrash.
 func diskFreeCheck(freeGB, totalGB float64) map[string]any {
 	if totalGB <= 0 {
-		return doctorRow("磁盘剩余空间", nil, "无法读取卷容量")
+		row := doctorRow("磁盘剩余空间", nil, "无法读取卷容量")
+		row["id"] = "disk"
+		return row
 	}
 	ratio := freeGB / totalGB * 100
-	detail := fmt.Sprintf("可用 %.1f GB / %.1f GB（%.1f%%）", freeGB, totalGB, ratio)
+	shownRatio := math.Round(ratio*10) / 10
+	// Never print "8.0%，低于 8%" or "15.0%，低于 15%" due to rounding up at the boundary.
+	if ratio < 8 && shownRatio >= 8 {
+		shownRatio = 7.9
+	} else if ratio < 15 && shownRatio >= 15 {
+		shownRatio = 14.9
+	}
+	detail := fmt.Sprintf("可用 %.1f GB / %.1f GB（%.1f%%）", freeGB, totalGB, shownRatio)
+	var row map[string]any
 	switch {
 	case ratio >= 15:
-		return doctorRow("磁盘剩余空间", pass(), detail)
+		row = doctorRow("磁盘剩余空间", pass(), detail)
 	case ratio >= 8:
-		return doctorRow("磁盘剩余空间", fail(), detail+"，低于 15%，建议先清理")
+		row = doctorRow("磁盘剩余空间", fail(), detail+"，低于 15%，建议先清理")
 	default:
-		return doctorRow("磁盘剩余空间", fail(), detail+"，低于 8%，请立即清理")
+		row = doctorRow("磁盘剩余空间", fail(), detail+"，低于 8%，请立即清理")
 	}
+	row["id"] = "disk"
+	return row
 }
 
 // batteryHealthCheck reports capacity loss, not charge level. A machine without
@@ -175,13 +195,16 @@ func batteryHealthCheck(healthPct, cycles, percent *int) (map[string]any, bool) 
 	if percent != nil {
 		detail += fmt.Sprintf("，当前电量 %d%%", *percent)
 	}
+	var row map[string]any
 	if *healthPct >= 80 {
-		return doctorRow("电池健康度", pass(), detail), true
+		row = doctorRow("电池健康度", pass(), detail)
+	} else if *healthPct >= 60 {
+		row = doctorRow("电池健康度", fail(), detail+"，低于 80%，续航会明显下降")
+	} else {
+		row = doctorRow("电池健康度", fail(), detail+"，低于 60%，建议更换电池")
 	}
-	if *healthPct >= 60 {
-		return doctorRow("电池健康度", fail(), detail+"，低于 80%，续航会明显下降"), true
-	}
-	return doctorRow("电池健康度", fail(), detail+"，低于 60%，建议更换电池"), true
+	row["id"] = "battery"
+	return row, true
 }
 
 // sipCheck asks csrutil. It is only reported when the tool answers, because a
@@ -192,14 +215,17 @@ func sipCheck() (map[string]any, bool) {
 		return nil, false
 	}
 	text := strings.ToLower(string(out))
+	var row map[string]any
 	switch {
 	case strings.Contains(text, "status: enabled"):
-		return doctorRow("系统完整性保护（SIP）", pass(), "SIP 已启用"), true
+		row = doctorRow("系统完整性保护（SIP）", pass(), "SIP 已启用")
 	case strings.Contains(text, "status: disabled"):
-		return doctorRow("系统完整性保护（SIP）", fail(), "SIP 已关闭，系统文件可被修改"), true
+		row = doctorRow("系统完整性保护（SIP）", fail(), "SIP 已关闭，系统文件可被修改")
 	default:
 		return nil, false
 	}
+	row["id"] = "sip"
+	return row, true
 }
 
 // doctorRow is one line of the 体检 list. passed is a pointer so "unknown" is
