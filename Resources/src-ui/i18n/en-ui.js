@@ -1264,4 +1264,5 @@ I18N.add({
   "磁盘、权限与系统负载状态均正常。": "Disk space, permissions and system load are all healthy.",
   "需处理": "Action needed",
   "版本信息": "Build info",
+  "安装包": "Installers",
 });

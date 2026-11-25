@@ -423,8 +423,8 @@
   .btn-kill:hover { color: var(--accent-rose); border-color: rgba(224,82,99,0.32); background: var(--accent-rose-soft); }
 
   .workspace-body {
-    flex: 1; overflow-y: auto; padding: 16px 20px 18px;
-    display: flex; flex-direction: column; gap: 14px; min-height: 0;
+    flex: 1; overflow-y: auto; padding: 12px 20px 14px;
+    display: flex; flex-direction: column; gap: 10px; min-height: 0;
   }
 
   /* Global surfaces: selection, focus, scrollbars, reduced motion */
@@ -447,19 +447,19 @@
   /* Semantic Hero Summary Banner */
   .summary-banner {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 20px; border-radius: var(--radius-lg);
+    padding: 13px 18px; border-radius: var(--radius-lg);
     background: var(--bg-card); border: 1px solid var(--border-subtle);
-    flex-shrink: 0; gap: 16px; flex-wrap: nowrap;
+    flex-shrink: 0; gap: 14px; flex-wrap: nowrap;
   }
-  .summary-left { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1; }
+  .summary-left { display: flex; align-items: center; gap: 13px; min-width: 0; flex: 1; }
   .semantic-hero-icon {
-    width: 44px; height: 44px; border-radius: 12px;
+    width: 40px; height: 40px; border-radius: 11px;
     background: var(--bg-card);
     border: 1px solid var(--border-strong); flex-shrink: 0;
     box-shadow: var(--highlight-top);
     display: flex; align-items: center; justify-content: center;
   }
-  .semantic-hero-icon svg { width: 24px; height: 24px; }
+  .semantic-hero-icon svg { width: 22px; height: 22px; }
   .summary-eyebrow {
     display: flex; align-items: center; gap: 6px; margin-bottom: 2px;
     font-size: 10.5px; color: var(--text-muted);
@@ -557,8 +557,8 @@
 
   /* Right Inspector Panel with 4-Card Bento Metadata Grid */
   .inspector-content {
-    padding: 16px; display: flex; flex-direction: column;
-    gap: 12px; flex: 1; overflow-y: auto;
+    padding: 13px 15px; display: flex; flex-direction: column;
+    gap: 10px; flex: 1; overflow-y: auto;
   }
   .bento-4 {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px;
@@ -1412,7 +1412,7 @@
   .tray-metric:focus-visible, .tray-proc:focus-visible, .tray-tool:focus-visible, .tray-text-button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
   .tray-tool:disabled { opacity: 0.6; cursor: wait; }
   .tray-quit:hover { color: var(--accent-rose); background: rgba(238, 130, 144, 0.10); }
-  .runtime-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--bg-surface); flex: none; }
+  .runtime-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--bg-surface); flex: none; }
   .runtime-banner[hidden] { display: none; }
   .runtime-banner span { min-width: 0; color: var(--text-secondary); font-size: 11.5px; line-height: 1.5; }
   .runtime-banner .btn { flex: none; height: 28px; padding-inline: 12px; font-size: 11px; }
@@ -1447,8 +1447,36 @@
   .runtime-evidence-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 6px; }
   .runtime-evidence-row > div { min-width: 0; }
   .runtime-evidence-row code { overflow-wrap: anywhere; font: 10.5px/1.5 var(--font-mono); }
-  .clean-scan-coverage { flex: none; flex-wrap: wrap; padding-inline: 0; gap: 8px; }
-  .clean-exclusions { flex: none; padding-bottom: 12px; border-bottom: 1px solid var(--border-subtle); }
+  .clean-meta-bar {
+    flex: none; display: flex; align-items: center; justify-content: space-between;
+    gap: 6px 16px; flex-wrap: wrap; padding: 0 2px;
+  }
+  .clean-scan-coverage { flex: none; flex-wrap: wrap; padding: 0; gap: 8px; }
+  .clean-installer-inline { flex: none; }
+  .clean-installer-row {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 3px 4px 3px 9px; border-radius: 999px;
+    border: 1px solid var(--border-subtle); background: var(--bg-surface);
+    font-size: 11px; color: var(--text-secondary); line-height: 1.3;
+  }
+  .clean-installer-inline.has-items .clean-installer-row {
+    border-color: var(--border-selected);
+    background: color-mix(in srgb, var(--accent-soft) 55%, var(--bg-surface));
+  }
+  .clean-installer-label { font-weight: 600; color: var(--text-primary); }
+  .clean-installer-summary { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .clean-installer-link {
+    appearance: none; -webkit-appearance: none; border: 0; border-radius: 999px;
+    padding: 2px 8px; background: transparent; color: var(--accent-primary);
+    font: 600 11px/1.3 var(--font-sans); cursor: pointer;
+    transition: background-color var(--dur-1) var(--ease);
+  }
+  .clean-installer-link:hover { background: var(--accent-soft); }
+  .clean-exclusions { flex: none; padding: 0 2px; }
+  .clean-exclusions[open] {
+    padding: 8px 12px 10px; border: 1px solid var(--border-subtle);
+    border-radius: 9px; background: var(--bg-surface);
+  }
   .clean-exclusions p { margin-top: 8px; font-size: 11.5px; line-height: 1.6; color: var(--text-secondary); }
   .clean-exclusions .permission-group-path b, .clean-exclusions .permission-group-path small { white-space: normal; overflow-wrap: anywhere; }
   .ai-tool-filter { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-secondary); }
@@ -1733,10 +1761,10 @@
   .insp-pane > .list-body > .list-row { padding: var(--space-2) 10px; border-radius: 8px; }
   .app-icon-box { border: 1px solid var(--border-subtle); }
   .summary-banner { background: var(--bg-surface); }
-  .summary-headline { font-size: 19px; line-height: 1.3; letter-spacing: -0.025em; }
-  .stat-block-val { color: var(--text-primary); font-size: 28px; letter-spacing: -0.03em; }
-  .bento-cell { background: transparent; border: 0; border-radius: 0; padding: 6px 0; }
-  .bento-4 { border-block: 1px solid var(--border-subtle); padding: 10px 0; gap: 12px 16px; }
+  .summary-headline { font-size: 17px; line-height: 1.28; letter-spacing: -0.025em; }
+  .stat-block-val { color: var(--text-primary); font-size: 24px; letter-spacing: -0.03em; }
+  .bento-cell { background: transparent; border: 0; border-radius: 0; padding: 4px 0; }
+  .bento-4 { border-block: 1px solid var(--border-subtle); padding: 7px 0; gap: 8px 14px; }
   .bento-val { font-size: 12px; }
   .inspector-box { line-height: 1.6; }
   .app-health-sub { font-size: 10.5px; }
@@ -2078,7 +2106,7 @@
         </div>
       </section>
 
-      <div id="moduleStage" style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;"></div>
+      <div id="moduleStage" style="display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;"></div>
     </div>
   </main>
 </div>
@@ -6438,16 +6466,16 @@ function renderModule() {
 
     stage.innerHTML = `
       ${tierSummaryHTML(STATE.cleanGroups, 'clean')}
-      <div class="panel-card" data-clean-installer-entry style="flex:none;">
-        <div class="panel-header" style="border-bottom:0;">
-          <div style="min-width:0;">
-            <div>${t('安装包清理')}</div>
-            <div class="row-sub" data-clean-installer-summary>${STATE.scanCompleted ? t('已识别 {n} 项 · {size}', {n: STATE.installerFiles.length, size: fmtDiskSizeGb(installerGb)}) : t('扫描完成后，可查看常见目录中的安装包。')}</div>
+      <div class="clean-meta-bar">
+        ${STATE.scanCompleted ? `<div class="facts-bar clean-scan-coverage" aria-label="${t('本模块已识别缓存的测量与保留情况')}"><span data-clean-measured>${t('已测量 {size}', {size: fmtDiskSizeGb(measuredGb)})}${STATE.cleanGroups.some(group => group.partial) ? t('（含不完整下限）') : ''}</span><span data-clean-reviewable>${t('可审查 {size}', {size: fmtDiskSizeGb(reviewableGb)})}</span><span data-clean-retained>${t('保留（已测）{size}', {size: fmtDiskSizeGb(Math.max(0, measuredGb - reviewableGb))})}</span></div>` : '<span></span>'}
+        <div class="clean-installer-inline ${STATE.installerFiles.length ? 'has-items' : ''}" data-clean-installer-entry>
+          <div class="clean-installer-row">
+            <span class="clean-installer-label">${t('安装包')}</span>
+            <span class="clean-installer-summary" data-clean-installer-summary>${STATE.scanCompleted ? t('已识别 {n} 项 · {size}', {n: STATE.installerFiles.length, size: fmtDiskSizeGb(installerGb)}) : t('扫描完成后，可查看常见目录中的安装包。')}</span>
+            <button type="button" class="clean-installer-link" data-clean-installers onclick="switchModule('purge')">${t('查看安装包')} ›</button>
           </div>
-          <button class="btn" data-clean-installers onclick="switchModule('purge')">${t('查看安装包')}</button>
         </div>
       </div>
-      ${STATE.scanCompleted ? `<div class="facts-bar clean-scan-coverage" aria-label="${t('本模块已识别缓存的测量与保留情况')}"><span data-clean-measured>${t('已测量 {size}', {size: fmtDiskSizeGb(measuredGb)})}${STATE.cleanGroups.some(group => group.partial) ? t('（含不完整下限）') : ''}</span><span data-clean-reviewable>${t('可审查 {size}', {size: fmtDiskSizeGb(reviewableGb)})}</span><span data-clean-retained>${t('保留（已测）{size}', {size: fmtDiskSizeGb(Math.max(0, measuredGb - reviewableGb))})}</span></div>` : ''}
       ${STATE.scanCompleted && STATE.cleanExcludedRoots.length ? `<details class="runtime-evidence clean-exclusions" ${STATE.cleanExcludedOpen ? 'open' : ''} ontoggle="if(this.isConnected)STATE.cleanExcludedOpen=this.open"><summary tabindex="0">${t('{n} 个已识别扫描目录被保护排除 · 体积未测量', {n: STATE.cleanExcludedRoots.length})}</summary><p>${t('这些是本模块已识别的扫描目录，不是全盘索引；白名单和核心保护仍生效。未测量不等于 0 B，也不是可直接释放的容量。')}</p><div class="permission-group-list">${STATE.cleanExcludedRoots.map(item => `<div class="permission-group-row"><button class="permission-group-path" onclick="revealInFinder('${jsq(item.path)}')" aria-label="${t('在访达中显示 {path}', {path: escHtml(item.path)})}">${UI_ICON('lock')}<span><b>${escHtml(displayPath(item.path))}</b><small>${escHtml(t(item.reason))}</small></span></button><span class="row-sub">${t('未测量')}</span></div>`).join('')}</div><div class="permission-recovery-actions"><button class="btn" data-clean-whitelist onclick="switchModule('history')">${t('查看白名单')}</button></div></details>` : ''}
       <div class="master-detail-grid">
         <div class="panel-card">
@@ -8315,7 +8343,7 @@ document.addEventListener('keydown', (e) => {
       const quiet = !sum.actionable && !sum.limit;
       const hint = document.createElement('details');
       hint.className = 'panel-card';
-      hint.style.cssText = 'flex:none;padding:12px 16px;font-size:12px;line-height:1.6;';
+      hint.style.cssText = 'flex:none;padding:7px 14px;font-size:11.5px;line-height:1.5;';
       const lead = legacyOnly ? t('本模块扫描：{n} 个路径未完成测量，按目录查看原因', { n: sum.total }) : quiet ? t('{n} 个位置受 macOS 系统保护，无需处理', { n: sum.system }) : warningHeadline(sum);
       hint.innerHTML = `<summary style="cursor:pointer;color:var(${quiet ? '--text-muted' : '--accent-amber'});">${lead}</summary>
         <div class="row-sub" style="white-space:normal;margin-top:8px;">${t('这里只显示本模块扫描范围内的告警。权限拒绝、超时和测量上限分别核对；全部扫描证据可在运行环境中查看，未读取不等于 0 B。')}</div>
