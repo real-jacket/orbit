@@ -12,6 +12,7 @@ import (
 func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 	home := s.home
 	installedNames, installedBundleIDs := s.installedAppIndex(home)
+	desktopNames, desktopBundleIDs := s.installedDesktopAppIndex(home)
 	orphans := []map[string]any{}
 	// Directories a catalog row already reports must not be offered a second
 	// time as an orphan (S-08).
@@ -22,14 +23,19 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 	usedIDs := map[string]struct{}{}
 
 	for _, signature := range AllSignatures(home) {
-		stillInstalled := signatureStillInstalled(signature, installedNames, installedBundleIDs)
+		// When the desktop app itself is still installed, its caches and config
+		// belong in the Installed Apps tab rather than Uninstalled Leftovers.
+		if signatureStillInstalled(signature, desktopNames, desktopBundleIDs) {
+			continue
+		}
 		type candidate struct {
-			path string
-			kind string
+			path        string
+			kind        string
+			sharedTools []string
 		}
 		candidates := make([]candidate, 0, len(signature.FixedPaths)+4)
 		for _, fixed := range signature.FixedPaths {
-			candidates = append(candidates, candidate{path: fixed.Path, kind: fixed.Kind})
+			candidates = append(candidates, candidate{path: fixed.Path, kind: fixed.Kind, sharedTools: fixed.SharedTools})
 		}
 		for _, wildcard := range signature.Wildcards {
 			for _, matched := range s.matchingWildcardPaths(wildcard.Parent, wildcard.Prefix) {
@@ -45,6 +51,9 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 				continue
 			}
 			if !exists(candidate.path) {
+				continue
+			}
+			if s.sharedToolPresent(home, candidate.sharedTools, installedNames, installedBundleIDs) {
 				continue
 			}
 			if _, protected := s.scanProtection(candidate.path); protected {
@@ -75,9 +84,6 @@ func (s *Scanner) scanOrphanedLeftovers() []map[string]any {
 			continue
 		}
 		statusText := "未发现主程序 · 签名残留候选"
-		if stillInstalled {
-			statusText = "深层容器与 SDK 残留"
-		}
 		leftoverGB := plainGB(totalBytes)
 		row := map[string]any{
 			"id":             uniqueOrphanID(usedIDs, signature.ID),
@@ -122,6 +128,60 @@ func signatureStillInstalled(
 	}
 	if _, ok := installedBundleIDs[strings.ToLower(signature.BundleID)]; ok {
 		return true
+	}
+	return false
+}
+
+// installedDesktopAppIndex indexes only actual installed .app bundles (without
+// Homebrew CLI formulas), so an installed CLI binary like /opt/homebrew/bin/docker
+// is not mistaken for Docker.app, while an installed desktop app keeps its
+// directories out of the Uninstalled Leftovers list.
+func (s *Scanner) installedDesktopAppIndex(home string) (names, bundleIDs map[string]struct{}) {
+	names = map[string]struct{}{}
+	bundleIDs = map[string]struct{}{}
+	var dirs []string
+	if s.appDirs != nil {
+		dirs = s.appDirs
+	} else if !machineWide {
+		dirs = []string{filepath.Join(home, "Applications")}
+	} else {
+		dirs = s.appInventoryDirs(home)
+	}
+	for _, path := range findAppBundles(dirs) {
+		names[strings.ToLower(strings.TrimSuffix(baseName(path), filepath.Ext(path)))] = struct{}{}
+		info := readBundleInfo(path)
+		for _, value := range []string{info.identifier, info.displayName, info.bundleName} {
+			if value != "" {
+				bundleIDs[strings.ToLower(value)] = struct{}{}
+			}
+		}
+	}
+	return names, bundleIDs
+}
+
+// sharedToolPresent reports whether a CLI tool or alternative runtime that
+// shares a dotdir (such as ~/.docker with docker CLI or OrbStack) is present.
+func (s *Scanner) sharedToolPresent(home string, tools []string, installedNames, installedBundleIDs map[string]struct{}) bool {
+	for _, tool := range tools {
+		lower := strings.ToLower(tool)
+		if _, ok := installedNames[lower]; ok {
+			return true
+		}
+		for name := range installedNames {
+			if strings.Contains(name, lower) {
+				return true
+			}
+		}
+		for bid := range installedBundleIDs {
+			if strings.Contains(bid, lower) {
+				return true
+			}
+		}
+		// Alternative container runtimes (OrbStack / Colima) also keep their own
+		// state dir in home even when installed outside standard app dirs.
+		if (lower == "orbstack" || lower == "colima") && exists(filepath.Join(home, "."+lower)) {
+			return true
+		}
 	}
 	return false
 }

@@ -186,6 +186,7 @@
     "未发现对应主程序 · 待确认": "No matching main app found · needs confirmation",
     "已检查的应用目录中未发现对应主程序，不能证明数据已经弃用；外置卷、自定义安装位置与共享容器可能未被识别，请先确认。": "No matching main app was found in the app folders checked. This doesn't prove the data is abandoned; external volumes, custom install locations and shared containers may not have been recognized, so confirm first.",
     "虚拟化与容器残留": "Virtualization and container leftovers",
+    "检测到 Docker.app 主程序未安装，以下为 Docker Desktop 遗留的容器虚拟磁盘、日志与桌面端配置。": "Docker.app is not installed; these are Docker Desktop virtual disks, logs and desktop settings left behind.",
     "检测到 Docker.app 主程序已卸载，或仍留有容器虚拟磁盘、共享守护进程目录与 ~/.docker 配置。": "The Docker.app main app was uninstalled, or container virtual disks, shared daemon folders and ~/.docker settings remain.",
     "移动开发与模拟器残留": "Mobile development and emulator leftovers",
     "检测到 Android Studio 遗留的 SDK、AVD 模拟器镜像、Gradle 缓存与 AndroidStudio 历史目录。": "Android Studio left behind its SDK, AVD emulator images, Gradle caches and AndroidStudio history folders.",

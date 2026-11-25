@@ -14,9 +14,14 @@ type OrphanSignature struct {
 }
 
 // OrphanPath is one directory a signature always leaves behind.
+// SharedTools names CLI tools or alternative runtimes that actively share this
+// path even when the desktop app itself is uninstalled (for example ~/.docker
+// with docker CLI or OrbStack). When any of those tools is present, the path
+// stays untouched instead of being offered as a desktop-app leftover.
 type OrphanPath struct {
-	Path string
-	Kind string
+	Path        string
+	Kind        string
+	SharedTools []string
 }
 
 // OrphanWildcard is a directory a signature leaves variants of, matched by the
@@ -38,16 +43,18 @@ func AllSignatures(home string) []OrphanSignature {
 			BundleID:    "com.docker.docker",
 			AppKeywords: []string{"docker"},
 			FixedPaths: []OrphanPath{
-				{home + "/Library/Containers/com.docker.docker", "cache"},
-				{home + "/Library/Containers/com.docker.helper", "cache"},
-				{home + "/Library/Group Containers/group.com.docker", "cache"},
-				{home + "/.docker", "config"},
-				{home + "/Library/Application Support/Docker Desktop", "config"},
-				{home + "/Library/Caches/com.docker.docker", "cache"},
-				{home + "/Library/Logs/Docker Desktop", "cache"},
-				{home + "/Library/Preferences/com.docker.docker.plist", "config"},
+				{Path: home + "/Library/Containers/com.docker.docker", Kind: "cache"},
+				{Path: home + "/Library/Containers/com.docker.helper", Kind: "cache"},
+				{Path: home + "/Library/Group Containers/group.com.docker", Kind: "cache"},
+				{Path: home + "/.docker", Kind: "config", SharedTools: []string{"docker", "orbstack", "colima", "rancher", "podman"}},
+				{Path: home + "/Library/Application Support/Docker Desktop", Kind: "config"},
+				{Path: home + "/Library/Caches/com.docker.docker", Kind: "cache"},
+				{Path: home + "/Library/Logs/Docker Desktop", Kind: "cache"},
+				{Path: home + "/Library/Preferences/com.docker.docker.plist", Kind: "config"},
+				{Path: home + "/Library/Preferences/com.electron.dockerdesktop.plist", Kind: "config"},
+				{Path: home + "/Library/Saved Application State/com.electron.dockerdesktop.savedState", Kind: "cache"},
 			},
-			Impact: "检测到 Docker.app 主程序已卸载，或仍留有容器虚拟磁盘、共享守护进程目录与 ~/.docker 配置。",
+			Impact: "检测到 Docker.app 主程序未安装，以下为 Docker Desktop 遗留的容器虚拟磁盘、日志与桌面端配置。",
 		},
 		{
 			ID:          "orphan_android_studio",
@@ -56,11 +63,11 @@ func AllSignatures(home string) []OrphanSignature {
 			BundleID:    "com.google.android.studio",
 			AppKeywords: []string{"android studio"},
 			FixedPaths: []OrphanPath{
-				{home + "/Library/Android/sdk", "cache"},
-				{home + "/.android/avd", "cache"},
-				{home + "/.android", "config"},
-				{home + "/.gradle/caches", "cache"},
-				{home + "/Library/Preferences/com.google.android.studio.plist", "config"},
+				{Path: home + "/Library/Android/sdk", Kind: "cache", SharedTools: []string{"adb"}},
+				{Path: home + "/.android/avd", Kind: "cache", SharedTools: []string{"adb"}},
+				{Path: home + "/.android", Kind: "config", SharedTools: []string{"adb"}},
+				{Path: home + "/.gradle/caches", Kind: "cache", SharedTools: []string{"gradle"}},
+				{Path: home + "/Library/Preferences/com.google.android.studio.plist", Kind: "config"},
 			},
 			Wildcards: []OrphanWildcard{
 				{home + "/Library/Application Support/Google", "AndroidStudio", "config"},
@@ -89,9 +96,9 @@ func AllSignatures(home string) []OrphanSignature {
 			BundleID:    "com.parallels.desktop.console",
 			AppKeywords: []string{"parallels"},
 			FixedPaths: []OrphanPath{
-				{home + "/Library/Caches/com.parallels.desktop.console", "cache"},
-				{home + "/Library/Application Support/Parallels", "config"},
-				{home + "/Library/Preferences/com.parallels.desktop.console.plist", "config"},
+				{Path: home + "/Library/Caches/com.parallels.desktop.console", Kind: "cache"},
+				{Path: home + "/Library/Application Support/Parallels", Kind: "config"},
+				{Path: home + "/Library/Preferences/com.parallels.desktop.console.plist", Kind: "config"},
 			},
 			Impact: "检测到 Parallels Desktop 卸载后遗留的缓存与应用支持目录。",
 		},

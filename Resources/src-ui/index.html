@@ -4691,8 +4691,8 @@ function updateSidebarBadges() {
 
   document.getElementById('navMetaClean').textContent = cleanGb > 0 ? fmtDiskSizeGb(cleanGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !STATE.cleanGroups.length ? (refreshing ? t('刷新中') : t('无候选')) : STATE.cleanGroups.every(g => g.cleaned) ? t('已清理') : t('未勾选');
   document.getElementById('navMetaMoon').textContent = moonGb > 0 ? fmtDiskSizeGb(moonGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !STATE.aiMoonBands.length ? (refreshing ? t('刷新中') : t('无候选')) : STATE.aiMoonBands.every(b => b.tier === 'protected') ? t('只读保留') : STATE.aiMoonBands.every(b => b.cleaned) ? t('已清理') : t('未勾选');
-  document.getElementById('navMetaSoftware').textContent = appGb > 0 ? appGb.toFixed(1) + ' GB' : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : t('{n} 应用', { n: STATE.appsList.length });
-  document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? purgeGb.toFixed(1) + ' GB' : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !(STATE.purgeItems.length + STATE.installerFiles.length) ? (refreshing ? t('刷新中') : t('无候选')) : t('未勾选');
+  document.getElementById('navMetaSoftware').textContent = appGb > 0 ? fmtDiskSizeGb(appGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : t('{n} 应用', { n: STATE.appsList.length });
+  document.getElementById('navMetaPurge').textContent = purgeGb > 0 ? fmtDiskSizeGb(purgeGb, 1) : !STATE.scanCompleted ? (STATE.scanRunning ? t('扫描中') : t('待扫描')) : !(STATE.purgeItems.length + STATE.installerFiles.length) ? (refreshing ? t('刷新中') : t('无候选')) : t('未勾选');
   document.getElementById('navMetaHistory').textContent = t('{n} 快照', { n: STATE.historyLogs.length });
   const opt = STATE.optimize, optNeeded = opt.items.filter(it => it.runnable).length;
   document.getElementById('navMetaOptimize').textContent = opt.running ? t('维护中') : opt.status === 'loading' ? t('检查中') : opt.status === 'error' ? t('检查失败') : opt.status === 'idle' ? t('待检查') : optNeeded ? t('{n} 项待处理', { n: optNeeded }) : t('无需处理');
@@ -4981,8 +4981,19 @@ function quitApp(idx) {
 }
 function toggleAppCheck(idx, ev) {
   if (ev) ev.stopPropagation();
-  if (STATE.appsList[idx].running && STATE.uninstallMode !== 'cache_only') return;
-  STATE.appsList[idx].checked = !STATE.appsList[idx].checked;
+  const app = STATE.appsList[idx];
+  const mode = STATE.uninstallMode || 'standard';
+  if (!app || (app.running && mode !== 'cache_only')) return;
+  const nextChecked = !app.checked;
+  if (nextChecked && Array.isArray(app.subpaths) && selectedSubpaths(app, mode).length === 0) {
+    app.subpaths.forEach(sp => {
+      if (sp.cleaned || sp.tier === 'protected') return;
+      if (mode === 'standard') sp.checked = (sp.kind === 'app' || sp.kind === 'cache' || sp.kind === 'launch');
+      else if (mode === 'complete') sp.checked = true;
+      else if (mode === 'cache_only') sp.checked = (sp.kind === 'cache');
+    });
+  }
+  app.checked = nextChecked && selectedSubpaths(app, mode).length > 0;
   STATE.selectedAppIdx = idx;
   persistState();
   updateSidebarBadges();
@@ -5036,6 +5047,9 @@ function setUninstallMode(mode) {
         else if (mode === 'complete') sp.checked = true;
         else if (mode === 'cache_only') sp.checked = (sp.kind === 'cache');
       });
+    }
+    if (app.checked) {
+      app.checked = !(app.running && mode !== 'cache_only') && selectedSubpaths(app, mode).length > 0;
     }
   });
   persistState();
@@ -6597,19 +6611,22 @@ function renderModule() {
     `;
 
     if (panelMode === 'leftovers') {
-      const selOrphan = orphans[STATE.selectedOrphanIdx] || orphans[0];
+      const visibleOrphans = orphans.map((item, idx) => ({ item, idx })).filter(({ item }) => matchesSearch(item));
+      const selOrphanEntry = visibleOrphans.find(e => e.idx === STATE.selectedOrphanIdx) || visibleOrphans[0] || null;
+      const selOrphan = selOrphanEntry ? selOrphanEntry.item : (orphans[STATE.selectedOrphanIdx] || orphans[0]);
+      const selOrphanIdx = selOrphanEntry ? selOrphanEntry.idx : orphans.indexOf(selOrphan);
       const checkedOrphans = orphans.filter(o => o.checked);
       const activeOrphans = checkedOrphans;
       const totalSelectedOrphanGb = activeOrphans.reduce((s, o) => s + selectedSizeGb(o), 0);
 
       topTitle.textContent = t('残留与未归属数据 · 分离器');
-      primaryBtnText.textContent = t('一键清理所选残留 ({gb} GB)', { gb: totalSelectedOrphanGb.toFixed(2) });
+      primaryBtnText.textContent = t('一键清理所选残留 ({size})', { size: fmtDiskSizeGb(totalSelectedOrphanGb) });
       heroHeadline.textContent = selOrphan
         ? t('发现 {n} 组需要核对归属的数据', { n: orphans.length })
         : t('没有发现待核对数据');
       heroDesc.textContent = t('未匹配到应用不代表应用已卸载或数据已弃用。已识别的现有应用数据保留；残留与未归属数据默认不选，请核对路径、用途和归属后再处理。');
       heroStatLabel.textContent = t('已勾选待核对数据');
-      heroStatValue.textContent = `${totalSelectedOrphanGb.toFixed(2)} GB`;
+      heroStatValue.textContent = fmtDiskSizeGb(totalSelectedOrphanGb);
       heroStatSub.textContent = t('共 {n} 组 · 移入废纸篓，可尝试原路还原', { n: activeOrphans.length });
 
       if (!selOrphan) {
@@ -6636,8 +6653,8 @@ function renderModule() {
               <span class="badge badge-review">${t('先确认归属')}</span>
             </div>
             <div class="list-body">
-              ${orphans.map((item, idx) => !matchesSearch(item) ? '' : `
-                <div class="list-row ${idx === STATE.selectedOrphanIdx ? 'selected' : ''}"${movingAttr(item)} onclick="selectOrphanRow(${idx})">
+              ${visibleOrphans.length ? visibleOrphans.map(({ item, idx }) => `
+                <div class="list-row ${idx === selOrphanIdx ? 'selected' : ''}"${movingAttr(item)} onclick="selectOrphanRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${item.checked && item.tier !== 'protected' ? 'checked' : ''} ${item.tier === 'protected' ? 'disabled' : ''} onclick="toggleOrphanCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
                     <div class="app-squircle-icon" style="background:${iconFor(item.name, item.bundleId, idx).bg};">
@@ -6657,7 +6674,7 @@ function renderModule() {
                     <span class="size-cell" style="color:var(--accent-amber);">${item.partial && !item.leftoverSizeGb ? t('未读取') : fmtDiskSizeGb(item.leftoverSizeGb)}</span>
                   </div>
                 </div>
-              `).join('')}
+              `).join('') : `<div class="empty-state">${UI_ICON('search')}<div class="empty-title">${t('未找到匹配的残留项')}</div><div class="empty-desc">${t('尝试清空搜索关键词查看全部候选目录。')}</div></div>`}
             </div>
           </div>
 
@@ -6693,7 +6710,7 @@ function renderModule() {
                 ${selOrphan.subpaths.map((sp, spIdx) => `
                   <div class="subpath-item">
                     <div class="subpath-left">
-                      <input type="checkbox" ${sp.checked !== false && sp.tier !== 'protected' ? 'checked' : ''} ${selOrphan.tier === 'protected' || sp.tier === 'protected' ? 'disabled' : ''} onchange="toggleOrphanSubpathCheck(${STATE.selectedOrphanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <input type="checkbox" ${sp.checked !== false && sp.tier !== 'protected' ? 'checked' : ''} ${selOrphan.tier === 'protected' || sp.tier === 'protected' ? 'disabled' : ''} onchange="toggleOrphanSubpathCheck(${selOrphanIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
                       <span class="badge ${sp.kind === 'cache' ? 'badge-safe' : 'badge-review'}" style="font-size:9px;padding:1px 5px;">
                         ${sp.kind === 'cache' ? t('缓存 / SDK') : t('配置')}
                       </span>
@@ -6705,12 +6722,15 @@ function renderModule() {
                 `).join('')}
               </div>
             </div>
-            <div class="panel-foot" style="grid-template-columns:1fr 1.3fr;">
+            <div class="panel-foot" style="grid-template-columns:1fr 1fr 1.35fr;">
               <button class="btn" onclick="revealInFinder('${jsq(selOrphan.subpaths[0]?.path || '~/Library')}')">
                 ${t('在访达中显示')}
               </button>
-              <button class="btn" ${!activeOrphans.some(item => selectedSubpaths(item).length) || pendingTrashRequests.size || pendingRestoreRequests.size ? 'disabled' : ''} onclick="openConfirmSheet();">
-                ${t('清理所选残留 ({gb} GB)', { gb: totalSelectedOrphanGb.toFixed(2) })}
+              <button class="btn" onclick="addPathToWhitelist('${jsq(selOrphan.subpaths[0]?.path || '')}')">
+                ${t('移入白名单')}
+              </button>
+              <button class="btn btn-primary" ${!activeOrphans.some(item => selectedSubpaths(item).length) || pendingTrashRequests.size || pendingRestoreRequests.size ? 'disabled' : ''} onclick="openConfirmSheet();">
+                ${t('清理所选残留 ({size})', { size: fmtDiskSizeGb(totalSelectedOrphanGb) })}
               </button>
             </div>
           </div>
@@ -6719,7 +6739,10 @@ function renderModule() {
     } else if (panelMode === 'slim') {
       renderSlimPanel(stage, dualModeSwitchHtml, { topTitle, primaryBtnText, heroHeadline, heroDesc, heroStatLabel, heroStatValue, heroStatSub });
     } else {
-      const selApp = STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0];
+      const visibleApps = STATE.appsList.map((app, idx) => ({ app, idx })).filter(({ app }) => matchesSearch(app));
+      const selAppEntry = visibleApps.find(e => e.idx === STATE.selectedAppIdx) || visibleApps[0] || null;
+      const selApp = selAppEntry ? selAppEntry.app : (STATE.appsList[STATE.selectedAppIdx] || STATE.appsList[0]);
+      const selAppIdx = selAppEntry ? selAppEntry.idx : STATE.appsList.indexOf(selApp);
       const cacheSummary = selApp ? appCacheSummary(selApp) : null;
       const configPartial = selApp && selApp.subpaths.some(sp => sp.kind === 'config' && sp.partial);
       const configSize = configPartial && !selApp.configSizeGb ? t('未读取') : configPartial ? t('{size}（已测）', { size: fmtDiskSizeGb(selApp?.configSizeGb) }) : fmtDiskSizeGb(selApp?.configSizeGb);
@@ -6731,10 +6754,10 @@ function renderModule() {
 
       topTitle.textContent = t('应用卸载管理 · 分离器');
       primaryBtnText.textContent = mode === 'cache_only'
-        ? t('仅清理所选应用缓存 ({gb} GB)', { gb: totalSelectedAppGb.toFixed(2) })
+        ? t('仅清理所选应用缓存 ({size})', { size: fmtDiskSizeGb(totalSelectedAppGb) })
         : mode === 'standard'
-        ? t('标准卸载所选应用 ({gb} GB)', { gb: totalSelectedAppGb.toFixed(2) })
-        : t('彻底卸载所选 ({gb} GB)', { gb: totalSelectedAppGb.toFixed(2) });
+        ? t('标准卸载所选应用 ({size})', { size: fmtDiskSizeGb(totalSelectedAppGb) })
+        : t('彻底卸载所选 ({size})', { size: fmtDiskSizeGb(totalSelectedAppGb) });
 
       heroHeadline.textContent = selApp
         ? `${selApp.name}.app v${selApp.version} · ${mode === 'standard' ? t('标准卸载（保留配置）') : mode === 'complete' ? t('彻底卸载（含 Library 数据）') : t('仅清缓存（保留应用）')}`
@@ -6775,14 +6798,13 @@ function renderModule() {
               </div>
             </div>
             <div class="list-body">
-              ${STATE.appsList.map((app, idx) => {
-                if (!matchesSearch(app)) return '';
+              ${visibleApps.length ? visibleApps.map(({ app, idx }) => {
                 const rowGb = calcAppGb(app);
                 const cache = appCacheSummary(app);
                 const selectable = !(app.running && mode !== 'cache_only') && app.subpaths.some(sp => !sp.cleaned && sp.tier !== 'protected'
                   && (mode !== 'cache_only' || sp.kind === 'cache') && (mode !== 'standard' || sp.kind !== 'config' || !app.keepPersonal));
                 return `
-                <div class="list-row ${idx === STATE.selectedAppIdx ? 'selected' : ''}"${movingAttr(app)} onclick="selectAppRow(${idx})">
+                <div class="list-row ${idx === selAppIdx ? 'selected' : ''}"${movingAttr(app)} onclick="selectAppRow(${idx})">
                   <div class="row-left">
                     <input type="checkbox" ${app.checked && selectable ? 'checked' : ''} ${selectable ? '' : 'disabled'} onclick="toggleAppCheck(${idx}, event)" style="width:15px;height:15px;cursor:pointer;" />
                     ${app.icon
@@ -6809,7 +6831,7 @@ function renderModule() {
                     <span class="size-cell" style="color:${mode === 'cache_only' ? 'var(--accent-emerald)' : 'var(--accent-rose)'};${appRunningBlocked(app, mode) ? 'white-space:normal;' : ''}">${appRunningBlocked(app, mode) ? `<span title="${t('应用正在运行，退出后才能卸载；下方为已测量的应用大小')}" style="color:var(--text-muted);">${t('退出后可卸载')}<small style="display:block;font-weight:400;font-size:10.5px;">${app.partial && !app.appSizeGb ? t('大小未读取') : t('应用 {size}', { size: fmtDiskSizeGb(app.appSizeGb) })}</small></span>` : mode === 'cache_only' && !selectable ? t(cache.state) : fmtDiskSizeGb(rowGb)}</span>
                   </div>
                 </div>
-              `}).join('')}
+              `}).join('') : `<div class="empty-state">${UI_ICON('search')}<div class="empty-title">${t('未找到匹配的应用')}</div><div class="empty-desc">${t('尝试清空搜索关键词查看全部已安装应用。')}</div></div>`}
             </div>
           </div>
 
@@ -6844,7 +6866,7 @@ function renderModule() {
                 ${selApp.subpaths.map((sp, spIdx) => `
                   <div class="app-path-entry"><div class="subpath-item">
                     <div class="subpath-left">
-                      <input type="checkbox" ${selectedSubpaths(selApp, mode).includes(sp) ? 'checked' : ''} ${sp.tier === 'protected' || mode === 'cache_only' && sp.kind !== 'cache' || mode === 'standard' && sp.kind === 'config' && selApp.keepPersonal ? 'disabled' : ''} onchange="toggleAppSubpathCheck(${STATE.selectedAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
+                      <input type="checkbox" ${selectedSubpaths(selApp, mode).includes(sp) ? 'checked' : ''} ${sp.tier === 'protected' || mode === 'cache_only' && sp.kind !== 'cache' || mode === 'standard' && sp.kind === 'config' && selApp.keepPersonal ? 'disabled' : ''} onchange="toggleAppSubpathCheck(${selAppIdx}, ${spIdx})" style="width:13px;height:13px;cursor:pointer;" />
                       <span class="badge ${sp.kind === 'app' || sp.kind === 'launch' ? 'badge-review' : sp.kind === 'cache' ? 'badge-safe' : 'badge-protected'}" style="font-size:9px;padding:1px 5px;">
                         ${sp.kind === 'app' ? t('应用') : sp.kind === 'cache' ? t('缓存') : sp.kind === 'launch' ? t('启动项') : t('个人配置')}
                       </span>
@@ -6857,7 +6879,7 @@ function renderModule() {
             </div>
             <div class="panel-foot ${selApp.running ? '' : 'single'}">
               <button class="btn" onclick="revealInFinder('${jsq(selApp.appPath)}')">${t('在访达中显示')}</button>
-              ${selApp.running ? `<button class="btn" data-quit-app ${selApp.runningPid && !selApp.quitRequested && !pendingProcessQuits.size ? '' : 'disabled'} onclick="quitApp(${STATE.selectedAppIdx})">${selApp.quitRequested ? t('已请求退出') : t('退出应用')}</button>
+              ${selApp.running ? `<button class="btn" data-quit-app ${selApp.runningPid && !selApp.quitRequested && !pendingProcessQuits.size ? '' : 'disabled'} onclick="quitApp(${selAppIdx})">${selApp.quitRequested ? t('已请求退出') : t('退出应用')}</button>
               <div class="row-sub panel-foot-note" style="white-space:normal;">${UI_ICON('lock')} ${selApp.quitRequested ? t('已发出退出请求；是否真正退出以重新扫描为准。') : selApp.runningPid ? t('应用正在运行，不能卸载。先正常退出，再重新扫描。') : t('应用的辅助进程仍在运行，找不到可退出的主进程；请手动退出后重新扫描。')}</div>` : ''}
               <div class="row-sub panel-foot-note" style="white-space:normal;">${t('勾选应用或路径后，使用右上角按钮预览。取消勾选的路径不会处理。')}</div>
             </div>
@@ -8121,6 +8143,7 @@ document.addEventListener('keydown', (e) => {
     search.disabled = !searchable;
     search.placeholder = searchable ? (STATE.module === 'status' ? t('搜索进程、所属应用或 PID') : STATE.module === 'analyze' ? t('搜索当前层') : t('搜索当前列表')) : t('此模块无需搜索');
     search.setAttribute('aria-label', search.placeholder);
+    if (typeof syncSearchClearBtn === 'function') syncSearchClearBtn();
     const pbt = document.getElementById('primaryBtnText');
     const tempButton = document.getElementById('btnTemp');
     tempButton.textContent = STATE.tempUnit === 'F' ? '°F' : '°C';
@@ -8136,7 +8159,7 @@ document.addEventListener('keydown', (e) => {
       pbt.textContent = busyTrash() ? t('正在移入废纸篓') : pendingTrashRequests.size ? t('等待回执') : refreshEmpty ? t('正在刷新扫描结果') : needsScan && !scanning ? t('开始扫描') : t('预览所选');
       const ready = scanResultsUsable() && (STATE.scanCompleted || items.length > 0);
       pbtn.disabled = scanning && !ready || pendingTrashRequests.size > 0 || refreshEmpty || (!needsScan && (!ready || !eligible));
-      if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary(moduleWarnings)) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
+      if (!items.length || !['clean', 'ai_moon'].includes(STATE.module)) document.getElementById('heroHeadline').textContent = scanning && (!STATE.scanCompleted || !items.length) ? t('正在扫描本机目录') : items.length ? t('选择项目，先看影响再处理') : STATE.module === 'ai_moon' && STATE.aiExcludedRoots.length ? t('已识别 AI 缓存被保护排除，未计入候选') : STATE.module === 'clean' && STATE.cleanExcludedRoots.length ? t('部分扫描目录被保护排除，未计入候选') : warningHeadline(warningSummary(moduleWarnings)) || (STATE.scanCompleted ? t('本次扫描未发现候选项') : t('正在等待本机扫描'));
     } else {
       pbtn.disabled = STATE.module === 'optimize' && (optimizeBusy() || !optimizeSelectedIds().length);
       pbt.textContent = STATE.module === 'optimize' ? STATE.optimize.running ? t('正在维护') : t('执行所选') : STATE.module === 'analyze' ? STATE.analyzeLoading ? t('取消扫描') : t('重新扫描') : STATE.module === 'status' ? t('刷新状态') : t('复制记录');

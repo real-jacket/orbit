@@ -1239,4 +1239,15 @@ I18N.add({
   "清理无效条目": "Remove invalid entries",
   "打开配置文件": "Open config file",
   "通配规则": "Wildcard",
+  // ---- Software uninstaller & leftovers ----
+  "一键清理所选残留 ({size})": "Clean selected leftovers ({size})",
+  "清理所选残留 ({size})": "Clean selected ({size})",
+  "仅清理所选应用缓存 ({size})": "Clean selected app caches ({size})",
+  "标准卸载所选应用 ({size})": "Uninstall selected apps ({size})",
+  "彻底卸载所选 ({size})": "Remove selected completely ({size})",
+  "移入白名单": "Add to whitelist",
+  "未找到匹配的残留项": "No matching leftovers",
+  "尝试清空搜索关键词查看全部候选目录。": "Clear the search query to view all candidate folders.",
+  "未找到匹配的应用": "No matching applications",
+  "尝试清空搜索关键词查看全部已安装应用。": "Clear the search query to view all installed apps.",
 });

@@ -172,3 +172,59 @@ func TestVendorChildOwnershipRequiresExactInstalledIdentity(t *testing.T) {
 		})
 	}
 }
+
+func TestOrphanSignatureSkipsInstalledDesktopAppAndProtectsSharedCLIDotdirs(t *testing.T) {
+	t.Run("installed Docker.app is excluded from orphans", func(t *testing.T) {
+		home := fixtureHome(t)
+		app := filepath.Join(home, "Applications", "Docker.app", "Contents")
+		if err := os.MkdirAll(app, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		plist := `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>Docker</string>
+<key>CFBundleIdentifier</key><string>com.docker.docker</string>
+</dict></plist>`
+		if err := os.WriteFile(filepath.Join(app, "Info.plist"), []byte(plist), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		fixtureDir(t, home, "Library/Containers/com.docker.docker", 4096)
+		fixtureDir(t, home, ".docker", 4096)
+		rows := (&Scanner{home: home}).scanOrphanedLeftovers()
+		for _, row := range rows {
+			if row["id"] == "orphan_docker" {
+				t.Fatalf("installed Docker.app must not be offered as an orphan leftover: %+v", row)
+			}
+		}
+	})
+
+	t.Run("active OrbStack keeps ~/.docker out of Docker Desktop leftovers", func(t *testing.T) {
+		home := fixtureHome(t)
+		fixtureDir(t, home, ".orbstack", 4096)
+		fixtureDir(t, home, ".docker", 4096)
+		fixtureDir(t, home, "Library/Containers/com.docker.docker", 4096)
+		writeTestFile(t, filepath.Join(home, "Library/Preferences/com.electron.dockerdesktop.plist"), 512)
+		rows := (&Scanner{home: home}).scanOrphanedLeftovers()
+		var dockerRow map[string]any
+		for _, row := range rows {
+			if row["id"] == "orphan_docker" {
+				dockerRow = row
+				break
+			}
+		}
+		if dockerRow == nil {
+			t.Fatalf("expected Docker Desktop leftovers for uninstalled Docker.app, got %+v", rows)
+		}
+		var paths []string
+		for _, sp := range dockerRow["subpaths"].([]map[string]any) {
+			p := sp["path"].(string)
+			paths = append(paths, p)
+			if p == "~/.docker" {
+				t.Fatalf("~/.docker is actively shared by OrbStack/docker CLI and must not be offered as a Docker Desktop leftover: %+v", paths)
+			}
+		}
+		if len(paths) != 2 {
+			t.Fatalf("want container + electron plist leftovers, got %v", paths)
+		}
+	})
+}
