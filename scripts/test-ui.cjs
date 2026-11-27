@@ -628,7 +628,7 @@ const analysis = vm.createContext({
     totalDiskGb: 100, freeDiskGb: 50 },
   document: { getElementById() { return { style: {} }; }, querySelector() { return { clientWidth: 720, clientHeight: 300 }; } },
   PROTECTED_PATHS: new Set(['~', '/']),
-  showToast() {}, renderModule() {}, updateSidebarBadges() {}, renderAnalyzeProgress() {}, console,
+  showToast() {}, renderModule() {}, updateSidebarBadges() {}, renderAnalyzeProgress() {}, rememberView() {}, console,
 });
 analysis.window = analysis;
 ['hasNum', 'escHtml', 'displayPath', 'diskGbOf', 'fmtDiskSizeGb', 'uiLocale', 'fmtModified', 'normalizeComparePath', 'recomputeDiskAnalyzeTotals', 'findTileByPath',
@@ -880,4 +880,20 @@ saved.dropSavedFailures(savedState);
 assert.equal(savedState.appsList[0].failed, false, 'a failure saved by an earlier run does not survive a relaunch');
 assert.equal(savedState.cleanGroups[0].failedReason, '');
 assert.equal(savedState.appsList[0].needsAdmin, true, 'only the failure marks are dropped');
+const view = vm.createContext({ STATE: { module: 'clean', appSort: 'size', analyzeSort: 'size' }, store: {}, switched: [],
+  document: { body: { classList: { contains: () => false } } }, HERO_MODULES: ['clean', 'ai_moon', 'software', 'optimize', 'analyze', 'status', 'purge', 'history'] });
+view.window = view;
+view.localStorage = { getItem: key => view.store[key] ?? null, setItem: (key, value) => { view.store[key] = value; } };
+view.switchModule = mod => { view.switched.push(mod); view.STATE.module = mod; };
+['rememberView', 'restoreView'].forEach(name => load(name, view));
+view.store.orbit_view = JSON.stringify({ module: 'deleteEverything', appSort: 'bogus' });
+vm.runInContext('restoreView()', view);
+assert.equal(view.STATE.module, 'clean', 'an unknown stored module falls back to Deep Clean');
+assert.equal(view.STATE.appSort, 'size', 'an unknown stored sort is ignored');
+view.store.orbit_view = JSON.stringify({ module: 'status', appSort: 'name', analyzeSort: 'name' });
+vm.runInContext('restoreView()', view);
+assert.deepEqual([view.STATE.module, view.STATE.appSort, view.STATE.analyzeSort, view.switched.length], ['status', 'name', 'name', 1], 'a valid stored module and sorts are restored through switchModule');
+view.window.isMenuBarPopover = true; view.store.orbit_view = JSON.stringify({ module: 'history' });
+vm.runInContext('restoreView()', view);
+assert.equal(view.STATE.module, 'status', 'the menu bar popover never restores the main window module');
 console.log('UI regression checks passed: frozen selections, protected AI paths, scoped scan receipts, real treemap areas and dual-theme contrast; inline JavaScript parses.');

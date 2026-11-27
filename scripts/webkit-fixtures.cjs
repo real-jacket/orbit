@@ -1482,17 +1482,17 @@ add('quick-clean-nothing-selected-navigation',`
 `);
 for(const scenario of scenarios.slice(newTrayStart).filter(item=>item.name.startsWith('tray-')))Object.assign(scenario,{width:420,height:trayHeight});
 add('tray-tools-hidden-panels-stay-idle',`
-  toggleSystemMenuBarDemo(false);
+  document.body.classList.remove('menubar-mode');
   const original=buildMenuBarTrayHTML;let builds=0;
   window.buildMenuBarTrayHTML=()=>{builds++;return original();};
   try{
     onNativeRealTelemetry({...structuredClone(qaTelemetry),cpu:37});
     qaAssert(builds===0&&stateCpuPct()===37,'hidden panels skip list construction while live telemetry stays current');
-    toggleSystemMenuBarDemo(true);
-    qaAssert(builds===1&&document.querySelector('#macSysPopover .tray-head'),'opening the preview builds the current local tools');
-    toggleSystemMenuBarDemo(false);onNativeRealTelemetry(structuredClone(qaTelemetry));
-    qaAssert(builds===1,'closing the preview leaves subsequent telemetry idle');
-  }finally{window.buildMenuBarTrayHTML=original;toggleSystemMenuBarDemo(false);}
+    document.body.classList.add('menubar-mode');renderMenuBarTrayContent();
+    qaAssert(builds===1&&document.querySelector('#menubarTrayShell .tray-head'),'opening the tray builds the current local tools');
+    document.body.classList.remove('menubar-mode');onNativeRealTelemetry(structuredClone(qaTelemetry));
+    qaAssert(builds===1,'closing the tray leaves subsequent telemetry idle');
+  }finally{window.buildMenuBarTrayHTML=original;document.body.classList.remove('menubar-mode');}
 `);
 const trayToolsStart=scenarios.length;
 for(const theme of ['light','dark'])for(const lang of ['zh','en'])for(const view of ['overview','processes'])add('tray-tools-'+view+'-'+theme+'-'+lang,compactTraySetup+`
@@ -2457,6 +2457,35 @@ add('en-modal-confirm-clean', `switchModule('clean');await qaEn('confirm clean',
 add('en-modal-confirm-apps', `switchModule('software');toggleAppCheck(0);await qaEn('confirm uninstall',async()=>{openConfirmSheet();});`);
 add('en-modal-palette', `await qaEn('palette',async()=>{openCommandPalette('');});qaAssert(document.querySelectorAll('#cmdPaletteList .list-row').length>=8,'palette lists every module');`);
 add('en-modal-palette-search', `await qaEn('palette search',async()=>{openCommandPalette('Optimize');});qaAssert(document.querySelectorAll('#cmdPaletteList .list-row').length===1,'palette filters by the English module name');document.querySelector('#cmdPaletteList .list-row').click();qaAssert(STATE.module==='optimize','palette reaches Optimize by its English name');`);
+// Sidebar at the smallest window: all 8 modules visible without scrolling; a nav value is whole or not shown.
+for (const lang of ['zh', 'en']) for (const theme of ['dark', 'light']) {
+  add(`nav-fits-880-${lang}-${theme}`, `document.documentElement.dataset.theme='${theme}';switchModule('history');${lang === 'en' ? "await qaEn('sidebar',async()=>{});" : ''}await qaSettle();
+  const list=document.querySelector('.nav-list'),items=list.querySelectorAll('.nav-item'),box=list.getBoundingClientRect();
+  qaAssert(items.length===8&&items[0].getBoundingClientRect().top>=box.top-0.5&&items[7].getBoundingClientRect().bottom<=box.bottom+0.5,'all 8 modules are visible without scrolling');
+  qaAssert([...document.querySelectorAll('.nav-meta')].every(m=>{const r=m.getBoundingClientRect(),b=m.closest('.nav-item').getBoundingClientRect();return r.top>=b.bottom-1||(r.bottom<=b.bottom+0.5&&r.right<=b.right+0.5);}),'a nav value is shown whole or not at all');`);
+  Object.assign(scenarios.at(-1), { width: 880, height: 620 });
+}
+add('sidebar-health-telemetry-score', `const sub=()=>document.getElementById('sidebarHealthSub');
+  qaAssert(STATE.healthScore!=null&&!STATE.doctorChecks.length&&sub().textContent==='实时评分'&&sub().scrollWidth<=sub().clientWidth,'a live score without a check is labelled as a live score and fits the narrow sidebar');
+  STATE.healthScore=null;updateSidebarBadges();qaAssert(sub().textContent==='尚未体检','no score keeps the not-checked text');
+  onNativeRealTelemetry(structuredClone(qaTelemetry));await qaEn('sidebar health',async()=>{});
+  qaAssert(sub().textContent==='Live score'&&sub().scrollWidth<=sub().clientWidth,'the English label fits the narrow sidebar');`);
+Object.assign(scenarios.at(-1), { width: 880, height: 620 });
+add('en-status-io-one-line', `switchModule('status');await qaEn('status',async()=>{});
+  const big=document.querySelector('#statusCardDiskIo .tc-big'),range=document.createRange();range.selectNodeContents(big);
+  qaAssert(big.textContent.startsWith('R ')&&new Set([...range.getClientRects()].map(r=>Math.round(r.top))).size===1,'the disk I/O headline stays on one line: '+big.textContent);
+  const rescan=document.getElementById('btnRescanText').closest('button');
+  qaAssert(rescan.hidden,'status has no rescan button');switchModule('optimize');qaAssert(rescan.hidden,'optimize has no rescan button');switchModule('status');`);
+Object.assign(scenarios.at(-1), { width: 880, height: 620 });
+add('palette-arrow-enter', `openCommandPalette('');const input=document.getElementById('cmdPaletteInput');input.value='清理';input.dispatchEvent(new Event('input'));
+  const key=k=>input.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
+  const rows=()=>[...document.querySelectorAll('#cmdPaletteList .list-row')];
+  key('ArrowUp');qaAssert(rows()[0].classList.contains('selected'),'ArrowUp stops at the first row');
+  key('ArrowDown');qaAssert(rows()[1].getAttribute('aria-selected')==='true'&&input.getAttribute('aria-activedescendant')===rows()[1].id,'ArrowDown selects the next row');
+  key('Enter');qaAssert(STATE.module==='ai_moon'&&!document.getElementById('cmdPaletteModal').classList.contains('open'),'Enter runs the selected row and closes the palette');`);
+add('shortcut-cmd-f-focuses-search', `switchModule('clean');document.activeElement?.blur();
+  const ev=new KeyboardEvent('keydown',{key:'f',metaKey:true,bubbles:true,cancelable:true});document.body.dispatchEvent(ev);
+  qaAssert(ev.defaultPrevented&&document.activeElement===document.getElementById('searchInput'),'⌘F focuses the search box');document.activeElement.blur();`);
 add('en-popover', `document.body.classList.add('menubar-mode');renderMenuBarTrayContent();await qaEn('popover',async()=>{});const shell=document.getElementById('menubarTrayShell');const over=[];shell.querySelectorAll('button,[data-tray-key]').forEach(el=>{const r=el.getBoundingClientRect();if(!r.width)return;if(r.left<-1||r.right>innerWidth+1)over.push('viewport:'+(el.dataset.trayKey||el.className));if(el.scrollWidth>el.clientWidth+2)over.push('clipped:'+(el.dataset.trayKey||el.className)+' '+el.scrollWidth+'>'+el.clientWidth);});qaAssert(over.length===0,'popover overflow: '+over.join(', '));qaAssert(shell.scrollHeight<=innerHeight+1,'popover fits its fixed height: '+shell.scrollHeight+'>'+innerHeight);qaAssert(shell.querySelector('[data-tray-key="update"]'),'popover has the update button');`);
 scenarios[scenarios.length-1].width=356;scenarios[scenarios.length-1].height=588;
 add('en-popover-follows-main', `document.body.classList.add('menubar-mode');window.isMenuBarPopover=true;try{renderMenuBarTrayContent();qaAssert(/[㐀-鿿]/.test(document.getElementById('menubarTrayShell').textContent),'popover starts in Chinese');onNativeLanguage('en');await qaSettle();qaAssert(document.documentElement.lang==='en','popover html lang follows');const leaks=qaLeaks();qaAssert(leaks.length===0,'popover leaks: '+leaks.join(' | '));onNativeLanguage('zh');await qaSettle();qaAssert(/[㐀-鿿]/.test(document.getElementById('menubarTrayShell').textContent),'popover returns to Chinese');}finally{window.isMenuBarPopover=false;}`);

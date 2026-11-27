@@ -105,8 +105,7 @@
      Dedicated macOS System Top Menu Bar Popover Mode (`window.isMenuBarPopover`)
      Matches the Warm Obsidian / Alabaster design system 100%!
      ========================================================================= */
-  body.menubar-mode .app-shell,
-  body.menubar-mode .macos-sys-menubar {
+  body.menubar-mode .app-shell {
     display: none !important;
   }
   .menubar-tray-shell {
@@ -123,42 +122,6 @@
   body.menubar-mode .menubar-tray-shell {
     display: flex !important;
   }
-
-  /* Optional macOS Top Menu Bar Preview Overlay (for visual verification in full window) */
-  .macos-sys-menubar {
-    height: 28px;
-    background: rgba(20, 20, 18, 0.96);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 14px;
-    font-size: 12px;
-    color: #f4f2ed;
-    flex-shrink: 0;
-    z-index: 200;
-  }
-  .macos-sys-menubar.visible { display: flex; }
-  .sys-menubar-popover {
-    position: fixed;
-    top: 34px;
-    right: 128px;
-    width: 420px;
-    height: 680px;
-    max-height: calc(100dvh - 46px);
-    background: var(--bg-sidebar);
-    border: 1px solid var(--border-strong);
-    border-radius: 13px;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.75);
-    padding: 12px;
-    display: none;
-    flex-direction: column;
-    gap: 8px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    z-index: 210;
-  }
-  .sys-menubar-popover.visible { display: flex; }
 
   .app-shell { display: flex; width: 100%; flex: 1; min-height: 0; overflow: hidden; }
 
@@ -318,8 +281,9 @@
   img.app-squircle-icon {
     object-fit: contain; background: transparent; border-radius: 0; box-shadow: none;
   }
-  /* English labels run longer: the count gives way (ellipsis) before the module name does. */
-  .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* 数值放不下时整段换到被裁掉的第二行：要么完整显示，要么不显示，不出现半截数字。 */
+  .nav-item { flex-wrap: wrap; align-content: flex-start; row-gap: 24px; height: 46px; overflow: hidden; }
+  .nav-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
   .nav-item-left { flex-shrink: 0.1; }
   html[lang="en"] .sidebar { width: 280px; }
   .nav-item.active .nav-meta { color: var(--accent-primary); font-weight: 600; }
@@ -1126,6 +1090,10 @@
     html[lang="en"] .nav-meta:not(#navMetaClean):not(#navMetaMoon):not(#navMetaPurge) { display: none; }
     .prop-bar-wrap { display: none; }
     .master-detail-grid { grid-template-columns: minmax(0, 1.22fr) minmax(280px, 1fr); }
+  }
+  /* 矮窗口：8 个模块不滚动就能全部看到。 */
+  @media (max-height: 700px) {
+    .nav-item { padding-top: 5px; padding-bottom: 5px; height: 38px; }
   }
   @media (max-width: 960px) {
     .sidebar { width: 188px; padding: 10px 8px; }
@@ -2003,28 +1971,6 @@
 <div class="menubar-tray-shell" id="menubarTrayShell"></div>
 
 <!-- =========================================================================
-     2. Optional Top Menu Bar Preview Overlay (for full-window screenshot demo)
-     ========================================================================= -->
-<div class="macos-sys-menubar" id="macSysMenuBar">
-  <div style="display:flex;align-items:center;gap:16px;font-weight:600;">
-    <span></span>
-    <span style="font-weight:700;">orbit</span>
-    <span style="color:#a39f96;font-weight:500;" data-i18n>文件</span>
-    <span style="color:#a39f96;font-weight:500;" data-i18n>编辑</span>
-    <span style="color:#a39f96;font-weight:500;" data-i18n>视图</span>
-    <span style="color:#a39f96;font-weight:500;" data-i18n>窗口</span>
-  </div>
-  <div style="display:flex;align-items:center;gap:14px;font-family:var(--font-mono);font-size:11px;">
-    <span id="sysBarIconBtn" title="点击展开 orbit · 系统状态栏" style="background:rgba(255,255,255,0.10);border:1px solid rgba(255,255,255,0.20);width:26px;height:20px;border-radius:5px;color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:2px;" onclick="toggleSystemMenuBarDemo()" data-icon-slot="bar" data-i18n-attr="title"></span>
-    <span id="menuBarNet" title="网络速率 · 每 1.5 秒采样" data-i18n data-i18n-attr="title">网络 -</span>
-    <span id="menuBarBatt" title="电量 · IOPS 电池数据" data-i18n-attr="title">🔋 -</span>
-    <span id="menuBarClock" title="本机时间" data-i18n-attr="title">--:--</span>
-  </div>
-</div>
-
-<div class="sys-menubar-popover" id="macSysPopover"></div>
-
-<!-- =========================================================================
      3. Main Application Window Shell
      ========================================================================= -->
 <div class="app-shell">
@@ -2053,37 +1999,37 @@
 
     <div class="nav-section-title" id="navGroupCore" data-i18n>核心功能</div>
     <div class="nav-list">
-      <div class="nav-item active" data-mod="clean" data-code="Airlock · 气闸舱" onclick="switchModule('clean')">
+      <div class="nav-item active" data-mod="clean" onclick="switchModule('clean')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #22d3ee 0%, #0e9ab8 55%, #155e75 100%);padding:1.5px;">
             <span class="glyph" data-icon="clean"></span>
           </span>
           <span id="navLabelClean" data-i18n>深度清理</span>
         </div>
-        <span class="nav-meta" id="navMetaClean">12.5 GB</span>
+        <span class="nav-meta" id="navMetaClean"></span>
       </div>
 
-      <div class="nav-item" data-mod="ai_moon" data-code="Cortex · 智核舱" onclick="switchModule('ai_moon')">
+      <div class="nav-item" data-mod="ai_moon" onclick="switchModule('ai_moon')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb923c 0%, #f26a1b 55%, #7c2d12 100%);padding:1.5px;">
             <span class="glyph" data-icon="ai_moon"></span>
           </span>
           <span id="navLabelMoon" data-i18n>AI 清理</span>
         </div>
-        <span class="nav-meta" id="navMetaMoon">12.2 GB</span>
+        <span class="nav-meta" id="navMetaMoon"></span>
       </div>
 
-      <div class="nav-item" data-mod="software" data-code="Jettison · 分离器" onclick="switchModule('software')">
+      <div class="nav-item" data-mod="software" onclick="switchModule('software')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fb7185 0%, #be123c 55%, #881337 100%);padding:1.5px;">
             <span class="glyph" data-icon="software"></span>
           </span>
           <span id="navLabelSoftware" data-i18n>应用卸载</span>
         </div>
-        <span class="nav-meta" id="navMetaSoftware" data-i18n>5 应用</span>
+        <span class="nav-meta" id="navMetaSoftware"></span>
       </div>
 
-      <div class="nav-item" data-mod="optimize" data-code="Thruster · 推进器" onclick="switchModule('optimize')">
+      <div class="nav-item" data-mod="optimize" onclick="switchModule('optimize')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #60a5fa 0%, #2563eb 55%, #1e3a8a 100%);padding:1.5px;">
             <span class="glyph" data-icon="optimize"></span>
@@ -2093,7 +2039,7 @@
         <span class="nav-meta" id="navMetaOptimize" data-i18n>待检查</span>
       </div>
 
-      <div class="nav-item" data-mod="analyze" data-code="Astrolabe · 星图仪" onclick="switchModule('analyze')">
+      <div class="nav-item" data-mod="analyze" onclick="switchModule('analyze')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #fde047 0%, #e3b50f 55%, #713f12 100%);padding:1.5px;">
             <span class="glyph" data-icon="analyze"></span>
@@ -2103,7 +2049,7 @@
         <span class="nav-meta" id="navMetaAnalyze" data-i18n>多级钻取</span>
       </div>
 
-      <div class="nav-item" data-mod="status" data-code="Telemetry · 遥测台" onclick="switchModule('status')">
+      <div class="nav-item" data-mod="status" onclick="switchModule('status')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #4ade80 0%, #16a34a 55%, #14532d 100%);padding:1.5px;">
             <span class="glyph" data-icon="status"></span>
@@ -2115,24 +2061,24 @@
 
       <div class="nav-section-title" id="navGroupTools" data-i18n>工具与安全</div>
 
-      <div class="nav-item" data-mod="purge" data-code="Payload · 载荷舱" onclick="switchModule('purge')">
+      <div class="nav-item" data-mod="purge" onclick="switchModule('purge')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #4a6bb5 0%, #172554 55%, #0a1128 100%);padding:1.5px;">
             <span class="glyph" data-icon="purge"></span>
           </span>
           <span id="navLabelPurge" data-i18n>构建清理</span>
         </div>
-        <span class="nav-meta" id="navMetaPurge">24.9 GB</span>
+        <span class="nav-meta" id="navMetaPurge"></span>
       </div>
 
-      <div class="nav-item" data-mod="history" data-code="Blackbox · 黑匣子" onclick="switchModule('history')">
+      <div class="nav-item" data-mod="history" onclick="switchModule('history')">
         <div class="nav-item-left">
           <span class="nav-svg-icon" style="background:linear-gradient(145deg, #78716c 0%, #57534e 55%, #1c1917 100%);padding:1.5px;">
             <span class="glyph" data-icon="history"></span>
           </span>
           <span id="navLabelHistory" data-i18n>历史与白名单</span>
         </div>
-        <span class="nav-meta" id="navMetaHistory" data-i18n>3 快照</span>
+        <span class="nav-meta" id="navMetaHistory"></span>
       </div>
     </div>
 
@@ -2160,7 +2106,7 @@
   <main class="main-workspace">
     <header class="top-header" onmousedown="handleTopBarDrag(event)" ondblclick="handleTopBarDoubleClick(event)">
       <div class="header-title-group">
-        <h1 class="header-title" id="topTitle" data-i18n>智能深度清理</h1>
+        <h1 class="header-title" id="topTitle" data-i18n>深度清理</h1>
         <span class="live-status-pill" id="liveTelemetryPill">
           <span class="pulse-dot"></span>
           <span id="livePillText" data-i18n>等待本机实时采样</span>
@@ -2218,15 +2164,15 @@
   </main>
 </div>
 
-<!-- Keyboard-First ⌘K Quick Action & Path Search Palette -->
+<!-- Keyboard-First ⌘K Module & Action Palette -->
 <div class="modal-backdrop" id="cmdPaletteModal" onclick="if(event.target===this)closeCommandPalette()">
   <div class="modal-sheet" style="width:580px;">
     <div style="padding:13px 16px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;background:var(--bg-surface);">
       <span style="font-family:var(--font-mono);color:var(--accent-primary);font-weight:700;">⌘K</span>
-      <input type="text" id="cmdPaletteInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="搜索模块或缓存路径" value="" placeholder="输入模块名称或搜索缓存路径 (如 xcode / 卸载 / 体检)..." oninput="renderCommandPaletteList(this.value)" style="background:transparent;border:none;outline:none;box-shadow:none;color:var(--text-primary);font-size:13px;flex:1;min-width:0;text-overflow:ellipsis;"  data-i18n-attr="aria-label placeholder"/>
+      <input type="text" id="cmdPaletteInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="搜索模块或操作" aria-controls="cmdPaletteList" value="" placeholder="输入模块或操作名称 (如 卸载 / 体检)..." oninput="renderCommandPaletteList(this.value)" style="background:transparent;border:none;outline:none;box-shadow:none;color:var(--text-primary);font-size:13px;flex:1;min-width:0;text-overflow:ellipsis;"  data-i18n-attr="aria-label placeholder"/>
       <span class="kbd-tag" onclick="closeCommandPalette()" data-i18n>ESC 关闭</span>
     </div>
-    <div id="cmdPaletteList"></div>
+    <div id="cmdPaletteList" role="listbox"></div>
   </div>
 </div>
 
@@ -2611,8 +2557,6 @@ function hydrateGlyphs(root) {
     const prefix = (slot.dataset.prefix || 'g') + index;
     slot.innerHTML = get_skeuo_svg(kind, prefix);
   });
-  const bar = scope.querySelector('[data-icon-slot="bar"]');
-  if (bar && !bar.querySelector('svg')) bar.innerHTML = get_skeuo_svg('brand', 'bar');
 }
 
 // Hero marks are built lazily: GLYPHS is declared below this point, so calling
@@ -2805,6 +2749,21 @@ STATE.fanMode = undefined;
 STATE.tempUnit = STATE.tempUnit === 'F' ? 'F' : 'C';
 STATE.scanCompleted = false;
 STATE.optimize = structuredClone(DEFAULT_STATE.optimize);   // 旧版本存下来的状态里没有这一项，也不该带上次的诊断结果
+
+// 只记住看到哪一页、怎么排序；卸载方式、筛选和搜索每次重新开始。菜单栏弹窗既不存也不恢复。
+function rememberView() {
+  if (window.isMenuBarPopover || document.body.classList.contains('menubar-mode')) return;
+  try { localStorage.setItem('orbit_view', JSON.stringify({ module: STATE.module, appSort: STATE.appSort, analyzeSort: STATE.analyzeSort })); } catch (e) {}
+}
+function restoreView() {
+  if (window.isMenuBarPopover || document.body.classList.contains('menubar-mode')) return;
+  try {
+    const view = JSON.parse(localStorage.getItem('orbit_view')) || {};
+    if (['size', 'recent', 'name'].includes(view.appSort)) STATE.appSort = view.appSort;
+    if (['size', 'name'].includes(view.analyzeSort)) STATE.analyzeSort = view.analyzeSort;
+    if (HERO_MODULES.includes(view.module) && view.module !== STATE.module) switchModule(view.module);
+  } catch (e) {}
+}
 
 // 失败标记只描述上一次操作；重启后以新的扫描为准，旧构建留下的失败原因（如过时的权限提示）不再一直挂在行上。
 function dropSavedFailures(state) {
@@ -3309,7 +3268,6 @@ function renderSlimPanel(stage, switchHtml, el) {
   const sel = slimSelected();
   const selGb = sel.reduce((n, app) => n + (Number(app.intelGb) || 0), 0);
   const busy = SLIM.loading || !!SLIM.applying;
-  el.topTitle.textContent = t('应用瘦身 · 分离器');
   el.primaryBtnText.textContent = t('预览瘦身所选');
   el.heroHeadline.textContent = slimHeadline();
   el.heroDesc.textContent = t('瘦身只去掉应用里的 Intel 代码。原应用移入废纸篓；应用更新会带回 Intel 代码。');
@@ -3956,8 +3914,7 @@ window.onNativeCachePurgeResult = function(result) {
 };
 
 function renderMenuBarTrayContent() {
-  updateMenuBarHw();
-  const hosts = [document.getElementById('menubarTrayShell'), document.getElementById('macSysPopover')].filter(host => host && (host.id === 'menubarTrayShell' ? document.body.classList.contains('menubar-mode') : host.classList.contains('visible')));
+  const hosts = [document.getElementById('menubarTrayShell')].filter(host => host && document.body.classList.contains('menubar-mode'));
   const html = hosts.length ? buildMenuBarTrayHTML() : '';
   for (const host of hosts) {
     const active = host.contains(document.activeElement) ? document.activeElement : null;
@@ -4044,18 +4001,6 @@ window.onNativeCaffeinate = function(state) {
   }
   renderModule();
 };
-
-function toggleSystemMenuBarDemo(show) {
-  const bar = document.getElementById('macSysMenuBar');
-  const pop = document.getElementById('macSysPopover');
-  if (typeof show === 'boolean') {
-    bar.classList.toggle('visible', show);
-    pop.classList.toggle('visible', show);
-  } else {
-    pop.classList.toggle('visible');
-  }
-  renderMenuBarTrayContent();
-}
 
 function handleTopBarDrag(ev) {
   if (ev.button !== 0) return;
@@ -4185,7 +4130,7 @@ function showToast(msg) {
   el.textContent = msg;
   el.style.display = 'block';
   clearTimeout(window._toastTimer);
-  window._toastTimer = setTimeout(() => { el.style.display = 'none'; }, 2600);
+  window._toastTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
 const THERMAL_TEXT = { nominal: ['温度正常', 'var(--accent-emerald)'], fair: ['略有升温', 'var(--accent-amber)'], serious: ['温度偏高', 'var(--accent-rose)'], critical: ['过热降频', 'var(--accent-rose)'] };
@@ -4252,23 +4197,6 @@ function fmtFansRpm(fans) {
   return v.length ? v.join(' / ') + ' RPM' : null;
 }
 function fmtTempC(v) { const n = numOrNull(v); return n === null ? null : formatTemp(n); }
-function updateMenuBarHw() {
-  const hw = STATE.hw || {};
-  const netEl = document.getElementById('menuBarNet');
-  if (netEl) {
-    const rx = hw.net ? fmtBytesPerSec(hw.net.rx) : null;
-    const tx = hw.net ? fmtBytesPerSec(hw.net.tx) : null;
-    netEl.textContent = (rx || tx) ? t('网络 ↓{rx} ↑{tx}', { rx: rx || '-', tx: tx || '-' }) : t('网络 -');
-    netEl.title = (rx || tx) ? t('网络速率 · Go 侧 1.5s 采样（en0/utun）') : t('本机不提供网络速率采样');
-  }
-  const batEl = document.getElementById('menuBarBatt');
-  const bat = powerInfo().battery;
-  if (batEl) {
-    const hasBat = bat && hasNum(bat.percent);
-    batEl.textContent = hasBat ? `🔋 ${bat.percent}%` : '🔋 -';
-    batEl.title = hasBat ? (bat.plugged ? t('已接通电源') : t('电池供电')) : t('本机不提供电量');
-  }
-}
 function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
 function thermalInfo() { const hit = THERMAL_TEXT[powerInfo().thermal]; return hit ? [t(hit[0]), hit[1]] : [t('热压力未知'), 'var(--text-muted)']; }
 function pressureInfo() { const hit = PRESSURE_TEXT[powerInfo().memPressure]; return hit ? [t(hit[0]), hit[1]] : [t('内存压力未知'), 'var(--text-muted)']; }
@@ -4883,7 +4811,7 @@ function updateSidebarBadges() {
   const subEl = document.getElementById('sidebarHealthSub');
   const pillEl = document.getElementById('sidebarHealthPill');
   const dotColor = score == null ? 'var(--text-muted)' : score >= 85 ? 'var(--accent-emerald)' : score >= 70 ? 'var(--accent-amber)' : 'var(--accent-rose)';
-  const subText = STATE.doctorChecks.length ? t('{n} 项体检', { n: STATE.doctorChecks.length }) : t('尚未体检');
+  const subText = STATE.doctorChecks.length ? t('{n} 项体检', { n: STATE.doctorChecks.length }) : score != null ? t('实时评分') : t('尚未体检');
   if (subEl) subEl.innerHTML = `<span class="sidebar-status-dot" style="background:${dotColor};"></span>${escHtml(subText)}`;
   if (pillEl) {
     pillEl.textContent = score != null ? String(score) : t('体检');
@@ -4895,6 +4823,7 @@ function updateSidebarBadges() {
 
 window.switchModule = function(mod) {
   STATE.module = mod;
+  rememberView();
   if (STATE.searchQuery) {
     STATE.searchQuery = '';
     const si = document.getElementById('searchInput');
@@ -5144,7 +5073,7 @@ function applyAppSort() {
   STATE.appsList.sort(by);
   STATE.selectedAppIdx = Math.max(0, STATE.appsList.findIndex(a => a.id === selId));
 }
-function setAppSort(key) { STATE.appSort = key; applyAppSort(); renderModule(); }
+function setAppSort(key) { STATE.appSort = key; rememberView(); applyAppSort(); renderModule(); }
 // 只用 Spotlight 回传的时间换算；没有记录就写「未记录」，不猜。
 function appUsedText(app) {
   if (!Number.isFinite(app.lastUsedAt)) return t('最近使用 未记录');
@@ -5902,6 +5831,7 @@ function analysisVisibleTiles() {
 function setAnalyzeSort(key) {
   const path = analysisSelectedSmallItem()?.path || analysisVisibleTiles()[STATE.analyzeSel]?.path;
   STATE.analyzeSort = key === 'name' ? 'name' : 'size';
+  rememberView();
   restoreAnalysisSelection(path);
   renderModule();
 }
@@ -6555,8 +6485,6 @@ function renderModule() {
     const measuredGb = STATE.cleanGroups.reduce((sum, group) => sum + (hasNum(group.sizeGb) ? group.sizeGb : 0), 0);
     const reviewableGb = STATE.cleanGroups.filter(group => group.tier !== 'protected').reduce((sum, group) => sum + (group.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected').reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0), 0);
     const installerGb = STATE.installerFiles.reduce((sum, file) => sum + (hasNum(file.sizeGb) ? file.sizeGb : 0), 0);
-    topTitle.textContent = t('智能深度清理 · 气闸舱');
-    primaryBtnText.textContent = selectedGb > 0 ? t('一键清理所选 ({size} GB)', {size: selectedGb.toFixed(2)}) : !STATE.cleanGroups.length ? t('开始扫描') : !STATE.cleanGroups.some(g => g.cleaned) ? t('请先勾选要清理的项目') : t('全部所选项已清理完毕');
     heroHeadline.textContent = selectedGb > 0
       ? t('已勾选 {size}，预览后再移入废纸篓', {size: fmtDiskSizeGb(selectedGb)})
       : !STATE.cleanGroups.length ? t('还没有扫描结果') : STATE.cleanGroups.every(g => g.tier === 'protected') ? t('本次路径暂不能处理，请查看保留原因') : t('缓存按路径审查，未知用途先保留');
@@ -6688,7 +6616,6 @@ function renderModule() {
     const scopedExclusions = STATE.aiExcludedRoots.filter(root => matchesAITool(root) && matchesSearch(root));
     const measuredGb = aiMeasuredGb(scopedBands);
     const reviewableGb = aiMeasuredGb(scopedBands.filter(band => band.tier !== 'protected').map(band => ({...band, sizeGb: (band.subpaths || []).filter(path => !path.cleaned && path.tier !== 'protected').reduce((total, path) => total + (hasNum(path.sizeGb) ? path.sizeGb : 0), 0)})));
-    topTitle.textContent = t('AI 专项清理 · 智核舱');
     primaryBtnText.textContent = selectedGb > 0 ? t('清理所选 AI 冗余 ({size} GB)', {size: selectedGb.toFixed(2)}) : !STATE.aiMoonBands.length ? t('开始扫描') : t('AI 冗余已清理完毕');
     heroHeadline.textContent = selectedGb > 0
       ? t('已选 {size}，只处理经过核验的路径', {size: fmtDiskSizeGb(selectedGb)})
@@ -6800,8 +6727,6 @@ function renderModule() {
       const activeOrphans = checkedOrphans;
       const totalSelectedOrphanGb = activeOrphans.reduce((s, o) => s + selectedSizeGb(o), 0);
 
-      topTitle.textContent = t('残留与未归属数据 · 分离器');
-      primaryBtnText.textContent = t('一键清理所选残留 ({size})', { size: fmtDiskSizeGb(totalSelectedOrphanGb) });
       heroHeadline.textContent = selOrphan
         ? t('发现 {n} 组需要核对归属的数据', { n: orphans.length })
         : t('没有发现待核对数据');
@@ -6933,7 +6858,6 @@ function renderModule() {
       const activeApps = checkedApps;
       const totalSelectedAppGb = activeApps.reduce((s, a) => s + calcAppGb(a), 0);
 
-      topTitle.textContent = t('应用卸载管理 · 分离器');
       primaryBtnText.textContent = mode === 'cache_only'
         ? t('仅清理所选应用缓存 ({size})', { size: fmtDiskSizeGb(totalSelectedAppGb) })
         : mode === 'standard'
@@ -7006,10 +6930,7 @@ function renderModule() {
                     </div>
                   </div>
                   <div class="row-right">
-                    <span class="badge ${mode === 'cache_only' ? 'badge-safe' : app.keepPersonal ? 'badge-safe' : 'badge-review'}" title="${t('处理方式在列表顶部选择；移除范围以勾选路径为准')}">
-                      ${mode === 'cache_only' ? t('仅清缓存') : app.keepPersonal ? t('标准卸载') : t('彻底卸载')}
-                    </span>
-                    <span class="size-cell" style="color:${mode === 'cache_only' ? 'var(--accent-emerald)' : 'var(--accent-rose)'};${appRunningBlocked(app, mode) ? 'white-space:normal;' : ''}">${appRunningBlocked(app, mode) ? `<span title="${t('应用正在运行，退出后才能卸载；下方为已测量的应用大小')}" style="color:var(--text-muted);">${t('退出后可卸载')}<small style="display:block;font-weight:400;font-size:10.5px;">${app.partial && !app.appSizeGb ? t('大小未读取') : t('应用 {size}', { size: fmtDiskSizeGb(app.appSizeGb) })}</small></span>` : mode === 'cache_only' && !selectable ? t(cache.state) : fmtDiskSizeGb(rowGb)}</span>
+                    <span class="size-cell" style="${appRunningBlocked(app, mode) ? 'white-space:normal;' : ''}">${appRunningBlocked(app, mode) ? `<span title="${t('应用正在运行，退出后才能卸载；下方为已测量的应用大小')}" style="color:var(--text-muted);">${t('退出后可卸载')}<small style="display:block;font-weight:400;font-size:10.5px;">${app.partial && !app.appSizeGb ? t('大小未读取') : t('应用 {size}', { size: fmtDiskSizeGb(app.appSizeGb) })}</small></span>` : mode === 'cache_only' && !selectable ? t(cache.state) : fmtDiskSizeGb(rowGb)}</span>
                   </div>
                 </div>
               `}).join('') : `<div class="empty-state">${UI_ICON('search')}<div class="empty-title">${t('未找到匹配的应用')}</div><div class="empty-desc">${t('尝试清空搜索关键词查看全部已安装应用。')}</div></div>`}
@@ -7019,7 +6940,7 @@ function renderModule() {
           <div class="panel-card">
             <div class="panel-header">
               <span>${t('{name} · 空间构成', { name: escHtml(selApp.name) })}</span>
-              <span style="font-family:var(--font-mono);color:var(--accent-rose);">${t('已选 {size}', { size: selApp.checked ? fmtDiskSizeGb(calcAppGb(selApp)) : '0 B' })}</span>
+              <span style="font-family:var(--font-mono);">${t('已选 {size}', { size: selApp.checked ? fmtDiskSizeGb(calcAppGb(selApp)) : '0 B' })}</span>
             </div>
             <div class="inspector-content">
               <div style="display:flex;align-items:center;gap:12px;padding-bottom:4px;">
@@ -7101,7 +7022,6 @@ function renderModule() {
     const curSelectedTile = smallSelectedTile || activeTiles[activeIdx] ||
       { __current: true, name: parentDir.name, path: parentDir.path, isDir: true, sizeGb: drillGb, diskGb: drillGb, logicalGb, files: fileCount, modified: parentDir.modified };
 
-    topTitle.textContent = t('磁盘空间分析 · 星图仪');
     primaryBtnText.textContent = STATE.analyzeLoading ? t('取消扫描') : t('重新扫描');
     if (STATE.analyzeError) {
       heroHeadline.textContent = t('磁盘分析未完成');
@@ -7338,7 +7258,6 @@ function renderModule() {
     const crumbs = stage.querySelector('.crumb-location');
     if (crumbs) crumbs.scrollLeft = crumbs.scrollWidth;
   } else if (mod === 'status') {
-    topTitle.textContent = t('实时状态监控 · 遥测台');
     primaryBtnText.textContent = t('立即采样刷新');
     heroHeadline.textContent = t(STATE.cpuModelName);
     heroDesc.textContent = t('图表保留最近 40 次显示采样，硬件采集频率不同；参考分不是硬件诊断。SIGTERM 仍可能丢失未保存内容，需二次确认。');
@@ -7368,7 +7287,6 @@ function renderModule() {
     const instGb = STATE.installerFiles.filter(i => i.checked).reduce((s, i) => s + i.sizeGb, 0);
     const totalDevGb = purgeGb + instGb;
 
-    topTitle.textContent = t('构建产物与安装包 · 载荷舱');
     primaryBtnText.textContent = totalDevGb > 0 ? t('清理所选构建与安装包 ({size} GB)', {size: totalDevGb.toFixed(2)}) : !(STATE.purgeItems.length + STATE.installerFiles.length) ? t('开始扫描') : t('已全部清理完毕');
     heroHeadline.textContent = totalDevGb > 0
       ? t('发现 {build} GB 项目构建产物 + {inst} GB 独立安装包', {build: purgeGb.toFixed(2), inst: instGb.toFixed(2)})
@@ -7548,7 +7466,6 @@ function renderModule() {
   } else {
     const opt = STATE.optimize;
     const optRunnable = opt.items.filter(it => it.runnable), optSelected = optimizeSelectedIds().length;
-    topTitle.textContent = t('系统加速优化 · 推进器');
     primaryBtnText.textContent = t('执行所选');
     heroHeadline.textContent = opt.status === 'error' ? t('检查没有完成') : opt.status === 'ready' ? (optRunnable.length ? t('{n} 项系统维护待处理', {n: optRunnable.length}) : t('没有需要处理的系统维护')) : t('正在检查系统维护项目');
     heroDesc.textContent = t('每一项都先检查再决定，只默认勾选确实需要且安全的。改动都有回执，能撤销的可以一键撤销；需要管理员权限的只列出，orbit 不执行。');
@@ -7694,7 +7611,7 @@ function toggleTempUnit() {
   const button = document.getElementById('btnTemp');
   button.textContent = STATE.tempUnit === 'F' ? '°F' : '°C';
   button.title = t('切换温度单位，当前 {unit}', {unit: button.textContent});
-  persistState(); renderModule(); updateMenuBarHw();
+  persistState(); renderModule();
 }
 
 // Editable & Live-Filtered ⌘K Command Palette
@@ -7715,9 +7632,9 @@ window.renderCommandPaletteList = function(queryStr) {
   const matches = CMD_PALETTE_ITEMS.filter(item => !q || item.title.toLowerCase().includes(q) || item.sub.toLowerCase().includes(q) || t(item.title).toLowerCase().includes(q) || t(item.sub).toLowerCase().includes(q));
   const container = document.getElementById('cmdPaletteList');
   container.innerHTML = `
-    <div style="padding:5px 16px;font-size:10px;font-weight:700;color:var(--text-muted);">${t('匹配到的功能与清理目标 ({n} 项 · 点击立即跳转)', {n: matches.length})}</div>
+    <div style="padding:5px 16px;font-size:10px;font-weight:700;color:var(--text-muted);">${t('匹配到的模块与操作 ({n} 项 · ↑↓ 选择，回车打开)', {n: matches.length})}</div>
     ${matches.map((item, idx) => `
-      <div class="list-row ${idx === 0 ? 'selected' : ''}" onclick="closeCommandPalette(); CMD_PALETTE_ITEMS[${CMD_PALETTE_ITEMS.indexOf(item)}].run();">
+      <div class="list-row ${idx === 0 ? 'selected' : ''}" id="cmdPaletteRow${idx}" role="option" aria-selected="${idx === 0}" onclick="closeCommandPalette(); CMD_PALETTE_ITEMS[${CMD_PALETTE_ITEMS.indexOf(item)}].run();">
         <div class="row-left">
           <span class="palette-glyph" style="background:${MODULE_PLATE[item.icon] || MODULE_PLATE.brand};">
             ${get_skeuo_svg(item.icon, 'pal' + item.title.length)}
@@ -7731,6 +7648,7 @@ window.renderCommandPaletteList = function(queryStr) {
       </div>
     `).join('')}
   `;
+  document.getElementById('cmdPaletteInput').setAttribute('aria-activedescendant', matches.length ? 'cmdPaletteRow0' : '');
 };
 
 window.openCommandPalette = function(prefill) {
@@ -7795,12 +7713,12 @@ function buildCleanEntries(module = STATE.module) {
   if (pendingTrashRequests.size) { showToast(t('已有操作正在等待系统回执，请稍后再试')); return; }
   const mode = STATE.uninstallMode || 'standard';
   const entries = [];          // 一个界面实体 = 一个 entry；entry.paths 才是发给 Go 的绝对路径
-  let actionLabel = '智能深度清理';
+  let actionLabel = '深度清理';
 
   if (module === 'clean') {
     const sel = STATE.cleanGroups.filter(g => g.checked && g.tier !== 'protected' && g.sizeGb > 0);
     if (!sel.length) { showToast(t('尚未勾选清理项，请先在列表中勾选要清理的项目（受保护项不会被清理）')); return; }
-    actionLabel = `智能深度清理 (${sel.length} 大分类缓存与日志)`;
+    actionLabel = `深度清理 (${sel.length} 大分类缓存与日志)`;
     sel.forEach(g => {
       const paths = selectedSubpaths(g).map(sp => absolutePath(sp.path)).filter(Boolean);
       entries.push({
@@ -8119,6 +8037,24 @@ document.addEventListener('keydown', (e) => {
   } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && !document.querySelector('.modal-backdrop.open')) {
     e.preventDefault();
     openDoctorModal(true);
+  } else if ((e.metaKey || e.ctrlKey) && ['f', 'r'].includes(e.key.toLowerCase()) && !document.body.classList.contains('menubar-mode')) {
+    // ⌘F 聚焦搜索框，⌘R 等同点击「刷新扫描」；不可用或有弹窗时什么也不做，但都不交给 WebView 默认行为。
+    e.preventDefault();
+    if (document.querySelector('.modal-backdrop.open')) return;
+    const search = document.getElementById('searchInput'), rescan = document.getElementById('btnRescanText').closest('button');
+    if (e.key.toLowerCase() === 'f') { if (!search.disabled) { search.focus(); search.select(); } }
+    else if (!rescan.hidden && !rescan.disabled) rescan.click();
+  } else if (e.target.id === 'cmdPaletteInput' && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key) && !e.isComposing) {
+    // ↑↓ 移动选中行（到头即停），回车打开选中行。
+    const rows = [...document.querySelectorAll('#cmdPaletteList .list-row')];
+    if (!rows.length) return;
+    e.preventDefault();
+    const cur = Math.max(0, rows.findIndex(r => r.classList.contains('selected')));
+    if (e.key === 'Enter') { rows[cur].click(); return; }
+    const next = Math.min(rows.length - 1, Math.max(0, cur + (e.key === 'ArrowDown' ? 1 : -1)));
+    rows.forEach((r, i) => { r.classList.toggle('selected', i === next); r.setAttribute('aria-selected', String(i === next)); });
+    rows[next].scrollIntoView({ block: 'nearest' });
+    e.target.setAttribute('aria-activedescendant', rows[next].id);
   } else if (e.key === 'Escape') {
     closeCommandPalette();
     closeConfirmSheet();
@@ -8159,7 +8095,7 @@ document.addEventListener('keydown', (e) => {
     });
     document.querySelectorAll('.nav-item').forEach((el, i) => {
       if (el.classList.contains('active')) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
-      if (i < 8) el.title = (el.dataset.code ? t(el.dataset.code) + ' · ' : '') + '⌘' + (i + 1);
+      if (i < 8) el.title = '⌘' + (i + 1);
     });
     document.querySelectorAll('.list-row').forEach(el => {
       if (el.classList.contains('selected')) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
@@ -8264,7 +8200,7 @@ document.addEventListener('keydown', (e) => {
     const active = document.activeElement;
     const anyOpen = !!document.querySelector('.modal-backdrop.open');
     el.querySelector('.modal-sheet').style.animation = open && document.visibilityState !== 'visible' ? 'none' : '';
-    document.querySelectorAll('.app-shell,#menubarTrayShell,#macSysPopover').forEach(shell => { shell.inert = anyOpen; });
+    document.querySelectorAll('.app-shell,#menubarTrayShell').forEach(shell => { shell.inert = anyOpen; });
     document.querySelectorAll('.modal-backdrop').forEach(m => { m.inert = anyOpen && !m.classList.contains('open'); });
     if (open && !opener.has(el)) {
       opener.set(el, active);
@@ -8304,7 +8240,7 @@ document.addEventListener('keydown', (e) => {
     }
     if (!t.matches || t.matches('input,textarea,select')) return;
     // Enter / Space activate click-only controls.
-    if ((e.key === 'Enter' || e.key === ' ') && t.matches('[role="button"],[role="tab"],th[tabindex]')) {
+    if ((e.key === 'Enter' || e.key === ' ') && t.matches('[role="button"],[role="tab"],[role="option"],th[tabindex]')) {
       e.preventDefault();
       if (t.getAttribute('aria-disabled') === 'true') return;
       t.click();
@@ -8432,7 +8368,7 @@ document.addEventListener('keydown', (e) => {
     rescan.closest('button').disabled = scanning || pendingTrashRequests.size > 0;
     rescan.closest('button').classList.toggle('busy', scanning);
     rescan.closest('button').setAttribute('aria-busy', scanning ? 'true' : 'false');
-    rescan.closest('button').hidden = STATE.module === 'analyze' || STATE.module === 'history';
+    rescan.closest('button').hidden = ['analyze', 'history', 'status', 'optimize'].includes(STATE.module);
     stage.setAttribute('aria-busy', scanning || refreshing || pendingTrashRequests.size > 0 || STATE.module === 'analyze' && STATE.analyzeLoading ? 'true' : 'false');
     document.getElementById('scanSourceBadge').textContent = scanning ? t('正在读取本机') : refreshing ? t('正在刷新扫描结果') : warningBadge(warningSummary(moduleWarnings)) || (STATE.scanCompleted ? STATE.module === 'ai_moon' ? t('本地 AI 目录审查 · 不等于 CLI 清理') : t('本机扫描已返回') : t('等待本机数据'));
     // 历史页没有本机扫描，不显示扫描来源。
@@ -8602,7 +8538,6 @@ document.addEventListener('keydown', (e) => {
     updateLivePill();
     renderRuntimeBanner();
     renderModule();
-    updateMenuBarHw();
     renderMenuBarTrayContent();
     if (document.getElementById('runtimeModal')?.classList.contains('open')) renderRuntimePanel();
     {  // the doctor list is rendered once and kept while closed, so refresh it open or not
@@ -8737,9 +8672,8 @@ hydrateGlyphs();
 renderHeroGlyph();
 renderModule();
 renderMenuBarTrayContent();
+restoreView();
 setInterval(() => { window.stepLiveTelemetry(); }, 1500);
-// 菜单栏时钟：显示本机真实时间，不写死
-(function(){const el=document.getElementById('menuBarClock');if(!el)return;const f=()=>{const d=new Date();el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};f();setInterval(f,15000);})();
 
 /* ---------------------------------------------------------------------------
    权限提示条：Go 侧回执里带 pane 时说明这次失败不是「文件坏了」，而是 macOS
