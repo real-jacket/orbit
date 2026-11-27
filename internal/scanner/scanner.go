@@ -18,8 +18,9 @@ import (
 
 // Scanner measures the disk. Use Shared.
 type Scanner struct {
-	home         string
-	processProbe func() (string, error)
+	home          string
+	systemTCCPath string // system-wide TCC.db fallback when the user-level file is absent
+	processProbe  func() (string, error)
 	appDirs      []string       // tests point the installed-app folders at a temp dir
 	optimizeRun  OptimizeRunner // tests inject a fake command runner for the optimize tasks
 	handleProbe  func(string) (bool, error)
@@ -57,7 +58,11 @@ type Scanner struct {
 }
 
 // Shared is the app's scanner.
-var Shared = &Scanner{home: homeDir(), processTTL: 2 * time.Second}
+var Shared = &Scanner{
+	home:          homeDir(),
+	systemTCCPath: "/Library/Application Support/com.apple.TCC/TCC.db",
+	processTTL:    2 * time.Second,
+}
 
 // homeDir returns the user's home directory.
 func homeDir() string {

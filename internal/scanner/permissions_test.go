@@ -56,6 +56,28 @@ func TestFullDiskProbeReadsTheTCCFileOnlyToOpenIt(t *testing.T) {
 	}
 }
 
+func TestFullDiskProbeFallsBackToSystemTCCDB(t *testing.T) {
+	home := t.TempDir()
+	sysDB := filepath.Join(t.TempDir(), "TCC.db")
+	if err := os.WriteFile(sysDB, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := &Scanner{home: home, systemTCCPath: sysDB}
+	if result := s.FullDiskReadCheck(); result["passed"] != true || result["status"] != "granted" {
+		t.Fatalf("readable system TCC.db should grant even when user TCC.db is absent: %v", result)
+	}
+	if os.Geteuid() == 0 {
+		return
+	}
+	if err := os.Chmod(sysDB, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(sysDB, 0o600) })
+	if result := s.FullDiskReadCheck(); result["passed"] != false || result["status"] != "denied" {
+		t.Fatalf("refused system TCC.db should deny: %v", result)
+	}
+}
+
 func fakeBundle(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "Tool.app")

@@ -38,7 +38,7 @@ func isPermissionErr(err error) bool {
 	return errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES)
 }
 
-// tccDBPath is the file every "is Full Disk Access on" check opens.
+// tccDBPath is the user-level file "is Full Disk Access on" checks open first.
 func (s *Scanner) tccDBPath() string {
 	return filepath.Join(s.home, "Library", "Application Support", "com.apple.TCC", "TCC.db")
 }
@@ -57,12 +57,24 @@ func fdaFromProbe(err error) string {
 }
 
 // probeFullDisk opens TCC.db and closes it at once; no row is ever read.
+// Some macOS versions have no user-level TCC.db and only keep the system-wide
+// database under /Library, so fall back to systemTCCPath when the user path
+// cannot decide.
 func (s *Scanner) probeFullDisk() string {
-	file, err := os.Open(s.tccDBPath())
-	if err == nil {
-		_ = file.Close()
+	paths := []string{s.tccDBPath()}
+	if s.systemTCCPath != "" {
+		paths = append(paths, s.systemTCCPath)
 	}
-	return fdaFromProbe(err)
+	for _, path := range paths {
+		file, err := os.Open(path)
+		if err == nil {
+			_ = file.Close()
+		}
+		if state := fdaFromProbe(err); state != "" {
+			return state
+		}
+	}
+	return ""
 }
 
 // AppManagementRecord is the outcome of the last real app-bundle move. macOS has
