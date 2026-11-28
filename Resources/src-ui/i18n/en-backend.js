@@ -266,6 +266,7 @@
     "这是其它应用留下的数据容器，macOS 需要「完全磁盘访问权限」（部分系统版本在「App 管理」）才能移动。授权后重试即可，已经移入废纸篓的条目不受影响。": "This is a data container left by another app. macOS requires “Full Disk Access” (on some system versions, “App Management”) to move it. Retry after granting access; items already moved to the Trash aren't affected.",
     "权限不足：该目录受 macOS 保护，需要在「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里允许 orbit。": "Insufficient permissions: this folder is protected by macOS. Allow orbit in “System Settings › Privacy & Security › Full Disk Access”.",
     "权限不足：请在访达中检查该路径、父目录及废纸篓的访问权限后重试": "Insufficient permissions: check access to this path, its parent folder and the Trash in Finder, then retry",
+    "完全磁盘访问权限已开启，但 macOS 仍拒绝移动这一项：它可能正被所属应用使用，或受系统保护。退出相关应用后重试，或在访达中处理。": "Full Disk Access is already on, but macOS still refused to move this item: the app that owns it may be using it, or the system protects it. Quit that app and retry, or handle it in Finder.",
     "这是 macOS 系统卷上的文件（只读保护），不能移入废纸篓": "This file is on the macOS system volume (read-only protected) and can't be moved to the Trash",
     "跨卷移动失败，请手动处理": "Moving across volumes failed; handle it manually",
     "磁盘空间不足": "Not enough disk space",

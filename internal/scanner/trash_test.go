@@ -691,9 +691,29 @@ func TestHumanizeTrashErrorPointsAtTheRightSettingsPane(t *testing.T) {
 		}
 	}
 
-	failure := trashFailure("/Applications/Figma.app", denied)
+	s := &Scanner{home: t.TempDir()}
+	failure := s.trashFailure("/Applications/Figma.app", denied)
 	if failure.Path != "/Applications/Figma.app" || failure.Pane != "appManagement" {
 		t.Fatalf("trashFailure = %+v", failure)
+	}
+	if failure := s.trashFailure("/Users/me/Library/Saved Application State/com.apple.Terminal.savedState", denied); failure.Pane != "fullDiskAccess" {
+		t.Fatalf("without Full Disk Access the Library denial points at its pane: %+v", failure)
+	}
+
+	// Once Full Disk Access is on, a denial is not that switch: no pane, plain reason.
+	if err := os.MkdirAll(filepath.Dir(s.tccDBPath()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.tccDBPath(), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/Users/me/Library/Saved Application State/com.apple.Terminal.savedState", "/Users/me/Downloads/report.pdf"} {
+		if failure := s.trashFailure(path, denied); failure.Pane != "" || failure.Error != deniedDespiteFullDiskReason {
+			t.Fatalf("%s: granted Full Disk Access must not prescribe it again: %+v", path, failure)
+		}
+	}
+	if failure := s.trashFailure("/Applications/Figma.app", denied); failure.Pane != "appManagement" {
+		t.Fatalf("App Management is a separate switch: %+v", failure)
 	}
 }
 

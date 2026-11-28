@@ -260,7 +260,7 @@ func (s *Scanner) trashPaths(rawPaths []string, identities map[string]FileIdenti
 			if hooks != nil {
 				hooks.failed(path, unloaded)
 			}
-			outcome.Failed = append(outcome.Failed, trashFailure(path, err))
+			outcome.Failed = append(outcome.Failed, s.trashFailure(path, err))
 			continue
 		}
 		if worktree {
@@ -323,7 +323,7 @@ func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string
 	trash, err := trashDir()
 	if err != nil {
 		for _, path := range originals {
-			outcome.Failed = append(outcome.Failed, trashFailure(s.expand(path), err))
+			outcome.Failed = append(outcome.Failed, s.trashFailure(s.expand(path), err))
 		}
 		return outcome
 	}
@@ -379,7 +379,7 @@ func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string
 		}
 		info, err := os.Lstat(entry.Trashed)
 		if err != nil {
-			outcome.Failed = append(outcome.Failed, trashFailure(original, err))
+			outcome.Failed = append(outcome.Failed, s.trashFailure(original, err))
 			continue
 		}
 		stat, ok := info.Sys().(*syscall.Stat_t)
@@ -390,7 +390,7 @@ func (s *Scanner) RestoreTrash(originals []string, expectedTrashed ...map[string
 		gitInfo, gitErr := os.Lstat(filepath.Join(entry.Trashed, ".git"))
 		worktree := gitErr == nil && gitInfo.Mode().IsRegular()
 		if err := moveBack(entry); err != nil {
-			outcome.Failed = append(outcome.Failed, trashFailure(original, err))
+			outcome.Failed = append(outcome.Failed, s.trashFailure(original, err))
 			continue
 		}
 		if worktree {
@@ -532,10 +532,19 @@ func isTrashRoot(path, home string) bool {
 // humanizeTrashError turns the errors users actually hit into advice.
 // trashFailure turns one failed move into the message the user reads, and, for
 // permission problems, the System Settings pane that can grant it.
-func trashFailure(path string, err error) TrashFailure {
+func (s *Scanner) trashFailure(path string, err error) TrashFailure {
 	message, pane := humanizeTrashError(path, err)
+	// Full Disk Access also covers Desktop/Documents/Downloads; once it is on,
+	// sending the user back to a switch they already turned on is a dead end.
+	if (pane == "fullDiskAccess" || pane == "filesAndFolders") && s.probeFullDisk() == "granted" {
+		return TrashFailure{Path: path, Error: deniedDespiteFullDiskReason}
+	}
 	return TrashFailure{Path: path, Error: message, Pane: pane}
 }
+
+// deniedDespiteFullDiskReason is shown when macOS refuses a move although Full
+// Disk Access is already granted, so no Privacy pane can fix it.
+const deniedDespiteFullDiskReason = "完全磁盘访问权限已开启，但 macOS 仍拒绝移动这一项：它可能正被所属应用使用，或受系统保护。退出相关应用后重试，或在访达中处理。"
 
 // humanizeTrashError explains a failed move. macOS gates two different
 // permissions behind two different panes, so a bare "permission denied" would
